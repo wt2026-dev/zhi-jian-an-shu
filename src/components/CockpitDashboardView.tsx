@@ -23,6 +23,11 @@ import {
   ArrowLeft,
   X,
   ShieldAlert,
+  Target,
+  Zap,
+  ChevronRight,
+  Loader2,
+  FilePlus2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -55,6 +60,10 @@ import {
   sparePartsApi,
   complianceApi,
   knowledgeApi,
+  cockpitApi,
+  aiApi,
+  CockpitAbnormalItem,
+  CockpitAbnormalType,
 } from '../api';
 
 interface CockpitDashboardViewProps {
@@ -199,6 +208,115 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
 
   const pendingHazards = hazards.filter((h) => h.status !== 'closed');
   const majorHazards = pendingHazards.filter((h) => h.level === 'major');
+
+  /* ---------------- 异常下钻 → 一键干预（监测 → 定位 → 干预 闭环） ---------------- */
+  // 4 类可下钻指标卡的实时异常计数（与后端 /cockpit/abnormal-equipments 口径一致，用于卡片角标提示）
+  const healthAbnormalCount = equipments.filter(
+    (e) => ['warning', 'fault', 'overhauling'].includes(e.status) || (e.healthScore ?? 100) < 70
+  ).length;
+  const orderBacklogCount = workOrders.filter((w) => !['completed', 'cancelled'].includes(w.status)).length;
+  const inspectionAbnormalCount = inspections.filter((i) => (i.abnormalCount || 0) > 0).length;
+  const hazardPendingCount = pendingHazards.length;
+
+  const DRILL_META: Record<CockpitAbnormalType, { title: string; hint: (n: number) => string; desc: string }> = {
+    health: { title: '设备健康异常定位', hint: (n) => `异常 ${n} 台 · 点击定位干预`, desc: '健康分 / 运行状态异常设备' },
+    order: { title: '工单积压定位', hint: (n) => `积压 ${n} 单 · 点击定位干预`, desc: '存在未完结工单的设备' },
+    inspection: { title: '巡检异常定位', hint: (n) => `异常 ${n} 项 · 点击定位干预`, desc: '巡检发现异常点位的任务' },
+    hazard: { title: '隐患待处理定位', hint: (n) => `待处理 ${n} 项 · 点击定位干预`, desc: '未闭环隐患（重大置顶）' },
+  };
+
+  const [drillType, setDrillType] = useState<CockpitAbnormalType | null>(null);
+  const [drillItems, setDrillItems] = useState<CockpitAbnormalItem[]>([]);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const [drillError, setDrillError] = useState<string | null>(null);
+  // 正在生成工单 / 已生成成功的行（以 refId+type 标识）
+  const [creatingKeys, setCreatingKeys] = useState<Set<string>>(new Set());
+  const [createdKeys, setCreatedKeys] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // 打开异常定位抽屉：拉取后端异常明细
+  const openDrill = async (type: CockpitAbnormalType) => {
+    setDrillType(type);
+    setDrillItems([]);
+    setDrillError(null);
+    setDrillLoading(true);
+    try {
+      const res = await cockpitApi.getAbnormalEquipments(type);
+      setDrillItems(res.items || []);
+    } catch (e: any) {
+      setDrillError(e?.message || '获取异常明细失败，请稍后重试');
+    } finally {
+      setDrillLoading(false);
+    }
+  };
+
+  const closeDrill = () => setDrillType(null);
+
+  // 轻量提示（3 秒自动消失）
+  const showToast = (ok: boolean, text: string) => {
+    setToast({ ok, text });
+    setTimeout(() => setToast(null), 3200);
+  };
+
+  // 一键生成检修工单：复用 AI 工单草稿能力（/ai/generate-work-order），
+  // AI 降级时回退为规则文案，最终统一调用 POST /work-orders 落库
+  const handleOneClickRepair = async (item: CockpitAbnormalItem) => {
+    if (!item.equipmentId) {
+      showToast(false, '该异常未关联具体设备，请在工单页手动创建');
+      return;
+    }
+    const key = `${drillType}:${item.refId}`;
+    if (creatingKeys.has(key) || createdKeys.has(key)) return;
+    setCreatingKeys((s) => new Set(s).add(key));
+    try {
+      let draft: { title: string; description: string; priority: 'urgent' | 'high' | 'medium' | 'low' } | null = null;
+      try {
+        const aiRes = await aiApi.generateWorkOrder({
+          equipmentId: item.equipmentId,
+          abnormalDescription: `【${item.abnormalType}】${item.detail}`,
+        });
+        if (aiRes.success && aiRes.draft) {
+          draft = {
+            title: aiRes.draft.title,
+            description: aiRes.draft.description,
+            priority: aiRes.draft.priority,
+          };
+        }
+      } catch {
+        // AI 草稿失败不阻塞干预动作，走规则文案降级
+      }
+
+      const created = await workOrderApi.create({
+        title: draft?.title || `【${item.abnormalType}】${item.equipmentName} 检修工单`,
+        equipmentId: item.equipmentId,
+        faultType: item.abnormalType,
+        priority: draft?.priority || (item.severity === 'high' ? 'urgent' : 'high'),
+        description:
+          draft?.description ||
+          `${item.detail}。来源：驾驶舱「${drillType ? DRILL_META[drillType].title : '异常'}」一键干预；设备编号 ${item.equipmentCode}；${item.metricLabel} ${item.metricValue}；最近巡检 ${item.lastInspectionAt || '无记录'}。`,
+        creator: '驾驶舱一键干预',
+      });
+
+      setCreatedKeys((s) => new Set(s).add(key));
+      showToast(true, `检修工单已创建：${(created as any)?.orderNo || '成功'}，已刷新工单数`);
+      // 刷新工单列表让「累计工单/完工」等指标即时反映
+      try {
+        const fresh = await workOrderApi.list();
+        setWorkOrders(fresh || []);
+      } catch {
+        /* 列表刷新失败不阻断成功提示 */
+      }
+    } catch (e: any) {
+      const msg = e?.data?.message || e?.message || '创建失败，请稍后重试';
+      showToast(false, msg);
+    } finally {
+      setCreatingKeys((s) => {
+        const next = new Set(s);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   // AI calls from real /api/v1/ai-stats backend API
   const aiCallsCount = aiStats?.totalCalls || (186 + knowledgeList.length * 3 + workOrders.length);
@@ -449,8 +567,12 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
 
       {/* Top 6 KPI Cards Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-        {/* KPI 1: 设备总数与在线率 */}
-        <div className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-300 transition-all">
+        {/* KPI 1: 设备总数与在线率（可下钻：设备健康异常） */}
+        <button
+          type="button"
+          onClick={() => openDrill('health')}
+          className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all text-left cursor-pointer w-full"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>在线设备 / 总台数</span>
             <div className="icon-tile icon-tile-sm">
@@ -465,10 +587,23 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             <span className="text-slate-500">综合在网率</span>
             <span className="text-emerald-600 font-mono font-bold">{onlineRate}%</span>
           </div>
-        </div>
+          {/* 监测 → 定位 → 干预 闭环链路指示 */}
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+              监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
+            </span>
+            <span className={`text-[9px] font-semibold truncate ${healthAbnormalCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {healthAbnormalCount > 0 ? `异常 ${healthAbnormalCount} 台 · 点击定位干预` : '全部健康 · 点击查看'}
+            </span>
+          </div>
+        </button>
 
-        {/* KPI 2: 今日工单与完工率 */}
-        <div className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-300 transition-all">
+        {/* KPI 2: 今日工单与完工率（可下钻：工单积压） */}
+        <button
+          type="button"
+          onClick={() => openDrill('order')}
+          className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all text-left cursor-pointer w-full"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>累计工单 / 完工</span>
             <div className="icon-tile icon-tile-sm icon-tile-warning">
@@ -483,10 +618,23 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             <span className="text-slate-500">工单完结率</span>
             <span className="text-blue-600 font-mono font-bold">{woCompletionRate}%</span>
           </div>
-        </div>
+          {/* 监测 → 定位 → 干预 闭环链路指示 */}
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+              监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
+            </span>
+            <span className={`text-[9px] font-semibold truncate ${orderBacklogCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {orderBacklogCount > 0 ? `积压 ${orderBacklogCount} 单 · 点击定位干预` : '无积压 · 点击查看'}
+            </span>
+          </div>
+        </button>
 
-        {/* KPI 3: 巡检完成率 */}
-        <div className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-300 transition-all">
+        {/* KPI 3: 巡检完成率（可下钻：巡检异常） */}
+        <button
+          type="button"
+          onClick={() => openDrill('inspection')}
+          className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all text-left cursor-pointer w-full"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>点检任务完成率</span>
             <div className="icon-tile icon-tile-sm icon-tile-success">
@@ -500,10 +648,23 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             <span className="text-slate-500">已点检</span>
             <span className="text-slate-700 font-mono">{completedInspections} / {totalInspections} 点位</span>
           </div>
-        </div>
+          {/* 监测 → 定位 → 干预 闭环链路指示 */}
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+              监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
+            </span>
+            <span className={`text-[9px] font-semibold truncate ${inspectionAbnormalCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {inspectionAbnormalCount > 0 ? `异常 ${inspectionAbnormalCount} 项 · 点击定位干预` : '无异常 · 点击查看'}
+            </span>
+          </div>
+        </button>
 
-        {/* KPI 4: 待处理隐患 (重大置顶) */}
-        <div className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-300 transition-all">
+        {/* KPI 4: 待处理隐患（可下钻：隐患待处理） */}
+        <button
+          type="button"
+          onClick={() => openDrill('hazard')}
+          className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all text-left cursor-pointer w-full"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>在控隐患闭环</span>
             <div className="icon-tile icon-tile-sm icon-tile-danger">
@@ -522,7 +683,16 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
               {hazards.length > 0 ? (((hazards.length - pendingHazards.length) / hazards.length) * 100).toFixed(0) : '85'}%
             </span>
           </div>
-        </div>
+          {/* 监测 → 定位 → 干预 闭环链路指示 */}
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+              监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
+            </span>
+            <span className={`text-[9px] font-semibold truncate ${hazardPendingCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {hazardPendingCount > 0 ? `待处理 ${hazardPendingCount} 项 · 点击定位干预` : '全部闭环 · 点击查看'}
+            </span>
+          </div>
+        </button>
 
         {/* KPI 5: AI 智能调用次数 */}
         <div className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-300 transition-all">
@@ -898,6 +1068,192 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
               <span>问 AI 深入分析</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ==================== 异常定位抽屉：监测 → 定位 → 干预 闭环 ==================== */}
+      {drillType && (
+        <div className="fixed inset-0 z-[90] flex justify-end bg-slate-900/40 backdrop-blur-sm" onClick={closeDrill}>
+          <aside
+            className="h-full w-full max-w-md bg-white shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 抽屉头：闭环链路 + 关闭 */}
+            <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-white">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center">
+                  <Target className="w-4 h-4 mr-1.5 text-blue-600" />
+                  {DRILL_META[drillType].title}
+                </h3>
+                <button
+                  onClick={closeDrill}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                  aria-label="关闭异常定位抽屉"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="flex items-center text-[10px] text-slate-500 font-medium">
+                  <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">监测</span>
+                  <ChevronRight className="w-3 h-3 mx-0.5 text-slate-300" />
+                  <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold">定位（当前）</span>
+                  <ChevronRight className="w-3 h-3 mx-0.5 text-slate-300" />
+                  <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">干预</span>
+                </span>
+                <span className="text-[10px] text-slate-400">{DRILL_META[drillType].desc}</span>
+              </div>
+            </div>
+
+            {/* 明细列表 */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+              {drillLoading && (
+                <div className="py-10 flex flex-col items-center text-slate-400 text-xs">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-2" />
+                  正在定位异常设备…
+                </div>
+              )}
+
+              {!drillLoading && drillError && (
+                <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                  {drillError}
+                </div>
+              )}
+
+              {!drillLoading && !drillError && drillItems.length === 0 && (
+                <div className="py-12 text-center">
+                  <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
+                  <p className="text-xs text-emerald-600 font-medium">当前无该类异常，运行状态良好</p>
+                </div>
+              )}
+
+              {!drillLoading &&
+                drillItems.map((item) => {
+                  const rowKey = `${drillType}:${item.refId}`;
+                  const isCreating = creatingKeys.has(rowKey);
+                  const isCreated = createdKeys.has(rowKey);
+                  return (
+                    <div
+                      key={rowKey}
+                      className={`p-3 rounded-xl border text-xs transition-colors ${
+                        item.severity === 'high'
+                          ? 'bg-rose-50/60 border-rose-200'
+                          : 'bg-amber-50/50 border-amber-200'
+                      }`}
+                    >
+                      {/* 行头：设备 + 严重度 */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 truncate">{item.equipmentName}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">
+                            {item.equipmentCode}
+                            {item.workshop ? ` · ${item.workshop}` : ''}
+                          </div>
+                        </div>
+                        <span
+                          className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                            item.severity === 'high'
+                              ? 'bg-rose-100 text-rose-700 border-rose-200'
+                              : 'bg-amber-100 text-amber-700 border-amber-200'
+                          }`}
+                        >
+                          {item.severity === 'high' ? '高优先' : '中优先'}
+                        </span>
+                      </div>
+
+                      {/* 异常说明 */}
+                      <p className="mt-1.5 text-slate-700 leading-relaxed">{item.detail}</p>
+
+                      {/* 关键字段网格：异常类型 / 指标值 / 最近巡检 / 健康分 */}
+                      <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px]">
+                        <div className="p-1.5 rounded-lg bg-white/80 border border-slate-100">
+                          <span className="text-slate-400 block">异常类型</span>
+                          <span className="font-semibold text-slate-800">{item.abnormalType}</span>
+                        </div>
+                        <div className="p-1.5 rounded-lg bg-white/80 border border-slate-100">
+                          <span className="text-slate-400 block">{item.metricLabel}</span>
+                          <span className="font-mono font-bold text-blue-600">{String(item.metricValue)}</span>
+                        </div>
+                        <div className="p-1.5 rounded-lg bg-white/80 border border-slate-100">
+                          <span className="text-slate-400 block">最近巡检</span>
+                          <span className="font-mono text-slate-700">{item.lastInspectionAt || '无记录'}</span>
+                        </div>
+                        <div className="p-1.5 rounded-lg bg-white/80 border border-slate-100">
+                          <span className="text-slate-400 block">健康分</span>
+                          <span
+                            className={`font-mono font-bold ${
+                              item.healthScore == null ? 'text-slate-400' : item.healthScore < 70 ? 'text-rose-600' : 'text-emerald-600'
+                            }`}
+                          >
+                            {item.healthScore == null ? '—' : item.healthScore}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 一键干预 */}
+                      <button
+                        type="button"
+                        onClick={() => handleOneClickRepair(item)}
+                        disabled={isCreating || isCreated || !item.equipmentId}
+                        className={`mt-2.5 w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+                          isCreated
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
+                            : !item.equipmentId
+                            ? 'bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed'
+                            : 'btn-gradient text-white cursor-pointer hover:shadow-md disabled:opacity-60'
+                        }`}
+                      >
+                        {isCreating ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>AI 草稿生成中…</span>
+                          </>
+                        ) : isCreated ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>工单已生成 ✓</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-3.5 h-3.5" />
+                            <span>一键生成检修工单</span>
+                          </>
+                        )}
+                      </button>
+                      {!item.equipmentId && (
+                        <p className="mt-1 text-[9px] text-slate-400 flex items-center">
+                          <FilePlus2 className="w-3 h-3 mr-1" />
+                          该异常未关联设备，请到工单页手动创建
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* 抽屉底：干预说明 */}
+            <div className="p-3 border-t border-slate-200 bg-slate-50 text-[10px] text-slate-500 flex items-center">
+              <Zap className="w-3 h-3 mr-1 text-blue-500" />
+              一键干预将复用 AI 工单草稿能力自动填充标题/描述/优先级，并创建真实检修工单
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* 全局轻提示（创建成功 / 失败原因） */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium max-w-[90vw] ${
+            toast.ok
+              ? 'bg-emerald-600 text-white'
+              : 'bg-rose-600 text-white'
+          }`}
+          role="status"
+        >
+          <span className="flex items-center">
+            {toast.ok ? <CheckCircle2 className="w-4 h-4 mr-1.5" /> : <AlertTriangle className="w-4 h-4 mr-1.5" />}
+            {toast.text}
+          </span>
         </div>
       )}
     </div>

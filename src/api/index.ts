@@ -887,3 +887,31 @@ export const hazardsApi = {
       body: JSON.stringify(data),
     }),
 };
+
+// ==================== 驾驶舱异常下钻（监测 → 定位 → 干预 闭环） ====================
+
+export interface CockpitAbnormalItem {
+  equipmentId: string | null;
+  equipmentName: string;
+  equipmentCode: string;
+  workshop: string | null;
+  abnormalType: string;
+  detail: string;
+  metricLabel: string;
+  metricValue: number | string;
+  lastInspectionAt: string | null;
+  healthScore: number | null;
+  severity: 'high' | 'medium';
+  refId: string;
+  refTitle?: string;
+}
+
+export type CockpitAbnormalType = 'health' | 'order' | 'inspection' | 'hazard';
+
+export const cockpitApi = {
+  /** 按指标类型获取异常设备/事件明细，供驾驶舱下钻与一键生成检修工单 */
+  getAbnormalEquipments: (type: CockpitAbnormalType) =>
+    request<{ type: CockpitAbnormalType; count: number; items: CockpitAbnormalItem[]; timestamp: string }>(
+      `/cockpit/abnormal-equipments?type=${type}`
+    ),
+};
