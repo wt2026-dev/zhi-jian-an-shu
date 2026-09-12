@@ -83,7 +83,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
   }, [displayInspections, activeTaskId]);
 
   // AI 巡检报告状态
-  const [reportState, setReportState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; data?: AiReport | null }>({ open: false, loading: false, error: null });
+  const [reportState, setReportState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; reviewId?: string | null; data?: AiReport | null }>({ open: false, loading: false, error: null });
   const [hazardNotice, setHazardNotice] = useState<string | null>(null);
   const [createHazardOnSave, setCreateHazardOnSave] = useState(false);
   const [hazardLevelOnSave, setHazardLevelOnSave] = useState<'general' | 'major'>('general');
@@ -122,7 +122,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
         workshop: activeTask?.workshop,
       });
       if (res.success && res.report) {
-        setReportState({ open: true, loading: false, error: null, data: res.report });
+        setReportState({ open: true, loading: false, error: null, data: res.report, reviewId: res.reviewId });
       } else {
         setReportState({ open: true, loading: false, error: res.message || res.error || '报告生成失败', degraded: res.degraded });
       }
@@ -830,6 +830,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
         loading={reportState.loading}
         error={reportState.error}
         degraded={reportState.degraded}
+        pendingReview={!!reportState.reviewId}
         data={reportState.data}
         onClose={() => setReportState((prev) => ({ ...prev, open: false }))}
       />

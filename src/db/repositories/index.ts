@@ -18,3 +18,4 @@ export { SparePartsRepository } from "./sparePartsRepository.ts";
 export { HazardsRepository } from "./hazardsRepository.ts";
 export { ProcedureVideoRepository } from "./procedureVideoRepository.ts";
 export { AiTaskRepository, AiTaskStepRepository } from "./aiTaskRepository.ts";
+export { AiGenerationReviewRepository } from "./aiGenerationReviewRepository.ts";

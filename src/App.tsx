@@ -16,6 +16,7 @@ import { UserManagementView } from './components/UserManagementView';
 import { LoginView } from './components/LoginView';
 import { CockpitDashboardView } from './components/CockpitDashboardView';
 import { AiPipelineView } from './components/AiPipelineView';
+import { AdminAiReviewsView } from './components/AdminAiReviewsView';
 import { SparePartsView } from './components/SparePartsView';
 import { HazardsView } from './components/HazardsView';
 import { workOrderApi, equipmentApi, authApi, safetyPermitApi, knowledgeApi, inspectionApi, notificationApi } from './api';
@@ -113,7 +114,7 @@ export default function App() {
         if (targetEquipmentId) {
           setMobileScanEquipmentId(targetEquipmentId);
         }
-      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline'].includes(targetView)) {
+      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews'].includes(targetView)) {
         setActiveTab(targetView === 'equipment' ? 'equipments' : targetView);
       }
     } catch (e) {
@@ -662,6 +663,7 @@ export default function App() {
             />
           )}
           {activeTab === 'ai_pipeline' && <AiPipelineView />}
+          {activeTab === 'ai_reviews' && <AdminAiReviewsView />}
 
           {activeTab === 'users' && (
             <UserManagementView

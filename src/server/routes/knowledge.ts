@@ -30,6 +30,9 @@ import {
   handleCreateContribution,
   handleListContributions,
   handleAdoptContribution,
+  handleListAiReviews,
+  handleApproveAiReview,
+  handleRejectAiReview,
 } from "../controllers/contributionController.ts";
 
 export function registerKnowledgeRoutes(app: express.Express) {
@@ -70,4 +73,10 @@ export function registerKnowledgeRoutes(app: express.Express) {
   app.post("/api/ai/contributions/:id/adopt", requireAuth, requireRole(["admin"], "采纳知识贡献"), (req: any, res: any) => {
     return (app as any)._router.handle({ ...req, url: `/api/v1/ai/contributions/${req.params.id}/adopt` }, res);
   });
+
+  // ==================== AI 生成内容审核台（管理端，仅管理员） ====================
+  app.get("/api/v1/admin/ai-reviews", requireAuth, requireRole(["admin"], "查看 AI 生成内容审核列表"), handleListAiReviews);
+  app.post("/api/v1/admin/ai-reviews/:id/approve", requireAuth, requireRole(["admin"], "审核通过 AI 生成内容"), handleApproveAiReview);
+  app.post("/api/v1/admin/ai-reviews/:id/reject", requireAuth, requireRole(["admin"], "驳回 AI 生成内容"), handleRejectAiReview);
 }
+

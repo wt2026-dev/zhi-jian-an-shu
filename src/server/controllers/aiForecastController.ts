@@ -10,6 +10,7 @@ import { healthForecastSchema, generateReportSchema, safetyRiskAssessmentSchema 
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { EquipmentRepository, WorkOrderRepository, TelemetryRepository, InspectionRepository, SafetyPermitRepository } from "../../db/repositories/index.ts";
 import { runSafetyRiskAssessmentCore } from "../services/aiCapabilityService.ts";
+import { createPendingAiReview } from "../services/aiReviewService.ts";
 
 // ---------- 功能 4：设备健康趋势预测 ----------
 export const handleHealthForecast = async (req: any, res: any) => {
@@ -233,7 +234,14 @@ export const handleGenerateReport = async (req: any, res: any) => {
       model: DASHSCOPE_CHAT_MODEL,
     };
     aiCacheSet("generate-report", req.body, __body);
-    res.json(__body);
+    // AI 生成内容审核台：报告类 AI 生成同样登记待审核（报告无知识库检索，knowledge_sources 如实为空）
+    const reviewId = await createPendingAiReview({
+      aiEndpoint: "/api/v1/ai/generate-report",
+      sourceType: "report",
+      content: data,
+      knowledgeSources: [],
+    });
+    res.json({ ...__body, reviewId });
   } catch (err: any) {
     handleAiRouteError(res, err, "AI_GENERATE_REPORT", req);
   }
@@ -256,7 +264,14 @@ export const handleSafetyRiskAssessment = async (req: any, res: any) => {
         status: "SUCCESS",
         metadata: { permitType, equipmentId, riskLevel: result.body.assessment?.riskLevel, model: DASHSCOPE_CHAT_MODEL },
       });
-      return res.json(result.body);
+      // AI 生成内容审核台：登记待审核记录并在响应附加 reviewId（不改变原响应字段）
+      const reviewId = await createPendingAiReview({
+        aiEndpoint: "/api/v1/ai/safety-risk-assessment",
+        sourceType: "safety_risk",
+        content: result.body.assessment,
+        knowledgeSources: result.knowledgeSources,
+      });
+      return res.json({ ...result.body, reviewId });
     }
     if (result.outcome === "unavailable") {
       addAuditLog(req, {

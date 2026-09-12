@@ -10,6 +10,7 @@ import { generateWorkOrderAiSchema, rootCauseAnalysisSchema, generateMaintenance
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { EquipmentRepository, WorkOrderRepository } from "../../db/repositories/index.ts";
 import { runMaintenancePlanCore } from "../services/aiCapabilityService.ts";
+import { createPendingAiReview } from "../services/aiReviewService.ts";
 
 // ---------- 功能 1：智能工单生成 ----------
 export const handleGenerateWorkOrder = async (req: any, res: any) => {
@@ -204,7 +205,14 @@ export const handleGenerateMaintenancePlan = async (req: any, res: any) => {
         status: "SUCCESS",
         metadata: { equipmentId, workOrderId, model: DASHSCOPE_CHAT_MODEL },
       });
-      return res.json(result.body);
+      // AI 生成内容审核台：登记待审核记录并在响应附加 reviewId（不改变原响应字段）
+      const reviewId = await createPendingAiReview({
+        aiEndpoint: "/api/v1/ai/generate-maintenance-plan",
+        sourceType: "maintenance_plan",
+        content: result.body.plan,
+        knowledgeSources: result.knowledgeSources,
+      });
+      return res.json({ ...result.body, reviewId });
     }
     if (result.outcome === "unavailable") {
       addAuditLog(req, {

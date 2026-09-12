@@ -4,6 +4,7 @@ import {
   Tv,
   Sparkles,
   Workflow,
+  ScanSearch,
   Layers,
   Zap,
   Box,
@@ -86,6 +87,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     label: '系统管理',
     items: [
       { id: 'users', label: '用户与权限', icon: UserCheck },
+      { id: 'ai_reviews', label: 'AI 内容审核', icon: ScanSearch },
     ],
   },
 ];

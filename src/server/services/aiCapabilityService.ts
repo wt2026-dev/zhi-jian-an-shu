@@ -18,6 +18,8 @@ export interface CapabilityResult {
   body: any;
   /** 底层 AI 失败原因（degraded/failed 时用于审计日志） */
   errorMessage?: string;
+  /** 实际检索命中的知识库文章 id 列表（供 AI 生成内容审核台做知识溯源；不进响应体） */
+  knowledgeSources?: string[];
 }
 
 /** handleAiRouteError 最终兜底响应的等价构造（保持 200 + degraded 语义） */
@@ -177,7 +179,7 @@ ${similarCtx}
     const { data } = await callDashScopeJson(AI_EXPERT_SYSTEM, userPrompt);
     const body = { success: true, plan: data, model: DASHSCOPE_CHAT_MODEL };
     aiCacheSet("generate-maintenance-plan", input, body, { equipmentId: equipmentId });
-    return { outcome: "success", body };
+    return { outcome: "success", body, knowledgeSources: sopArticles.map((k: any) => k.id).filter(Boolean) };
   } catch (err: any) {
     if (err instanceof AiUnavailableError) {
       return {
@@ -279,7 +281,7 @@ ${permitCtx}
     const { data } = await callDashScopeJson(AI_EXPERT_SYSTEM, userPrompt);
     const body = { success: true, assessment: data, model: DASHSCOPE_CHAT_MODEL };
     aiCacheSet("safety-risk-assessment", input, body, { equipmentId: equipmentId });
-    return { outcome: "success", body };
+    return { outcome: "success", body, knowledgeSources: kbArticles.map((k: any) => k.id).filter(Boolean) };
   } catch (err: any) {
     if (err instanceof AiUnavailableError) {
       return {

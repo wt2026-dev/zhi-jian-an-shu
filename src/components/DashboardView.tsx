@@ -330,7 +330,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
     return { start: fmt(start), end: fmt(end) };
   });
-  const [reportState, setReportState] = useState<{ loading: boolean; error: string | null; degraded?: boolean; data?: AiReport | null }>({ loading: false, error: null });
+  const [reportState, setReportState] = useState<{ loading: boolean; error: string | null; degraded?: boolean; reviewId?: string | null; data?: AiReport | null }>({ loading: false, error: null });
 
   const handleGenerateReport = async () => {
     setReportState({ loading: true, error: null });
@@ -341,7 +341,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         endDate: reportRange.end,
       });
       if (res.success && res.report) {
-        setReportState({ loading: false, error: null, data: res.report });
+        setReportState({ loading: false, error: null, data: res.report, reviewId: res.reviewId });
       } else {
         setReportState({ loading: false, error: res.message || res.error || '报告生成失败', degraded: res.degraded });
       }
@@ -2032,6 +2032,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         loading={reportState.loading}
         error={reportState.error}
         degraded={reportState.degraded}
+        pendingReview={!!reportState.reviewId}
         data={reportState.data}
         onClose={() => setReportModalOpen(false)}
         configForm={

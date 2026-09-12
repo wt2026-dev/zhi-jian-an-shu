@@ -3,6 +3,7 @@ import { createEmbedding } from "../services/aiClient.ts";
 import { getDb } from "../../db/db.ts";
 import { KnowledgeRepository } from "../../db/repositories/index.ts";
 import { setDbKnowledgeArticles } from "./knowledgeController.ts";
+import { addAuditLog } from "../services/auditService.ts";
 
 // POST /api/v1/ai/feedback
 export const handleCreateAiFeedback = async (req: any, res: any) => {
@@ -124,5 +125,96 @@ export const handleAdoptContribution = async (req: any, res: any) => {
   } catch (err: any) {
     console.error("Adopt contribution error:", err);
     return res.status(500).json({ error: "采纳知识贡献失败: " + err.message });
+  }
+};
+
+// ==================== AI 生成内容审核台（管理端） ====================
+
+const AI_REVIEW_SOURCE_LABELS: Record<string, string> = {
+  maintenance_plan: "检修方案",
+  safety_risk: "作业风险评估",
+  report: "AI 报告",
+  work_order_draft: "工单草稿",
+};
+
+// GET /api/v1/admin/ai-reviews?status=pending|approved|rejected
+export const handleListAiReviews = async (req: any, res: any) => {
+  try {
+    const { AiGenerationReviewRepository } = await import("../../db/repositories/index.ts");
+    const reviews = await AiGenerationReviewRepository.list({
+      status: req.query.status || undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    // 知识库溯源：将 knowledge_sources 的文章 id 补充为标题与摘录片段
+    const { rows } = await getDb().then((db) => db.query(`SELECT id, title, category, summary FROM knowledge_articles;`));
+    const kbMap = Object.fromEntries(rows.map((r: any) => [r.id, r]));
+    res.json(
+      reviews.map((r: any) => ({
+        ...r,
+        sourceTypeLabel: AI_REVIEW_SOURCE_LABELS[r.sourceType] || r.sourceType,
+        knowledgeRefs: (r.knowledgeSources || [])
+          .map((id: string) => kbMap[id])
+          .filter(Boolean)
+          .map((k: any) => ({ id: k.id, title: k.title, category: k.category, excerpt: (k.summary || "").slice(0, 160) })),
+      }))
+    );
+  } catch (err: any) {
+    res.status(500).json({ error: "获取 AI 生成审核列表失败", message: err.message });
+  }
+};
+
+// POST /api/v1/admin/ai-reviews/:id/approve
+export const handleApproveAiReview = async (req: any, res: any) => {
+  try {
+    const { AiGenerationReviewRepository } = await import("../../db/repositories/index.ts");
+    const reviewer = req.currentUser?.name || req.currentUser?.username || "admin";
+    const updated = await AiGenerationReviewRepository.review(req.params.id, {
+      status: "approved",
+      reviewer,
+      note: req.body?.review_note,
+    });
+    if (!updated) {
+      return res.status(404).json({ error: "审核记录不存在或已审核（仅 pending 状态可审核）" });
+    }
+    addAuditLog(req, {
+      actionType: "AI_REVIEW_APPROVE",
+      module: "AI 内容审核",
+      detail: `AI 生成内容审核通过 (${updated.sourceType}, ${updated.aiEndpoint})`,
+      status: "SUCCESS",
+      metadata: { reviewId: updated.id, sourceType: updated.sourceType },
+    });
+    res.json({ success: true, review: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: "审核通过操作失败", message: err.message });
+  }
+};
+
+// POST /api/v1/admin/ai-reviews/:id/reject
+export const handleRejectAiReview = async (req: any, res: any) => {
+  try {
+    const { AiGenerationReviewRepository } = await import("../../db/repositories/index.ts");
+    const reviewer = req.currentUser?.name || req.currentUser?.username || "admin";
+    const note = req.body?.review_note || "";
+    if (!note.trim()) {
+      return res.status(400).json({ error: "驳回必须填写原因 (review_note)", code: "INVALID_INPUT" });
+    }
+    const updated = await AiGenerationReviewRepository.review(req.params.id, {
+      status: "rejected",
+      reviewer,
+      note,
+    });
+    if (!updated) {
+      return res.status(404).json({ error: "审核记录不存在或已审核（仅 pending 状态可审核）" });
+    }
+    addAuditLog(req, {
+      actionType: "AI_REVIEW_REJECT",
+      module: "AI 内容审核",
+      detail: `AI 生成内容审核驳回 (${updated.sourceType}): ${note.slice(0, 80)}`,
+      status: "SUCCESS",
+      metadata: { reviewId: updated.id, sourceType: updated.sourceType, note: note.slice(0, 200) },
+    });
+    res.json({ success: true, review: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: "审核驳回操作失败", message: err.message });
   }
 };
