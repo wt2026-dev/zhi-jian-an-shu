@@ -915,3 +915,52 @@ export const cockpitApi = {
       `/cockpit/abnormal-equipments?type=${type}`
     ),
 };
+
+// ==================== AI 协同任务链路（Pipeline） ====================
+
+export interface AiPipelineStep {
+  id: string;
+  taskId: string;
+  stepName: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  result: { outcome?: string; degraded?: boolean; message?: string; data?: any } | null;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface AiPipelineReport {
+  equipment: { id: string; name: string; code: string; workshop?: string; healthScore?: number };
+  problemDescription: string;
+  diagnosis?: any;
+  plan?: any;
+  risk?: any;
+  assignee?: any;
+  degradedSteps: string[];
+  generatedAt: string;
+}
+
+export interface AiPipelineTask {
+  id: string;
+  scene: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  currentStep: string | null;
+  result: { failedSteps?: string[]; degradedSteps?: string[]; report?: AiPipelineReport } | null;
+  steps: AiPipelineStep[];
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export const aiPipelineApi = {
+  /** 创建并启动协同任务（故障诊断 → 检修方案 → 风险审核 ∥ 派单推荐） */
+  create: (data: { equipmentId: string; problemDescription: string; scene?: string }) =>
+    request<{ success: boolean; taskId: string; scene: string; steps: string[]; message: string }>('/ai/pipeline', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** 查询任务与各步骤状态 */
+  getById: (id: string) => request<{ success: boolean; task: AiPipelineTask }>(`/ai/pipeline/${id}`),
+};

@@ -16,6 +16,7 @@ import {
   equipmentSummarySchema,
   recommendAssigneeSchema,
   alarmCorrelationSchema,
+  pipelineCreateSchema,
 } from "../schemas/ai.ts";
 import { handleGetAiStats } from "../controllers/aiStatsController.ts";
 import {
@@ -29,6 +30,7 @@ import {
 import { handleVisionDefectDetect, makeVisionCompatHandler, handleSpeechToText, handleVideoAnalysis } from "../controllers/aiVisionController.ts";
 import { handleGenerateWorkOrder, handleRootCauseAnalysis, handleGenerateMaintenancePlan } from "../controllers/aiGenerationController.ts";
 import { handleHealthForecast, handleGenerateReport, handleSafetyRiskAssessment } from "../controllers/aiForecastController.ts";
+import { handleCreatePipeline, handleGetPipeline, handlePipelineEvents } from "../controllers/aiPipelineController.ts";
 
 // ==================== AI 统计与 v1 功能路由（自 server.ts 拆出，保持原相对顺序） ====================
 export function registerAiRoutes(app: express.Express) {
@@ -87,4 +89,18 @@ export function registerAiRoutes(app: express.Express) {
 
   // ---------- 功能 10：报警智能关联分析 ----------
   app.post("/api/v1/ai/alarm-correlation", requireAuth, validateBody(alarmCorrelationSchema), handleAlarmCorrelation);
+
+  // ==========================================================================
+  // AI 协同任务链路 (Pipeline)：可编排 / 可追踪 / 可审核
+  // 场景「AI 协同诊断」：故障诊断 → 检修方案生成 →（风险审核 ∥ 派单推荐）
+  // ==========================================================================
+
+  // 创建并启动协同任务（立即返回任务 ID，编排异步执行）
+  app.post("/api/v1/ai/pipeline", requireAuth, validateBody(pipelineCreateSchema), handleCreatePipeline);
+
+  // 查询任务与各步骤状态
+  app.get("/api/v1/ai/pipeline/:id", requireAuth, handleGetPipeline);
+
+  // SSE 实时推送步骤进度（沿用现有 SSE 鉴权方式：requireAuth + Bearer Token）
+  app.get("/api/v1/ai/pipeline/:id/events", requireAuth, handlePipelineEvents);
 }

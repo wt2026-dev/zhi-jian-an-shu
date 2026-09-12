@@ -9,6 +9,7 @@ import { validateBody } from "../middleware/validate.ts";
 import { generateWorkOrderAiSchema, rootCauseAnalysisSchema, generateMaintenancePlanSchema } from "../schemas/ai.ts";
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { EquipmentRepository, WorkOrderRepository } from "../../db/repositories/index.ts";
+import { runMaintenancePlanCore } from "../services/aiCapabilityService.ts";
 
 // ---------- 功能 1：智能工单生成 ----------
 export const handleGenerateWorkOrder = async (req: any, res: any) => {
@@ -190,95 +191,41 @@ export const handleGenerateMaintenancePlan = async (req: any, res: any) => {
     if (!eq) {
       return res.status(404).json({ success: false, error: "设备不存在，请核对 equipmentId" });
     }
-    let workOrderCtx = "无关联工单";
-    if (workOrderId) {
-      const wo = await WorkOrderRepository.getById(workOrderId);
-      if (wo) {
-        workOrderCtx = `工单 ${wo.orderNo}「${wo.title}」安全要求: ${(wo.safetyRequirements || []).join("; ")}`;
-      }
+    // 核心逻辑抽取至 services/aiCapabilityService.runMaintenancePlanCore，此处保留缓存命中外的审计与 HTTP 语义
+    const result = await runMaintenancePlanCore({ equipmentId, faultDescription, workOrderId });
+    if (result.outcome === "cache") {
+      return res.json(result.body);
     }
-    const sopArticles = await findRelevantKnowledge(["SOP", "规程", eq.category || "", eq.name || "", "检修", "润滑", "对中"], 3);
-    const sopCtx = sopArticles
-      .map((k: any) => `- 《${k.title}》: ${(k.content || k.summary || "").slice(0, 150)}`)
-      .join("\n") || "无";
-    const similarOrders = (await WorkOrderRepository.getAll({ equipmentId }))
-      .filter((w: any) => w.repairLog)
-      .slice(0, 2);
-    const similarCtx = similarOrders
-      .map((w: any) => `- [${w.orderNo}] ${w.title}: 处理步骤 ${w.repairLog.resolutionSteps || "无"}`)
-      .join("\n") || "无";
-
-    const userPrompt = `请为以下设备故障编制一份可现场执行的检修作业指导书。
-【设备档案】${eq.name} (${eq.code}) | 类别: ${eq.category} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop} | 位置: ${eq.location}
-【故障描述】${faultDescription}
-【关联工单】${workOrderCtx}
-【知识库检修SOP摘录】
-${sopCtx}
-【同设备历史检修记录】
-${similarCtx}
-
-严格按如下 JSON 结构输出:
-{
-  "overview": "方案概述 (80字内)",
-  "steps": [{"step": 1, "operation": "操作内容与要点", "qualityStandard": "质量标准/验收值"}],
-  "safetyMeasures": {
-    "lotoPoints": ["能量隔离点1 (含隔离对象与锁具要求)"],
-    "ppe": ["PPE 要求1"],
-    "highRiskNotes": ["高危作业提示1"]
-  },
-  "tools": [{"name": "工具名称", "spec": "规格"}],
-  "spareParts": [{"name": "备件名称", "spec": "规格", "qty": 1}],
-  "qualityCheckpoints": ["关键质检点1"],
-  "estimatedHours": 4,
-  "workers": 2
-}`;
-
-    const __cached = aiCacheGet("generate-maintenance-plan", req.body);
-    if (__cached) {
-      return res.json(Object.assign({}, __cached.value, { fromCache: true, cachedAt: __cached.cachedAt, model: "cache" }));
+    if (result.outcome === "success") {
+      addAuditLog(req, {
+        actionType: "AI_GENERATE_MAINTENANCE_PLAN",
+        module: "ai",
+        detail: `AI 生成检修方案 (${eq.name})，共 ${result.body.plan?.steps?.length || 0} 个步骤`,
+        status: "SUCCESS",
+        metadata: { equipmentId, workOrderId, model: DASHSCOPE_CHAT_MODEL },
+      });
+      return res.json(result.body);
     }
-    const { data } = await callDashScopeJson(AI_EXPERT_SYSTEM, userPrompt);
+    if (result.outcome === "unavailable") {
+      addAuditLog(req, {
+        actionType: "AI_GENERATE_MAINTENANCE_PLAN",
+        module: "ai",
+        detail: `AI 功能降级 (未配置密钥): ${result.errorMessage}`,
+        status: "FAILED",
+        metadata: { degraded: true },
+      });
+      return res.status(200).json(result.body);
+    }
+    // degraded：规则引擎降级结果
     addAuditLog(req, {
       actionType: "AI_GENERATE_MAINTENANCE_PLAN",
       module: "ai",
-      detail: `AI 生成检修方案 (${eq.name})，共 ${data.steps?.length || 0} 个步骤`,
-      status: "SUCCESS",
-      metadata: { equipmentId, workOrderId, model: DASHSCOPE_CHAT_MODEL },
+      detail: `AI 调用失败: ${result.errorMessage}`,
+      status: "FAILED",
+      metadata: { error: String(result.errorMessage).slice(0, 200) },
     });
-    const __body = { success: true, plan: data, model: DASHSCOPE_CHAT_MODEL };
-    aiCacheSet("generate-maintenance-plan", req.body, __body, { equipmentId: equipmentId });
-    res.json(__body);
+    return res.status(200).json(result.body);
   } catch (err: any) {
-    // 规则引擎降级：基于知识库 SOP 与设备类别生成标准作业框架（200 + degraded 标记）
-    return handleAiRouteError(res, err, "AI_GENERATE_MAINTENANCE_PLAN", req, async () => {
-      var eq2 = await EquipmentRepository.getById(req.body.equipmentId);
-      var eqName = eq2 ? eq2.name : "目标设备";
-      var eqCategory = eq2 ? eq2.category : "旋转机电设备";
-      var sopArticles = await findRelevantKnowledge(["SOP", "规程", eqCategory, eqName, "检修"], 3);
-      var sopTitles = sopArticles.map(function (k: any) { return k.title; });
-      return {
-        success: true, degraded: true,
-        message: "AI 服务暂不可用，已返回规则引擎结果",
-        plan: {
-          overview: `基于《${sopTitles[0] || "通用检修规程"}》与设备 ${eqCategory} 类别生成的标准检修作业框架，请结合现场实际细化。`,
-          steps: [
-            { step: 1, operation: `执行 LOTO 停电挂牌：隔离 ${eqName} 动力回路并验证零能量状态`, qualityStandard: "验电确认无电压，锁具双人签字" },
-            { step: 2, operation: `按《${sopTitles[0] || "检修规程"}》逐项拆检故障部位`, qualityStandard: "拆检记录完整，部件外观无二次损伤" },
-            { step: 3, operation: "更换/修复故障部件并复装", qualityStandard: "紧固扭矩达标，装配间隙符合手册要求" },
-            { step: 4, operation: "试运行并复测运行参数", qualityStandard: "温度/振动/电流回归受控范围" },
-          ],
-          safetyMeasures: {
-            lotoPoints: [`${eqName} 主回路断路器`, "控制电源与二次回路"],
-            ppe: ["绝缘手套", "安全帽", "防护目镜", "劳保鞋"],
-            highRiskNotes: ["严禁带电作业", "试运行前确认人员撤离"],
-          },
-          tools: [{ name: "万用表", spec: "CAT III 600V" }, { name: "扭矩扳手", spec: "按紧固扭矩选型" }, { name: "塞尺", spec: "0.02-0.5mm" }],
-          spareParts: [],
-          qualityCheckpoints: ["隔离验证记录", "复装扭矩记录", "试运行参数记录"],
-          estimatedHours: 4,
-          workers: 2,
-        },
-      };
-    });
+    return handleAiRouteError(res, err, "AI_GENERATE_MAINTENANCE_PLAN", req);
   }
 };

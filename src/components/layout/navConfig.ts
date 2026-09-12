@@ -3,6 +3,7 @@ import {
   Activity,
   Tv,
   Sparkles,
+  Workflow,
   Layers,
   Zap,
   Box,
@@ -43,6 +44,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     label: '智能 AI',
     items: [
       { id: 'ai_assistant', label: 'AI数字人助手', icon: Sparkles, highlight: true },
+      { id: 'ai_pipeline', label: 'AI 协同', icon: Workflow, highlight: true },
     ],
   },
   {

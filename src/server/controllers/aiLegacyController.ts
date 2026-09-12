@@ -3,6 +3,7 @@ import { getAiClient, extractAiJson } from "../services/aiClient.ts";
 import { generateFallbackExpertReply, generateFallbackDiagnosis } from "../services/aiExpert.ts";
 import { DASHSCOPE_CHAT_MODEL, DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
 import { getDb } from "../../db/db.ts";
+import { runFaultDiagnosisCore } from "../services/aiCapabilityService.ts";
 
 // ==================== legacy AI 路由 handler ====================
 
@@ -173,77 +174,13 @@ ${equipment ? `\n【现场关联设备】: ${equipment}` : ""}`;
 }
 
 // AI 智能故障诊断向导 (Fault Diagnosis Wizard)
+// AI 智能故障诊断向导 (Fault Diagnosis Wizard)
+// 核心逻辑抽取至 services/aiCapabilityService.runFaultDiagnosisCore，此处仅保留 HTTP 语义
 export async function handleAiDiagnose(req: any, res: any) {
   try {
     const { equipmentName, equipmentCode, category, symptoms, telemetry, errorCodes } = req.body;
-    const ai = getAiClient();
-
-    const prompt = `请对以下工业设备进行深度故障诊断分析并返回专业诊断报告：
-设备名称: ${equipmentName || "工业多级离心泵"} (${equipmentCode || "PUMP-2024-03"})
-设备类型: ${category || "泵类"}
-现场故障现象/异常征兆: ${symptoms || "轴承箱剧烈振动，伴随高温报警与空化异响"}
-遥测数据:
-- 轴承温度: ${telemetry?.temperature ?? 82.5} °C (正常阈值 < 70°C)
-- 振动速度有效值(RMS): ${telemetry?.vibration ?? 7.8} mm/s (正常阈值 < 4.5 mm/s)
-- 工作电压: ${telemetry?.voltage ?? 382} V
-- 运行电流: ${telemetry?.current ?? 54.2} A (额定 48A)
-- 负载率: ${telemetry?.loadRate ?? 92}%
-报警代码: ${errorCodes || "E-VIB-02 (振动超限), E-TEMP-04 (轴瓦过温)"}
-
-请严格按 JSON 格式返回分析结果，格式如下：
-{
-  "severity": "严重" | "较高" | "一般" | "轻微",
-  "urgencyScore": 85,
-  "summary": "简明扼要的一句话诊断结论",
-  "probableCauses": [
-    { "cause": "可能原因名称", "probability": 85, "detail": "详细机理分析" }
-  ],
-  "safetyPrecautions": [
-    "安全防范要求1", "安全防范要求2"
-  ],
-  "recommendedActions": [
-    { "step": 1, "action": "具体检修排查步骤", "tools": "所需工具/仪器", "standard": "验收标准" }
-  ],
-  "spareParts": [
-    { "name": "备件名称", "spec": "规格型号", "qty": 1, "unit": "套" }
-  ],
-  "estimatedRepairHours": 3.5
-}`;
-
-    if (ai) {
-      try {
-        const diagnoseSystemPrompt = `你是一位拥有20年工业重型设备（离心泵、压缩机、减速机、大型变频电机、数控机床、工业机器人）检修与故障诊断经验的高级工程师。你的职责是基于现场设备异常与遥测数据进行深度工程机理分析。
-你的回答必须遵循以下规则：
-1. 诊断结论客观严谨、结构清晰，深入根本机理，步骤具备现场工程可操作性，严禁空泛理论。
-2. 涉及危险作业（高压断电、动火、受限空间、登高、吊装、机械卷入）时，在 safetyPrecautions 中必须明确包含【安全警示】并给出严格的 LOTO 能量隔离（停电挂牌上锁验证零能量）与 GB 30871 高危作业防护要点。
-3. 关键排查步骤分点编号，备件型号推荐使用标准工业通用规格。
-4. 必须严格输出合法 JSON，禁止输出任何 JSON 以外的解释文字或 markdown 标记。`;
-
-        // DashScope qwen-plus 结构化故障诊断 (JSON 输出)
-        const response = await ai.chat.completions.create({
-          model: DASHSCOPE_CHAT_MODEL,
-          messages: [
-            {
-              role: "system",
-              content: diagnoseSystemPrompt,
-            },
-            { role: "user", content: prompt },
-          ],
-          temperature: 0.3,
-        });
-
-        const rawText = response.choices?.[0]?.message?.content?.trim() || "{}";
-        const parsed = extractAiJson(rawText);
-        if (parsed && (parsed.summary || parsed.probableCauses)) {
-          return res.json({ success: true, diagnosis: parsed, model: DASHSCOPE_CHAT_MODEL });
-        }
-      } catch (aiErr: any) {
-        console.error("DashScope Diagnose Error:", aiErr?.message || aiErr);
-      }
-    }
-
-    const fallbackDiagnosis = await generateFallbackDiagnosis(equipmentName, symptoms, telemetry);
-    return res.json({ success: true, degraded: true, diagnosis: fallbackDiagnosis });
+    const result = await runFaultDiagnosisCore({ equipmentName, equipmentCode, category, symptoms, telemetry, errorCodes });
+    return res.json(result.body);
   } catch (error: any) {
     console.error("Diagnose error:", error);
     res.status(500).json({ success: false, error: error.message });

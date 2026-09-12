@@ -9,6 +9,7 @@ import { validateBody } from "../middleware/validate.ts";
 import { healthForecastSchema, generateReportSchema, safetyRiskAssessmentSchema } from "../schemas/ai.ts";
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { EquipmentRepository, WorkOrderRepository, TelemetryRepository, InspectionRepository, SafetyPermitRepository } from "../../db/repositories/index.ts";
+import { runSafetyRiskAssessmentCore } from "../services/aiCapabilityService.ts";
 
 // ---------- 功能 4：设备健康趋势预测 ----------
 export const handleHealthForecast = async (req: any, res: any) => {
@@ -242,56 +243,40 @@ export const handleGenerateReport = async (req: any, res: any) => {
 export const handleSafetyRiskAssessment = async (req: any, res: any) => {
   try {
     const { permitType, equipmentId, workDescription, location, hazards } = req.body;
-    const eq = equipmentId ? await EquipmentRepository.getById(equipmentId) : null;
-    const kbArticles = await findRelevantKnowledge(
-      ["安全", "LOTO", "动火", "受限空间", "高处", ...(permitType || "").split(""), ...(hazards || [])].filter(Boolean),
-      5
-    );
-    const kbCtx = kbArticles.map((k: any) => `- 《${k.title}》: ${(k.content || k.summary || "").slice(0, 180)}`).join("\n") || "无";
-    const similarPermits = (await SafetyPermitRepository.getAll())
-      .filter((p: any) => (p.permitType || "").includes(permitType.slice(0, 2)))
-      .slice(0, 4);
-    const permitCtx = similarPermits
-      .map((p: any) => `- [${p.permitNo}] ${p.title} (风险等级: ${p.riskLevel}, 状态: ${p.status}, LOTO: ${p.lotoNumber || "无"})`)
-      .join("\n") || "无";
-
-    const userPrompt = `请对以下高危作业进行安全风险评估 (JSA 作业安全分析)。
-【作业票类型】${permitType}
-【作业内容】${workDescription}
-【作业地点】${location || "未指定"}
-【关联设备】${eq ? `${eq.name} (${eq.code}) | ${eq.category} | ${eq.workshop}` : "无关联设备"}
-【已辨识危害】${hazards?.length ? hazards.join("; ") : "无"}
-【知识库安全规程摘录】
-${kbCtx}
-【历史同类作业票】
-${permitCtx}
-
-严格按如下 JSON 结构输出:
-{
-  "riskLevel": "低|中|高|极高 之一",
-  "riskReason": "风险等级评定理由",
-  "hazardIdentifications": [{"category": "机械伤害|电气|高处坠落|受限空间|火灾爆炸|中毒窒息|其他", "hazard": "具体危害", "level": "高|中|低"}],
-  "jsaMeasures": [{"hazard": "对应的危害", "control": "控制措施"}],
-  "ppeList": ["必须的 PPE 1"],
-  "lotoAdvice": { "required": true, "isolationPoints": ["能量隔离点1"], "lockCount": 2 },
-  "approvalFocusPoints": ["审批需重点核实项1"]
-}`;
-
-    const __cached = aiCacheGet("safety-risk-assessment", req.body);
-    if (__cached) {
-      return res.json(Object.assign({}, __cached.value, { fromCache: true, cachedAt: __cached.cachedAt, model: "cache" }));
+    // 核心逻辑抽取至 services/aiCapabilityService.runSafetyRiskAssessmentCore，此处保留审计与 HTTP 语义
+    const result = await runSafetyRiskAssessmentCore({ permitType, equipmentId, workDescription, location, hazards });
+    if (result.outcome === "cache") {
+      return res.json(result.body);
     }
-    const { data } = await callDashScopeJson(AI_EXPERT_SYSTEM, userPrompt);
+    if (result.outcome === "success") {
+      addAuditLog(req, {
+        actionType: "AI_SAFETY_RISK_ASSESSMENT",
+        module: "ai",
+        detail: `AI 作业票风险评估 (${permitType}): 风险等级 ${result.body.assessment?.riskLevel}`,
+        status: "SUCCESS",
+        metadata: { permitType, equipmentId, riskLevel: result.body.assessment?.riskLevel, model: DASHSCOPE_CHAT_MODEL },
+      });
+      return res.json(result.body);
+    }
+    if (result.outcome === "unavailable") {
+      addAuditLog(req, {
+        actionType: "AI_SAFETY_RISK_ASSESSMENT",
+        module: "ai",
+        detail: `AI 功能降级 (未配置密钥): ${result.errorMessage}`,
+        status: "FAILED",
+        metadata: { degraded: true },
+      });
+      return res.status(200).json(result.body);
+    }
+    // failed：无规则降级，返回统一失败响应
     addAuditLog(req, {
       actionType: "AI_SAFETY_RISK_ASSESSMENT",
       module: "ai",
-      detail: `AI 作业票风险评估 (${permitType}): 风险等级 ${data.riskLevel}`,
-      status: "SUCCESS",
-      metadata: { permitType, equipmentId, riskLevel: data.riskLevel, model: DASHSCOPE_CHAT_MODEL },
+      detail: `AI 调用失败: ${result.errorMessage}`,
+      status: "FAILED",
+      metadata: { error: String(result.errorMessage).slice(0, 200) },
     });
-    const __body = { success: true, assessment: data, model: DASHSCOPE_CHAT_MODEL };
-    aiCacheSet("safety-risk-assessment", req.body, __body, { equipmentId: equipmentId });
-    res.json(__body);
+    return res.status(200).json(result.body);
   } catch (err: any) {
     handleAiRouteError(res, err, "AI_SAFETY_RISK_ASSESSMENT", req);
   }
