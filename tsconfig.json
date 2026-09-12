@@ -25,5 +25,5 @@
     "esModuleInterop": true,
     "noEmit": true
   },
-  "exclude": ["scratch", "dist", "node_modules"]
+  "exclude": ["scratch", "dist", "node_modules", "archive"]
 }
