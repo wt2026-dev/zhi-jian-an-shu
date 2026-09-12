@@ -51,7 +51,7 @@ docker compose up -d # 容器化部署
 
 ## 数据库表
 
-迁移脚本 `src/db/migrations/` 按编号 001–014 连续唯一（按文件名字典序执行，全部幂等），共 **23 张业务表**：
+迁移脚本 `src/db/migrations/` 按编号 001–017 连续唯一（按文件名字典序执行，全部幂等），共 **27 张业务表**：
 
 | 分域 | 表 |
 |---|---|
@@ -64,6 +64,7 @@ docker compose up -d # 容器化部署
 | 作业指引与视频 | `maintenance_procedures`、`procedure_videos` |
 | 备件 | `spare_parts`、`spare_parts_movements` |
 | 通知 / 审计 / 文件 | `notifications`、`audit_logs`、`upload_files` |
+| AI 协同与治理 | `ai_tasks`、`ai_task_steps`、`ai_generation_reviews`、`ai_model_configs` |
 
 ## 数据备份
 
@@ -77,7 +78,9 @@ docker compose up -d # 容器化部署
 server.ts               # 兼容入口（装配与业务实现见 src/server/：routes/ controllers/ services/ middleware/）
 src/api/index.ts        # 前端 API 客户端
 src/components/         # React 视图与 AI 组件
-src/db/                 # 迁移 SQL（001–014）、Repository、种子数据
+src/db/                 # 迁移 SQL（001–017）、Repository、种子数据
 src/utils/logger.ts     # pino 日志（控制台 + 文件轮转）
 scripts/                # 备份/恢复脚本
 ```
+
+> 说明：`backend/`（早期 Python 原型，已由 Node.js 实现替代，2026-09 移除）。
