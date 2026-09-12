@@ -1,0 +1,694 @@
+/* offlinedata.wxss - 离线数据与缓存管理 */
+@import '../../common.wxss';
+
+page {
+  background: var(--surface);
+  min-height: 100vh;
+}
+
+.od-page {
+  padding: 20rpx 24rpx 160rpx;
+}
+
+/* ===== 顶部导航 ===== */
+.od-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+
+.od-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  background: var(--surface-container-high);
+  border-radius: 12rpx;
+  padding: 10rpx 16rpx;
+}
+
+.od-nav-arrow {
+  font-size: 30rpx;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.od-nav-node {
+  font-size: 20rpx;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.od-nav-back-text {
+  font-size: 18rpx;
+  color: var(--tech-muted);
+  text-transform: uppercase;
+  letter-spacing: 1rpx;
+}
+
+.od-nav-status {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  background: var(--surface-container-high);
+  border-radius: 12rpx;
+  padding: 10rpx 16rpx;
+}
+
+.od-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: var(--status-green);
+  box-shadow: 0 2rpx 6rpx rgba(16, 185, 129, 0.25);
+}
+
+.od-nav-status-text {
+  font-size: 18rpx;
+  color: var(--status-green);
+  letter-spacing: 1rpx;
+}
+
+/* ===== 页面标题 ===== */
+.od-title-block {
+  margin-bottom: 24rpx;
+}
+
+.od-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.od-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: var(--on-surface);
+  letter-spacing: 1rpx;
+}
+
+.od-node-tag {
+  font-size: 18rpx;
+  color: var(--primary);
+  background: var(--surface-container-high);
+  border-radius: 8rpx;
+  padding: 4rpx 12rpx;
+}
+
+.od-subtitle {
+  display: block;
+  font-size: 20rpx;
+  color: var(--tech-muted);
+  letter-spacing: 2rpx;
+  margin-top: 6rpx;
+  text-transform: uppercase;
+}
+
+/* ===== 通用卡片 ===== */
+.od-card {
+  background: var(--surface-container);
+  border: 1rpx solid var(--industrial-border);
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+}
+
+/* ===== 安全协议条 ===== */
+.od-security {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.od-security-icon {
+  font-size: 34rpx;
+}
+
+.od-security-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.od-security-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.od-security-desc {
+  display: block;
+  font-size: 20rpx;
+  color: var(--tech-muted);
+  margin-top: 4rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.od-badge {
+  font-size: 18rpx;
+  border-radius: 8rpx;
+  padding: 6rpx 14rpx;
+  flex-shrink: 0;
+}
+
+.od-badge-cyan {
+  color: var(--on-primary);
+  background: var(--primary);
+  font-weight: 600;
+}
+
+/* ===== 存储池监控 ===== */
+.od-storage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
+.od-storage-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.od-storage-icon {
+  font-size: 26rpx;
+}
+
+.od-storage-label {
+  font-size: 22rpx;
+  color: var(--tech-muted);
+  text-transform: uppercase;
+  letter-spacing: 1rpx;
+}
+
+.od-storage-usage {
+  font-size: 24rpx;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.od-storage-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6rpx;
+  margin-bottom: 20rpx;
+}
+
+.od-storage-value {
+  font-size: 52rpx;
+  font-weight: 700;
+  color: var(--on-surface);
+  font-family: 'Courier New', monospace;
+}
+
+.od-storage-unit {
+  font-size: 20rpx;
+  color: var(--tech-muted);
+}
+
+.od-storage-divider {
+  font-size: 24rpx;
+  color: var(--tech-dim);
+  margin: 0 6rpx;
+}
+
+.od-storage-total {
+  font-size: 34rpx;
+  color: var(--tech-muted);
+  font-family: 'Courier New', monospace;
+}
+
+.od-queue-tag {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  background: var(--surface-dim);
+  border-radius: 10rpx;
+  padding: 6rpx 12rpx;
+  margin-left: auto;
+}
+
+.od-queue-tag text {
+  font-size: 18rpx;
+  color: var(--on-surface-variant);
+}
+
+.od-queue-dot {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background: var(--hazard-amber);
+}
+
+/* 分段仪表 */
+.od-gauge {
+  display: flex;
+  height: 12rpx;
+  border-radius: 8rpx;
+  overflow: hidden;
+  background: var(--surface-dim);
+  margin-bottom: 16rpx;
+}
+
+.od-gauge-seg {
+  height: 100%;
+}
+
+.od-gauge-used {
+  background: var(--primary);
+}
+
+.od-gauge-queue {
+  background: var(--hazard-amber);
+}
+
+.od-gauge-free {
+  flex: 1;
+  background: var(--surface-container-highest);
+}
+
+/* 图例 */
+.od-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8rpx;
+}
+
+.od-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.od-legend-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 4rpx;
+}
+
+.od-legend-used { background: var(--primary); }
+.od-legend-queue { background: var(--hazard-amber); }
+.od-legend-free { background: var(--surface-container-highest); }
+
+.od-legend-text {
+  font-size: 18rpx;
+  color: var(--tech-muted);
+}
+
+.od-estimate-note {
+  display: block;
+  text-align: center;
+  font-size: 18rpx;
+  color: var(--tech-dim);
+}
+
+/* ===== 待同步清单头部 ===== */
+.od-queue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8rpx 0 20rpx;
+}
+
+.od-queue-head-left {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.od-queue-bar {
+  width: 8rpx;
+  height: 28rpx;
+  background: var(--primary);
+  border-radius: 4rpx;
+}
+
+.od-queue-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--on-surface);
+  text-transform: uppercase;
+  letter-spacing: 1rpx;
+}
+
+.od-queue-count {
+  font-size: 18rpx;
+  color: var(--primary);
+  background: var(--surface-container-high);
+  border-radius: 8rpx;
+  padding: 4rpx 12rpx;
+}
+
+.od-select-all {
+  background: var(--surface-container-high);
+  border-radius: 10rpx;
+  padding: 8rpx 14rpx;
+}
+
+.od-select-all-text {
+  font-size: 20rpx;
+  color: var(--tech-muted);
+}
+
+/* ===== 队列列表 ===== */
+.od-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+}
+
+.od-item {
+  background: var(--surface-container);
+  border: 1rpx solid var(--industrial-border);
+  border-radius: 20rpx;
+  padding: 24rpx;
+}
+
+.od-item-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.od-item-check {
+  padding-top: 4rpx;
+  flex-shrink: 0;
+}
+
+.od-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.od-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8rpx;
+}
+
+.od-item-id {
+  font-size: 18rpx;
+  color: var(--tech-muted);
+  font-family: 'Courier New', monospace;
+}
+
+.od-status-badge {
+  font-size: 18rpx;
+  border-radius: 8rpx;
+  padding: 4rpx 12rpx;
+  flex-shrink: 0;
+}
+
+.od-status-pending {
+  color: var(--hazard-amber);
+  background: rgba(251, 191, 36, 0.12);
+  border: 1rpx solid rgba(251, 191, 36, 0.3);
+}
+
+.od-item-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--on-surface);
+  margin-top: 8rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.od-item-desc {
+  display: block;
+  font-size: 20rpx;
+  color: var(--tech-muted);
+  line-height: 1.6;
+  margin-top: 8rpx;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* 证据缩略图 */
+.od-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin: 16rpx 0 0 60rpx;
+}
+
+.od-evidence-item {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  background: var(--surface-dim);
+  border-radius: 12rpx;
+  padding: 10rpx;
+  flex: 1 1 200rpx;
+  min-width: 0;
+}
+
+.od-evidence-img {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 8rpx;
+  flex-shrink: 0;
+}
+
+.od-evidence-info {
+  min-width: 0;
+}
+
+.od-evidence-name {
+  display: block;
+  font-size: 18rpx;
+  color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.od-evidence-status {
+  display: block;
+  font-size: 16rpx;
+  color: var(--tech-dim);
+  margin-top: 2rpx;
+}
+
+/* 操作行 */
+.od-item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16rpx 0 0 60rpx;
+}
+
+.od-item-cachetime {
+  font-size: 18rpx;
+  color: var(--tech-dim);
+}
+
+.od-pin-btn {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  background: var(--surface-container-high);
+  color: var(--primary);
+  border-radius: 10rpx;
+  padding: 8rpx 16rpx;
+}
+
+.od-pin-icon {
+  font-size: 20rpx;
+}
+
+.od-pin-text {
+  font-size: 18rpx;
+  text-transform: uppercase;
+  letter-spacing: 1rpx;
+}
+
+/* ===== 传输策略标题 ===== */
+.od-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin: 8rpx 0 16rpx;
+}
+
+.od-section-bar {
+  width: 8rpx;
+  height: 28rpx;
+  background: var(--outline);
+  border-radius: 4rpx;
+}
+
+.od-section-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--on-surface);
+  text-transform: uppercase;
+  letter-spacing: 1rpx;
+}
+
+/* ===== 开关行 ===== */
+.od-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.od-toggle-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.od-toggle-title {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.od-toggle-desc {
+  display: block;
+  font-size: 19rpx;
+  color: var(--tech-muted);
+  line-height: 1.5;
+  margin-top: 6rpx;
+}
+
+/* ===== 归档清理 ===== */
+.od-archive-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
+
+.od-archive-title {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.od-archive-size {
+  font-size: 18rpx;
+  color: var(--tech-muted);
+  font-family: 'Courier New', monospace;
+}
+
+.od-archive-btns {
+  display: flex;
+  gap: 16rpx;
+}
+
+.od-btn {
+  flex: 1;
+  border-radius: 12rpx;
+  padding: 16rpx 0;
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 1rpx;
+}
+
+.od-btn::after {
+  border: none;
+}
+
+.od-btn-clean {
+  background: var(--surface-dim);
+  color: var(--primary);
+  border: 1rpx solid rgba(34, 211, 238, 0.3);
+}
+
+.od-btn-ghost {
+  background: var(--surface-container-high);
+  color: var(--tech-muted);
+}
+
+/* ===== 底部操作 ===== */
+.od-bottom-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 8rpx;
+}
+
+.od-cache-clean {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-container-highest);
+  border-radius: 16rpx;
+  padding: 24rpx 0;
+}
+
+.od-cache-clean-title {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.od-cache-clean-sub {
+  font-size: 18rpx;
+  color: var(--tech-muted);
+  margin-top: 4rpx;
+  text-transform: uppercase;
+}
+
+.od-sync-btn {
+  flex: 1.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14rpx;
+  background: var(--primary);
+  border-radius: 16rpx;
+  padding: 24rpx 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(34, 211, 238, 0.25);
+}
+
+.od-sync-icon {
+  font-size: 36rpx;
+}
+
+.od-sync-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.od-sync-title {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: var(--on-primary);
+}
+
+.od-sync-sub {
+  font-size: 18rpx;
+  color: rgba(8, 51, 68, 0.75);
+  margin-top: 2rpx;
+}
+
+.od-sync-arrow {
+  font-size: 28rpx;
+  color: var(--on-primary);
+}
+
+.od-safe-bottom {
+  height: 60rpx;
+}
+
+/* 存储与归档卡片标记 */
+.od-storage { }
+.od-archive { }

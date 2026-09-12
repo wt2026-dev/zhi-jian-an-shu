@@ -1,0 +1,54 @@
+<view class="container">
+  <view class="form-card card">
+    <view class="form-item">
+      <view class="label">隐患标题 <text class="required">*</text></view>
+      <input class="input" placeholder="简要概括隐患现象，例: 离心泵法兰严重漏液" value="{{title}}" bindinput="onInputTitle" />
+    </view>
+
+    <view class="form-item">
+      <view class="label">隐患危害评级 <text class="required">*</text></view>
+      <picker range="{{levels}}" range-key="name" value="{{levelIndex}}" bindchange="onLevelChange">
+        <view class="picker-val">{{levels[levelIndex].name}}</view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <view class="label">专业分类</view>
+      <picker range="{{categories}}" value="{{categoryIndex}}" bindchange="onCategoryChange">
+        <view class="picker-val">{{categories[categoryIndex]}}</view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <view class="label">关联在役机组</view>
+      <picker range="{{equipments}}" range-key="name" value="{{eqIndex}}" bindchange="onEqChange">
+        <view class="picker-val">{{equipments[eqIndex].name || "选择机组设备"}}</view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <view class="label">发现地点 / 车间</view>
+      <input class="input" placeholder="例: 循环水泵房南侧 2 号机位" value="{{location}}" bindinput="onInputLocation" />
+    </view>
+
+    <view class="form-item">
+      <view class="label">现场隐患详细征兆描述 <text class="required">*</text></view>
+      <textarea class="textarea" placeholder="详细描述隐患部件、次生危害风险、发现时的设备运行异响或温度状态..." value="{{description}}" bindinput="onInputDesc" maxlength="500"></textarea>
+    </view>
+
+    <view class="form-item">
+      <view class="label">现场拍照取证</view>
+      <view class="photo-box" bindtap="choosePhoto">
+        <image wx:if="{{photoPath}}" class="photo-preview" src="{{photoPath}}" mode="aspectFill" />
+        <view wx:else class="photo-placeholder">
+          <text class="camera-icon">📷</text>
+          <text class="photo-hint">点击拍摄或相册选择现场隐患照片</text>
+        </view>
+      </view>
+    </view>
+
+    <button class="btn btn-submit" bindtap="submitHazard" disabled="{{submitting}}">
+      {{submitting ? "正在上报..." : "立即提交督办"}}
+    </button>
+  </view>
+</view>

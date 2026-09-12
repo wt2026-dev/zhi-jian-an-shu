@@ -1,0 +1,4 @@
+.o-title { font-size: 28rpx; font-weight: 600; margin: 12rpx 0 8rpx; }
+.lockrow { display: flex; align-items: center; padding: 14rpx 0; border-bottom: 1rpx solid #262626; }
+.lock-badge { font-size: 36rpx; margin-right: 16rpx; }
+.lk-on { } .lk-off { opacity: 0.4; }

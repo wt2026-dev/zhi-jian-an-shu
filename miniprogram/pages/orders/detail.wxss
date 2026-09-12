@@ -1,0 +1,18 @@
+.kv { display: flex; justify-content: space-between; padding: 10rpx 0; font-size: 26rpx; }
+.desc { color: #94A3B8; font-size: 26rpx; line-height: 1.7; }
+.stages { display: flex; align-items: flex-start; }
+.stage { display: flex; flex-direction: column; align-items: center; width: 18%; }
+.s-dot {
+  width: 52rpx; height: 52rpx; border-radius: 50%;
+  background: #E2E8F0; color: #CBD5E1; text-align: center; line-height: 52rpx;
+  font-size: 24rpx; font-weight: 700;
+}
+.s-on { background: #3b82f6; color: #F5F7FA; }
+.s-t { font-size: 20rpx; color: #CBD5E1; margin-top: 8rpx; text-align: center; }
+.s-on-t { color: #3b82f6; }
+.s-line { flex: 1; height: 3rpx; background: #E2E8F0; margin-top: 26rpx; }
+.s-l-on { background: #3b82f6; }
+.ai-rec {
+  background: rgba(34, 211, 238, 0.08); border: 1rpx solid rgba(34, 211, 238, 0.35);
+  border-radius: 16rpx; padding: 20rpx; margin-top: 16rpx;
+}

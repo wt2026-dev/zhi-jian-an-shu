@@ -1,0 +1,207 @@
+<!--pages/emergency/emergency.wxml - 紧急警报与气体超标-->
+<page-meta root-font-size="16" page-style="{{pageStyle}}" />
+<view class="min-h-screen px-3-5 py-4 flex flex-col items-center relative">
+  <!-- 背景脉冲光效 -->
+  <view class="absolute top-0 left-50pct translate-x-minus-50 w-72 h-44 bg-error-container-25 blur-3xl rounded-full pointer-events-none"></view>
+
+  <!-- 主卡片容器 -->
+  <section class="relative w-full max-w-lg bg-surface-container rounded-xl shadow-2xl overflow-hidden flex flex-col">
+    <!-- 顶部高危警报条 -->
+    <view class="w-full bg-error-container text-on-error-container px-3-5 py-2 flex items-center justify-between shadow-sm">
+      <view class="flex items-center gap-1">
+        <text class="text-18px text-error animate-pulse">🚨</text>
+        <text class="font-code-badge text-code-badge text-error uppercase tracking-wider">高危警报 // 硬件安全联锁已触发</text>
+      </view>
+      <view class="flex items-center gap-1 bg-on-error-container-30 px-2 py-0-5 rounded">
+        <view class="inline-block w-1-5 h-1-5 rounded-full bg-error animate-ping"></view>
+        <text class="font-nano-label text-nano-label text-error uppercase">强制停工</text>
+      </view>
+    </view>
+
+    <!-- 警告标题区域 -->
+    <view class="px-3-5 pt-3-5 pb-2 bg-surface-container-high flex flex-col gap-0-5">
+      <view class="flex items-center justify-between">
+        <text class="font-headline-sm text-headline-sm text-error uppercase tracking-tight flex items-center gap-1">作业立即中止 · 全员撤离</text>
+        <text class="font-code-badge text-code-badge text-tech-muted">GB 30871-2021</text>
+      </view>
+      <text class="font-body-sm text-body-sm text-on-surface-variant">受限空间剧毒有害气体超过国家极限允许浓度，触发防爆硬件一票否决强关机制。</text>
+    </view>
+
+    <!-- 主视觉容器 -->
+    <view class="p-3-5 flex flex-col gap-3">
+      <!-- 主要危险气体：H2S -->
+      <view class="w-full bg-surface-dim rounded-lg p-3-5 flex flex-col gap-2 shadow-inner">
+        <view class="flex items-center justify-between">
+          <view class="flex items-center gap-2">
+            <view class="px-2 py-0-5 bg-error-container text-error rounded font-code-badge text-code-badge">剧毒高危气体</view>
+            <text class="font-title-md text-title-md text-on-surface tracking-wide">硫化氢 (H₂S)</text>
+          </view>
+          <view class="flex items-center gap-1 text-error font-code-badge text-code-badge">
+            <text class="text-14px">📈</text>
+            <text>超标 +102.8%</text>
+          </view>
+        </view>
+
+        <!-- 数字显示区 -->
+        <view class="flex items-baseline justify-between py-1">
+          <view class="flex items-baseline gap-1">
+            <text class="font-telemetry-xl text-telemetry-xl text-error">{{h2sReading.value}}</text>
+            <text class="font-code-badge text-code-badge text-tech-muted uppercase">ppm</text>
+          </view>
+          <view class="flex flex-col items-end">
+            <text class="font-nano-label text-nano-label text-tech-muted uppercase tracking-wider">法定安全阈值限值</text>
+            <text class="font-telemetry-md text-telemetry-md text-on-surface">≤ 7.0 <text class="text-body-sm text-tech-muted font-normal">ppm</text></text>
+          </view>
+        </view>
+
+        <!-- 危险等级条 -->
+        <view class="w-full flex flex-col gap-0-5">
+          <view class="relative w-full h-3 bg-surface-variant rounded-full overflow-hidden flex">
+            <view class="w-35pct h-full bg-status-green-60"></view>
+            <view class="w-25pct h-full bg-hazard-amber-70"></view>
+            <view class="w-40pct h-full bg-error relative">
+              <view class="absolute inset-0 bg-white-20 animate-pulse"></view>
+            </view>
+          </view>
+          <!-- 阈值参考点 -->
+          <view class="flex justify-between font-nano-label text-nano-label text-tech-dim pt-1">
+            <text>0.0 (安全)</text>
+            <text class="text-hazard-amber">7.0 (极限红线)</text>
+            <text class="text-error">14.2 (瞬时致死临界)</text>
+          </view>
+        </view>
+
+        <!-- 危险状态提示 -->
+        <view class="flex items-center gap-1 bg-warning-surface-80 px-2 py-0-5 rounded">
+          <text class="text-13px text-safety-orange">⚠️</text>
+          <text class="font-body-sm text-body-sm text-safety-orange font-medium">危险状态 : 立即威胁生命与健康 (极度危险响应)</text>
+        </view>
+      </view>
+
+      <!-- 关联监测点数据 -->
+      <view class="w-full flex flex-col gap-1">
+        <view class="flex items-center justify-between pb-0-5">
+          <text class="font-micro-label text-micro-label text-tech-muted uppercase tracking-widest">关联监测点阵数据</text>
+          <text class="font-nano-label text-nano-label text-tech-dim">网格传感器组 #04</text>
+        </view>
+        <view class="grid grid-cols-3 grid-gap-2">
+          <!-- LEL -->
+          <view class="bg-surface-container-high rounded-lg p-2 flex flex-col gap-0-5 shadow-sm">
+            <view class="flex items-center justify-between">
+              <text class="font-micro-label text-micro-label text-tech-muted">可燃气 LEL</text>
+              <view class="w-1-5 h-1-5 rounded-full bg-hazard-amber"></view>
+            </view>
+            <view class="flex items-baseline gap-0-5">
+              <text class="font-telemetry-md text-telemetry-md text-hazard-amber">{{lelReading}}</text>
+              <text class="font-nano-label text-nano-label text-tech-muted">%</text>
+            </view>
+            <text class="font-nano-label text-nano-label text-tech-dim">限值 ≤1.0%</text>
+          </view>
+
+          <!-- O2 -->
+          <view class="bg-surface-container-high rounded-lg p-2 flex flex-col gap-0-5 shadow-sm">
+            <view class="flex items-center justify-between">
+              <text class="font-micro-label text-micro-label text-tech-muted">氧气 O₂</text>
+              <view class="w-1-5 h-1-5 rounded-full bg-error animate-pulse"></view>
+            </view>
+            <view class="flex items-baseline gap-0-5">
+              <text class="font-telemetry-md text-telemetry-md text-error">{{o2Reading}}</text>
+              <text class="font-nano-label text-nano-label text-tech-muted">%VOL</text>
+            </view>
+            <text class="font-nano-label text-nano-label text-error">严重缺氧 (≥19.5%)</text>
+          </view>
+
+          <!-- CO -->
+          <view class="bg-surface-container-high rounded-lg p-2 flex flex-col gap-0-5 shadow-sm">
+            <view class="flex items-center justify-between">
+              <text class="font-micro-label text-micro-label text-tech-muted">一氧化碳 CO</text>
+              <view class="w-1-5 h-1-5 rounded-full bg-hazard-amber"></view>
+            </view>
+            <view class="flex items-baseline gap-0-5">
+              <text class="font-telemetry-md text-telemetry-md text-hazard-amber">{{coReading}}</text>
+              <text class="font-nano-label text-nano-label text-tech-muted">ppm</text>
+            </view>
+            <text class="font-nano-label text-nano-label text-tech-dim">限值 ≤20ppm</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 硬件联锁自动执行存证 -->
+      <view class="w-full bg-surface-container-lowest rounded-lg p-3-5 flex flex-col gap-2">
+        <view class="flex items-center justify-between">
+          <text class="font-code-badge text-code-badge text-on-surface uppercase flex items-center gap-1">
+            <text class="text-14px text-accent-blue">🔒</text>
+            硬件联锁自动执行存证
+          </text>
+          <view class="font-nano-label text-nano-label text-status-green bg-status-green-10 px-2 py-0-5 rounded">3/3 序列已闭环</view>
+        </view>
+
+        <view class="flex flex-col gap-2">
+          <!-- 联锁1 -->
+          <view class="flex items-start gap-2 bg-surface-container-high-60 p-2 rounded">
+            <text class="text-16px text-error mt-0-5">🚫</text>
+            <view class="flex flex-col flex-1 min-w-0">
+              <view class="flex items-center justify-between">
+                <text class="font-title-md text-12px text-on-surface font-semibold">作业票熔断 · 门禁闭锁</text>
+                <text class="font-nano-label text-nano-label text-error font-code-badge">已强锁</text>
+              </view>
+              <text class="font-body-sm text-10px text-on-surface-variant truncate">PTW-20241018-0089 状态变更为【红牌中止】，现场防爆门禁锁死防进。</text>
+            </view>
+          </view>
+
+          <!-- 联锁2 -->
+          <view class="flex items-start gap-2 bg-surface-container-high-60 p-2 rounded">
+            <text class="text-16px text-accent-blue mt-0-5">💨</text>
+            <view class="flex flex-col flex-1 min-w-0">
+              <view class="flex items-center justify-between">
+                <text class="font-title-md text-12px text-on-surface font-semibold">防爆离心风机全速强排</text>
+                <text class="font-nano-label text-nano-label text-status-green font-code-badge">已强开</text>
+              </view>
+              <text class="font-body-sm text-10px text-on-surface-variant truncate">罐体动力强排单元输出提升至最高档 (4500 m³/h 稀释气体)。</text>
+            </view>
+          </view>
+
+          <!-- 联锁3 -->
+          <view class="flex items-start gap-2 bg-surface-container-high-60 p-2 rounded">
+            <text class="text-16px text-hazard-amber mt-0-5">🔔</text>
+            <view class="flex flex-col flex-1 min-w-0">
+              <view class="flex items-center justify-between">
+                <text class="font-title-md text-12px text-on-surface font-semibold">全域声光直报安环总控</text>
+                <text class="font-nano-label text-nano-label text-status-green font-code-badge">已联动</text>
+              </view>
+              <text class="font-body-sm text-10px text-on-surface-variant truncate">声光报警器全频响彻，高危事故信令直达主控大屏与应急值班台。</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 操作按钮 -->
+      <view class="w-full flex gap-2 pt-1">
+        <!-- 直拨安环调度 -->
+        <button class="flex-1 min-h-120 bg-surface-container-highest text-on-surface rounded-lg p-2 flex items-center justify-center gap-2 shadow-md select-none" bindtap="callDispatch">
+          <text class="text-20px text-accent-blue">📞</text>
+          <view class="flex flex-col items-start text-left">
+            <text class="font-title-md text-12px leading-tight text-on-surface">直拨安环调度</text>
+            <text class="font-nano-label text-nano-label text-tech-muted">分机号: 8088</text>
+          </view>
+        </button>
+
+        <!-- 全员撤离响应 -->
+        <button class="flex-1-4 min-h-120 bg-error text-on-error rounded-lg p-2 flex items-center justify-center gap-2 shadow-lg select-none" bindtap="confirmEvacuation">
+          <text class="text-22px text-on-error animate-bounce">🏃</text>
+          <view class="flex flex-col items-start text-left">
+            <text class="font-headline-sm text-headline-sm leading-tight text-on-error">全员撤离响应</text>
+            <text class="font-nano-label text-nano-label text-on-error-80 uppercase">立即确认全员撤离</text>
+          </view>
+        </button>
+      </view>
+    </view>
+
+    <!-- 底部系统信息 -->
+    <view class="px-3-5 py-0-5 bg-surface-container-lowest flex items-center justify-between text-tech-dim font-code-badge text-9px">
+      <text>PLC-NODE: A4-RACK-09</text>
+      <text>防伪凭证: SHA256-BLK-9821</text>
+      <text class="text-status-green">校验正常</text>
+    </view>
+  </section>
+</view>

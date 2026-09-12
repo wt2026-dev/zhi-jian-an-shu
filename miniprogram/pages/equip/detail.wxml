@@ -1,0 +1,31 @@
+<view wx:if="{{loading}}" class="empty">加载中...</view>
+<block wx:if="{{e}}">
+  <view class="card">
+    <view class="row">
+      <view class="h1" style="margin:0">{{e.name}}</view>
+      <view class="sp"></view>
+      <view class="badge" style="{{sStyle}}">{{sText}}</view>
+    </view>
+    <view class="muted mono" style="margin:10rpx 0">{{e.code}} · {{e.model}} · {{e.manufacturer}}</view>
+    <view class="muted">{{e.workshop}} · {{e.location}}</view>
+  </view>
+  <view class="card">
+    <view class="title">实时遥测</view>
+    <view class="kv"><text class="muted">轴承温度</text><text class="mono">{{e.telemetry.temperature}} °C</text></view>
+    <view class="kv"><text class="muted">振动速度</text><text class="mono">{{e.telemetry.vibration}} mm/s</text></view>
+    <view class="kv"><text class="muted">运行电流</text><text class="mono">{{e.telemetry.current}} A</text></view>
+    <view class="kv"><text class="muted">负载率</text><text class="mono">{{e.telemetry.loadRate}}%</text></view>
+  </view>
+  <view class="card">
+    <view class="title">技术参数</view>
+    <view class="kv" wx:for="{{specEntries}}" wx:key="k"><text class="muted">{{item.k}}</text><text>{{item.v}}</text></view>
+  </view>
+  <view class="card" wx:if="{{e.maintenanceHistory.length > 0}}">
+    <view class="title">维修履历</view>
+    <view wx:for="{{e.maintenanceHistory}}" wx:key="orderNo" class="mh">
+      <view class="row"><view class="mono muted">{{item.orderNo}} · {{item.date}}</view><view class="sp"></view><view class="muted">{{item.durationHours}}h / ¥{{item.cost}}</view></view>
+      <view class="desc">{{item.summary}}</view>
+    </view>
+  </view>
+  <view class="safe-bottom"></view>
+</block>

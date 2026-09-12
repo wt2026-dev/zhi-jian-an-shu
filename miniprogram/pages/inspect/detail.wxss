@@ -1,0 +1,4 @@
+.cyan { color: #22D3EE; }
+.kv { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 24rpx; }
+.desc { color: #a3a3a3; font-size: 24rpx; line-height: 1.6; }
+.scan-ok { color: #34D399; font-size: 24rpx; margin-top: 12rpx; }

@@ -1,0 +1,30 @@
+page { background: #F5F7FA; min-height: 100vh; }
+.page { padding: 24rpx; padding-bottom: 60rpx; }
+.header { display: flex; align-items: center; gap: 16rpx; margin-bottom: 24rpx; }
+.back-btn { width: 64rpx; height: 64rpx; background: #F8FAFC; border-radius: 12rpx; display: flex; align-items: center; justify-content: center; }
+.back-btn text { color: #1E293B; font-size: 32rpx; }
+.header-info { flex: 1; }
+.header-label { font-size: 20rpx; color: #94A3B8; }
+.header-title { font-size: 32rpx; color: #1E293B; font-weight: 700; }
+.loading-box { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 120rpx 0; }
+.loading-text { color: #94A3B8; font-size: 26rpx; margin-top: 16rpx; }
+.error-box { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
+.error-text { color: #ef4444; font-size: 26rpx; margin-bottom: 24rpx; }
+.retry-btn { background: #3b82f6; color: #F5F7FA; padding: 16rpx 48rpx; border-radius: 12rpx; font-size: 26rpx; font-weight: 600; }
+.empty-box { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
+.empty-icon { font-size: 64rpx; margin-bottom: 16rpx; }
+.empty-text { color: #94A3B8; font-size: 26rpx; }
+.list { display: flex; flex-direction: column; gap: 16rpx; }
+.card { background: #FFFFFF; border: 1rpx solid #E2E8F0; border-radius: 16rpx; padding: 24rpx; }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12rpx; }
+.permit-no { font-size: 22rpx; color: #3b82f6; font-family: monospace; }
+.badge { font-size: 18rpx; padding: 4rpx 12rpx; border-radius: 6rpx; font-weight: 600; }
+.badge-signed { color: #22c55e; background: rgba(34, 197, 94, 0.15); }
+.badge-unsigned { color: #94A3B8; background: rgba(115, 115, 115, 0.15); }
+.card-title { font-size: 28rpx; color: #1E293B; font-weight: 600; margin-bottom: 12rpx; }
+.info-row { display: flex; justify-content: space-between; padding: 6rpx 0; font-size: 24rpx; }
+.info-label { color: #94A3B8; }
+.info-value { color: #1E293B; }
+.comment-box { background: #F8FAFC; border-radius: 8rpx; padding: 12rpx 16rpx; margin-top: 8rpx; }
+.comment-text { font-size: 22rpx; color: #64748B; line-height: 1.6; }
+.card:active { background: #F8FAFC; }

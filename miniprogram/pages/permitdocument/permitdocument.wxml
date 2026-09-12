@@ -1,0 +1,152 @@
+<view class="page">
+  <view class="header">
+    <view class="back-btn" bindtap="goBack"><text>←</text></view>
+    <view class="header-info">
+      <text class="header-label">电子票证 // 实时渲染</text>
+      <text class="header-title">电子作业票文档</text>
+    </view>
+    <view class="share-btn" bindtap="onShareAppMessage"><text>📤</text></view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading-box">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <view wx:elif="{{loadError}}" class="error-box">
+    <text class="error-text">{{loadError}}</text>
+    <view class="retry-btn" bindtap="retry"><text>重试</text></view>
+  </view>
+
+  <block wx:else>
+    <!-- 票据选择 -->
+    <view class="select-section">
+      <picker mode="selector" range="{{permits}}" range-key="permitNo" bindchange="onPermitChange">
+        <view class="select-box">
+          <text class="select-label">选择作业票</text>
+          <text class="select-value">{{permit.permitNo || '请选择'}}</text>
+          <text class="select-arrow">▾</text>
+        </view>
+      </picker>
+    </view>
+
+    <block wx:if="{{permit}}">
+      <!-- 票头 -->
+      <view class="doc-card">
+        <view class="doc-header">
+          <text class="doc-title">安全作业票</text>
+        </view>
+        <view class="doc-body">
+          <view class="doc-row">
+            <text class="doc-mono">{{permit.permitNo}}</text>
+            <view class="badge {{permit.status === 'active' ? 'badge-green' : permit.status === 'closed' ? 'badge-gray' : 'badge-amber'}}">
+              {{permit.status === 'active' ? '作业中' : permit.status === 'closed' ? '已闭环' : permit.status === 'approved' ? '已批准' : permit.status === 'rejected' ? '已驳回' : '待审批'}}
+            </view>
+          </view>
+          <text class="doc-desc">{{permit.title}}</text>
+        </view>
+      </view>
+
+      <!-- 作业信息 -->
+      <view class="doc-card">
+        <view class="section-title">
+          <view class="title-bar"></view>
+          <text>作业信息</text>
+        </view>
+        <view class="doc-row"><text class="doc-label">作业区域</text><text class="doc-val">{{permit.workshop}} {{permit.location}}</text></view>
+        <view class="doc-row"><text class="doc-label">作业时间</text><text class="doc-val">{{permit.appliedAt}} ~ {{permit.validUntil}}</text></view>
+        <view class="doc-row"><text class="doc-label">作业类型</text><text class="doc-val">{{permit.permitType}}</text></view>
+        <view class="doc-row"><text class="doc-label">申请人</text><text class="doc-val">{{permit.applicant}}</text></view>
+        <view class="doc-row"><text class="doc-label">风险等级</text><text class="doc-val">{{permit.riskLevel}}</text></view>
+        <view class="doc-row" wx:if="{{permit.lotoNumber}}"><text class="doc-label">LOTO锁号</text><text class="doc-mono">{{permit.lotoNumber}}</text></view>
+      </view>
+
+      <!-- 气体检测 -->
+      <view class="doc-card" wx:if="{{permit.gasTestResults}}">
+        <view class="section-title">
+          <view class="title-bar bar-amber"></view>
+          <text>气体检测</text>
+        </view>
+        <view class="doc-row"><text class="doc-label">氧气 (O₂)</text><text class="doc-val">{{permit.gasTestResults.oxygen}}%</text></view>
+        <view class="doc-row"><text class="doc-label">可燃气体</text><text class="doc-val">{{permit.gasTestResults.combustible_gas}}%</text></view>
+        <view class="doc-row"><text class="doc-label">有毒气体</text><text class="doc-val">{{permit.gasTestResults.toxic_gas}} ppm</text></view>
+        <view class="doc-row"><text class="doc-label">检测人</text><text class="doc-val">{{permit.gasTestResults.tester}}</text></view>
+        <view class="doc-row"><text class="doc-label">检测时间</text><text class="doc-val">{{permit.gasTestResults.test_time}}</text></view>
+      </view>
+
+      <!-- 安全措施 -->
+      <view class="doc-card" wx:if="{{precautions.length > 0}}">
+        <view class="section-title">
+          <view class="title-bar bar-green"></view>
+          <text>安全措施</text>
+        </view>
+        <view class="check-item" wx:for="{{precautions}}" wx:key="*this">
+          <text class="check-icon">✓</text>
+          <text class="check-text">{{item}}</text>
+        </view>
+      </view>
+
+      <!-- 安全检查清单 -->
+      <view class="doc-card" wx:if="{{checklist.length > 0}}">
+        <view class="section-title">
+          <view class="title-bar bar-blue"></view>
+          <text>安全检查清单</text>
+        </view>
+        <view class="check-item" wx:for="{{checklist}}" wx:key="id">
+          <text class="check-icon {{item.checked ? 'icon-green' : 'icon-red'}}">{{item.checked ? '✓' : '✗'}}</text>
+          <text class="check-text">{{item.item}}</text>
+        </view>
+      </view>
+
+      <!-- 审批与签章 -->
+      <view class="doc-card">
+        <view class="section-title">
+          <view class="title-bar"></view>
+          <text>审批与签章</text>
+        </view>
+
+        <view class="sign-section">
+          <text class="sign-label">现场监护初审</text>
+          <view wx:if="{{permit.guardianApproval && permit.guardianApproval.signed}}" class="sign-box sign-signed">
+            <text class="sign-name">✅ {{permit.guardianApproval.name}}</text>
+            <text class="sign-time">{{permit.guardianApproval.signedAt}}</text>
+            <text class="sign-comment" wx:if="{{permit.guardianApproval.comment}}">{{permit.guardianApproval.comment}}</text>
+          </view>
+          <view wx:else class="sign-box sign-pending">
+            <text class="sign-dash">待签署</text>
+          </view>
+        </view>
+
+        <view class="sign-section">
+          <text class="sign-label">主管终审</text>
+          <view wx:if="{{permit.supervisorApproval && permit.supervisorApproval.signed}}" class="sign-box sign-signed">
+            <text class="sign-name">✅ {{permit.supervisorApproval.name}}</text>
+            <text class="sign-time">{{permit.supervisorApproval.signedAt}}</text>
+            <text class="sign-comment" wx:if="{{permit.supervisorApproval.comment}}">{{permit.supervisorApproval.comment}}</text>
+          </view>
+          <view wx:else class="sign-box sign-pending">
+            <text class="sign-dash">待签署</text>
+          </view>
+        </view>
+
+        <view class="sign-section" wx:if="{{permit.closedAt}}">
+          <text class="sign-label">作业闭环</text>
+          <view class="sign-box sign-signed">
+            <text class="sign-name">✅ {{permit.closedBy}}</text>
+            <text class="sign-time">{{permit.closedAt}}</text>
+            <text class="sign-comment" wx:if="{{permit.closeRemark}}">{{permit.closeRemark}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 隐藏 canvas 用于导出 -->
+      <canvas canvas-id="permitCanvas" class="hidden-canvas" style="width:750px;height:1200px;"></canvas>
+
+      <!-- 底部操作 -->
+      <view class="action-bar">
+        <view class="action-btn-save" bindtap="saveToAlbum">
+          <text>💾 保存到相册</text>
+        </view>
+      </view>
+    </block>
+  </block>
+</view>

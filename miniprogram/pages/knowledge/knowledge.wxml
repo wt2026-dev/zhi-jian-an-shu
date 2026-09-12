@@ -1,0 +1,17 @@
+<view class="searchbar row">
+  <input class="input" style="flex:1;margin-bottom:0" placeholder="语义检索检修规程 / 故障案例" value="{{kw}}" bindinput="onKw" confirm-type="search" bindconfirm="doSearch" />
+  <button class="btn btn-primary" style="width:160rpx;margin:0 0 0 16rpx" bindtap="doSearch">检索</button>
+</view>
+<view wx:if="{{loading}}" class="empty">检索中...</view>
+<view wx:elif="{{results.length === 0}}" class="empty">暂无结果，换个关键词试试</view>
+<view class="card" wx:for="{{results}}" wx:key="id" bindtap="toggle" data-idx="{{index}}">
+  <view class="row">
+    <view class="title">{{item.title}}</view>
+    <view class="sp"></view>
+    <view class="badge" style="color:#22D3EE;background:rgba(34,211,238,0.15);border:1rpx solid rgba(34,211,238,0.5)">{{item.category}}</view>
+  </view>
+  <view class="muted" style="margin:10rpx 0">{{item.summary}}</view>
+  <rich-text wx:if="{{item.expanded}}" class="content" nodes="{{item.html || item.content}}" user-select />
+  <view class="muted" style="text-align:right">{{item.expanded ? "收起 ▲" : "展开全文 ▼"}}</view>
+</view>
+<view class="safe-bottom"></view>

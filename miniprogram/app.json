@@ -1,0 +1,85 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/dashboard/dashboard",
+    "pages/repair/repair",
+    "pages/orders/list",
+    "pages/orders/detail",
+    "pages/orders/create",
+    "pages/inspect/list",
+    "pages/inspect/detail",
+    "pages/ai/chat",
+    "pages/ai/vision",
+    "pages/safety/list",
+    "pages/safety/detail",
+    "pages/notifications/notifications",
+    "pages/equip/list",
+    "pages/equip/detail",
+    "pages/knowledge/knowledge",
+    "pages/knowledge/graph",
+    "pages/profile/profile",
+    "pages/workorder/workorder",
+    "pages/emergency/emergency",
+    "pages/gassampling/gassampling",
+    "pages/workordercreate/workordercreate",
+    "pages/gastrend/gastrend",
+    "pages/offlinedata/offlinedata",
+    "pages/maintenancedetail/maintenancedetail",
+    "pages/console/console",
+    "pages/approvalhistory/approvalhistory",
+    "pages/permitdocument/permitdocument",
+    "pages/procedures/index",
+    "pages/hazards/list",
+    "pages/hazards/create",
+    "pages/cockpit/cockpit",
+    "pages/health/health",
+    "pages/spares/spares"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "工业设备智能检修",
+    "backgroundColor": "#F5F7FA",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#64748b",
+    "selectedColor": "#3b82f6",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/dashboard/dashboard",
+        "text": "工作台",
+        "iconPath": "images/tabbar/dashboard.png",
+        "selectedIconPath": "images/tabbar/dashboard-active.png"
+      },
+      {
+        "pagePath": "pages/orders/list",
+        "text": "检修工单",
+        "iconPath": "images/tabbar/orders.png",
+        "selectedIconPath": "images/tabbar/orders-active.png"
+      },
+      {
+        "pagePath": "pages/inspect/list",
+        "text": "巡检作业",
+        "iconPath": "images/tabbar/inspect.png",
+        "selectedIconPath": "images/tabbar/inspect-active.png"
+      },
+      {
+        "pagePath": "pages/ai/chat",
+        "text": "AI 助手",
+        "iconPath": "images/tabbar/ai.png",
+        "selectedIconPath": "images/tabbar/ai-active.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "images/tabbar/profile.png",
+        "selectedIconPath": "images/tabbar/profile-active.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

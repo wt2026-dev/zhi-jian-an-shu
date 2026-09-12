@@ -1,0 +1,325 @@
+<!--pages/console/console.wxml - 工业智能终端控制台-->
+<page-meta root-font-size="16" page-style="{{pageStyle}}" />
+<view class="page-container">
+  <!-- 顶部仪器状态条与导航 -->
+  <header class="header-bar">
+    <!-- 仪器标定顶行 -->
+    <view class="header-top-row">
+      <view class="header-top-left">
+        <text class="header-version-text">版本 {{version}}</text>
+        <text class="header-divider">|</text>
+        <text class="header-status-text">5G·IND-RTK</text>
+        <text class="header-divider">|</text>
+        <text class="header-status-text">延迟: 3.8ms</text>
+      </view>
+      <view class="header-top-right">
+        <text id="live-clock" class="header-clock">{{currentTime}}</text>
+        <text class="header-utc-badge">UTC+8</text>
+      </view>
+    </view>
+
+    <!-- 主操作台标题条 -->
+    <view class="header-main-row">
+      <view class="header-title-group">
+        <view class="header-icon-box">
+          <text class="icon-md">📱</text>
+        </view>
+        <view>
+          <view class="header-title-row">
+            <text class="header-title">工业智能终端 // 现场作业控制台</text>
+            <text class="header-version-badge">版本 {{version}}</text>
+          </view>
+          <text class="header-subtitle">热轧第二分厂 · 核心机组作业区</text>
+        </view>
+      </view>
+      <view class="header-actions">
+        <view class="header-action-btn" bindtap="goNotifications">
+          <text class="icon-md">🔔</text>
+          <view class="notification-dot"></view>
+        </view>
+        <view class="header-avatar" bindtap="goProfile">
+          {{userInfo.avatarChar}}
+        </view>
+      </view>
+    </view>
+  </header>
+
+  <!-- 主内容区 -->
+  <main class="main-content">
+    <view class="content-inner">
+      <!-- 人员身份与防爆终端标定卡 -->
+      <view class="card card-identity">
+        <!-- 刻度角标装饰 -->
+        <view class="corner-decoration">
+          <view class="corner-triangle"></view>
+        </view>
+        <view class="identity-top">
+          <view class="identity-left">
+            <view class="identity-avatar-wrap">
+              <view class="identity-avatar">
+                <text class="avatar-label">工号</text>
+                <text class="avatar-id">{{userInfo.employeeId}}</text>
+              </view>
+              <view class="online-dot" title="在岗联机"></view>
+            </view>
+            <view>
+              <view class="identity-name-row">
+                <text class="identity-name">{{userInfo.name}}</text>
+                <text class="identity-role-badge">{{userInfo.role}}</text>
+              </view>
+              <view class="identity-info-row">
+                <text class="identity-info-text">工位 {{userInfo.station}}</text>
+                <text class="identity-info-divider">/</text>
+                <text class="identity-info-text">{{userInfo.area}}</text>
+              </view>
+            </view>
+          </view>
+          <view class="identity-right">
+            <view class="status-badge-green">
+              <view class="status-dot-ping"></view>
+              <text class="status-badge-text">在岗执勤</text>
+            </view>
+            <text class="cert-text">证书编号: {{userInfo.certificate}}</text>
+          </view>
+        </view>
+
+        <!-- 终端参数小标尺行 -->
+        <view class="terminal-params-grid">
+          <view class="terminal-param-cell">
+            <text class="param-label">离线基准库</text>
+            <text class="param-value-sync">
+              <view class="param-dot-blue"></view>
+              100% 已同步
+            </text>
+          </view>
+          <view class="terminal-param-cell">
+            <text class="param-label">安全等级</text>
+            <text class="param-value-orange">{{userInfo.safetyLevel}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 预警栏 -->
+      <view class="card card-warning">
+        <view class="warning-header">
+          <view class="warning-title-group">
+            <text class="warning-id-badge">{{warning.id}}</text>
+            <text class="warning-title">{{warning.title}}</text>
+          </view>
+          <text class="warning-time">{{warning.time}}</text>
+        </view>
+        <text class="warning-desc">
+          1#高压水泵站出口压力波动处于监测排查状态。进入精轧区前，<text class="warning-bold-text">强制执行双人机械联锁核验</text>。
+        </text>
+        <view class="warning-footer">
+          <text class="warning-footer-text">责任人: {{warning.responsible}}</text>
+          <text class="warning-footer-text">回执状态: <text class="warning-status-pending">{{warning.status}}</text></text>
+        </view>
+      </view>
+
+      <!-- 核心生产指标区 -->
+      <view class="card card-metrics">
+        <!-- 指标头与微刻度尺 -->
+        <view class="metrics-header">
+          <view class="metrics-title-group">
+            <view class="metrics-dot-blue"></view>
+            <text class="metrics-title">班次进度 // 本班考核指标</text>
+          </view>
+          <view class="metrics-progress-group">
+            <view class="metrics-progress-bar">
+              <view class="metrics-progress-fill" style="width: {{shiftProgress}}%"></view>
+            </view>
+            <text class="metrics-progress-text">{{shiftProgress}}%</text>
+          </view>
+        </view>
+
+        <!-- 4项精密仪器读数 -->
+        <view class="metrics-grid">
+          <!-- 待巡检 -->
+          <view class="metric-cell metric-cell-default">
+            <text class="metric-label">01.巡检点</text>
+            <view class="metric-value-row">
+              <text class="metric-value metric-value-blue">{{metrics.patrolPoints}}</text>
+              <text class="metric-unit">点</text>
+            </view>
+            <text class="metric-footer">待执行</text>
+          </view>
+
+          <!-- 待维修 -->
+          <view class="metric-cell metric-cell-orange">
+            <text class="metric-label metric-label-orange">02.维修项</text>
+            <view class="metric-value-row">
+              <text class="metric-value metric-value-orange">{{metrics.repairItems}}</text>
+              <text class="metric-unit">项</text>
+            </view>
+            <view class="metric-footer metric-footer-orange">
+              <text>处理中</text>
+              <view class="pulse-dot-orange"></view>
+            </view>
+          </view>
+
+          <!-- 待验收 -->
+          <view class="metric-cell metric-cell-default">
+            <text class="metric-label">03.待验签</text>
+            <view class="metric-value-row">
+              <text class="metric-value">{{metrics.pendingAcceptance}}</text>
+              <text class="metric-unit">单</text>
+            </view>
+            <text class="metric-footer">待签字</text>
+          </view>
+
+          <!-- 已完成 -->
+          <view class="metric-cell metric-cell-default">
+            <text class="metric-label">04.已闭环</text>
+            <view class="metric-value-row">
+              <text class="metric-value metric-value-green">{{metrics.completed}}</text>
+              <text class="metric-unit">闭环</text>
+            </view>
+            <text class="metric-footer metric-footer-green">100% 合规</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 现场作业金刚区 -->
+      <view class="section-actions">
+        <view class="section-actions-header">
+          <text class="section-actions-title">
+            <view class="section-actions-dot"></view>
+            主要功能 // 核心现场操作
+          </text>
+          <text class="section-actions-sub">防误触大按键 · IP67防护</text>
+        </view>
+        <view class="actions-grid">
+          <!-- 按钮1: 扫码巡检 -->
+          <button class="tactile-btn action-btn action-btn-blue" bindtap="scanInspection">
+            <view class="action-btn-top">
+              <view class="action-icon-box action-icon-blue">
+                <text class="icon-lg">📷</text>
+              </view>
+              <view class="action-dot-blue"></view>
+            </view>
+            <view>
+              <text class="action-mode-label action-mode-blue">模式: 射频/光学扫描</text>
+              <text class="action-btn-title">扫码巡检</text>
+              <text class="action-btn-desc">离线测点匹配</text>
+            </view>
+          </button>
+
+          <!-- 按钮2: 我的工单 -->
+          <button class="tactile-btn action-btn action-btn-default" bindtap="goMyOrders">
+            <view class="action-btn-top">
+              <view class="action-icon-box">
+                <text class="icon-lg">✅</text>
+              </view>
+              <text class="action-badge-orange">{{myOrdersCount}} 待办</text>
+            </view>
+            <view>
+              <text class="action-mode-label">工单队列</text>
+              <text class="action-btn-title">我的工单</text>
+              <text class="action-btn-desc">检修消缺闭环</text>
+            </view>
+          </button>
+
+          <!-- 按钮3: 异常上报 -->
+          <button class="tactile-btn action-btn action-btn-orange" bindtap="reportAnomaly">
+            <view class="action-btn-top">
+              <view class="action-icon-box action-icon-orange">
+                <text class="icon-lg">⚠️</text>
+              </view>
+              <text class="action-badge-fast">极速上报</text>
+            </view>
+            <view>
+              <text class="action-mode-label action-mode-orange">紧急处置</text>
+              <text class="action-btn-title action-btn-title-orange">异常上报</text>
+              <text class="action-btn-desc">测振/测温/泄漏</text>
+            </view>
+          </button>
+
+          <!-- 按钮4: 规程知识库 -->
+          <button class="tactile-btn action-btn action-btn-default" bindtap="goKnowledge">
+            <view class="action-btn-top">
+              <view class="action-icon-box">
+                <text class="icon-lg">📖</text>
+              </view>
+              <view class="action-dot-dim"></view>
+            </view>
+            <view>
+              <text class="action-mode-label">标准化作业指导书</text>
+              <text class="action-btn-title">规程知识库</text>
+              <text class="action-btn-desc">数字规程与预案</text>
+            </view>
+          </button>
+
+          <!-- 按钮5: 设备台账 -->
+          <button class="tactile-btn action-btn action-btn-default" bindtap="goEquipment">
+            <view class="action-btn-top">
+              <view class="action-icon-box">
+                <text class="icon-lg">⚙️</text>
+              </view>
+              <view class="action-dot-dim"></view>
+            </view>
+            <view>
+              <text class="action-mode-label">数字化设备台账</text>
+              <text class="action-btn-title">设备台账</text>
+              <text class="action-btn-desc">履历/图纸/参数</text>
+            </view>
+          </button>
+
+          <!-- 按钮6: 安全工作票 -->
+          <button class="tactile-btn action-btn action-btn-default" bindtap="goSafetyTicket">
+            <view class="action-btn-top">
+              <view class="action-icon-box">
+                <text class="icon-lg">🛡️</text>
+              </view>
+              <view class="action-dot-dim"></view>
+            </view>
+            <view>
+              <text class="action-mode-label">高危作业许可证</text>
+              <text class="action-btn-title">安全工作票</text>
+              <text class="action-btn-desc">动火/受限空间</text>
+            </view>
+          </button>
+        </view>
+      </view>
+
+      <!-- 就近巡检测点智能推荐 -->
+      <view class="card card-points">
+        <view class="points-header">
+          <view class="points-title-group">
+            <text class="icon-blue-sm">📍</text>
+            <text class="points-title">附近测点 // 就近感知</text>
+          </view>
+          <view class="points-distance-badge">
+            <view class="points-distance-dot"></view>
+            <text class="points-distance-text">距离: 18.4米</text>
+          </view>
+        </view>
+        <view class="points-content">
+          <view class="points-left">
+            <view class="points-id-box">
+              <text class="points-id-label">测点</text>
+              <text class="points-id-value">#03</text>
+            </view>
+            <view class="points-info">
+              <view class="points-name-row">
+                <text class="points-name">2#精轧减速机测温振点</text>
+                <text class="points-code">F2-M04</text>
+              </view>
+              <view class="points-meta">
+                <text class="points-cycle">
+                  <view class="points-cycle-dot"></view>
+                  周期: 2.0小时
+                </text>
+                <text>仪器: 红外/测振探头</text>
+              </view>
+            </view>
+          </view>
+          <button class="tactile-btn points-checkin-btn" bindtap="checkinPoint">
+            <text>测点签到</text>
+            <text class="icon-sm">→</text>
+          </button>
+        </view>
+      </view>
+    </view>
+  </main>
+</view>

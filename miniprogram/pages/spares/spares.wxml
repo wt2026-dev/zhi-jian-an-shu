@@ -1,0 +1,56 @@
+<view wx:if="{{loading}}" class="empty">加载中...</view>
+<view wx:elif="{{loadError}}" class="empty">
+  <view>{{loadError}}</view>
+  <button class="btn btn-ghost" style="margin:30rpx auto;width:300rpx" bindtap="loadParts">重试</button>
+</view>
+<block wx:else>
+  <view class="spares-page">
+    <view class="page-title">备件库存</view>
+
+    <!-- 搜索与筛选 -->
+    <view class="filter-bar">
+      <input class="search-input" placeholder="搜索备件名称/编码" value="{{searchTerm}}" bindinput="onSearch" />
+      <picker class="cat-picker" mode="selector" range="{{categories}}" value="{{categoryIndex}}" bindchange="onCategoryChange">
+        <view class="cat-btn">{{categories[categoryIndex]}} ▾</view>
+      </picker>
+    </view>
+    <view class="filter-row">
+      <view class="low-stock-toggle {{onlyLowStock ? 'toggle-on' : ''}}" bindtap="toggleLowStock">
+        <view class="toggle-dot"></view>
+        <text>仅低库存</text>
+      </view>
+      <view class="muted">共 {{filteredParts.length}} 项</view>
+    </view>
+
+    <!-- 备件列表 -->
+    <view wx:if="{{filteredParts.length === 0}}" class="empty">暂无匹配备件</view>
+    <view class="part-card" wx:for="{{filteredParts}}" wx:key="id">
+      <view class="part-header">
+        <view class="part-name">{{item.name}}</view>
+        <view class="badge {{item.stock <= item.safe_stock ? 'badge-danger' : 'badge-success'}}">
+          {{item.stock <= item.safe_stock ? '低库存' : '正常'}}
+        </view>
+      </view>
+      <view class="part-code muted">{{item.code}} · {{item.specification || ""}}</view>
+      <view class="part-meta">
+        <view class="meta-item">
+          <text class="meta-label">库存</text>
+          <text class="meta-value {{item.stock <= item.safe_stock ? 'text-danger' : ''}}">{{item.stock}} {{item.unit || "件"}}</text>
+        </view>
+        <view class="meta-item">
+          <text class="meta-label">安全库存</text>
+          <text class="meta-value">{{item.safe_stock}} {{item.unit || "件"}}</text>
+        </view>
+        <view class="meta-item">
+          <text class="meta-label">单价</text>
+          <text class="meta-value">¥{{item.price || 0}}</text>
+        </view>
+        <view class="meta-item">
+          <text class="meta-label">库位</text>
+          <text class="meta-value">{{item.location || "—"}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+  <view class="safe-bottom"></view>
+</block>

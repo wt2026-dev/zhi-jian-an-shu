@@ -1,0 +1,279 @@
+<view class="page-container">
+  <!-- Sub-Header Status & Nav Bar -->
+  <view class="header-section bg-surface-container px-3 py-2">
+    <view class="flex items-center justify-between">
+      <view class="flex items-center gap-2 min-w-0">
+        <view class="back-btn" bindtap="goBack">
+          <text class="back-icon"> ← </text>
+        </view>
+        <view class="flex flex-col min-w-0">
+          <view class="flex items-center gap-1">
+            <text class="font-micro-label text-micro-label text-tech-muted uppercase">数据分析 // 多轮复测台账</text>
+            <view class="dot-green"></view>
+          </view>
+          <text class="font-headline-sm text-headline-sm text-on-surface truncate">气体历史采样复测趋势</text>
+        </view>
+      </view>
+      <view class="flex flex-col items-end">
+        <view class="sync-badge">
+          <text class="sync-icon animate-pulse"> 🔄 </text>
+          <text class="font-nano-label text-nano-label text-accent-blue tracking-wider">遥测直传</text>
+        </view>
+        <text class="font-nano-label text-nano-label text-tech-muted mt-1">自动刷新: 30s</text>
+      </view>
+    </view>
+
+    <!-- Operation Context Card -->
+    <view class="op-card bg-surface-container-low rounded mt-2">
+      <view class="flex items-center justify-between font-code-badge text-code-badge">
+        <text class="text-tech-muted">安全票号</text>
+        <text class="text-primary font-bold">作业票: 20241018-0089</text>
+      </view>
+      <view class="flex items-start gap-2 mt-1">
+        <text class="place-icon"> 📍 </text>
+        <text class="font-body-sm text-body-sm text-on-surface-variant truncate">热轧二车间 · 1号高炉除尘布袋箱内部 (作业分区: 02B)</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- Cycle & Regulatory Countdown Banner -->
+  <view class="px-3 pt-2">
+    <view class="countdown-card bg-surface-container-highest rounded shadow-sm">
+      <view class="flex items-center justify-between">
+        <view class="flex flex-col min-w-0 flex-1">
+          <view class="flex items-center gap-2">
+            <view class="round-badge">
+              <text class="font-code-badge text-code-badge text-on-primary">第 05 轮 / 现场复测中</text>
+            </view>
+            <text class="font-nano-label text-nano-label text-tech-muted">GB 30871 强制规程</text>
+          </view>
+          <text class="font-body-sm text-body-sm text-on-surface mt-1">受限空间常规作业 · 每2小时强制复测</text>
+        </view>
+        <view class="flex flex-col items-end pl-2">
+          <text class="font-nano-label text-nano-label text-tech-muted">本轮有效倒计时</text>
+          <view class="countdown-timer">
+            <text class="timer-icon"> ⏱ </text>
+            <text class="font-telemetry-md text-telemetry-md text-hazard-amber">{{countdown}}</text>
+          </view>
+          <text wx:if="{{countdownLabel}}" class="font-nano-label text-nano-label text-hazard-amber mt-1">{{countdownLabel}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- Gas Selectors Tab Bar -->
+  <view class="px-3 pt-2">
+    <view class="gas-tabs bg-surface-container-lowest p-1 rounded">
+      <view class="gas-tab {{activeGas === 'O2' ? 'gas-tab-active' : ''}}" bindtap="switchGas" data-gas="O2">
+        <text class="font-micro-label text-micro-label font-bold tracking-wider {{activeGas === 'O2' ? 'text-accent-blue' : 'text-tech-muted'}}">氧气 (O₂)</text>
+        <text class="font-code-badge text-code-badge {{activeGas === 'O2' ? 'text-on-surface' : 'text-tech-muted'}} mt-1">20.9%</text>
+        <view class="flex items-center gap-1 mt-1">
+          <view class="dot-green-sm"></view>
+          <text class="font-nano-label text-nano-label text-status-green">达标</text>
+        </view>
+      </view>
+      <view class="gas-tab {{activeGas === 'LEL' ? 'gas-tab-active' : ''}}" bindtap="switchGas" data-gas="LEL">
+        <text class="font-micro-label text-micro-label font-bold tracking-wider {{activeGas === 'LEL' ? 'text-accent-blue' : 'text-tech-muted'}}">可燃气体</text>
+        <text class="font-code-badge text-code-badge {{activeGas === 'LEL' ? 'text-on-surface' : 'text-tech-muted'}} mt-1">0%</text>
+        <view class="flex items-center gap-1 mt-1">
+          <view class="dot-green-sm"></view>
+          <text class="font-nano-label text-nano-label text-status-green">安全</text>
+        </view>
+      </view>
+      <view class="gas-tab {{activeGas === 'CO' ? 'gas-tab-active' : ''}}" bindtap="switchGas" data-gas="CO">
+        <text class="font-micro-label text-micro-label font-bold tracking-wider {{activeGas === 'CO' ? 'text-accent-blue' : 'text-tech-muted'}}">一氧化碳</text>
+        <text class="font-code-badge text-code-badge {{activeGas === 'CO' ? 'text-on-surface' : 'text-tech-muted'}} mt-1">4 ppm</text>
+        <view class="flex items-center gap-1 mt-1">
+          <view class="dot-green-sm"></view>
+          <text class="font-nano-label text-nano-label text-status-green">达标</text>
+        </view>
+      </view>
+      <view class="gas-tab {{activeGas === 'H2S' ? 'gas-tab-active' : ''}}" bindtap="switchGas" data-gas="H2S">
+        <text class="font-micro-label text-micro-label font-bold tracking-wider {{activeGas === 'H2S' ? 'text-accent-blue' : 'text-tech-muted'}}">硫化氢</text>
+        <text class="font-code-badge text-code-badge {{activeGas === 'H2S' ? 'text-on-surface' : 'text-tech-muted'}} mt-1">0.0 ppm</text>
+        <view class="flex items-center gap-1 mt-1">
+          <view class="dot-green-sm"></view>
+          <text class="font-nano-label text-nano-label text-status-green">达标</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- High-Precision Industrial Trend Chart Card -->
+  <view class="px-3 pt-2">
+    <view class="chart-card bg-surface-container rounded p-3 shadow-sm">
+      <!-- Card Header Stats -->
+      <view class="flex items-start justify-between">
+        <view>
+          <text class="font-micro-label text-micro-label text-tech-muted uppercase">历史演变趋势 // 8小时</text>
+          <text class="font-title-md text-title-md text-on-surface block mt-1">近8小时多轮次浓度演变</text>
+        </view>
+        <view class="flex flex-col items-end">
+          <view class="flex items-baseline gap-1">
+            <text class="font-micro-label text-micro-label text-tech-muted">最新实测</text>
+            <text class="font-telemetry-xl text-telemetry-xl text-primary font-bold">20.9</text>
+            <text class="font-micro-label text-micro-label text-primary">%VOL</text>
+          </view>
+          <view class="flex items-center gap-2 font-nano-label text-nano-label mt-1">
+            <text class="text-tech-muted">波动: <text class="text-on-surface">±0.3%</text></text>
+            <view class="variance-badge">
+              <text class="font-nano-label text-nano-label text-status-green">方差指数: 0.02 平稳</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- Chart Visual Container -->
+      <view class="chart-container mt-3">
+        <!-- Legend Strip -->
+        <view class="flex items-center justify-between pb-2 font-nano-label text-nano-label text-tech-muted">
+          <view class="flex items-center gap-3">
+            <view class="flex items-center gap-1">
+              <view class="legend-bar-green"></view>
+              <text>基准安全区 (19.5% - 23.5%)</text>
+            </view>
+            <view class="flex items-center gap-1">
+              <view class="legend-bar-error"></view>
+              <text>报警阈值</text>
+            </view>
+          </view>
+          <text class="font-code-badge text-code-badge text-primary-fixed-dim">采样周期: 2小时</text>
+        </view>
+
+        <!-- Inline Precision Trend Canvas -->
+        <view class="chart-area">
+          <canvas canvas-id="trendChart" class="trend-canvas" bindtouchstart="onChartTouch"></canvas>
+        </view>
+
+        <!-- Micro Info Footnote -->
+        <view class="chart-footnote">
+          <text class="font-nano-label text-nano-label text-tech-muted">标定气体传感器: 泵吸式电化学 (分辨率 0.01%)</text>
+          <text class="font-nano-label text-nano-label text-status-green">符合 GBZ 2.1-2019 标准</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- Historical Batch Re-test Register -->
+  <view class="px-3 pt-2">
+    <view class="record-card bg-surface-container rounded p-3 shadow-sm">
+      <view class="flex items-center justify-between">
+        <view class="flex items-center gap-2">
+          <view class="title-bar"></view>
+          <text class="font-title-md text-title-md text-on-surface">历史批次复测台账</text>
+        </view>
+        <text class="font-code-badge text-code-badge text-tech-muted">已记录 5 次复测</text>
+      </view>
+
+      <!-- Batch Record Cards List -->
+      <view class="record-list mt-3">
+        <!-- Item 1: Latest Round 5 -->
+        <view class="record-item bg-surface-container-low rounded shadow-sm">
+          <view class="flex items-center justify-between">
+            <view class="flex items-center gap-2">
+              <view class="round-tag-current">
+                <text class="font-code-badge text-code-badge text-on-primary font-bold">第5轮 (当前)</text>
+              </view>
+              <text class="font-code-badge text-code-badge text-on-surface">16:00:24</text>
+            </view>
+            <view class="status-pass-badge">
+              <view class="dot-green-xs"></view>
+              <text class="font-code-badge text-code-badge text-status-green font-bold">复测达标</text>
+            </view>
+          </view>
+          <view class="grid grid-cols-3 gap-2 mt-2">
+            <view class="flex flex-col">
+              <text class="font-nano-label text-nano-label text-tech-muted">化验人员</text>
+              <text class="text-on-surface font-medium font-body-sm text-body-sm">周广志</text>
+            </view>
+            <view class="flex flex-col">
+              <text class="font-nano-label text-nano-label text-tech-muted">采样空间点</text>
+              <text class="text-on-surface font-medium font-body-sm text-body-sm">罐底部 (0.8m)</text>
+            </view>
+            <view class="flex flex-col items-end">
+              <text class="font-nano-label text-nano-label text-tech-muted">受检仪器编号</text>
+              <text class="text-primary font-code-badge text-code-badge">检测仪-8041</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- Item 2: Round 4 -->
+        <view class="record-item bg-surface-container-low rounded shadow-sm">
+          <view class="flex items-center justify-between">
+            <view class="flex items-center gap-2">
+              <view class="round-tag">
+                <text class="font-code-badge text-code-badge text-on-surface-variant">第4轮</text>
+              </view>
+              <text class="font-code-badge text-code-badge text-tech-muted">14:00:10</text>
+            </view>
+            <view class="status-pass-badge">
+              <view class="dot-green-xs"></view>
+              <text class="font-code-badge text-code-badge text-status-green font-bold">复测达标</text>
+            </view>
+          </view>
+          <view class="grid grid-cols-3 gap-2 mt-2">
+            <view class="flex flex-col">
+              <text class="font-nano-label text-nano-label text-tech-muted">化验人员</text>
+              <text class="text-on-surface font-medium font-body-sm text-body-sm">周广志</text>
+            </view>
+            <view class="flex flex-col">
+              <text class="font-nano-label text-nano-label text-tech-muted">采样空间点</text>
+              <text class="text-on-surface font-medium font-body-sm text-body-sm">罐中部 (2.5m)</text>
+            </view>
+            <view class="flex flex-col items-end">
+              <text class="font-nano-label text-nano-label text-tech-muted">受检仪器编号</text>
+              <text class="font-code-badge text-code-badge text-on-surface">检测仪-8041</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- Item 3: Round 3 -->
+        <view class="record-item bg-surface-container-low rounded shadow-sm">
+          <view class="flex items-center justify-between">
+            <view class="flex items-center gap-2">
+              <view class="round-tag">
+                <text class="font-code-badge text-code-badge text-on-surface-variant">第3轮</text>
+              </view>
+              <text class="font-code-badge text-code-badge text-tech-muted">12:01:45</text>
+            </view>
+            <view class="status-pass-badge">
+              <view class="dot-green-xs"></view>
+              <text class="font-code-badge text-code-badge text-status-green font-bold">复测达标</text>
+            </view>
+          </view>
+          <view class="grid grid-cols-3 gap-2 mt-2">
+            <view class="flex flex-col">
+              <text class="font-nano-label text-nano-label text-tech-muted">化验人员</text>
+              <text class="text-on-surface font-medium font-body-sm text-body-sm">李振华</text>
+            </view>
+            <view class="flex flex-col">
+              <text class="font-nano-label text-nano-label text-tech-muted">采样空间点</text>
+              <text class="text-on-surface font-medium font-body-sm text-body-sm">罐顶部 (4.2m)</text>
+            </view>
+            <view class="flex flex-col items-end">
+              <text class="font-nano-label text-nano-label text-tech-muted">受检仪器编号</text>
+              <text class="font-code-badge text-code-badge text-on-surface">检测仪-7920</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- Heavy Duty Gloves-Friendly Action Bar -->
+  <view class="px-3 pt-4 pb-8">
+    <view class="flex gap-3">
+      <view class="action-export" bindtap="exportLedger">
+        <text class="export-icon"> 💾 </text>
+        <text class="font-title-md text-title-md truncate">导出台账</text>
+      </view>
+      <view class="action-next-round" bindtap="startNextRound">
+        <text class="font-headline-sm text-headline-sm font-bold">发起第 6 轮现场复测</text>
+        <text class="next-icon"> → </text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 隐藏 canvas 用于导出台账 -->
+  <canvas canvas-id="exportCanvas" class="hidden-export-canvas" style="width:750px;height:500px;"></canvas>
+</view>

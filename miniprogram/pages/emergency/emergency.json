@@ -1,0 +1,9 @@
+{
+  "usingComponents": {},
+  "navigationBarTitleText": "紧急警报与气体超标",
+  "navigationBarBackgroundColor": "#93000a",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#111418",
+  "backgroundTextStyle": "light",
+  "enablePullDownRefresh": false
+}

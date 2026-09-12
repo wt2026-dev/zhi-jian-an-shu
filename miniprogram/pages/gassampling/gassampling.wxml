@@ -1,0 +1,332 @@
+<!--pages/gassampling/gassampling.wxml - 气体采样检测录入-->
+<page-meta root-font-size="16" />
+<view class="page-container">
+
+  <!-- 顶部导航与设备同步栏 -->
+  <view class="top-bar">
+    <view class="top-bar-inner">
+      <view class="flex items-center gap-element">
+        <view class="back-btn" bindtap="goBack">
+          <text class="text-18px">←</text>
+        </view>
+        <view>
+          <view class="flex items-center gap-compact">
+            <text class="font-headline-sm text-headline-sm text-on-surface tracking-tight">气体采样检测录入</text>
+            <view class="badge-code">GB 30871-2021</view>
+          </view>
+          <text class="text-nano text-tech-muted tracking-wider mt-nano">受限空间气体采样化验</text>
+        </view>
+      </view>
+      <view class="flex flex-col items-end">
+        <view class="device-status-bar">
+          <view class="status-dot status-dot-green"></view>
+          <text class="text-code-badge text-on-surface font-semibold">RAE-Guard 四合一检测仪</text>
+        </view>
+        <view class="flex items-center gap-micro mt-nano">
+          <text class="text-11px text-status-green">📡</text>
+          <text class="text-nano text-tech-muted">直连·电量 {{deviceInfo.battery}}%</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 操作头部与倒计时追踪 -->
+  <view class="page-body">
+
+    <!-- 作业票信息 -->
+    <view class="card">
+      <view class="ticket-header">
+        <view class="flex items-center gap-compact min-w-0">
+          <text class="text-16px text-primary">📦</text>
+          <text class="text-code-badge text-primary font-bold">作业票: {{ticketInfo.id}}</text>
+        </view>
+        <view class="badge-warning">{{ticketInfo.type}}</view>
+      </view>
+      <view class="flex items-start justify-between gap-element">
+        <view class="min-w-0 flex-1">
+          <text class="text-nano text-tech-muted uppercase">作业靶向受限区域</text>
+          <text class="text-title-md text-on-surface mt-nano font-medium">{{ticketInfo.area}}</text>
+          <view class="flex items-center gap-compact mt-micro">
+            <text class="text-code-badge text-on-surface-variant">作业分区: {{ticketInfo.partition}}</text>
+            <text class="text-nano text-tech-muted">容积 {{ticketInfo.volume}} · 垂直深度 {{ticketInfo.depth}}</text>
+          </view>
+        </view>
+        <view class="countdown-box">
+          <text class="text-nano text-tech-muted uppercase block">采样有效倒计时</text>
+          <text class="text-telemetry-md text-hazard-amber font-bold">{{countdown}}</text>
+          <text class="text-nano text-tech-muted block">30分钟内强制准入</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 三层采样分段选择器 -->
+    <view class="card">
+      <view class="card-header">
+        <view class="flex items-center gap-micro">
+          <text class="text-14px text-primary">📊</text>
+          <text class="text-title-md text-on-surface">垂直三层采样分段</text>
+        </view>
+        <text class="text-micro text-tech-muted">规范要求: 顶/中/底全测</text>
+      </view>
+      <view class="depth-grid">
+        <!-- 上部 -->
+        <view class="depth-btn {{currentDepth === 0 ? 'depth-btn-active' : 'depth-btn-done'}}" bindtap="selectDepth" data-depth="0">
+          <text class="text-nano text-tech-muted">上部 (0.8m)</text>
+          <text class="text-title-md text-on-surface-variant font-medium mt-nano">罐顶部</text>
+          <view class="flex items-center gap-micro mt-compact">
+            <text class="text-12px {{samplingStatus[0] ? 'text-status-green' : 'text-tech-muted'}}">{{samplingStatus[0] ? '✓' : '○'}}</text>
+            <text class="text-nano {{samplingStatus[0] ? 'text-status-green' : 'text-tech-muted'}}">{{samplingStatus[0] ? '已录入' : '待采样'}}</text>
+          </view>
+        </view>
+        <!-- 中部 -->
+        <view class="depth-btn {{currentDepth === 1 ? 'depth-btn-active' : 'depth-btn-done'}}" bindtap="selectDepth" data-depth="1">
+          <text class="text-nano text-tech-muted">中部 (2.5m)</text>
+          <text class="text-title-md text-on-surface-variant font-medium mt-nano">罐中部</text>
+          <view class="flex items-center gap-micro mt-compact">
+            <text class="text-12px {{samplingStatus[1] ? 'text-status-green' : 'text-tech-muted'}}">{{samplingStatus[1] ? '✓' : '○'}}</text>
+            <text class="text-nano {{samplingStatus[1] ? 'text-status-green' : 'text-tech-muted'}}">{{samplingStatus[1] ? '已录入' : '待采样'}}</text>
+          </view>
+        </view>
+        <!-- 下部 -->
+        <view class="depth-btn depth-btn-current" bindtap="selectDepth" data-depth="2">
+          <view class="current-indicator"></view>
+          <text class="text-nano text-primary font-bold">下部 (4.5m)</text>
+          <text class="text-title-md text-primary font-bold mt-nano">罐底部</text>
+          <view class="flex items-center gap-micro mt-compact">
+            <view class="pulse-dot"></view>
+            <text class="text-nano text-primary font-bold">当前测点</text>
+          </view>
+        </view>
+      </view>
+      <view class="depth-info-bar">
+        <view class="flex items-center gap-compact min-w-0">
+          <text class="text-13px text-hazard-amber">ℹ️</text>
+          <text class="text-body-sm text-on-surface-variant truncate">重点: 重质毒气 (H₂S/CO) 易沉积于底部</text>
+        </view>
+        <text class="text-code-badge text-primary font-bold">进度 {{completedDepth}}/3</text>
+      </view>
+    </view>
+
+    <!-- 四合一气体实时检测数据 -->
+    <view class="card">
+      <view class="card-header">
+        <view class="flex items-center gap-micro">
+          <text class="text-16px text-primary">📡</text>
+          <text class="text-headline-sm text-on-surface">四合一气体实时检测数据</text>
+        </view>
+        <view class="badge-live">实时直传</view>
+      </view>
+      <view class="gas-grid">
+        <!-- O2 -->
+        <view class="gas-card">
+          <view class="flex items-center justify-between">
+            <text class="text-headline-sm text-on-surface font-bold">O₂ 氧气</text>
+            <view class="badge-sm {{gasReadings.o2.status === '合格' ? 'badge-green' : 'badge-red'}}">合格 达标</view>
+          </view>
+          <view class="flex items-baseline gap-compact mt-micro">
+            <text class="text-telemetry-xl text-primary font-bold tracking-tight">{{gasReadings.o2.value}}</text>
+            <text class="text-code-badge text-tech-muted">% VOL</text>
+          </view>
+          <view class="mt-element">
+            <view class="progress-bar">
+              <view class="progress-dim" style="width: 15%"></view>
+              <view class="progress-green" style="width: 70%"></view>
+              <view class="progress-amber" style="width: 15%"></view>
+            </view>
+            <view class="flex items-center justify-between mt-micro">
+              <text class="text-nano text-tech-muted">基准: 19.5%~23.5%</text>
+              <view class="flex items-center gap-nano">
+                <view class="adjust-btn" bindtap="adjustValue" data-gas="o2" data-delta="-0.1">
+                  <text class="text-on-surface">-</text>
+                </view>
+                <view class="adjust-btn" bindtap="adjustValue" data-gas="o2" data-delta="0.1">
+                  <text class="text-on-surface">+</text>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- LEL -->
+        <view class="gas-card">
+          <view class="flex items-center justify-between">
+            <text class="text-headline-sm text-on-surface font-bold">LEL 可燃气</text>
+            <view class="badge-sm {{gasReadings.lel.status === '合格' ? 'badge-green' : 'badge-red'}}">合格 安全</view>
+          </view>
+          <view class="flex items-baseline gap-compact mt-micro">
+            <text class="text-telemetry-xl text-on-surface font-bold tracking-tight">{{gasReadings.lel.value}}</text>
+            <text class="text-code-badge text-tech-muted">% LEL</text>
+          </view>
+          <view class="mt-element">
+            <view class="progress-bar">
+              <view class="progress-green" style="width: 10%"></view>
+              <view class="progress-dim" style="width: 90%"></view>
+            </view>
+            <view class="flex items-center justify-between mt-micro">
+              <text class="text-nano text-tech-muted">阈值: &lt;1.0% (爆炸下限)</text>
+              <view class="flex items-center gap-nano">
+                <view class="adjust-btn" bindtap="adjustValue" data-gas="lel" data-delta="-1">
+                  <text class="text-on-surface">-</text>
+                </view>
+                <view class="adjust-btn" bindtap="adjustValue" data-gas="lel" data-delta="1">
+                  <text class="text-on-surface">+</text>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- CO -->
+        <view class="gas-card">
+          <view class="flex items-center justify-between">
+            <text class="text-headline-sm text-on-surface font-bold">CO 一氧化碳</text>
+            <view class="badge-sm {{gasReadings.co.status === '合格' ? 'badge-green' : 'badge-red'}}">合格 达标</view>
+          </view>
+          <view class="flex items-baseline gap-compact mt-micro">
+            <text class="text-telemetry-xl text-on-surface font-bold tracking-tight">{{gasReadings.co.value}}</text>
+            <text class="text-code-badge text-tech-muted">ppm</text>
+          </view>
+          <view class="mt-element">
+            <view class="progress-bar">
+              <view class="progress-green" style="width: 20%"></view>
+              <view class="progress-dim" style="width: 80%"></view>
+            </view>
+            <view class="flex items-center justify-between mt-micro">
+              <text class="text-nano text-tech-muted">阈值: &lt;20 ppm (30mg/m³)</text>
+              <view class="flex items-center gap-nano">
+                <view class="adjust-btn" bindtap="adjustValue" data-gas="co" data-delta="-1">
+                  <text class="text-on-surface">-</text>
+                </view>
+                <view class="adjust-btn" bindtap="adjustValue" data-gas="co" data-delta="1">
+                  <text class="text-on-surface">+</text>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- H2S -->
+        <view class="gas-card">
+          <view class="flex items-center justify-between">
+            <text class="text-headline-sm text-on-surface font-bold">H₂S 硫化氢</text>
+            <view class="badge-sm {{gasReadings.h2s.status === '合格' ? 'badge-green' : 'badge-red'}}">合格 达标</view>
+          </view>
+          <view class="flex items-baseline gap-compact mt-micro">
+            <text class="text-telemetry-xl text-on-surface font-bold tracking-tight">{{gasReadings.h2s.value}}</text>
+            <text class="text-code-badge text-tech-muted">ppm</text>
+          </view>
+          <view class="mt-element">
+            <view class="progress-bar">
+              <view class="progress-green" style="width: 0%"></view>
+              <view class="progress-dim" style="width: 100%"></view>
+            </view>
+            <view class="flex items-center justify-between mt-micro">
+              <text class="text-nano text-tech-muted">阈值: &lt;7 ppm (10mg/m³)</text>
+              <view class="flex items-center gap-nano">
+                <view class="adjust-btn" bindtap="adjustValue" data-gas="h2s" data-delta="-0.1">
+                  <text class="text-on-surface">-</text>
+                </view>
+                <view class="adjust-btn" bindtap="adjustValue" data-gas="h2s" data-delta="0.1">
+                  <text class="text-on-surface">+</text>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view class="flex items-center justify-between mt-compact">
+        <text class="text-nano text-tech-muted truncate">探头编号: {{deviceInfo.probeId}} ({{deviceInfo.probeType}}) · 校准周期剩余 {{deviceInfo.calibrationDays}} 天</text>
+        <text class="text-nano text-primary shrink-0 ml-compact">已同步 {{deviceInfo.lastSync}}</text>
+      </view>
+    </view>
+
+    <!-- 取样人资质与现场仪表存证 -->
+    <view class="card">
+      <view class="card-header">
+        <view class="flex items-center gap-micro">
+          <text class="text-16px text-primary">✓</text>
+          <text class="text-title-md text-on-surface">取样人资质与现场仪表存证</text>
+        </view>
+        <view class="badge-sm badge-green">已人脸验证</view>
+      </view>
+
+      <!-- 化验员信息 -->
+      <view class="assayer-strip">
+        <view class="flex items-center gap-compact">
+          <view class="avatar-circle">
+            <text class="text-code-badge text-primary font-bold">{{assayer.initial}}</text>
+          </view>
+          <view>
+            <view class="flex items-center gap-compact">
+              <text class="text-title-md text-on-surface font-semibold">{{assayer.name}}</text>
+              <view class="badge-role">{{assayer.role}}</view>
+            </view>
+            <text class="text-nano text-tech-muted mt-nano text-code-badge">员工工号: {{assayer.employeeId}} · 证书{{assayer.certNo}}</text>
+          </view>
+        </view>
+        <text class="text-18px text-status-green">🛡️</text>
+      </view>
+
+      <!-- 拍照存证 -->
+      <view class="photo-grid">
+        <view wx:if="{{photoList.length > 0}}" class="photo-card photo-filled">
+          <image class="photo-img" src="{{photoList[0].path}}" mode="aspectFill" />
+          <view class="photo-overlay">
+            <view class="flex items-center justify-between">
+              <text class="text-nano text-status-green flex items-center gap-nano">
+                <text class="text-10px">✅</text>现场屏幕已核验
+              </text>
+              <text class="text-nano text-tech-muted">拍摄元数据合规</text>
+            </view>
+            <text class="text-nano text-on-surface-variant font-code-badge mt-nano">{{photoList[0].time}}</text>
+          </view>
+        </view>
+        <view wx:else class="photo-card photo-empty" bindtap="choosePhoto">
+          <text class="text-20px text-primary">📷</text>
+          <text class="text-nano text-tech-muted mt-nano">补充采样环境照片</text>
+          <text class="text-nano text-tech-dim">(选填 · 进风口盲板)</text>
+        </view>
+        <view class="photo-card photo-empty" bindtap="choosePhoto">
+          <text class="text-20px text-primary">📷</text>
+          <text class="text-nano text-tech-muted mt-nano">补充采样环境照片</text>
+          <text class="text-nano text-tech-dim">(选填 · 进风口盲板)</text>
+        </view>
+      </view>
+
+      <!-- 环境参数 -->
+      <view class="env-grid">
+        <view class="flex items-center gap-compact">
+          <text class="text-18px text-tech-muted">🌬️</text>
+          <view>
+            <text class="text-nano text-tech-muted">强制通风时长</text>
+            <text class="text-title-md text-on-surface text-code-badge">45 <text class="text-nano text-tech-muted">分钟 (合规)</text></text>
+          </view>
+        </view>
+        <view class="flex items-center gap-compact">
+          <text class="text-18px text-tech-muted">🌡️</text>
+          <view>
+            <text class="text-nano text-tech-muted">空间内部温度/湿度</text>
+            <text class="text-title-md text-on-surface text-code-badge">24.6 <text class="text-nano text-tech-muted">℃ / 58%</text></text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+  </view>
+
+  <!-- 底部操作栏 -->
+  <view class="bottom-dock safe-bottom">
+    <view class="flex items-center gap-element max-w-lg mx-auto">
+      <view class="dock-btn-secondary" bindtap="triggerResync">
+        <text class="text-18px text-tech-muted">🔄</text>
+        <text class="text-title-md text-on-surface">重测/校准</text>
+      </view>
+      <view class="dock-btn-primary {{submitting ? 'dock-btn-loading' : ''}}" bindtap="submitReport">
+        <text wx:if="{{submitting}}" class="text-18px animate-spin">⏳</text>
+        <text class="text-title-md font-bold">{{submitting ? '报告数字加密存证中...' : '签署提交采样分析报告'}}</text>
+        <text wx:if="{{!submitting}}" class="text-18px">→</text>
+      </view>
+    </view>
+  </view>
+
+</view>

@@ -1,0 +1,152 @@
+<!-- 用户个人资料 -->
+<view class="profile-page">
+  <!-- 用户信息卡片 -->
+  <view class="profile-card">
+    <view class="profile-header">
+      <view class="profile-avatar" bindtap="chooseAvatar">
+        <image wx:if="{{avatarUrl}}" class="avatar-img" src="{{avatarUrl}}" mode="aspectFill" />
+        <text wx:else class="avatar-text">{{avatarChar}}</text>
+        <view class="online-dot"></view>
+        <view class="avatar-edit" wx:if="{{!avatarUploading}}">更换</view>
+      </view>
+      <view class="profile-info">
+        <view class="profile-name-row">
+          <text class="profile-name">{{user.name}}</text>
+          <view class="profile-badge">工号: {{user.employeeId}}</view>
+        </view>
+        <text class="profile-dept">{{user.department}}</text>
+        <view class="profile-status">
+          <view class="status-dot"></view>
+          <text class="status-text">已验合规 · {{roleText}}</text>
+        </view>
+      </view>
+      <view class="terminal-badge">防爆终端 01</view>
+    </view>
+
+    <!-- 值班状态切换 -->
+    <view class="duty-bar">
+      <view class="duty-btns">
+        <view class="duty-btn {{onDuty ? 'duty-btn-active' : ''}}" bindtap="toggleDuty" data-on="1">
+          <view class="duty-dot {{onDuty ? 'dot-active' : ''}}"></view>
+          <text>在岗执勤 (在线)</text>
+        </view>
+        <view class="duty-btn {{!onDuty ? 'duty-btn-active' : ''}}" bindtap="toggleDuty" data-on="0">
+          <view class="duty-dot {{!onDuty ? 'dot-active' : ''}}"></view>
+          <text>交接班中 (离线)</text>
+        </view>
+      </view>
+      <view class="duty-info">
+        <text class="duty-latency">{{latency}}</text>
+        <text class="duty-battery">终端电量 -- <text class="text-dim">(模拟)</text></text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 资质证书 -->
+  <view class="section">
+    <view class="section-header">
+      <view class="section-title-row">
+        <view class="section-dot"></view>
+        <text class="section-title">特种作业授权与资质</text>
+      </view>
+      <text class="section-subtitle">全网验签通过</text>
+    </view>
+    <view wx:if="{{certifications.length > 0}}" class="cert-grid">
+      <view class="cert-card" wx:for="{{certifications}}" wx:key="label">
+        <view class="cert-card-header">
+          <view class="cert-icon cert-icon-{{index === 0 ? 'blue' : index === 1 ? 'orange' : 'amber'}}">
+            <text>{{index === 0 ? '⚡' : index === 1 ? '🔥' : '⚠️'}}</text>
+          </view>
+          <view class="cert-badge {{item.status === 'valid' ? 'cert-valid' : 'cert-review'}}">
+            {{item.status === 'valid' ? '有效' : '待复审'}}
+          </view>
+        </view>
+        <view class="cert-card-body">
+          <text class="cert-label">{{item.label}}</text>
+          <text class="cert-expiry {{item.status !== 'valid' ? 'text-amber' : ''}}">{{item.expiry}}</text>
+        </view>
+      </view>
+    </view>
+    <view wx:else class="empty-cert">
+      <text class="text-dim">暂无证书</text>
+    </view>
+  </view>
+
+  <!-- 执行效能 -->
+  <view class="section">
+    <view class="section-header">
+      <view class="section-title-row">
+        <view class="section-dot"></view>
+        <text class="section-title">本日执行效能与闭环</text>
+      </view>
+      <text class="section-subtitle">早班 08:00 - 16:00</text>
+    </view>
+    <view class="metrics-grid">
+      <view class="metric-card" wx:for="{{metrics}}" wx:key="label">
+        <text class="metric-label">{{item.label}}</text>
+        <view class="metric-value-row">
+          <text class="metric-value {{item.color === 'blue' ? 'text-blue' : ''}}">{{item.value}}</text>
+          <text class="metric-total">{{item.total}}</text>
+        </view>
+        <view class="metric-badge {{item.color === 'blue' ? 'badge-blue' : 'badge-green'}}">
+          {{item.badge}}
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 外设状态 -->
+  <view class="section">
+    <view class="section-header">
+      <view class="section-title-row">
+        <view class="section-dot"></view>
+        <text class="section-title">智能外设物理直连</text>
+      </view>
+      <view class="online-count">
+        <view class="count-dot"></view>
+        <text>2 台在线</text>
+      </view>
+    </view>
+    <view class="device-grid">
+      <view class="device-card" wx:for="{{devices}}" wx:key="name">
+        <view class="device-icon">
+          <text>{{index === 0 ? '📡' : '📱'}}</text>
+        </view>
+        <view class="device-info">
+          <text class="device-name">{{item.name}}</text>
+          <text class="device-detail">{{item.detail}}</text>
+        </view>
+        <view class="device-status">
+          <view class="status-dot-green"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 操作按钮 -->
+  <view class="action-section">
+    <view class="action-card" bindtap="go" data-url="/pages/offlinedata/offlinedata">
+      <text class="action-icon">☁️</text>
+      <text class="action-text">离线存证与数据同步</text>
+      <text class="action-arrow">›</text>
+    </view>
+    <view class="action-card" bindtap="go" data-url="/pages/approvalhistory/approvalhistory">
+      <text class="action-icon">📝</text>
+      <text class="action-text">历史审批与签章</text>
+      <text class="action-arrow">›</text>
+    </view>
+    <view class="action-card" bindtap="go" data-url="/pages/permitdocument/permitdocument">
+      <text class="action-icon">📄</text>
+      <text class="action-text">电子作业票文档</text>
+      <text class="action-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 退出按钮 -->
+  <view class="logout-btn" bindtap="logout">
+    <text class="logout-icon">🚪</text>
+    <text class="logout-text">退出登录</text>
+  </view>
+
+  <view class="bottom-spacer"></view>
+</view>

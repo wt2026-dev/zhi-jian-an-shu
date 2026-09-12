@@ -1,0 +1,278 @@
+@import "../../common.wxss";
+
+.page-container {
+  min-height: 100vh;
+  background: var(--surface);
+  padding-bottom: 120rpx;
+}
+
+.back-btn {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 12rpx;
+  background: var(--surface-container-high);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-icon {
+  font-family: "Material Symbols Outlined";
+  font-size: 36rpx;
+  color: var(--on-surface);
+}
+
+.sync-badge {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  background: var(--surface-container-lowest);
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.sync-icon {
+  font-family: "Material Symbols Outlined";
+  font-size: 24rpx;
+  color: #22d3ee;
+}
+
+.place-icon {
+  font-family: "Material Symbols Outlined";
+  font-size: 28rpx;
+  color: var(--hazard-amber);
+  margin-top: 4rpx;
+}
+
+.dot-green {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: var(--status-green);
+}
+
+.dot-green-sm {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: var(--status-green);
+}
+
+.dot-green-xs {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: var(--status-green);
+}
+
+.op-card {
+  padding: 16rpx;
+}
+
+.countdown-card {
+  padding: 24rpx;
+}
+
+.round-badge {
+  background: var(--primary-container);
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.countdown-timer {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  background: var(--surface-container-lowest);
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+  margin-top: 8rpx;
+}
+
+.timer-icon {
+  font-family: "Material Symbols Outlined";
+  font-size: 28rpx;
+  color: var(--hazard-amber);
+}
+
+.gas-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8rpx;
+}
+
+.gas-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16rpx 0;
+  border-radius: 12rpx;
+  transition: all 0.2s;
+}
+
+.gas-tab-active {
+  background: var(--surface-container-high);
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.variance-badge {
+  background: var(--surface-container-lowest);
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.legend-bar-green {
+  width: 24rpx;
+  height: 8rpx;
+  background: var(--status-green);
+  opacity: 0.4;
+  border-radius: 4rpx;
+}
+
+.legend-bar-error {
+  width: 24rpx;
+  height: 4rpx;
+  background: var(--error);
+  border-radius: 2rpx;
+}
+
+.chart-area {
+  width: 100%;
+  height: 440rpx;
+  background: var(--surface-container-lowest);
+  border-radius: 12rpx;
+  padding: 16rpx;
+  position: relative;
+}
+
+.trend-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.chart-footnote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12rpx 16rpx;
+  background: var(--surface-container-high);
+  border-radius: 12rpx;
+  margin-top: 8rpx;
+}
+
+.record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.title-bar {
+  width: 6rpx;
+  height: 28rpx;
+  background: var(--primary);
+  border-radius: 3rpx;
+}
+
+.record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.record-item {
+  padding: 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.status-pass-badge {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  background: var(--surface-container-highest);
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.round-tag-current {
+  background: var(--primary);
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.round-tag {
+  background: var(--surface-container-highest);
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.action-export {
+  flex: 5;
+  height: 96rpx;
+  background: var(--surface-container-high);
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  padding: 0 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+.action-export:active {
+  background: var(--surface-container-highest);
+  transform: translateY(2rpx);
+}
+
+.export-icon {
+  font-family: "Material Symbols Outlined";
+  font-size: 36rpx;
+  color: var(--tech-muted);
+}
+
+.action-next-round {
+  flex: 7;
+  height: 96rpx;
+  background: var(--primary-container);
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  padding: 0 16rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.25);
+  color: var(--on-primary-container);
+}
+
+.action-next-round:active {
+  background: var(--primary);
+  transform: translateY(2rpx);
+}
+
+.next-icon {
+  font-family: "Material Symbols Outlined";
+  font-size: 36rpx;
+  color: var(--on-primary-container);
+}
+
+.hidden-export-canvas {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+}
+
+/* 头部区块 */
+.header-section { border-bottom: 1rpx solid var(--industrial-border); }
