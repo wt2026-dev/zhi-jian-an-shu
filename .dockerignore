@@ -1,0 +1,25 @@
+# 依赖与构建产物
+node_modules
+dist
+build
+coverage
+
+# 运行时数据（PGlite 数据库与上传图片）
+data
+public/uploads
+
+# 版本控制与 CI
+.git
+.github
+
+# 隔离的历史遗留 Python FastAPI 备选实现（不参与构建）
+backend
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# 杂项
+*.log
+.DS_Store

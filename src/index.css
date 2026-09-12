@@ -1,0 +1,619 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   设计令牌：明亮玻璃质感 × 蓝青科技线条
+   科技感由"线条 + 留白 + 层次 + 细微渐变 + 玻璃质感"表达，严禁粒子/流光/霓虹特效
+   ========================================================================== */
+:root {
+  --primary: #3B82F6;
+  --primary-dark: #2563EB;
+  --primary-light: #EFF6FF;
+  --cyan: #06B6D4;
+  --cyan-light: #CFFAFE;
+
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #6366F1;
+
+  --bg-page: #F8FAFC;
+  --bg-card: rgba(255, 255, 255, 0.85);
+
+  --text-title: #0F172A;
+  --text-body: #475569;
+  --text-hint: #94A3B8;
+
+  --card-border: rgba(226, 232, 240, 0.7);
+  --card-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+
+  /* 兼容旧变量与系统级复用 */
+  --page-bg: var(--bg-page);
+  --card-bg: var(--bg-card);
+  --border: var(--card-border);
+  --border-subtle: rgba(241, 245, 249, 0.8);
+  --accent-cyan: var(--cyan);
+  --soft-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  --radius-card: 12px;
+
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-primary-light: #eff6ff;
+  --color-accent: #06b6d4;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-bg-base: #f8fafc;
+  --color-bg-surface: #ffffff;
+  --color-bg-card: rgba(255, 255, 255, 0.85);
+  --color-border: rgba(226, 232, 240, 0.7);
+}
+
+body,
+#root {
+  background-color: var(--bg-page);
+  background-image:
+    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 90% 20%, rgba(6, 182, 212, 0.06) 0%, transparent 50%);
+  background-attachment: fixed;
+  color: var(--text-body);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 明亮主题滚动条（纤细、低对比） */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* ==========================================================================
+   浅色主题兼容层
+   历史组件大量使用深色 slate 工具类，这里统一重映射到明亮令牌，
+   避免逐文件改动，同时保证"无白字白底 / 无深色块残留"。
+   ========================================================================== */
+
+/* 1) 容器底色：深色底 → 页面底色 / 卡片白 */
+[class*="bg-slate-950"] {
+  background-color: var(--page-bg) !important;
+}
+[class*="bg-slate-900"] {
+  background-color: var(--card-bg) !important;
+}
+[class*="bg-slate-850"] {
+  background-color: var(--card-bg) !important;
+}
+[class*="bg-slate-800"] {
+  background-color: var(--card-bg) !important;
+}
+
+/* 2) 文字颜色：浅色字 → 深墨色，保证对比度 ≥ 4.5:1 */
+[class*="text-slate-100"],
+[class*="text-slate-200"] {
+  color: var(--text-title) !important;
+}
+[class*="text-slate-300"],
+[class*="text-slate-400"] {
+  color: var(--text-body) !important;
+}
+[class*="text-slate-500"] {
+  color: var(--text-hint) !important;
+}
+/* 白字仅保留在"有彩色底"的元素上，避免白字白底 */
+[class*="text-white"]:not([class*="bg-blue"]):not([class*="bg-cyan"]):not([class*="bg-rose"]):not(
+    [class*="bg-emerald"]
+  ):not([class*="bg-amber"]):not([class*="bg-red"]):not([class*="bg-green"]):not(
+    [class*="bg-purple"]
+  ):not([class*="bg-gradient"]) {
+  color: var(--text-title) !important;
+}
+
+/* 3) 边框：深色描边 → 细浅灰描边 */
+[class*="border-slate-700"],
+[class*="border-slate-800"],
+[class*="border-slate-600"] {
+  border-color: var(--border) !important;
+}
+[class*="border-cyan-900"],
+[class*="border-cyan-800"] {
+  border-color: var(--border) !important;
+}
+[class*="border-rose-950"] {
+  border-color: var(--border) !important;
+}
+
+/* 4) hover 态：深色块 → 极淡底色（取消斑马纹与厚重 hover） */
+[class*="hover:bg-slate-800"]:hover,
+[class*="hover:bg-slate-750"]:hover,
+[class*="hover:bg-slate-700"]:hover,
+[class*="hover:bg-slate-900"]:hover {
+  background-color: var(--border-subtle) !important;
+}
+[class*="even:bg-slate"] {
+  background-color: transparent !important;
+}
+
+/* 5) 阴影：厚重下沉/彩色辉光 → 极轻阴影（去霓虹、去厚重） */
+[class*="shadow-2xl"],
+[class*="shadow-xl"],
+[class*="shadow-lg"]:not([class*="shadow-lg-"]),
+[class*="shadow-cyan"],
+[class*="shadow-blue"],
+[class*="shadow-rose"],
+[class*="shadow-emerald"],
+[class*="shadow-purple"],
+[class*="shadow-amber"] {
+  box-shadow: var(--card-shadow) !important;
+}
+
+/* 6) 圆角：大圆角统一收敛到 8px（保留 rounded-full 用于头像/胶囊） */
+[class*="rounded-2xl"],
+[class*="rounded-3xl"],
+[class*="rounded-xl"] {
+  border-radius: var(--radius-card) !important;
+}
+
+/* 7) 取消闪烁/流光类装饰动画与霓虹 */
+[class*="animate-ping"] {
+  animation: none !important;
+}
+
+/* ==========================================================================
+   全站状态色语义化与图标可读性规范层 (铁律：浅底 + 深字，对比度 ≥ 4.5:1)
+   正常/已完成/通过/在线：#10b981 (bg-emerald-50 text-emerald-700 border-emerald-200)
+   危险/故障/拒绝/逾期：#ef4444 (bg-red-50 text-red-700 border-red-200)
+   警告/待处理/待审批：#f97316 (bg-orange-50 text-orange-700 border-orange-200)
+   进行中/处理中/信息：#3b82f6 (bg-blue-50 text-blue-700 border-blue-200)
+   已关闭/归档/禁用：#64748b (bg-slate-100 text-slate-600 border-slate-200)
+   ========================================================================== */
+
+/* 7.1 自动将历史组件中半透明深色状态徽章重映射为明亮高对比度语义标签 */
+/* 正常/在线/完成 (绿色系) */
+[class*="bg-emerald-500/20"],
+[class*="bg-emerald-950"] {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border-color: #a7f3d0 !important;
+}
+[class*="text-emerald-300"],
+[class*="text-emerald-400"] {
+  color: #059669 !important;
+}
+
+/* 危险/故障/报警 (红色系) */
+[class*="bg-rose-500/20"],
+[class*="bg-rose-950"],
+[class*="bg-red-500/20"],
+[class*="bg-red-950"] {
+  background-color: #fef2f2 !important;
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+}
+[class*="text-rose-300"],
+[class*="text-rose-400"],
+[class*="text-red-300"],
+[class*="text-red-400"] {
+  color: #dc2626 !important;
+}
+
+/* 警告/待办/预警 (琥珀色/黄色系统一对齐为橙色系 #f97316，保证浅色下清晰) */
+[class*="bg-amber-500/20"],
+[class*="bg-amber-950"],
+[class*="bg-yellow-100"],
+[class*="bg-yellow-500/20"] {
+  background-color: #fff7ed !important;
+  color: #c2410c !important;
+  border-color: #fed7aa !important;
+}
+[class*="text-amber-300"],
+[class*="text-amber-400"],
+[class*="text-amber-500"],
+[class*="text-yellow-700"],
+[class*="text-yellow-800"] {
+  color: #c2410c !important;
+}
+[class*="text-amber-600"],
+[class*="text-amber-700"],
+[class*="text-amber-800"] {
+  color: #9a3412 !important;
+}
+[class*="bg-amber-50"] {
+  background-color: #fff7ed !important;
+  border-color: #fed7aa !important;
+  color: #c2410c !important;
+}
+[class*="bg-amber-100"] {
+  background-color: #ffedd5 !important;
+  border-color: #fed7aa !important;
+  color: #9a3412 !important;
+}
+
+/* 进行中/信息/科技 (亮蓝/青色系) */
+[class*="bg-cyan-500/20"],
+[class*="bg-cyan-950"] {
+  background-color: #ecfeff !important;
+  color: #0e7490 !important;
+  border-color: #a5f3fc !important;
+}
+[class*="text-cyan-300"],
+[class*="text-cyan-400"] {
+  color: #0891b2 !important;
+}
+[class*="bg-blue-500/20"],
+[class*="bg-blue-950"] {
+  background-color: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+}
+[class*="text-blue-300"],
+[class*="text-blue-400"] {
+  color: #2563eb !important;
+}
+
+/* 紫色系 (审批/高危专项) */
+[class*="bg-purple-500/20"],
+[class*="bg-purple-950"] {
+  background-color: #faf5ff !important;
+  color: #7e22ce !important;
+  border-color: #e9d5ff !important;
+}
+[class*="text-purple-300"],
+[class*="text-purple-400"] {
+  color: #7e22ce !important;
+}
+
+/* 停用/备用/归档标签 (石板灰系) */
+[class*="bg-slate-500/20"],
+[class*="bg-slate-700"] {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* 7.2 按钮图标与内联操作按钮提亮保障：
+   禁止暗黑背景包裹暗黑文字/暗黑图标 */
+button[class*="bg-slate-700"],
+button[class*="bg-slate-800"] {
+  background-color: #f8fafc !important;
+  color: #334155 !important;
+  border: 1px solid #e2e8f0 !important;
+  transition: all 0.15s ease !important;
+}
+button[class*="bg-slate-700"]:hover,
+button[class*="bg-slate-800"]:hover {
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
+  border-color: #93c5fd !important;
+}
+
+/* 表单与弹窗内的深色小输入框/下拉框背景重置为纯白 */
+[class*="bg-slate-800"] input,
+[class*="bg-slate-800"] select,
+[class*="bg-slate-800"] textarea,
+[class*="bg-slate-900"] input,
+[class*="bg-slate-900"] select,
+[class*="bg-slate-900"] textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* 8) 表格全局规范：信息面板感（半透明白 + blur + 细浅边框，白底/极浅灰表头，取消斑马纹，hover 极淡底色） */
+.table-panel {
+  position: relative;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+.table-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--cyan) 100%);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+thead th {
+  background-color: #ffffff !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
+  border-bottom: 1px solid var(--card-border) !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+tbody tr {
+  background-color: transparent !important;
+  transition: background-color 0.15s ease;
+}
+tbody tr:hover {
+  background-color: rgba(59, 130, 246, 0.04) !important;
+}
+tbody td {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6) !important;
+  color: var(--text-body);
+}
+
+/* 9) 表单输入框全局规范：白底、浅边框、聚焦浅蓝光晕 */
+input[type="text"]:not([class*="bg-"]),
+input[type="password"]:not([class*="bg-"]),
+input[type="search"]:not([class*="bg-"]),
+input[type="number"]:not([class*="bg-"]),
+input[type="date"]:not([class*="bg-"]),
+textarea:not([class*="bg-"]),
+select:not([class*="bg-"]) {
+  background-color: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-title) !important;
+  border-radius: 8px;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12) !important;
+}
+
+/* ==========================================================================
+   全新核心通用组件类："明亮玻璃质感 × 蓝青科技线条"
+   ========================================================================== */
+
+/* 三、卡片：玻璃感 + 层次 */
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  border-radius: 12px;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.glass-card:hover {
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+}
+
+/* 兼容 .card-industrial 并对齐玻璃质感规范 */
+.card-industrial {
+  position: relative;
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-industrial::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--cyan) 100%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+.card-industrial:hover {
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+}
+
+/* 四、按钮：蓝青渐变 + 轻量光晕 */
+.btn-gradient {
+  background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+  color: #FFFFFF !important;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-weight: 500;
+}
+.btn-gradient:hover {
+  background: linear-gradient(135deg, #2563EB 0%, #0891B2 100%);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45);
+}
+.btn-gradient:active {
+  transform: translateY(1px);
+}
+
+/* 五、图标：科技底托 */
+.icon-tile {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563EB;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.icon-tile:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(6, 182, 212, 0.14) 100%);
+}
+.icon-tile-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+.icon-tile-xs {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+/* 语义色微调 */
+.icon-tile-success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #059669;
+}
+.icon-tile-warning {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(249, 115, 22, 0.08) 100%);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #d97706;
+}
+.icon-tile-danger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(244, 63, 94, 0.08) 100%);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #dc2626;
+}
+.icon-tile-cyan {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%);
+  border-color: rgba(6, 182, 212, 0.3);
+  color: #0891b2;
+}
+.icon-tile-purple {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%);
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #6366f1;
+}
+
+/* 六、数据卡片：发光顶线与底线 */
+.data-card {
+  position: relative;
+  overflow: hidden;
+}
+.data-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #3B82F6, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+.data-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #06B6D4, transparent);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 七、科技数字 */
+.data-number {
+  font-size: 26px;
+  font-weight: 700;
+  color: #0F172A;
+  text-shadow: 0 0 0.5px rgba(59, 130, 246, 0.8);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  line-height: 1.2;
+}
+
+/* 轻量强调（不再使用发光） */
+.glow-blue,
+.glow-cyan {
+  box-shadow: var(--soft-shadow) !important;
+}
+
+/* 步骤条连接线 */
+.step-connector {
+  position: absolute;
+  top: 1.25rem;
+  left: 1rem;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+
+/* 呼吸光标 */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.cursor-blink {
+  animation: blink 1s infinite;
+}
+
+/* 顶部细渐变装饰线（用于大容器分区标题） */
+.gradient-hairline {
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent-cyan) 100%);
+  border-radius: 2px;
+}
+
+/* 驾驶舱动态走马灯（保留信息滚动，去掉发光与强装饰） */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  animation: marquee 40s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* 3D 数字人蓝青声波柱动画 */
+@keyframes tech-wave-pulse {
+  0%, 100% {
+    height: 5px;
+    opacity: 0.6;
+  }
+  50% {
+    height: 20px;
+    opacity: 1;
+  }
+}
+
+.wave-bar-1 { animation: tech-wave-pulse 0.75s ease-in-out infinite; }
+.wave-bar-2 { animation: tech-wave-pulse 0.6s ease-in-out infinite 0.15s; }
+.wave-bar-3 { animation: tech-wave-pulse 0.9s ease-in-out infinite 0.3s; }
+.wave-bar-4 { animation: tech-wave-pulse 0.7s ease-in-out infinite 0.1s; }
+.wave-bar-5 { animation: tech-wave-pulse 0.85s ease-in-out infinite 0.25s; }
+
