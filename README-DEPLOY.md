@@ -80,7 +80,7 @@ cp .env.example .env
   ```
   将输出结果填入 `.env` 中的 `JWT_SECRET`，例如：
   ```env
-  JWT_SECRET="c7d8f341829e71ab934bbec08e1a8293740263fcae127394d82ef91048b291a4"
+  JWT_SECRET="<请用 openssl rand -hex 32 自行生成强随机密钥>"
   ```
 
 ### 2.4 数据库与持久化存储参数
