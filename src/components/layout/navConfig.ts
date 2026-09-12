@@ -5,6 +5,7 @@ import {
   Sparkles,
   Workflow,
   ScanSearch,
+  Route,
   Layers,
   Zap,
   Box,
@@ -88,6 +89,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     items: [
       { id: 'users', label: '用户与权限', icon: UserCheck },
       { id: 'ai_reviews', label: 'AI 内容审核', icon: ScanSearch },
+      { id: 'ai_models', label: 'AI 模型路由', icon: Route },
     ],
   },
 ];

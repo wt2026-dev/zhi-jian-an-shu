@@ -40,8 +40,8 @@ export function getClientIp(req: any): string {
 }
 
 export function addAuditLog(req: any, params: AuditLogParams) {
-  const user = authenticateBearer(req);
-  const clientIp = getClientIp(req);
+  const user = req ? authenticateBearer(req) : null;
+  const clientIp = req ? getClientIp(req) : "system";
   const item: AuditLogRecord = {
     id: `audit-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
     timestamp: new Date().toLocaleString("zh-CN"),

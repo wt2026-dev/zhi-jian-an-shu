@@ -8,6 +8,7 @@ import { createServer as createViteServer } from "vite";
 import { initDatabase, getDb } from "../db/db.ts";
 import { KnowledgeRepository } from "../db/repositories/index.ts";
 import { createEmbedding } from "./services/aiClient.ts";
+import { ensureAiModelSeed } from "./services/aiModelRouter.ts";
 import { initAuthCache } from "./services/authService.ts";
 import { installAuditHook } from "./services/auditService.ts";
 import { loadSafetyPermitsIntoMemory } from "./controllers/safetyController.ts";
@@ -135,6 +136,9 @@ export async function createApp() {
 
   // 注入模块级 AI 审计钩子，供 AI 扩展功能的统一异常处理写审计日志
   installAuditHook();
+
+  // 多模型路由：首次启动将 DASHSCOPE_* 环境变量落为初始模型配置（升级无感）
+  await ensureAiModelSeed();
 
   // 全局 API 限流中间件
   app.use("/api/v1/", globalLimiter);

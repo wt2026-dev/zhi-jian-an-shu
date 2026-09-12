@@ -998,3 +998,52 @@ export const adminAiReviewApi = {
       body: JSON.stringify({ review_note: reviewNote }),
     }),
 };
+
+// ==================== AI 模型路由（管理端） ====================
+
+export interface AiModelConfig {
+  id: string;
+  provider: string;
+  displayName: string;
+  baseUrl: string;
+  apiKeyMasked: string;
+  modelName: string;
+  capabilities: ('chat' | 'vision' | 'video')[];
+  priority: number;
+  enabled: boolean;
+  healthStatus: 'unknown' | 'healthy' | 'unhealthy';
+  lastCheckedAt: string | null;
+}
+
+export const adminAiModelApi = {
+  list: () => request<AiModelConfig[]>('/admin/ai-models'),
+
+  upsert: (data: {
+    id?: string;
+    provider: string;
+    displayName: string;
+    baseUrl?: string;
+    apiKey?: string;
+    apiKeyEnv?: string;
+    modelName: string;
+    capabilities: ('chat' | 'vision' | 'video')[];
+    priority?: number;
+    enabled?: boolean;
+  }) =>
+    request<{ success: boolean; config: AiModelConfig }>('/admin/ai-models', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  test: (id: string) =>
+    request<{ success: boolean; configId: string; latencyMs: number; model: string; error?: string; reply?: string }>(
+      `/admin/ai-models/${id}/test`,
+      { method: 'POST', body: JSON.stringify({}) }
+    ),
+
+  reorder: (orderedIds: string[]) =>
+    request<{ success: boolean; configs: AiModelConfig[] }>('/admin/ai-models/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ orderedIds }),
+    }),
+};
