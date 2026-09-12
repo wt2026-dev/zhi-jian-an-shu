@@ -1,0 +1,20 @@
+// 重构说明：原单文件 repository.ts（2002 行）已按业务域拆分至 src/db/repositories/ 目录。
+// 本文件仅作为兼容 Barrel 保留，保持既有 import 路径不变；新代码请直接从 src/db/repositories/ 引入。
+export { parseJson } from "./repositories/shared.ts";
+export { UserRepository } from "./repositories/userRepository.ts";
+export { EquipmentRepository } from "./repositories/equipmentRepository.ts";
+export { WorkOrderRepository } from "./repositories/workOrderRepository.ts";
+export { SafetyPermitRepository } from "./repositories/safetyPermitRepository.ts";
+export { AuditLogRepository } from "./repositories/auditLogRepository.ts";
+export { KnowledgeRepository } from "./repositories/knowledgeRepository.ts";
+export { WorkOrderLogRepository } from "./repositories/workOrderLogRepository.ts";
+export { InspectionRepository } from "./repositories/inspectionRepository.ts";
+export { TelemetryRepository } from "./repositories/telemetryRepository.ts";
+export { NotificationRepository } from "./repositories/notificationRepository.ts";
+export { LotoLockRepository } from "./repositories/lotoLockRepository.ts";
+export { ProcedureRepository } from "./repositories/procedureRepository.ts";
+export { ComplianceCheckRepository } from "./repositories/complianceCheckRepository.ts";
+export { AiAnalysisLogRepository } from "./repositories/aiAnalysisLogRepository.ts";
+export { SparePartsRepository } from "./repositories/sparePartsRepository.ts";
+export { HazardsRepository } from "./repositories/hazardsRepository.ts";
+export { ProcedureVideoRepository } from "./repositories/procedureVideoRepository.ts";
