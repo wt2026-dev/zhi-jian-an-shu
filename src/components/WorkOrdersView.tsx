@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Navigation,
   Loader2,
   Sparkles,
   Wrench,
@@ -62,6 +63,8 @@ interface WorkOrdersViewProps {
   onCreateWorkOrder: (wo: WorkOrder) => void;
   onUpdateWorkOrder: (wo: WorkOrder) => void;
   onOpenAiDiagnose: (eq: Equipment) => void;
+  /** 跳转调度大屏并预选该工单（就近派单） */
+  onNavigateDispatch?: (workOrderId: string) => void;
   initialCreateOpen?: boolean;
 }
 
@@ -73,6 +76,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   onCreateWorkOrder,
   onUpdateWorkOrder,
   onOpenAiDiagnose,
+  onNavigateDispatch,
   initialCreateOpen = false,
 }) => {
   const [activeStatusTab, setActiveStatusTab] = useState<string>('all');
@@ -1269,6 +1273,16 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
 
               <div className="flex items-center space-x-2">
                 {/* Stage 1 -> 2: Dispatch (Admin/Dispatcher) */}
+                {selectedOrder.status === 'created' && (currentUser.role === 'admin' || currentUser.role === 'manager') && onNavigateDispatch && (
+                  <button
+                    onClick={() => onNavigateDispatch(selectedOrder.id)}
+                    className="px-4 py-2 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/40 rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer"
+                    title="打开调度大屏，按距离/空闲/技能推荐在岗师傅"
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span>就近派单</span>
+                  </button>
+                )}
                 {selectedOrder.status === 'created' && currentUser.role === 'admin' && (
                   <button
                     onClick={() => setShowDispatchModal(true)}

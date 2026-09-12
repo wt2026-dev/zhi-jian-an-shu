@@ -24,6 +24,8 @@ export interface NavItemConfig {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   highlight?: boolean;
+  /** 限定可见角色（不设置则全员可见）；用于内部调度等受限页面 */
+  roles?: string[];
 }
 
 export interface NavGroupConfig {
@@ -63,6 +65,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     label: '检修作业',
     items: [
       { id: 'work_orders', label: '检修工单', icon: Wrench },
+      { id: 'dispatch', label: '调度大屏', icon: Route, roles: ['admin', 'manager', 'technician'] },
       { id: 'procedures', label: '作业指引', icon: BookOpen },
       { id: 'inspections', label: '巡检作业', icon: CheckCircle2 },
       { id: 'hazards', label: '隐患闭环', icon: AlertTriangle },

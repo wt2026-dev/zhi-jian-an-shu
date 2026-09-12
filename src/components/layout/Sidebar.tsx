@@ -8,6 +8,8 @@ interface SidebarProps {
   isCollapsed: boolean;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
+  /** 当前登录角色，用于过滤受限菜单（如调度大屏） */
+  role?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -16,6 +18,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   isMobileOpen = false,
   onCloseMobile,
+  role,
 }) => {
   const content = (
     <div className="flex flex-col h-full bg-gradient-to-b from-white via-white to-[#f8fafc] border-r border-slate-200/80 select-none">
@@ -33,7 +36,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Navigation Groups List */}
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-4 custom-scrollbar">
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS.map((group) => {
+        // 按角色过滤受限菜单项（item.roles 未设置则全员可见）
+        const visibleItems = group.items.filter((item) => !item.roles || (role && item.roles.includes(role)));
+        if (visibleItems.length === 0) return null;
+        return (
           <div key={group.id} className="space-y-1">
             {/* Group Header */}
             {!isCollapsed ? (
@@ -48,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Group Items */}
             <div className="space-y-0.5">
-              {group.items.map((item) => {
+              {visibleItems.map((item) => {
                 const isSelected = activeTab === item.id;
                 const Icon = item.icon;
 
@@ -107,7 +114,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               })}
             </div>
           </div>
-        ))}
+        );
+      })}
       </div>
 
       {/* Sidebar Footer Status (when expanded) */}
