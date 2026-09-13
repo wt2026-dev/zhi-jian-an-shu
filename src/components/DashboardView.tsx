@@ -374,75 +374,69 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 
   return (
-    <div className="max-w-[1380px] mx-auto space-y-3.5 pb-12 px-3 sm:px-5 pt-2 text-slate-800">
-      {/* 1. 紧凑指挥条：动设备中枢状态与关键态势 */}
-      <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center space-x-3.5 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Activity className="w-5 h-5 text-blue-400" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base font-bold text-slate-900 tracking-tight">检修工作台 · 动设备运行中枢</h1>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70 font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                遥测在线 16台
-              </span>
-              <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200/70">
-                {currentUser.roleTitle || currentUser.role}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5 truncate">
-              {currentUser.name} | 全厂动设备状态监测、智能检修任务流转与安全合规一屏掌控
+    <div className="space-y-6 pb-12 bg-gradient-to-b from-slate-50 via-white to-slate-100 min-h-[calc(100vh-100px)]">
+      {/* L1 Hero：极浅渐变页头 + 主 KPI 大数字（设备综合健康度） */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-white to-blue-50 border border-blue-100 px-6 py-6 shadow-sm">
+        <div
+          className="absolute inset-0 opacity-5 pointer-events-none"
+          style={{ backgroundImage: 'radial-gradient(circle at 85% 25%, #3b82f6 0, transparent 45%)' }}
+        />
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div>
+            <p className="text-slate-500 text-xs font-medium tracking-wide">
+              {new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好'}，{currentUser.name} ·{' '}
+              {currentUser.roleTitle || currentUser.role}
             </p>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900 mt-1 tracking-tight">检修工作台</h1>
+            <p className="text-slate-500 text-xs mt-1">全厂设备状态、检修执行与安全合规一屏总览</p>
           </div>
-        </div>
-
-        {/* 右侧核心态势数据胶囊 */}
-        <div className="flex items-center gap-4 shrink-0 bg-slate-50/80 border border-slate-200/80 px-4 py-2 rounded-xl text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 font-medium">设备综合健康</span>
-            <span className="text-lg font-bold font-mono text-blue-600 leading-none">
-              {avgHealthScore}
-              <span className="text-xs font-normal text-slate-400">/100</span>
-            </span>
-          </div>
-          <div className="h-4 w-px bg-slate-200" />
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 font-medium">待办工单</span>
-            <span className="text-base font-bold font-mono text-slate-900 leading-none">{pendingWorkOrders.length}</span>
-          </div>
-          <div className="h-4 w-px bg-slate-200" />
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 font-medium">紧急告警</span>
-            <span className={`text-base font-bold font-mono leading-none ${urgentOrders.length > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-              {urgentOrders.length}
-            </span>
+          <div className="flex items-center gap-6 md:gap-8 shrink-0">
+            <div>
+              <div className="text-4xl font-bold font-mono leading-none text-blue-600">
+                {avgHealthScore}
+                <span className="text-base font-normal text-slate-500 ml-1">/100</span>
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1.5">
+                设备综合健康度 · {avgHealthScore >= 85 ? '优良状态' : '需重点关注'}
+              </div>
+            </div>
+            <div className="h-12 w-px bg-slate-200 hidden sm:block" />
+            <div className="hidden sm:block">
+              <div className="text-2xl font-bold font-mono leading-none text-slate-900">{pendingWorkOrders.length}</div>
+              <div className="text-[11px] text-slate-500 mt-1.5">待办检修工单</div>
+            </div>
+            <div className="hidden md:block">
+              <div className="text-2xl font-bold font-mono leading-none text-rose-600">{urgentOrders.length}</div>
+              <div className="text-[11px] text-slate-500 mt-1.5">紧急告警</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 2. 紧急 SLA 响应条（黑金高对比度，取代原本大红背景盒） */}
+      {/* 紧急告警横幅（降低视觉权重：白底 + 玫红左边条） */}
       {urgentOrders.length > 0 && (
-        <div className="bg-slate-900 text-white rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md border border-slate-800">
-          <div className="flex items-center space-x-3 min-w-0">
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
-            </span>
-            <span className="text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded uppercase tracking-wider shrink-0">
-              SLA 紧急告警
-            </span>
-            <span className="text-xs text-slate-200 truncate">
-              <strong className="text-white font-semibold mr-1">{urgentOrders[0].equipmentName}</strong>
-              <span className="text-slate-400 mr-2 font-mono">({urgentOrders[0].equipmentCode})</span>
-              {urgentOrders[0].title}
-            </span>
+        <div className="bg-white border border-slate-200 border-l-4 border-l-rose-500 rounded-lg px-4 py-2.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-rose-100 text-rose-600 rounded-md">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold px-2 py-0.5 rounded bg-rose-600 text-white uppercase">
+                  紧急告警 (SLA 响应中)
+                </span>
+                <span className="text-sm font-semibold text-rose-900">
+                  {urgentOrders[0].title}
+                </span>
+              </div>
+              <p className="text-xs text-rose-700 mt-0.5">
+                设备: {urgentOrders[0].equipmentName} ({urgentOrders[0].equipmentCode}) | 车间: {urgentOrders[0].workshop}
+              </p>
+            </div>
           </div>
           <button
-            type="button"
             onClick={() => onSelectWorkOrder(urgentOrders[0])}
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-all shrink-0 flex items-center gap-1 cursor-pointer active:scale-95 shadow-xs"
+            className="px-3.5 py-1.5 text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors flex items-center space-x-1 cursor-pointer shrink-0 shadow-xs"
           >
             <span>立即处置抢修</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -450,85 +444,91 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* 3. 5-Column 高密核心 KPI 仪表盘 (Datadog/Linear 风格) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {/* KPI 1: 设备台账 */}
+      {/* L2 KPI 核心态势网格：5 列对称工业玻璃态卡片 */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        {/* KPI 1: 设备总数与台账 */}
         <div
           onClick={() => onNavigate('equipment')}
-          className="bg-white border border-slate-200/90 rounded-xl p-3.5 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+          className="glass-card data-card p-4 relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">设备总数</span>
-            <span className="text-[11px] font-mono text-emerald-600 font-semibold flex items-center">
+            <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:scale-105 transition-transform">
+              <Activity className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{totalEquipments}</span>
+            <span className="text-[11px] text-emerald-600 flex items-center font-medium">
               <TrendingUp className="w-3 h-3 mr-0.5" /> 100% 台账
             </span>
           </div>
-          <div className="my-1.5 flex items-baseline">
-            <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight leading-none">{totalEquipments}</span>
-            <span className="text-xs text-slate-400 ml-1">台</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 pt-1 border-t border-slate-100">
-            <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />运行 {runningEquipments}</span>
-            <span className="text-slate-300">·</span>
-            <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1" />预警 {warningEquipments}</span>
-            <span className="text-slate-300">·</span>
-            <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1" />故障 {faultEquipments}</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+            <span className="text-emerald-600">运行 {runningEquipments}</span>
+            <span className="text-amber-600">预警 {warningEquipments}</span>
+            <span className="text-rose-600">故障 {faultEquipments}</span>
           </div>
         </div>
 
         {/* KPI 2: 待办检修工单 */}
         <div
           onClick={() => onNavigate('work_orders')}
-          className="bg-white border border-slate-200/90 rounded-xl p-3.5 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+          className="glass-card data-card p-4 relative overflow-hidden group hover:border-amber-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">待办检修工单</span>
+            <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform">
+              <Wrench className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{pendingWorkOrders.length}</span>
             {urgentOrders.length > 0 ? (
-              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-semibold animate-pulse">
                 紧急 {urgentOrders.length}
               </span>
             ) : (
-              <span className="text-[10px] text-slate-400">无紧急</span>
+              <span className="text-[11px] text-slate-400">无紧急</span>
             )}
           </div>
-          <div className="my-1.5 flex items-baseline">
-            <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight leading-none">{pendingWorkOrders.length}</span>
-            <span className="text-xs text-slate-400 ml-1">单待办</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600 pt-1 border-t border-slate-100">
-            <span>检修中: <strong className="font-mono text-slate-900">{workOrders.filter((w) => w.status === 'in_progress').length}</strong></span>
-            <span className="text-slate-300">·</span>
-            <span>待验收: <strong className="font-mono text-slate-900">{workOrders.filter((w) => w.status === 'pending_acceptance').length}</strong></span>
+          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>检修中: {workOrders.filter((w) => w.status === 'in_progress').length}</span>
+            <span>待验收: {workOrders.filter((w) => w.status === 'pending_acceptance').length}</span>
           </div>
         </div>
 
         {/* KPI 3: 今日巡检进度 */}
         <div
           onClick={() => onNavigate('inspections')}
-          className="bg-white border border-slate-200/90 rounded-xl p-3.5 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+          className="glass-card data-card p-4 relative overflow-hidden group hover:border-cyan-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">巡检测点完成</span>
-            <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded ${
-              inspections.reduce((s, i) => s + i.abnormalCount, 0) > 0 ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
-            }`}>
-              异常 {inspections.reduce((s, i) => s + i.abnormalCount, 0)}
+            <span className="text-xs font-medium text-slate-500">今日巡检进度</span>
+            <span className="p-1.5 rounded-lg bg-cyan-50 text-cyan-600 group-hover:scale-105 transition-transform">
+              <CheckCircle2 className="w-4 h-4" />
             </span>
           </div>
-          <div className="my-1.5 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight leading-none">
-              {Math.round((inspections.reduce((s, i) => s + i.completedPoints, 0) / (inspections.reduce((s, i) => s + i.totalPoints, 0) || 1)) * 100)}%
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">
+              {inspections.reduce((s, i) => s + i.completedPoints, 0)}
+              <span className="text-xs font-normal text-slate-400 ml-1">
+                /{inspections.reduce((s, i) => s + i.totalPoints, 0)}点
+              </span>
             </span>
-            <span className="text-[11px] font-mono text-slate-400">
-              {inspections.reduce((s, i) => s + i.completedPoints, 0)}/{inspections.reduce((s, i) => s + i.totalPoints, 0)} 点
+            <span className={`text-[11px] font-medium ${inspections.reduce((s, i) => s + i.abnormalCount, 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              异常: {inspections.reduce((s, i) => s + i.abnormalCount, 0)}
             </span>
           </div>
-          <div className="pt-1 border-t border-slate-100">
+          <div className="mt-2.5 pt-2 border-t border-slate-100">
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
               <div
-                className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                className="h-full bg-cyan-500 rounded-full transition-all duration-500"
                 style={{
-                  width: `${Math.round((inspections.reduce((s, i) => s + i.completedPoints, 0) / (inspections.reduce((s, i) => s + i.totalPoints, 0) || 1)) * 100)}%`,
+                  width: `${Math.round(
+                    (inspections.reduce((s, i) => s + i.completedPoints, 0) /
+                      (inspections.reduce((s, i) => s + i.totalPoints, 0) || 1)) *
+                    100
+                  )}%`,
                 }}
               />
             </div>
@@ -538,217 +538,347 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* KPI 4: 在控安全作业票 */}
         <div
           onClick={() => onNavigate('safety')}
-          className="bg-white border border-slate-200/90 rounded-xl p-3.5 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+          className="glass-card data-card p-4 relative overflow-hidden group hover:border-purple-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">在控作业票</span>
+            <span className="text-xs font-medium text-slate-500">在控安全作业票</span>
+            <span className="p-1.5 rounded-lg bg-purple-50 text-purple-600 group-hover:scale-105 transition-transform">
+              <ShieldCheck className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{activeSafetyPermits.length}</span>
             {pendingSafetyApprovals.length > 0 ? (
-              <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-amber-50 text-amber-700">
-                {pendingSafetyApprovals.length} 待审
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                {pendingSafetyApprovals.length} 待审批
               </span>
             ) : (
-              <span className="text-[10px] text-emerald-600 font-medium">受控闭环</span>
+              <span className="text-[11px] text-emerald-600 font-medium">受控闭环</span>
             )}
           </div>
-          <div className="my-1.5 flex items-baseline">
-            <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight leading-none">{activeSafetyPermits.length}</span>
-            <span className="text-xs text-slate-400 ml-1">份在控</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500 pt-1 border-t border-slate-100">
-            <span>动火 {hotWorkPermitCount}</span>
-            <span className="text-slate-300">·</span>
-            <span>高处 {heightWorkPermitCount}</span>
-            <span className="text-slate-300">·</span>
-            <span>LOTO {lotoPermitCount}</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-100 text-[10px] text-slate-500 flex justify-between">
+            <span>LOTO: {lotoPermitCount}</span>
+            <span>动火: {hotWorkPermitCount}</span>
+            <span>高处: {heightWorkPermitCount}</span>
           </div>
         </div>
 
-        {/* KPI 5: AI 协同编排引擎 */}
+        {/* KPI 5: AI 检修大脑 */}
         <div
           onClick={() => onNavigate('ai_pipeline')}
-          className="bg-white border border-slate-200/90 hover:border-blue-500 rounded-xl p-3.5 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group"
+          className="glass-card data-card p-4 relative overflow-hidden cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group shadow-sm bg-gradient-to-br from-blue-50/50 via-white to-indigo-50/30"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-800 flex items-center">
+            <span className="text-xs font-bold text-blue-900 flex items-center">
               <Sparkles className="w-3.5 h-3.5 mr-1 text-blue-600" /> AI 协同编排
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-blue-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            <ArrowUpRight className="w-4 h-4 text-blue-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
-          <div className="my-1.5">
-            <div className="text-sm font-bold text-slate-900">DAG 4步并发管线</div>
+          <div className="mt-2">
+            <div className="text-xs font-semibold text-slate-800">4 步机理并发诊断</div>
+            <p className="text-[10px] text-slate-500 mt-0.5">串行方案 · 风险与派单并行协同</p>
           </div>
-          <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-slate-100 text-slate-500">
-            <span>Qwen-Plus</span>
-            <span className="text-blue-600 font-semibold">进入编排 →</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+            <span className="text-slate-400">通义千问</span>
+            <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono font-semibold">
+              DAG Pipeline
+            </span>
           </div>
         </div>
       </div>
 
-      {/* 4. 高频作业指挥条 (Command Strip) */}
-      <div className="bg-white border border-slate-200/90 rounded-xl px-4 py-2.5 shadow-xs flex items-center justify-between flex-wrap gap-2.5">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-          <Wrench className="w-4 h-4 text-blue-600" />
-          <span>快捷操作中枢</span>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap flex-1 justify-end">
-          <button
-            id="btn-quick-create-wo"
-            type="button"
-            onClick={onOpenCreateWorkOrder}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs transition-all cursor-pointer active:scale-95"
-          >
-            <Wrench className="w-3.5 h-3.5" />
-            <span>创建报修工单</span>
-          </button>
-          <button
-            id="btn-quick-safety"
-            type="button"
-            onClick={onOpenCreateSafetyPermit}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/80 transition-all cursor-pointer active:scale-95"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-            <span>申请安全作业票</span>
-          </button>
-          <button
-            id="btn-quick-ai-diag"
-            type="button"
-            onClick={() => onNavigate('ai_assistant')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/80 transition-all cursor-pointer active:scale-95"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-            <span>AI 故障诊断向导</span>
-          </button>
-          <button
-            id="btn-quick-knowledge"
-            type="button"
-            onClick={() => onNavigate('knowledge')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/80 transition-all cursor-pointer active:scale-95"
-          >
-            <Search className="w-3.5 h-3.5 text-slate-500" />
-            <span>检索检修规程</span>
-          </button>
-          <button
-            id="btn-quick-ai-report"
-            type="button"
-            onClick={() => setReportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/80 transition-all cursor-pointer active:scale-95"
-          >
-            <CalendarDays className="w-3.5 h-3.5 text-purple-600" />
-            <span>AI 智能报告</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 5. 主工作台分栏：活动工单流转 (65%) + 设备雷达与巡检 (35%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-        {/* 左栏：活动检修工单队列 (7 列) */}
-        <div className="lg:col-span-7 bg-white border border-slate-200/90 rounded-xl p-4 shadow-xs space-y-3">
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-900">
-                {currentUser.role === 'technician'
-                  ? `待我处置的检修工单 (${dashboardWorkOrders.length})`
-                  : `紧急检修工单 (${dashboardWorkOrders.length}/${activeWorkOrders.length})`}
-              </h2>
-              <span className="text-[11px] text-slate-400">优先级：紧急 → 高 → 一般</span>
+      {/* 紧凑型监控警报胶囊条：备件库存告急 + 现场隐患闭环 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        {/* 低库存告警卡片（紧凑横幅） */}
+        <div
+          onClick={() => onNavigate('spare_parts')}
+          className={`p-3 rounded-xl border transition-all cursor-pointer group shadow-sm flex items-center justify-between ${
+            lowStockParts.length > 0
+              ? 'bg-rose-50/60 border-rose-200 hover:border-rose-300'
+              : 'bg-white border-slate-200 hover:border-blue-300'
+          }`}
+        >
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className={`p-2 rounded-lg shrink-0 ${lowStockParts.length > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>
+              <Box className="w-4 h-4" />
             </div>
-            <button
-              type="button"
-              onClick={() => onNavigate('work_orders')}
-              className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer flex items-center"
-            >
-              全部工单 ({workOrders.length}) →
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {dashboardWorkOrders.map((wo) => {
-              const isUrgent = wo.priority === 'urgent';
-              const isHigh = wo.priority === 'high';
-
-              const statusMap: Record<string, { label: string; dot: string }> = {
-                created: { label: '待派单', dot: 'bg-orange-500' },
-                dispatched: { label: '待接单', dot: 'bg-blue-500' },
-                in_progress: { label: '检修中', dot: 'bg-blue-500' },
-                pending_acceptance: { label: '待验收', dot: 'bg-purple-500' },
-                completed: { label: '已归档', dot: 'bg-emerald-500' },
-              };
-
-              const currentStatus = statusMap[wo.status] || { label: wo.status, dot: 'bg-slate-400' };
-
-              return (
-                <div
-                  key={wo.id}
-                  onClick={() => onSelectWorkOrder(wo)}
-                  className="p-3 bg-slate-50/60 hover:bg-slate-50 border border-slate-200/70 hover:border-blue-300 rounded-lg transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 group"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs text-slate-400 font-medium">{wo.orderNo}</span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded font-bold font-mono ${
-                          isUrgent ? 'bg-rose-50 text-rose-700 border border-rose-200' : isHigh ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {wo.priority === 'urgent' ? '紧急' : wo.priority === 'high' ? '高' : '一般'}
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700">
-                        <span className={`w-1.5 h-1.5 rounded-full ${currentStatus.dot}`} />
-                        {currentStatus.label}
-                      </span>
-                    </div>
-                    <h3 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors mt-1 truncate">
-                      {wo.title}
-                    </h3>
-                    <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-3">
-                      <span>设备: <strong className="text-slate-700 font-medium">{wo.equipmentName}</strong></span>
-                      <span>车间: {wo.workshop}</span>
-                      <span>主修: <strong className="text-slate-700 font-medium">{wo.assignee || '待分配'}</strong></span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/50">
-                    <span className="text-[11px] font-mono text-slate-400">
-                      {wo.createdAt.split(' ')[1] || wo.createdAt}
-                    </span>
-                    <button
-                      type="button"
-                      className="px-2.5 py-1 text-xs bg-white group-hover:bg-blue-600 text-slate-700 group-hover:text-white border border-slate-200 group-hover:border-blue-600 rounded-md transition-all font-medium"
-                    >
-                      详情 →
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-
-            {dashboardWorkOrders.length === 0 && (
-              <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
-                暂无活动态检修工单
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-slate-800">工业备件安全库存</span>
+                {lowStockParts.length > 0 ? (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
+                    {lowStockParts.length} 项告急
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                    充足
+                  </span>
+                )}
               </div>
-            )}
+              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                {lowStockParts.length > 0
+                  ? `包括 ${lowStockParts.slice(0, 2).map((p) => p.name).join('、')} 等低于安全阈值`
+                  : '全厂 22+ 项备件在库充盈，满足维保周转'}
+              </p>
+            </div>
           </div>
+          <span className="text-xs text-blue-600 font-medium group-hover:translate-x-1 transition-transform flex items-center shrink-0 ml-2">
+            备件库 <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+          </span>
         </div>
 
-        {/* 右栏：设备遥测雷达与巡检 (5 列) */}
-        <div className="lg:col-span-5 space-y-3.5">
-          {/* 重点设备实时遥测 */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-xs space-y-2.5">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center">
-                <Activity className="w-4 h-4 mr-1.5 text-emerald-600" />
-                动设备实时遥测雷达
-              </h2>
+        {/* 现场隐患闭环卡片（紧凑横幅） */}
+        <div
+          onClick={() => onNavigate('hazards')}
+          className={`p-3 rounded-xl border transition-all cursor-pointer group shadow-sm flex items-center justify-between ${
+            pendingHazardsList.length > 0
+              ? 'bg-amber-50/60 border-amber-200 hover:border-amber-300'
+              : 'bg-white border-slate-200 hover:border-blue-300'
+          }`}
+        >
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className={`p-2 rounded-lg shrink-0 ${pendingHazardsList.length > 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-slate-800">安全隐患治理闭环</span>
+                {pendingHazardsList.filter((h) => h.level === 'major').length > 0 && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
+                    {pendingHazardsList.filter((h) => h.level === 'major').length} 重大
+                  </span>
+                )}
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold">
+                  {pendingHazardsList.length} 在控
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                {pendingHazardsList.length > 0
+                  ? `最新: ${pendingHazardsList[0]?.title.slice(0, 24)}...`
+                  : '厂区无未消缺隐患，处于安全平稳期'}
+              </p>
+            </div>
+          </div>
+          <span className="text-xs text-blue-600 font-medium group-hover:translate-x-1 transition-transform flex items-center shrink-0 ml-2">
+            治理台 <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+          </span>
+        </div>
+      </div>
+
+      {/* ============ 分区② 作业执行（emerald）：快捷通道 + 工单动态 + 执行看板 ============ */}
+      <SectionTitle
+        color="emerald"
+        icon={<Wrench className="w-4 h-4 text-emerald-500" />}
+        title="作业执行"
+        hint="快捷作业通道 · 工单动态 · 执行与巡检看板"
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 -mt-2">
+        {/* Left 2 Cols: Main Operations Hub */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Quick Actions：彩色 icon 瓷砖矩阵（44px 圆角瓷砖 + hover 上浮） */}
+          <div className="glass-card p-4 shadow-sm relative">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2"></span>
+                快捷作业通道（{currentUser.roleTitle}）
+              </h3>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+              {/* 工单 = blue */}
               <button
-                type="button"
-                onClick={() => onNavigate('health')}
-                className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                id="btn-quick-create-wo"
+                onClick={onOpenCreateWorkOrder}
+                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-300 cursor-pointer group"
               >
-                大屏 →
+                <span className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500 group-hover:scale-105 transition-transform">
+                  <Wrench className="w-5 h-5" />
+                </span>
+                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">创建报修工单</span>
+                <span className="text-[9px] text-slate-400 -mt-1.5">突发故障一键派单</span>
+              </button>
+
+              {/* 安全作业票 = amber (LOTO) */}
+              <button
+                id="btn-quick-safety"
+                onClick={onOpenCreateSafetyPermit}
+                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-amber-300 cursor-pointer group"
+              >
+                <span className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 group-hover:scale-105 transition-transform">
+                  <ShieldCheck className="w-5 h-5" />
+                </span>
+                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-amber-600 transition-colors">申请安全作业票</span>
+                <span className="text-[9px] text-slate-400 -mt-1.5">动火/高处/LOTO</span>
+              </button>
+
+              {/* AI 诊断 = sky */}
+              <button
+                id="btn-quick-ai-diag"
+                onClick={() => onNavigate('ai_assistant')}
+                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-sky-300 cursor-pointer group"
+              >
+                <span className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-500 group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-5 h-5" />
+                </span>
+                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-sky-600 transition-colors">AI故障诊断向导</span>
+                <span className="text-[9px] text-slate-400 -mt-1.5">输入症状秒出SOP</span>
+              </button>
+
+              {/* 知识库 = purple */}
+              <button
+                id="btn-quick-knowledge"
+                onClick={() => onNavigate('knowledge')}
+                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-purple-300 cursor-pointer group"
+              >
+                <span className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-500 group-hover:scale-105 transition-transform">
+                  <Search className="w-5 h-5" />
+                </span>
+                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-purple-600 transition-colors">检索检修规程</span>
+                <span className="text-[9px] text-slate-400 -mt-1.5">SOP/事故案例/图谱</span>
+              </button>
+
+              {/* AI 报告 = violet */}
+              <button
+                id="btn-quick-ai-report"
+                onClick={() => setReportModalOpen(true)}
+                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-violet-300 cursor-pointer group"
+              >
+                <span className="w-11 h-11 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-500 group-hover:scale-105 transition-transform">
+                  <CalendarDays className="w-5 h-5" />
+                </span>
+                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-violet-600 transition-colors">AI 智能报告</span>
+                <span className="text-[9px] text-slate-400 -mt-1.5">巡检/检修/月度</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Active Work Orders Table / Queue */}
+          <div className="glass-card p-4 shadow-sm relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 flex items-center">
+                  <Wrench className="w-4 h-4 mr-2 text-blue-600" />
+                  {currentUser.role === 'technician'
+                    ? `待我处置的检修工单 (${dashboardWorkOrders.length})`
+                    : `紧急检修工单 (活动态 ${activeWorkOrders.length} 条 / 紧急 ${urgentOrders.length} 条)`}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  按优先级排序: 待派单 → 待接单 → 检修处理 → 待验收
+                </p>
+              </div>
+              <button
+                onClick={() => onNavigate('work_orders')}
+                className="text-xs text-blue-600 hover:text-blue-700 flex items-center font-medium cursor-pointer"
+              >
+                查看全部工单 ({workOrders.length})
+                <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
               </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="max-h-[480px] overflow-y-auto pr-1 space-y-2.5">
+              {dashboardWorkOrders.map((wo) => {
+                const isUrgent = wo.priority === 'urgent';
+                const isHigh = wo.priority === 'high';
+
+                const statusMap: Record<string, { label: string; color: string }> = {
+                  created: { label: '待派单', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+                  dispatched: { label: '待接单', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                  in_progress: { label: '检修中', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                  pending_acceptance: { label: '待验收', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+                  completed: { label: '已归档', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                };
+
+                const currentStatus = statusMap[wo.status] || { label: wo.status, color: 'bg-slate-100 text-slate-600 border-slate-200' };
+
+                return (
+                  <div
+                    key={wo.id}
+                    onClick={() => onSelectWorkOrder(wo)}
+                    className="p-3 bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-blue-300 rounded-lg transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 group shadow-xs"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div
+                        className={`p-2 rounded-md mt-0.5 ${isUrgent
+                            ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                            : isHigh
+                              ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
+                          }`}
+                      >
+                        <Wrench className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-xs text-slate-500">{wo.orderNo}</span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.2 rounded border font-semibold ${isUrgent
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : isHigh
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                              }`}
+                          >
+                            {wo.priority === 'urgent' ? '紧急' : wo.priority === 'high' ? '高' : '一般'}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded border font-medium ${currentStatus.color}`}>
+                            {currentStatus.label}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-semibold text-slate-900 group-hover:text-blue-600 transition-colors mt-0.5">
+                          {wo.title}
+                        </h4>
+                        <div className="text-[11px] text-slate-500 mt-0.5 flex items-center space-x-3">
+                          <span>设备: {wo.equipmentName}</span>
+                          <span>车间: {wo.workshop}</span>
+                          <span>主修: {wo.assignee || '待分配'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end space-x-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                      <span className="text-[10px] font-mono text-slate-400 flex items-center">
+                        <Clock className="w-3 h-3 mr-1 text-slate-400" />
+                        {wo.createdAt.split(' ')[1] || wo.createdAt}
+                      </span>
+                      <button className="px-2.5 py-1 text-xs bg-slate-100 group-hover:bg-blue-600 text-slate-700 group-hover:text-white rounded-md transition-colors flex items-center font-medium shadow-xs">
+                        <span>详情/处理</span>
+                        <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {dashboardWorkOrders.length === 0 && (
+                <div className="p-8 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center text-center">
+                  <CheckCircle2 className="w-8 h-8 text-slate-400 mb-2" />
+                  <p className="text-xs font-semibold text-slate-700">暂无进行中工单</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    当前没有待派单 / 待接单 / 检修中 / 待验收的活动工单，可点击上方「创建报修工单」发起。
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right 1 Col: Equipment Health & Inspection Widget */}
+        <div className="space-y-6">
+          {/* Real-time Focus Equipment Health List */}
+          <div className="glass-card p-4 shadow-sm relative">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-900 flex items-center">
+                <Activity className="w-4 h-4 mr-2 text-emerald-600" />
+                设备健康实时雷达
+              </h3>
+              <button
+                onClick={() => onNavigate('health')}
+                className="text-xs text-blue-600 hover:underline cursor-pointer font-medium"
+              >
+                遥测大屏
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
               {equipments.slice(0, 4).map((eq) => {
                 const isAlarm = eq.healthScore < 60 || eq.status === 'fault';
                 const isWarn = eq.healthScore >= 60 && eq.healthScore < 80;
@@ -756,28 +886,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div
                     key={eq.id}
                     onClick={() => onSelectEquipment(eq)}
-                    className="p-2.5 rounded-lg bg-slate-50/70 hover:bg-slate-100 border border-slate-200/70 transition-all cursor-pointer group"
+                    className="p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer group"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 truncate max-w-[200px]">
+                      <span className="text-xs font-semibold text-slate-900 group-hover:text-blue-600 truncate">
                         {eq.name}
                       </span>
                       <span
-                        className={`text-xs font-bold font-mono px-1.5 py-0.2 rounded ${
-                          isAlarm
+                        className={`text-xs font-bold font-mono px-1.5 py-0.2 rounded ${isAlarm
                             ? 'bg-rose-50 text-rose-700 border border-rose-200'
                             : isWarn
                               ? 'bg-amber-50 text-amber-700 border border-amber-200'
                               : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        }`}
+                          }`}
                       >
-                        {eq.healthScore} 分
+                        {eq.healthScore}分
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5 font-mono">
-                      <span>T: <strong className={eq.telemetry.temperature > 75 ? 'text-rose-600' : 'text-slate-800'}>{eq.telemetry.temperature}°C</strong></span>
-                      <span>Vib: <strong className={eq.telemetry.vibration > 4.5 ? 'text-rose-600' : 'text-slate-800'}>{eq.telemetry.vibration}mm/s</strong></span>
-                      <span>Load: <strong className="text-slate-800">{eq.telemetry.loadRate}%</strong></span>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5 font-medium">
+                      <span>温度: <strong className={eq.telemetry.temperature > 75 ? 'text-rose-600 font-mono' : 'text-slate-800 font-mono'}>{eq.telemetry.temperature}°C</strong></span>
+                      <span>振动: <strong className={eq.telemetry.vibration > 4.5 ? 'text-rose-600 font-mono' : 'text-slate-800 font-mono'}>{eq.telemetry.vibration}mm/s</strong></span>
+                      <span>负荷: <strong className="text-slate-800 font-mono">{eq.telemetry.loadRate}%</strong></span>
                     </div>
                   </div>
                 );
@@ -785,48 +914,85 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* 巡检任务与备件/隐患概况卡 */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-xs space-y-2.5">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center">
-                <CheckCircle2 className="w-4 h-4 mr-1.5 text-blue-600" />
-                巡检打卡与安全防护
-              </h2>
+          {/* Today's Inspection Progress Widget */}
+          <div className="glass-card p-4 shadow-sm relative">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-900 flex items-center">
+                <CheckCircle2 className="w-4 h-4 mr-2 text-blue-600" />
+                巡检路线打卡与状态
+              </h3>
               <button
-                type="button"
                 onClick={() => onNavigate('inspections')}
-                className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                className="text-xs text-blue-600 hover:underline cursor-pointer font-medium"
               >
-                巡检 →
+                进入巡检终端
               </button>
             </div>
 
-            <div className="space-y-2 text-xs">
-              {/* 巡检单行 */}
-              {inspections.slice(0, 2).map((task) => (
-                <div key={task.id} className="p-2.5 rounded-lg bg-slate-50/70 border border-slate-200/70 flex items-center justify-between">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-800 truncate">{task.title}</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">完成 {task.completedPoints}/{task.totalPoints} 测点</p>
+            <div className="max-h-64 overflow-y-auto pr-1 space-y-2">
+              {inspections.map((task) => (
+                <div key={task.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-800 truncate">{task.title}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${task.status === 'in_progress'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                    >
+                      {task.status === 'in_progress' ? '进行中' : '未开始'}
+                    </span>
                   </div>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold ${
-                    task.abnormalCount > 0 ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
-                  }`}>
-                    {task.abnormalCount > 0 ? `${task.abnormalCount} 异常` : '正常'}
-                  </span>
+                  <div className="text-[10px] text-slate-500 mt-1 truncate">
+                    路线: {task.route}
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
+                    <span>已完成: <strong className="text-slate-800 font-mono">{task.completedPoints}/{task.totalPoints}</strong> 测点</span>
+                    {task.abnormalCount > 0 && (
+                      <span className="text-rose-600 font-medium">发现 {task.abnormalCount} 处异常</span>
+                    )}
+                  </div>
                 </div>
               ))}
+            </div>
+          </div>
 
-              {/* LOTO 状态单行 */}
-              <div className="p-2.5 rounded-lg bg-purple-50/50 border border-purple-200/70 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-purple-600" />
-                  <span className="font-semibold text-purple-900 text-[11px]">LOTO 挂牌生命锁</span>
+          {/* LOTO Safety Interlock Quick Status */}
+          <div className="glass-card p-4 shadow-sm relative">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-slate-900 flex items-center">
+                <Lock className="w-4 h-4 mr-2 text-purple-600" />
+                LOTO 停电挂牌生命锁状态
+              </h3>
+              <button
+                onClick={() => onNavigate('safety')}
+                className="text-xs text-blue-600 hover:underline cursor-pointer font-medium"
+              >
+                安全管理
+              </button>
+            </div>
+            <div className="max-h-56 overflow-y-auto pr-1 space-y-2">
+              {activeLotoLocks.map((lock) => (
+                <div
+                  key={lock.id}
+                  className="p-2.5 rounded-lg bg-purple-50 border border-purple-200 text-xs text-purple-900 space-y-1"
+                >
+                  <div className="flex items-center justify-between font-semibold">
+                    <span className="truncate">{lock.pointName || lock.permitTitle || '能量隔离点已锁定'}</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-600 text-white font-mono shrink-0 ml-2">
+                      {lock.lockNo}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    隔离动力源: {lock.energySource || '—'} | 锁闭人: {lock.lockedBy || '—'}
+                  </p>
                 </div>
-                <span className="text-[11px] font-mono text-purple-700 font-bold">
-                  {activeLotoLocks.length > 0 ? `${activeLotoLocks.length} 把锁定中` : '0 挂锁'}
-                </span>
-              </div>
+              ))}
+              {activeLotoLocks.length === 0 && (
+                <div className="p-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center text-[11px] text-slate-400">
+                  当前无挂锁执行中的 LOTO 能量隔离作业
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -839,7 +1005,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         title="安全合规"
         hint="AI 实时作业审计 · 岗位专属待办与督办"
       />
-      <div className="card-saas p-6 border border-slate-200/80 rounded-2xl shadow-xs relative overflow-hidden bg-white -mt-2">
+      <div className="glass-card p-5 shadow-sm relative overflow-hidden bg-white border border-slate-200/80 rounded-xl -mt-2">
         {/* 细渐变顶线 */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 via-cyan-400 to-blue-500" />
 
