@@ -1,70 +1,30 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
+// 修复：列表/检索双轨数据源——原 handleListKnowledge 读取模块级内存数组
+// dbKnowledgeArticles（仅 2 篇硬编码种子），与 KnowledgeRepository（数据库 14+ 篇）不一致，
+// 导致前端列表与 AI RAG 检索口径割裂、重启后新建文章从列表消失。
+// 现已删除内存数组，列表/检索/图谱统一以 knowledge_articles 表为唯一数据源。
 import { getAiClient, callDashScopeJson, createEmbedding, cosineSimilarity } from "../services/aiClient.ts";
 import { getDb } from "../../db/db.ts";
 import { KnowledgeRepository } from "../../db/repositories/index.ts";
 import { DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
 
-// 对应 server.ts createApp 闭包内的 `let dbKnowledgeArticles`（种子数据逐字保留），
-// 因 server.ts 保持只读，拆出模块无法共享其闭包变量，故在本模块内持有同一份可变状态。
-export let dbKnowledgeArticles: any[] = [
-  {
-    id: "kb-101",
-    title: "离心式给水泵滚动轴承与机械密封过热故障树分析与快速排除SOP",
-    category: "检修SOP规程",
-    targetEquipment: "离心泵类",
-    tags: ["离心泵", "轴承发热", "机械密封", "振动超标", "国家规程"],
-    summary: "针对大型离心式给水泵非驱动端/驱动端轴承外壳温升超标（>75℃）与机封泄漏的故障树展开分析，涵盖润滑油劣化、动静环偏磨与同轴度超标处置步骤。",
-    content: `### 一、轴承箱温升超标排查 SOP 步骤
-1. 测温复核：使用双波段红外测温枪，复测轴承外壳及端盖温度。若温度持续攀升超过 80℃ 或温升速率 > 1℃/min，必须立即汇报调度减负荷或倒换备用泵；
-2. 润滑状态诊断：检查轴承箱视油镜油位，正常油位应保持在中心线 1/2 至 2/3 位置；补充注脂时切忌过量，滚动轴承内部空隙填充率以 1/3~1/2 为宜；
-3. 振动与轴对中复核：使用激光对中仪测量电机与泵联轴器径向与角向跳动，径向公差要求 ≤0.05 mm；若出现 2X 工频振动，重点排查软脚与不对中。
-
-### 二、机械密封微量滴漏处理规程
-1. 正常机封泄漏量标准为 ≤3 滴/min；
-2. 若泄漏呈持续水线，检查冷却冲洗水路压力；停机拆检时，必须核对静环与动环端面平面度，严禁硬敲密封面。`,
-    author: "张建国 (高级技师)",
-    updatedAt: "2026-09-01",
-    viewCount: 142,
-    likes: 28,
-    fileType: "manual",
-    chunksCount: 2,
-  },
-  {
-    id: "kb-102",
-    title: "工业螺杆空压机主机排气高温与末级油气分离压差大处置指南",
-    category: "故障树分析",
-    targetEquipment: "螺杆空压机",
-    tags: ["空压机", "排气高温", "油分压差", "阿特拉斯", "周期维保"],
-    summary: "详细阐述阿特拉斯无油及喷油螺杆空压机出现温度保护跳机、温控阀卡阻、热交换器结垢和油气分离滤芯压差超标时的诊断方法与零件更换规范。",
-    content: `### 螺杆空压机排气高温故障排查流程
-1. 环境与通风核查：确认空压机房环境温度低于 40℃，导风罩滤网无积灰柳絮堵塞；
-2. 温控阀芯测试：当油温达到 71℃ 时温控阀应开启，85℃ 时应全开旁路流向冷却器；若进出口温差 < 3℃，判定温控阀卡死，需更换阀芯；
-3. 油分芯压差判定：监控机头控制屏上的油分压差（Delta P），标准允许压差为 ≤0.8 bar，超过 1.0 bar 必须立即更换油气分离滤芯。`,
-    author: "李志强 (电气专工)",
-    updatedAt: "2026-08-28",
-    viewCount: 96,
-    likes: 19,
-    fileType: "manual",
-    chunksCount: 2,
-  },
-];
-
-// 供其他拆出模块（如 contributionController）整体替换该闭包态数组（对应 `dbKnowledgeArticles = ...` 赋值）
-export function setDbKnowledgeArticles(list: any[]) {
-  dbKnowledgeArticles = list;
-}
-
 // GET /api/v1/knowledge
-export const handleListKnowledge = (req: any, res: any) => {
+// 与 POST /api/v1/knowledge/search（RAG 检索）同口径：仅返回 status=approved，
+// 保证"列表能看到的内容 = AI 能检索到的内容"。
+export const handleListKnowledge = async (req: any, res: any) => {
   const { category, search } = req.query;
-  let list = [...dbKnowledgeArticles];
-  if (category && category !== "all") list = list.filter((a) => a.category === category);
-  if (search) {
-    const q = String(search).toLowerCase();
-    list = list.filter((a) => a.title.toLowerCase().includes(q) || a.summary.toLowerCase().includes(q) || a.content.toLowerCase().includes(q));
+  try {
+    const list = await KnowledgeRepository.getAll({
+      status: "approved",
+      category: category ? String(category) : undefined,
+      search: search ? String(search) : undefined,
+    });
+    res.json(list);
+  } catch (err: any) {
+    res.status(500).json({ error: "获取知识列表失败: " + err.message });
   }
-  res.json(list);
 };
+
 
 // POST /api/v1/knowledge
 export const handleCreateKnowledge = async (req: any, res: any) => {
@@ -88,7 +48,6 @@ export const handleCreateKnowledge = async (req: any, res: any) => {
   try { (newArt as any).embedding = await createEmbedding(`${newArt.title}\n${newArt.summary}\n${newArt.content}`); }
   catch (err: any) { return res.status(502).json({ error: "知识向量生成失败，文章未写入", message: err.message }); }
   await KnowledgeRepository.create(newArt);
-  dbKnowledgeArticles.unshift(newArt);
   res.status(201).json(newArt);
 };
 
@@ -126,7 +85,6 @@ export const handleUploadKnowledge = async (req: any, res: any) => {
   try { (newArt as any).embedding = await createEmbedding(`${newArt.title}\n${newArt.summary}\n${newArt.content}`); }
   catch (err: any) { return res.status(502).json({ error: "知识向量生成失败，文档未写入", message: err.message }); }
   await KnowledgeRepository.create(newArt);
-  dbKnowledgeArticles.unshift(newArt);
 
   res.json({
     success: true,
@@ -173,14 +131,14 @@ export const handleKnowledgeApprove = async (req: any, res: any) => {
   const db = await getDb(); const id = req.params.id;
   const result = await db.query("UPDATE knowledge_articles SET status='approved', reviewer=$2, reviewed_at=CURRENT_TIMESTAMP WHERE id=$1 AND status='pending' RETURNING *", [id, req.currentUser.name]);
   if (!result.rows[0]) return res.status(404).json({ error: "待审核知识不存在或已审核" });
-  setDbKnowledgeArticles(await KnowledgeRepository.getAll()); res.json({ success: true, article: result.rows[0] });
+  res.json({ success: true, article: result.rows[0] });
 };
 
 // POST /api/v1/knowledge/review/:id/reject
 export const handleKnowledgeReject = async (req: any, res: any) => {
   const db = await getDb(); const result = await db.query("UPDATE knowledge_articles SET status='rejected', reviewer=$2, reviewed_at=CURRENT_TIMESTAMP WHERE id=$1 AND status='pending' RETURNING id", [req.params.id, `${req.currentUser.name}${req.body.reason ? `：${req.body.reason}` : ""}`]);
   if (!result.rows[0]) return res.status(404).json({ error: "待审核知识不存在或已审核" });
-  setDbKnowledgeArticles(await KnowledgeRepository.getAll()); res.json({ success: true });
+  res.json({ success: true });
 };
 
 // POST /api/v1/knowledge/graph/extract

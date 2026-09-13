@@ -12,7 +12,11 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 // 工单内存操作日志（原 createApp 闭包内 let 数组，仅 unshift/filter，从不整体重新赋值，逻辑保持原样）
+// 定位：列表/详情接口的即时缓存；时间线接口 GET /work-orders/:id/logs 以 work_order_logs 表为准。
 export const dbWorkOrderLogs: any[] = [];
+
+// 内存日志容量上限：unshift 头部最新，超出截断尾部最旧，防止长期运行内存无限增长（数据库已全量落库）
+const MAX_MEMORY_WORK_ORDER_LOGS = 1000;
 
 /**
  * 统一工单日志入口：内存日志（列表/详情即时展示）+ 数据库落库（详情时间线持久化，重启不丢）。
@@ -29,6 +33,9 @@ export function pushWorkOrderLog(log: {
   createdAt?: string;
 }) {
   dbWorkOrderLogs.unshift(log);
+  if (dbWorkOrderLogs.length > MAX_MEMORY_WORK_ORDER_LOGS) {
+    dbWorkOrderLogs.length = MAX_MEMORY_WORK_ORDER_LOGS;
+  }
   void WorkOrderLogRepository.add(log).catch((err: any) => {
     console.error("[WorkOrderLog] 落库失败（不影响主流程）:", err?.message || err);
   });
