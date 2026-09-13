@@ -28,7 +28,13 @@ describe("5. 生产可观测性与健康检查测试 (Observability Suite)", () 
   });
 
   it("全局 500 异常拦截：未捕获的异步路由异常应被统一拦截并返回 500 JSON，进程不崩溃", async () => {
-    const res = await request(app).get("/api/v1/test/error");
+    // 全局鉴权基线生效后 /api/v1/* 需要登录，先取 token 再触发异常端点
+    const loginRes = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ username: "admin", password: "password123" });
+    const res = await request(app)
+      .get("/api/v1/test/error")
+      .set("Authorization", `Bearer ${loginRes.body.token}`);
 
     expect(res.status).toBe(500);
     expect(res.body.code).toBe("INTERNAL_SERVER_ERROR");

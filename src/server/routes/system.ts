@@ -25,8 +25,8 @@ import {
 } from "../controllers/aiModelConfigController.ts";
 
 export function registerSystemRoutes(app: express.Express) {
-  // 审计日志查询 API (GET /api/v1/audit-logs)
-  app.get("/api/v1/audit-logs", validateQuery(auditLogsQuerySchema), handleGetAuditLogs);
+  // 审计日志查询 API (GET /api/v1/audit-logs)：含全系统操作留痕，仅 admin 可读
+  app.get("/api/v1/audit-logs", requireRole(["admin"], "查询审计日志"), validateQuery(auditLogsQuerySchema), handleGetAuditLogs);
 
   // ==================== 管理端点（P1-4 缓存统计 / P2-8 监控指标） ====================
   app.get("/api/v1/admin/ai-stats", requireRole(["admin"], "查询 AI 缓存统计"), handleAdminAiStats);
@@ -57,8 +57,8 @@ export function registerSystemRoutes(app: express.Express) {
   // 接收前端浏览器运行时异常
   app.post("/api/debug-log", validateBody(debugLogSchema), handleDebugLog);
 
-  // 全量源码工程打包下载 ZIP
-  app.get("/api/download-zip", handleDownloadZip);
+  // 全量源码工程打包下载 ZIP：等价于源码整体泄露面，仅登录后的 admin 可下载
+  app.get("/api/download-zip", requireAuth, requireRole(["admin"], "下载源码包"), handleDownloadZip);
 
   // ==================== AI 模型路由管理（多模型接入 / 降级优先级 / 连接测试，仅管理员） ====================
   app.get("/api/v1/admin/ai-models", requireAuth, requireRole(["admin"], "查看 AI 模型配置"), handleListAiModels);

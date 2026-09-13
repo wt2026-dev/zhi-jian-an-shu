@@ -15,6 +15,7 @@ import { loadSafetyPermitsIntoMemory } from "./controllers/safetyController.ts";
 import { setDbKnowledgeArticles } from "./controllers/knowledgeController.ts";
 import { requestLogger } from "./middleware/requestLogger.ts";
 import { globalLimiter, aiLimiter } from "./middleware/rateLimit.ts";
+import { globalAuthGuard } from "./middleware/auth.ts";
 import { globalErrorHandler } from "./middleware/errorHandler.ts";
 import { logger } from "../utils/logger.ts";
 import { UPLOADS_DIR } from "./utils/config.ts";
@@ -144,6 +145,11 @@ export async function createApp() {
   // 全局 API 限流中间件
   app.use("/api/v1/", globalLimiter);
   app.use("/api/ai/", aiLimiter);
+
+  // ==================== 全局 API 鉴权基线（默认拒绝 + 白名单放行） ====================
+  // 必须在所有业务路由注册之前：/api/* 默认要求有效 JWT，白名单外漏挂 requireAuth
+  // 的路由不再匿名可达（白名单见 middleware/auth.ts 的 PUBLIC_API_*）。
+  app.use(globalAuthGuard);
 
   // ==================== 业务域路由注册（保持原 server.ts 首次注册顺序） ====================
   registerSystemRoutes(app); // 审计日志查询 / 管理 admin 接口 / 健康详情 / swagger / 数字人状态 / 调试日志 / 源码打包

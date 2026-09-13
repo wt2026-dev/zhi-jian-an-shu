@@ -183,13 +183,15 @@ export function handleDebugLog(req: any, res: any) {
 // 全量源码工程打包下载 ZIP
 export async function handleDownloadZip(req: any, res: any) {
   try {
+    // archiver v8（纯 ESM）导出 ZipArchive 等类，不再提供 v7 的 archiver("zip", opts) 工厂函数；
+    // ZipArchive 继承 Transform，directory/file/finalize 与 v7 同名，直接实例化即可。
     const archiverModule: any = await import("archiver").catch(() => null);
-    const archiverFn = archiverModule?.default || archiverModule;
-    if (!archiverFn) {
+    const ZipArchive = archiverModule?.ZipArchive;
+    if (typeof ZipArchive !== "function") {
       return res.status(500).json({ error: "Archiver module is not available" });
     }
 
-    const archive = archiverFn("zip", {
+    const archive = new ZipArchive({
       zlib: { level: 9 },
     });
 
