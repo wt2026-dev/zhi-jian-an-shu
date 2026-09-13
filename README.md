@@ -104,7 +104,7 @@ docker compose up -d # 容器化部署
 server.ts               # 兼容入口（装配与业务实现见 src/server/：routes/ controllers/ services/ middleware/）
 src/api/index.ts        # 前端 API 客户端
 src/components/         # React 视图与 AI 组件
-src/db/                 # 迁移 SQL（001–019）、Repository、种子数据
+src/db/                 # 迁移 SQL（001–023）、Repository、种子数据
 src/utils/logger.ts     # pino 日志（控制台 + 文件轮转）
 scripts/                # 备份/恢复脚本
 ```
