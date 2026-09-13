@@ -21,21 +21,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   role,
 }) => {
   const content = (
-    <div className="flex flex-col h-full bg-gradient-to-b from-white via-white to-[#f8fafc] border-r border-slate-200/80 select-none">
+    <div className="flex flex-col h-full bg-white/95 backdrop-blur-md border-r border-slate-200/80 select-none">
       {/* Mobile Drawer Header (Only shown when opened as off-canvas drawer) */}
       <div className="md:hidden flex items-center justify-between px-4 h-14 border-b border-slate-100 shrink-0">
         <span className="text-xs font-bold text-slate-800 tracking-tight">系统功能导航</span>
         <button
           type="button"
           onClick={onCloseMobile}
-          className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Navigation Groups List */}
-      <div className="flex-1 overflow-y-auto py-3 px-2 space-y-4 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto py-3.5 px-2.5 space-y-4 custom-scrollbar">
         {NAV_GROUPS.map((group) => {
         // 按角色过滤受限菜单项（item.roles 未设置则全员可见）
         const visibleItems = group.items.filter((item) => !item.roles || (role && item.roles.includes(role)));
@@ -44,17 +44,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div key={group.id} className="space-y-1">
             {/* Group Header */}
             {!isCollapsed ? (
-              <div className="px-3 pt-1 pb-1 text-[11px] font-medium tracking-wider text-slate-400">
+              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
                 {group.label}
               </div>
             ) : (
               <div className="h-2 flex items-center justify-center">
-                <div className="w-1 h-1 rounded-full bg-slate-200" />
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
               </div>
             )}
 
             {/* Group Items */}
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {visibleItems.map((item) => {
                 const isSelected = activeTab === item.id;
                 const Icon = item.icon;
@@ -69,30 +69,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       if (onCloseMobile) onCloseMobile();
                     }}
                     title={isCollapsed ? item.label : undefined}
-                    className={`group relative w-full flex items-center rounded-lg transition-all duration-150 cursor-pointer text-left ${
+                    className={`group relative w-full flex items-center rounded-xl transition-all duration-150 cursor-pointer text-left ${
                       isCollapsed
                         ? 'justify-center h-10 px-0'
-                        : 'px-3 py-2 gap-3'
+                        : 'px-3 py-2.5 gap-3'
                     } ${
                       isSelected
-                        ? 'bg-[#eff6ff] text-[#2563eb] font-semibold shadow-2xs'
-                        : 'text-[#475569] hover:text-slate-900 hover:bg-slate-100/70 font-normal'
+                        ? 'bg-blue-50/90 text-blue-700 font-semibold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-normal'
                     }`}
                   >
-                    {/* Selected state 3px blue-cyan gradient indicator */}
+                    {/* Selected state left accent pill indicator */}
                     {isSelected && (
                       <span
-                        className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full"
-                        style={{ background: 'linear-gradient(180deg, #3b82f6 0%, #06b6d4 100%)' }}
+                        className="absolute left-1 top-2 bottom-2 w-[3.5px] rounded-full bg-gradient-to-b from-blue-600 to-indigo-600 shadow-[0_0_8px_rgba(37,99,235,0.4)]"
                       />
                     )}
 
                     {/* Icon */}
                     <Icon
-                      className={`w-4 h-4 shrink-0 transition-colors ${
+                      className={`w-4 h-4 shrink-0 transition-transform duration-150 ${
                         isSelected
-                          ? 'text-[#2563eb]'
-                          : 'text-[#64748b] group-hover:text-[#2563eb]'
+                          ? 'text-blue-600 scale-105'
+                          : 'text-slate-400 group-hover:text-blue-600 group-hover:scale-105'
                       }`}
                     />
 
@@ -103,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {item.label}
                         </span>
                         {item.highlight && (
-                          <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-cyan-50 text-cyan-600 border border-cyan-100 shrink-0">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 border border-blue-200/60 shrink-0">
                             AI
                           </span>
                         )}
@@ -120,10 +119,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Footer Status (when expanded) */}
       {!isCollapsed && (
-        <div className="p-3 border-t border-slate-100 shrink-0 bg-white/70 backdrop-blur-xs">
-          <div className="flex items-center space-x-2 px-2 py-1.5 rounded-md bg-slate-50 border border-slate-200/60 text-[11px] text-slate-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            <span className="truncate">边缘遥测节点在线 (16台)</span>
+        <div className="p-3 border-t border-slate-100/90 shrink-0 bg-white/70 backdrop-blur-xs">
+          <div className="flex items-center space-x-2.5 px-3 py-2 rounded-xl bg-slate-50/90 border border-slate-200/70 text-xs text-slate-600 shadow-2xs">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <div className="flex items-center justify-between flex-1 min-w-0">
+              <span className="text-[11px] font-medium text-slate-700 truncate">边缘遥测节点</span>
+              <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/60 shrink-0">16台在线</span>
+            </div>
           </div>
         </div>
       )}

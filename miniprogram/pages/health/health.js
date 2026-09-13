@@ -39,8 +39,8 @@ Page({
     var eq = that.data.equipments.find(function(x) { return x.id === id; });
     if (!eq) return;
     that.setData({ selectedEq: eq, loadingTelemetry: true });
-    request("/api/v1/telemetry?equipmentId=" + id).then(function(data) {
-      var list = Array.isArray(data) ? data : (data && data.data) || [];
+    request("/api/v1/equipments/" + id + "/telemetry-history").then(function(data) {
+      var list = Array.isArray(data) ? data : (data && data.points) || [];
       that.setData({ telemetry: list.slice(0, 20), loadingTelemetry: false });
     }).catch(function() {
       that.setData({ loadingTelemetry: false, telemetry: [] });

@@ -36,6 +36,7 @@ Page({
       request("/api/v1/safety-permits"),
       request("/api/v1/hazards"),
       request("/api/v1/spare-parts"),
+      request("/api/v1/cockpit/metrics").catch(function() { return {}; }),
     ]).then(function(rs) {
       var equips = rs[0] || [];
       var orders = rs[1] || [];
@@ -43,6 +44,7 @@ Page({
       var permits = rs[3] || [];
       var hazards = rs[4] || [];
       var spares = rs[5] || [];
+      var metrics = rs[6] || {};
 
       var activeStatuses = ["created", "dispatched", "in_progress", "pending_acceptance"];
       var activeOrders = orders.filter(function(o) { return activeStatuses.indexOf(o.status) >= 0; });
@@ -79,7 +81,7 @@ Page({
         activePermits: permits.filter(function(p) { return p.status === "approved" || p.status === "active"; }).length,
         pendingHazards: pendingHazardCount,
         lowStockParts: lowStock,
-        aiCallCount: 0,
+        aiCallCount: metrics.aiCallsTotal || 0,
         recentOrders: orders.slice(0, 5).map(function(o) {
           var statusMap = { created: "待派工", dispatched: "待接单", in_progress: "检修中", pending_acceptance: "待验收", completed: "已归档", cancelled: "已取消" };
           var colorMap = { created: "#94A3B8", dispatched: "#3b82f6", in_progress: "#F59E0B", pending_acceptance: "#8B5CF6", completed: "#10b981", cancelled: "#CBD5E1" };

@@ -138,7 +138,7 @@ Page({
     that.setData({
       messages: that.data.messages.concat([
         { id: uid, role: "user", text: "🎥 [设备检修现场视频] " + promptText, time: nowTime(), streaming: false, img: "" },
-        { id: aid, role: "assistant", text: "已捕获视频时序关键帧，通义千问多模态模型正在抽帧分析运行工况与振动异响...", time: nowTime(), streaming: true, img: "" },
+        { id: aid, role: "assistant", text: "正在分析视频，请稍候…", time: nowTime(), streaming: true, img: "" },
       ]),
       input: "",
       streaming: true,
@@ -165,21 +165,23 @@ Page({
 
     apiCall.then(function (res) {
       var a = res && res.analysis;
+      var degraded = res && (res.degraded || res.analysisSource === "rule-inference");
       var text = "";
       if (a) {
-        var part = a.device_part || a.defectType || "机械动力传动核心部件";
-        var phen = a.phenomenon || a.summary || "监测到机组运行伴随周期性冲击与温升异常";
-        var conf = Math.round((a.confidence || 0.94) * 100);
-        var causes = a.causes ? a.causes.map(function (c, i) { return "  " + (i + 1) + ". " + c; }).join("\n") : "  1. 动平衡不良或紧固件松脱\n  2. 润滑劣化接触疲劳";
-        var suggs = a.suggestions ? a.suggestions.map(function (s, i) { return "  " + (i + 1) + ". " + s; }).join("\n") : (a.recommendation ? "  • " + a.recommendation : "  1. 立即办理 LOTO 隔离挂牌\n  2. 使用对中千分表复测径向跳动");
+        var part = a.device_part || a.defectType || "";
+        var phen = a.phenomenon || a.summary || "";
+        var causes = a.causes ? a.causes.map(function (c, i) { return "  " + (i + 1) + ". " + c; }).join("\n") : "";
+        var suggs = a.suggestions ? a.suggestions.map(function (s, i) { return "  " + (i + 1) + ". " + s; }).join("\n") : (a.recommendation ? "  • " + a.recommendation : "");
+        var confLine = a.confidence != null ? " (置信度 " + Math.round(a.confidence * 100) + "%)" : " (置信度：待现场实测)";
+        var degradedTag = degraded ? "（AI 服务降级，以上为规则推断方向，非图像实测结论）" : "";
 
-        text = "【通义千问 Qwen-VL 视频多模态分析报告】\n" +
-          "• 疑似受损部件：" + part + "\n" +
-          "• 异常现象研判：" + phen + " (置信度 " + conf + "%)\n" +
-          "• 潜在故障诱因：\n" + causes + "\n" +
-          "• 推荐处置 SOP：\n" + suggs;
+        if (part) text += "• 疑似受损部件：" + part + "\n";
+        if (phen) text += "• 异常现象研判：" + phen + confLine + "\n";
+        if (causes) text += "• 潜在故障诱因：\n" + causes + "\n";
+        if (suggs) text += "• 推荐处置 SOP：\n" + suggs + "\n";
+        if (degraded) text += "\n" + degradedTag;
       } else {
-        text = "多模态视频分析完毕，未检出灾难性结构断裂。建议结合现场红外与测振笔对账。";
+        text = "未检出明确异常，请结合现场测振/测温复核。";
       }
 
       that.setData({
@@ -345,7 +347,7 @@ Page({
   checkKnowledgeContribution(lastUserMessage, lastAiReply) {
     if (!lastAiReply || lastAiReply.length < 25) return;
     var that = this;
-    request("/api/ai/suggest-contribution", {
+    request("/api/v1/ai/suggest-contribution", {
       method: "POST",
       timeout: 30000,
       data: { lastUserMessage: lastUserMessage, lastAiReply: lastAiReply },

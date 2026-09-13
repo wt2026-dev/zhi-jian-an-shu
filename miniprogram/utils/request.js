@@ -57,6 +57,9 @@ function request(path, opts) {
         // 2) 其它非 2xx：统一提示 + 规范化错误对象
         if (res.statusCode >= 400) {
           var err = normalizeError(res.data, res.statusCode);
+          if (res.statusCode === 404) {
+            err.error = "接口不存在或已更新，请升级小程序版本";
+          }
           if (!opts.silent) toast(err.error);
           reject(err);
           return;
