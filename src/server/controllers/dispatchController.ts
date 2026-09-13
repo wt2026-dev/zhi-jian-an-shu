@@ -46,8 +46,8 @@ export const handleReportLocation = async (req: any, res: any) => {
     const finalY = Number.isFinite(y) ? y : 500;
 
     const normalizedStatus = ["online", "idle", "offline"].includes(status) ? status : "online";
-    const reportedAt = new Date().toLocaleString("zh-CN", { hour12: false });
-    const id = `tloc-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+    const reportedAt = new Date().toISOString();
+    const id = `tloc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
     await DispatchRepository.insertLocation({ id, userId: user.id, mapX: finalX, mapY: finalY, status: normalizedStatus, reportedAt, geoLng, geoLat });
     await DispatchRepository.updateUserPresence(user.id, finalX, finalY, normalizedStatus, reportedAt, geoLng, geoLat);
@@ -184,7 +184,7 @@ export const handleMockLocations = async (req: any, res: any) => {
       [113.310, 23.118], [113.313, 23.122], [113.314, 23.120], [113.313, 23.118],
       [113.315, 23.119],
     ];
-    const reportedAt = new Date().toLocaleString("zh-CN", { hour12: false });
+    const reportedAt = new Date().toISOString();
     const updates = technicians.map((t: any, i: number) => {
       const anchor = anchors[Math.floor(Math.random() * anchors.length)];
       const geoLng = Number((anchor[0] + (Math.random() - 0.5) * 0.0016).toFixed(6));

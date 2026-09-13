@@ -1,5 +1,5 @@
 import { getDb } from "../db.ts";
-import { parseJson } from "./shared.ts";
+import { parseJson, VersionConflictError } from "./shared.ts";
 
 export const WorkOrderRepository = {
   async getAll(filters?: { status?: string; priority?: string; workshop?: string; equipmentId?: string; assigneeId?: string; search?: string }) {
@@ -76,9 +76,9 @@ export const WorkOrderRepository = {
     const db = await getDb();
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const id = order.id || `wo-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+    const id = order.id || `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const orderNo = order.orderNo || `WO-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
-    const createdAt = order.createdAt || (now.toLocaleDateString("zh-CN") + " " + now.toLocaleTimeString("zh-CN", { hour12: false }));
+    const createdAt = order.createdAt || now.toISOString();
     const status = order.status || (order.assigneeId || order.assignee ? "dispatched" : "created");
 
     const source = order.source || (order.description?.includes("wx_scan") || order.title?.includes("扫码") ? "wx_scan" : "manual");
@@ -93,21 +93,21 @@ export const WorkOrderRepository = {
         order.equipmentId || "eq-101",
         order.equipmentName || "通用工业机组",
         order.equipmentCode || "EQ-GEN-01",
-        order.workshop || "检修一车间",
-        order.faultType || "故障检修",
+        order.workshop || "动力一车间",
+        order.faultType || "机械振动",
         order.priority || "medium",
         status,
-        order.creator || "系统调度",
+        order.creator || "现场维保人员",
         order.dispatcher || null,
         order.assignee || null,
         order.assigneeId || null,
         createdAt,
-        order.dispatchedAt || (order.assigneeId ? createdAt : null),
+        order.dispatchedAt || null,
         order.acceptedAt || null,
         order.completedAt || null,
         order.acceptedByInspectorAt || null,
         order.description || "",
-        JSON.stringify(order.safetyRequirements || ["穿戴劳保鞋与安全帽", "落实作业前危险源辨识"]),
+        JSON.stringify(order.safetyRequirements || []),
         JSON.stringify(order.photos || []),
         order.repairLog ? JSON.stringify(order.repairLog) : null,
         order.acceptance ? JSON.stringify(order.acceptance) : null,
@@ -119,64 +119,128 @@ export const WorkOrderRepository = {
     return this.getById(id);
   },
 
-  async update(id: string, updates: Partial<any>) {
+  async update(id: string, updates: Partial<any>, expectedVersion?: number) {
     const current = await this.getById(id);
     if (!current) return null;
+
+    const targetVersion = expectedVersion !== undefined ? expectedVersion : updates.version;
+
+    if (targetVersion !== undefined && current.version !== targetVersion) {
+      throw new VersionConflictError("工单已被其他操作修改，请刷新后重试", current.version, targetVersion);
+    }
 
     const merged = { ...current, ...updates };
     const nextVersion = (current.version || 1) + 1;
 
     const db = await getDb();
-    await db.query(
-      `UPDATE work_orders SET
-         title = $1,
-         equipment_id = $2,
-         equipment_name = $3,
-         equipment_code = $4,
-         workshop = $5,
-         fault_type = $6,
-         priority = $7,
-         status = $8,
-         dispatcher = $9,
-         assignee = $10,
-         assignee_id = $11,
-         dispatched_at = $12,
-         accepted_at = $13,
-         completed_at = $14,
-         accepted_by_inspector_at = $15,
-         description = $16,
-         safety_requirements = $17,
-         photos = $18,
-         repair_log = $19,
-         acceptance = $20,
-         version = $21,
-         updated_at_dt = CURRENT_TIMESTAMP
-       WHERE id = $22;`,
-      [
-        merged.title,
-        merged.equipmentId,
-        merged.equipmentName,
-        merged.equipmentCode,
-        merged.workshop,
-        merged.faultType,
-        merged.priority,
-        merged.status,
-        merged.dispatcher || null,
-        merged.assignee || null,
-        merged.assigneeId || null,
-        merged.dispatchedAt || null,
-        merged.acceptedAt || null,
-        merged.completedAt || null,
-        merged.acceptedByInspectorAt || null,
-        merged.description,
-        JSON.stringify(merged.safetyRequirements || []),
-        JSON.stringify(merged.photos || []),
-        merged.repairLog ? JSON.stringify(merged.repairLog) : null,
-        merged.acceptance ? JSON.stringify(merged.acceptance) : null,
-        nextVersion,
-        id,
-      ]
-    );
+    if (targetVersion !== undefined) {
+      const { rowCount } = await db.query(
+        `UPDATE work_orders SET
+           title = $1,
+           equipment_id = $2,
+           equipment_name = $3,
+           equipment_code = $4,
+           workshop = $5,
+           fault_type = $6,
+           priority = $7,
+           status = $8,
+           dispatcher = $9,
+           assignee = $10,
+           assignee_id = $11,
+           dispatched_at = $12,
+           accepted_at = $13,
+           completed_at = $14,
+           accepted_by_inspector_at = $15,
+           description = $16,
+           safety_requirements = $17,
+           photos = $18,
+           repair_log = $19,
+           acceptance = $20,
+           version = $21,
+           updated_at_dt = CURRENT_TIMESTAMP
+         WHERE id = $22 AND version = $23;`,
+        [
+          merged.title,
+          merged.equipmentId,
+          merged.equipmentName,
+          merged.equipmentCode,
+          merged.workshop,
+          merged.faultType,
+          merged.priority,
+          merged.status,
+          merged.dispatcher || null,
+          merged.assignee || null,
+          merged.assigneeId || null,
+          merged.dispatchedAt || null,
+          merged.acceptedAt || null,
+          merged.completedAt || null,
+          merged.acceptedByInspectorAt || null,
+          merged.description,
+          JSON.stringify(merged.safetyRequirements || []),
+          JSON.stringify(merged.photos || []),
+          merged.repairLog ? JSON.stringify(merged.repairLog) : null,
+          merged.acceptance ? JSON.stringify(merged.acceptance) : null,
+          nextVersion,
+          id,
+          targetVersion,
+        ]
+      );
+      if (rowCount === 0) {
+        const fresh = await this.getById(id);
+        throw new VersionConflictError("工单已被其他操作修改，请刷新后重试", fresh?.version, targetVersion);
+      }
+    } else {
+      await db.query(
+        `UPDATE work_orders SET
+           title = $1,
+           equipment_id = $2,
+           equipment_name = $3,
+           equipment_code = $4,
+           workshop = $5,
+           fault_type = $6,
+           priority = $7,
+           status = $8,
+           dispatcher = $9,
+           assignee = $10,
+           assignee_id = $11,
+           dispatched_at = $12,
+           accepted_at = $13,
+           completed_at = $14,
+           accepted_by_inspector_at = $15,
+           description = $16,
+           safety_requirements = $17,
+           photos = $18,
+           repair_log = $19,
+           acceptance = $20,
+           version = $21,
+           updated_at_dt = CURRENT_TIMESTAMP
+         WHERE id = $22;`,
+        [
+          merged.title,
+          merged.equipmentId,
+          merged.equipmentName,
+          merged.equipmentCode,
+          merged.workshop,
+          merged.faultType,
+          merged.priority,
+          merged.status,
+          merged.dispatcher || null,
+          merged.assignee || null,
+          merged.assigneeId || null,
+          merged.dispatchedAt || null,
+          merged.acceptedAt || null,
+          merged.completedAt || null,
+          merged.acceptedByInspectorAt || null,
+          merged.description,
+          JSON.stringify(merged.safetyRequirements || []),
+          JSON.stringify(merged.photos || []),
+          merged.repairLog ? JSON.stringify(merged.repairLog) : null,
+          merged.acceptance ? JSON.stringify(merged.acceptance) : null,
+          nextVersion,
+          id,
+        ]
+      );
+    }
     return this.getById(id);
   },
 

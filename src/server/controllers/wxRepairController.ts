@@ -81,11 +81,8 @@ export async function handleWxRepairCreate(req: Request, res: Response) {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
     const orderNo = `WO-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
-    const id = `wo-${Date.now()}`;
-    const createdAtStr =
-      now.toLocaleDateString("zh-CN") +
-      " " +
-      now.toLocaleTimeString("zh-CN", { hour12: false });
+    const id = `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const createdAtStr = now.toISOString();
 
     const creatorName = reporter || (userId ? `用户(${userId})` : (openid ? `微信工友(${openid.slice(-4)})` : "微信扫码现场人员"));
 

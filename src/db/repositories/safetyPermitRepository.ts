@@ -1,5 +1,5 @@
 import { getDb } from "../db.ts";
-import { parseJson } from "./shared.ts";
+import { parseJson, VersionConflictError } from "./shared.ts";
 
 export const SafetyPermitRepository = {
   async getAll(filters?: { riskLevel?: string; status?: string; workshop?: string; search?: string }) {
@@ -69,50 +69,100 @@ export const SafetyPermitRepository = {
     return this.getById(permit.id);
   },
 
-  async update(id: string, updates: Partial<any>) {
+  async update(id: string, updates: Partial<any>, expectedVersion?: number) {
     const current = await this.getById(id);
     if (!current) return null;
+
+    const targetVersion = expectedVersion !== undefined ? expectedVersion : updates.version;
+
+    if (targetVersion !== undefined && current.version !== targetVersion) {
+      throw new VersionConflictError("安全作业票已被其他操作修改，请刷新后重试", current.version, targetVersion);
+    }
 
     const merged = { ...current, ...updates };
     const nextVersion = (current.version || 1) + 1;
 
     const db = await getDb();
-    await db.query(
-      `UPDATE safety_permits SET
-         title = $1,
-         risk_level = $2,
-         status = $3,
-         precautions = $4,
-         loto_number = $5,
-         hazards = $6,
-         safety_checklist = $7,
-         gas_test_results = $8,
-         guardian_approval = $9,
-         supervisorApproval = $10,
-         closed_at = $11,
-         closed_by = $12,
-         close_remark = $13,
-         version = $14,
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $15;`,
-      [
-        merged.title,
-        merged.riskLevel,
-        merged.status,
-        JSON.stringify(merged.precautions || []),
-        merged.lotoNumber || null,
-        JSON.stringify(merged.hazards || []),
-        JSON.stringify(merged.safetyChecklist || []),
-        merged.gasTestResults ? JSON.stringify(merged.gasTestResults) : null,
-        merged.guardianApproval ? JSON.stringify(merged.guardianApproval) : null,
-        merged.supervisorApproval ? JSON.stringify(merged.supervisorApproval) : null,
-        merged.closedAt || null,
-        merged.closedBy || null,
-        merged.closeRemark || null,
-        nextVersion,
-        id,
-      ]
-    );
+    if (targetVersion !== undefined) {
+      const { rowCount } = await db.query(
+        `UPDATE safety_permits SET
+           title = $1,
+           risk_level = $2,
+           status = $3,
+           precautions = $4,
+           loto_number = $5,
+           hazards = $6,
+           safety_checklist = $7,
+           gas_test_results = $8,
+           guardian_approval = $9,
+           supervisorApproval = $10,
+           closed_at = $11,
+           closed_by = $12,
+           close_remark = $13,
+           version = $14,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $15 AND version = $16;`,
+        [
+          merged.title,
+          merged.riskLevel,
+          merged.status,
+          JSON.stringify(merged.precautions || []),
+          merged.lotoNumber || null,
+          JSON.stringify(merged.hazards || []),
+          JSON.stringify(merged.safetyChecklist || []),
+          merged.gasTestResults ? JSON.stringify(merged.gasTestResults) : null,
+          merged.guardianApproval ? JSON.stringify(merged.guardianApproval) : null,
+          merged.supervisorApproval ? JSON.stringify(merged.supervisorApproval) : null,
+          merged.closedAt || null,
+          merged.closedBy || null,
+          merged.closeRemark || null,
+          nextVersion,
+          id,
+          targetVersion,
+        ]
+      );
+      if (rowCount === 0) {
+        const fresh = await this.getById(id);
+        throw new VersionConflictError("安全作业票已被其他操作修改，请刷新后重试", fresh?.version, targetVersion);
+      }
+    } else {
+      await db.query(
+        `UPDATE safety_permits SET
+           title = $1,
+           risk_level = $2,
+           status = $3,
+           precautions = $4,
+           loto_number = $5,
+           hazards = $6,
+           safety_checklist = $7,
+           gas_test_results = $8,
+           guardian_approval = $9,
+           supervisorApproval = $10,
+           closed_at = $11,
+           closed_by = $12,
+           close_remark = $13,
+           version = $14,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $15;`,
+        [
+          merged.title,
+          merged.riskLevel,
+          merged.status,
+          JSON.stringify(merged.precautions || []),
+          merged.lotoNumber || null,
+          JSON.stringify(merged.hazards || []),
+          JSON.stringify(merged.safetyChecklist || []),
+          merged.gasTestResults ? JSON.stringify(merged.gasTestResults) : null,
+          merged.guardianApproval ? JSON.stringify(merged.guardianApproval) : null,
+          merged.supervisorApproval ? JSON.stringify(merged.supervisorApproval) : null,
+          merged.closedAt || null,
+          merged.closedBy || null,
+          merged.closeRemark || null,
+          nextVersion,
+          id,
+        ]
+      );
+    }
     return this.getById(id);
   },
 

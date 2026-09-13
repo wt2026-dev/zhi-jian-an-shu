@@ -25,8 +25,15 @@ export const handleHealthForecast = async (req: any, res: any) => {
       return res.status(404).json({ success: false, error: "该设备暂无遥测历史数据，无法进行趋势预测" });
     }
 
-    const metrics = ["temperature", "vibration", "current", "loadRate"];
-    const metricNames: Record<string, string> = { temperature: "轴承温度(°C)", vibration: "振动速度(mm/s)", current: "运行电流(A)", loadRate: "负载率(%)" };
+    const metrics = ["temperature", "vibration", "current", "pressure", "loadRate", "rpm"];
+    const metricNames: Record<string, string> = {
+      temperature: "轴承温度(°C)",
+      vibration: "振动速度(mm/s)",
+      current: "运行电流(A)",
+      pressure: "系统压力(MPa)",
+      loadRate: "负载率(%)",
+      rpm: "运转转速(r/min)",
+    };
     const stats: any = {};
     for (const m of metrics) {
       const series = history.map((h: any) => Number(h[m] || 0));
@@ -47,7 +54,20 @@ export const handleHealthForecast = async (req: any, res: any) => {
         min: Number(min.toFixed(2)),
         slopePerHour: Number(slope.toFixed(4)),
         volatility: Number(stdDev.toFixed(3)),
-        exceedCount: m === "temperature" ? series.filter((v: number) => v > 75).length : m === "vibration" ? series.filter((v: number) => v > 4.5).length : 0,
+        exceedCount:
+          m === "temperature"
+            ? series.filter((v: number) => v > 75).length
+            : m === "vibration"
+            ? series.filter((v: number) => v > 4.5).length
+            : m === "pressure"
+            ? series.filter((v: number) => v > 2.5).length
+            : m === "loadRate"
+            ? series.filter((v: number) => v > 85).length
+            : m === "current"
+            ? series.filter((v: number) => v > 90).length
+            : m === "rpm"
+            ? series.filter((v: number) => v > 3000).length
+            : 0,
       };
     }
 
@@ -55,7 +75,7 @@ export const handleHealthForecast = async (req: any, res: any) => {
 【设备档案】${eq.name} (${eq.code}) | 类别: ${eq.category} | 当前健康分: ${eq.healthScore} | 当前状态: ${eq.status}
 【最近 ${history.length} 小时遥测统计】
 ${metrics.map((m: string) => `- ${metricNames[m]}: 均值 ${stats[m].mean}, 峰值 ${stats[m].max}, 谷值 ${stats[m].min}, 每小时趋势斜率 ${stats[m].slopePerHour}, 波动率(标准差) ${stats[m].volatility}${stats[m].exceedCount ? `, 越限次数 ${stats[m].exceedCount}` : ""}`).join("\n")}
-【参考阈值】温度警戒 75°C / 振动警戒 4.5 mm/s (ISO 10816-3)
+【参考阈值】温度警戒 75°C / 振动警戒 4.5 mm/s (ISO 10816-3) / 系统压力警戒 2.5 MPa / 负载率警戒 85%
 
 严格按如下 JSON 结构输出:
 {
@@ -90,8 +110,15 @@ ${metrics.map((m: string) => `- ${metricNames[m]}: 均值 ${stats[m].mean}, 峰�
       if (!history.length) {
         return { success: false, degraded: true, message: "该设备暂无遥测历史数据，无法进行趋势预测" };
       }
-      const metrics = ["temperature", "vibration", "current", "loadRate"];
-      var metricNames: Record<string, string> = { temperature: "轴承温度(°C)", vibration: "振动速度(mm/s)", current: "运行电流(A)", loadRate: "负载率(%)" };
+      const metrics = ["temperature", "vibration", "current", "pressure", "loadRate", "rpm"];
+      var metricNames: Record<string, string> = {
+        temperature: "轴承温度(°C)",
+        vibration: "振动速度(mm/s)",
+        current: "运行电流(A)",
+        pressure: "系统压力(MPa)",
+        loadRate: "负载率(%)",
+        rpm: "运转转速(r/min)",
+      };
       var stats: any = {};
       for (var mi = 0; mi < metrics.length; mi++) {
         var m = metrics[mi];
@@ -105,7 +132,20 @@ ${metrics.map((m: string) => `- ${metricNames[m]}: 均值 ${stats[m].mean}, 峰�
         stats[m] = {
           mean: Number(mean.toFixed(2)), max: Number(Math.max.apply(null, series).toFixed(2)),
           slopePerHour: Number(slope.toFixed(4)),
-          exceedCount: m === "temperature" ? series.filter(function (v: number) { return v > 75; }).length : m === "vibration" ? series.filter(function (v: number) { return v > 4.5; }).length : 0,
+          exceedCount:
+            m === "temperature"
+              ? series.filter(function (v: number) { return v > 75; }).length
+              : m === "vibration"
+              ? series.filter(function (v: number) { return v > 4.5; }).length
+              : m === "pressure"
+              ? series.filter(function (v: number) { return v > 2.5; }).length
+              : m === "loadRate"
+              ? series.filter(function (v: number) { return v > 85; }).length
+              : m === "current"
+              ? series.filter(function (v: number) { return v > 90; }).length
+              : m === "rpm"
+              ? series.filter(function (v: number) { return v > 3000; }).length
+              : 0,
         };
       }
       var tempAlert = stats.temperature.exceedCount > 0 || stats.temperature.max > 75;
@@ -127,13 +167,22 @@ ${metrics.map((m: string) => `- ${metricNames[m]}: 均值 ${stats[m].mean}, 峰�
         message: "AI 服务暂不可用，已返回规则引擎结果",
         forecast: {
           healthRating: healthRating,
-          ratingReason: `温度越限 ${stats.temperature.exceedCount} 次、振动越限 ${stats.vibration.exceedCount} 次（最近 ${history.length} 小时）`,
-          trends: [mk("temperature", "°C"), mk("vibration", "mm/s"), mk("current", "A"), mk("loadRate", "%")],
+          ratingReason: `温度越限 ${stats.temperature.exceedCount} 次、振动越限 ${stats.vibration.exceedCount} 次、压力越限 ${stats.pressure.exceedCount} 次（最近 ${history.length} 小时）`,
+          trends: [
+            mk("temperature", "°C"),
+            mk("vibration", "mm/s"),
+            mk("current", "A"),
+            mk("pressure", "MPa"),
+            mk("loadRate", "%"),
+            mk("rpm", "r/min"),
+          ],
           failureRisks: failureRisks.length ? failureRisks : [{ mode: "无显著故障模式", basis: "各指标均在受控范围内" }],
           watchWindowHours: 72,
           watchWindowNote: "建议未来 72 小时内加密巡检频次",
           recommendations: [healthRating === "正常" ? "维持现有巡检周期" : "加强巡检并安排检修窗口评估"],
         },
+        statistics: stats,
+        dataPoints: history.length,
       };
     });
   }

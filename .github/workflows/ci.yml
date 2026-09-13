@@ -19,9 +19,10 @@ jobs:
 
     env:
       NODE_ENV: test
-      JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci_placeholder_jwt_secret_key_123456789' }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'ci_placeholder_gemini_api_key' }}
-      DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY || 'ci_placeholder_dashscope_api_key' }}
+      # 密钥安全：不写死任何占位密钥。优先读取仓库 secrets；
+      # 未配置时用 openssl 每次运行随机生成的一次性值，杜绝固定字符串入库。
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
 
     steps:
       - name: Checkout Code Repository
@@ -33,8 +34,17 @@ jobs:
           node-version: 20
           cache: "npm"
 
+      - name: Generate One-off Secrets (fallback when repository secrets absent)
+        run: |
+          if [ -z "$JWT_SECRET" ]; then
+            echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+            echo "::notice::JWT_SECRET 未配置 secrets，已生成一次性随机值"
+          fi
+          # DASHSCOPE_API_KEY 允许缺省：测试套件对未配置密钥走规则引擎降级路径
+
       - name: Install Dependencies
-        run: npm ci || npm install
+        # fail fast：锁文件不一致直接失败，暴露依赖漂移（禁止 || npm install 兜底掩盖问题）
+        run: npm ci
 
       - name: Run TypeScript Type Check (tsc --noEmit)
         run: npx tsc --noEmit

@@ -68,7 +68,7 @@ export const NotificationRepository = {
     refId?: string;
   }) {
     const db = await getDb();
-    const id = notification.id || `notif-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+    const id = notification.id || `notif-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     await db.query(
       `INSERT INTO notifications (id, user_id, title, content, type, time, read, ref_type, ref_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -79,7 +79,7 @@ export const NotificationRepository = {
         notification.title,
         notification.content || "",
         notification.type || "info",
-        notification.time || new Date().toLocaleString("zh-CN"),
+        notification.time || new Date().toISOString(),
         notification.read === true,
         notification.refType || null,
         notification.refId || null,

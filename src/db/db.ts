@@ -100,7 +100,12 @@ async function createPgliteAdapter(): Promise<DatabaseAdapter> {
       type: "pglite",
       query: async function (text: string, params?: any[]) {
         const res = await pglite.query(text, normalizeParams(params));
-        return { rows: res.rows as any[], rowCount: res.rows.length };
+        // rowCount 采用真实受影响行数（UPDATE/DELETE 时 rows.length 恒为 0，
+        // 会误导乐观锁等依赖 rowCount 的调用方误判冲突）；SELECT 语义不变
+        return {
+          rows: res.rows as any[],
+          rowCount: (res as any).affectedRows ?? res.rows.length,
+        };
       },
       exec: async function (sql: string) {
         await pglite.exec(sql);
@@ -134,7 +139,8 @@ async function createPgliteAdapter(): Promise<DatabaseAdapter> {
     type: "pglite",
     query: async function (text: string, params?: any[]) {
       var res = await pglite.query(text, normalizeParams(params));
-      return { rows: res.rows as any[], rowCount: res.rows.length };
+      // 与内存模式适配器同口径：rowCount 为真实受影响行数
+      return { rows: res.rows as any[], rowCount: (res as any).affectedRows ?? res.rows.length };
     },
     exec: async function (sql: string) {
       await pglite.exec(sql);

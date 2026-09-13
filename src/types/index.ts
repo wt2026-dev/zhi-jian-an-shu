@@ -16,6 +16,7 @@ export interface UserProfile {
   currentTasksCount?: number;
   activeWorkOrdersCount?: number;
   permissions?: string[];
+  status?: 'active' | 'disabled';
 }
 
 export type EquipmentStatus = 

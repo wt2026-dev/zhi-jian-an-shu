@@ -6,6 +6,29 @@ interface RateLimitRecord {
   timestamps: number[];
 }
 const rateLimitStore = new Map<string, RateLimitRecord>();
+// 内存防护：key 以 IP/路由维度只增不减（仅清数组不清 key），长跑服务内存无限增长。
+// 参考 wxRepairRateLimitMap 的超阈值清扫模式：写入时超过阈值即清扫窗口外过期 key。
+const RATE_LIMIT_STORE_MAX = 10000;
+const LOGIN_FAILURE_STORE_MAX = 5000;
+
+function sweepRateLimitStore(windowMs: number) {
+  if (rateLimitStore.size <= RATE_LIMIT_STORE_MAX) return;
+  const cutoff = Date.now() - windowMs;
+  for (const [key, rec] of rateLimitStore) {
+    // 窗口内无任何请求记录的 key 已无计数意义（下次触达会被过滤为空数组），可安全删除
+    if (!rec.timestamps.some((ts) => ts > cutoff)) rateLimitStore.delete(key);
+  }
+}
+
+function sweepLoginFailureStore(now: number) {
+  if (loginFailureStore.size <= LOGIN_FAILURE_STORE_MAX) return;
+  for (const [key, rec] of loginFailureStore) {
+    // 未处于锁定态且超过 15 分钟无新失败的记录已无防护意义（与锁定窗口一致），可安全删除
+    if (rec.lockedUntil <= now && now - (rec.lastFailureAt || 0) > 15 * 60 * 1000) {
+      loginFailureStore.delete(key);
+    }
+  }
+}
 
 export function createRateLimiter(options: { windowMs: number; max: number; name: string }) {
   return (req: any, res: any, next: any) => {
@@ -16,6 +39,8 @@ export function createRateLimiter(options: { windowMs: number; max: number; name
 
     let record = rateLimitStore.get(clientKey);
     if (!record) {
+      // 先清扫再插入：新 key 此刻 timestamps 为空，若插入后再清扫会被误判为"窗口外"而删掉
+      sweepRateLimitStore(options.windowMs);
       record = { timestamps: [] };
       rateLimitStore.set(clientKey, record);
     }
@@ -60,6 +85,7 @@ export const aiLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 60, name:
 interface LoginFailureRecord {
   count: number;
   lockedUntil: number;
+  lastFailureAt?: number;
 }
 const loginFailureStore = new Map<string, LoginFailureRecord>();
 
@@ -82,16 +108,26 @@ export function checkLoginBruteForce(req: any, res: any): boolean {
 export function recordLoginFailure(ip: string) {
   const now = Date.now();
   let record = loginFailureStore.get(ip);
-  if (!record || record.lockedUntil <= now) {
+  // 既有 bug 修复：原条件 lockedUntil <= now 在未锁定（lockedUntil=0）时恒为真，
+  // 导致每次失败都把 count 重置为 0，连续失败计数永远到不了 5，IP 锁定从未生效。
+  // 现仅在"锁定已设置且已过期"时才重置计数。
+  if (!record || (record.lockedUntil > 0 && record.lockedUntil <= now)) {
     record = { count: 0, lockedUntil: 0 };
   }
   record.count += 1;
+  record.lastFailureAt = now;
   if (record.count >= 5) {
     record.lockedUntil = now + 15 * 60 * 1000; // 锁定 15 分钟
   }
   loginFailureStore.set(ip, record);
+  sweepLoginFailureStore(now);
 }
 
 export function recordLoginSuccess(ip: string) {
   loginFailureStore.delete(ip);
 }
+
+// 内部状态观测口（供回归测试与运维诊断使用，业务代码勿用）
+export const __rateLimitStore = rateLimitStore;
+export const __loginFailureStore = loginFailureStore;
+export const __RATE_LIMIT_STORE_MAX = RATE_LIMIT_STORE_MAX;

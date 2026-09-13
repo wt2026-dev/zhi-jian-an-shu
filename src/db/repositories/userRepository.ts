@@ -18,6 +18,8 @@ export const UserRepository = {
       permissions: parseJson(r.permissions, []),
       certifications: parseJson(r.certifications, []),
       avatar: r.avatar || "",
+      wxOpenId: r.wx_open_id || "",
+      status: r.status || "active",
     }));
   },
 
@@ -39,6 +41,8 @@ export const UserRepository = {
       permissions: parseJson(r.permissions, []),
       certifications: parseJson(r.certifications, []),
       avatar: r.avatar || "",
+      wxOpenId: r.wx_open_id || "",
+      status: r.status || "active",
     };
   },
 
@@ -60,6 +64,8 @@ export const UserRepository = {
       permissions: parseJson(r.permissions, []),
       certifications: parseJson(r.certifications, []),
       avatar: r.avatar || "",
+      wxOpenId: r.wx_open_id || "",
+      status: r.status || "active",
     };
   },
 
@@ -107,7 +113,14 @@ export const UserRepository = {
           phone: r.phone,
           email: r.email,
           permissions: parseJson(r.permissions, []),
+          status: r.status || "active",
         }
       : null;
+  },
+
+  async updateStatus(id: string, status: string) {
+    const db = await getDb();
+    await db.query(`UPDATE users SET status = $1 WHERE id = $2;`, [status, id]);
+    return this.getUserById(id);
   },
 };

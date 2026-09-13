@@ -137,6 +137,10 @@ export const handleSpeechToText = async (req: any, res: any) => {
 };
 
 // 视频时序多模态分析接口 (多模态时序抽帧与缺陷定性)
+// 修复（S 级）：原实现在未调用任何 AI/未分析任何视频帧的情况下，返回编造的缺陷结论与
+// 精确"实测数值"（5.2mm/s、142Hz、78.4°C、confidence 0.94），直接违背"绝不伪造结果"口径。
+// 现改为诚实降级：响应结构不变，内容改为规则推断说明，confidence 置空（前端显示 0%），
+// 并附加 degraded / analysisSource 标记（新增字段为向后兼容的附加信息，不破坏既有字段）。
 export const handleVideoAnalysis = async (req: any, res: any) => {
   const { videoUrl, promptText = "请对该设备检修视频进行多模态时序抽帧分析" } = req.body || {};
   addAuditLog(req, {
@@ -144,23 +148,21 @@ export const handleVideoAnalysis = async (req: any, res: any) => {
     module: "多模态时序分析",
     detail: `视频时序分析请求: ${String(promptText).slice(0, 60)}`,
     status: "SUCCESS",
-    metadata: { videoUrl },
+    metadata: { videoUrl, degraded: true },
   });
 
   res.status(200).json({
     success: true,
-    modelEngine: "DashScope Qwen-VL-Max 多模态时序视频模型",
+    degraded: true,
+    analysisSource: "rule-inference",
+    modelEngine: "规则引擎（未调用 AI 模型，非视频内容实测分析）",
     analysis: {
-      summary: "监测到机组带载运行时轴承座伴随异常周期性高频冲击与金属撞击异响",
-      defectType: "轴承外圈接触疲劳脱落与滚道剥落",
-      confidence: 0.94,
-      severity: "高危预警 (建议计划停机)",
-      keyframes: [
-        { timestamp: "00:03", description: "输入端联轴器轻微跳动，振幅瞬时达 5.2mm/s" },
-        { timestamp: "00:08", description: "轴承端盖伴随周期性敲击音，频谱主频集中于 142Hz" },
-        { timestamp: "00:15", description: "测温枪实测端盖局部温度达到 78.4°C，润滑油膜劣化" },
-      ],
-      recommendation: "停电办理 LOTO 上锁挂牌，拆卸端盖检查滚柱与保持架，更换同规格重载精密轴承并清洗油道加注润滑脂。",
+      summary: "AI 多模态视频分析服务当前不可用，无法对该视频进行真实的抽帧与缺陷识别。以下仅为基于请求描述的排查方向提示（非图像/数据实测结论），请安排现场仪器复测。",
+      defectType: "待现场确认（规则推断仅提供排查方向，不构成检测结论）",
+      confidence: null,
+      severity: "待定（需现场实测后按规程分级）",
+      keyframes: [],
+      recommendation: "建议使用测振仪与红外测温枪对轴承座、端盖等关键部位现场实测；如需拆检，严格执行 LOTO 上锁挂牌规程后再行作业。",
     },
   });
 };

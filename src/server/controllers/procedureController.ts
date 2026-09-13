@@ -1,7 +1,7 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
 import path from "path";
 import fs from "fs";
-import { AGNES_BASE_URL, AGNES_API_KEY, UPLOADS_DIR } from "../utils/config.ts";
+import { AGNES_BASE_URL, AGNES_API_KEY, isAgnesEnabled, UPLOADS_DIR } from "../utils/config.ts";
 import { getAiClient, callDashScopeJson } from "../services/aiClient.ts";
 import { ProcedureRepository, ProcedureVideoRepository } from "../../db/repositories/index.ts";
 import { buildEnglishVideoPrompt, runFullVideoGeneration } from "../services/videoGenerationService.ts";
@@ -207,6 +207,12 @@ ${stepsText}
 // ==================== Agnes AI 真实工业实操视频生成接口 ====================
 // 1. 发起视频生成 (POST /api/v1/procedures/:id/generate-video)
 export const handleGenerateVideo = async (req: any, res: any) => {
+  if (!isAgnesEnabled()) {
+    return res.status(503).json({
+      error: "视频生成功能未启用，请联系管理员在 .env 中设置 AGNES_ENABLED=true 后重启系统",
+      code: "VIDEO_GEN_DISABLED",
+    });
+  }
   if (!AGNES_API_KEY) {
     return res.status(503).json({
       error: "Agnes AI 视频生成服务未配置：缺少 AGNES_API_KEY 环境变量，请联系管理员在 .env 中配置后重启系统",
@@ -309,6 +315,12 @@ export const handleGenerateVideo = async (req: any, res: any) => {
 // ==================== 完整讲解视频：多段按步骤生成 + FFmpeg 拼接（带声音） ====================
 // POST /api/v1/procedures/:id/generate-video-full
 export const handleGenerateVideoFull = async (req: any, res: any) => {
+  if (!isAgnesEnabled()) {
+    return res.status(503).json({
+      error: "视频生成功能未启用，请联系管理员在 .env 中设置 AGNES_ENABLED=true 后重启系统",
+      code: "VIDEO_GEN_DISABLED",
+    });
+  }
   const proc = await ProcedureRepository.getById(req.params.id);
   if (!proc) return res.status(404).json({ error: "作业指引未找到" });
   if (!AGNES_API_KEY) return res.status(503).json({ error: "AGNES_API_KEY 未配置，无法生成完整视频" });

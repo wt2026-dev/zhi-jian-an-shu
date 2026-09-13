@@ -158,7 +158,31 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     },
   ];
 
-  const filteredUsers = (allUsers || []).filter((u) => {
+  const [localUsers, setLocalUsers] = useState<UserProfile[]>(allUsers || []);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setLocalUsers(allUsers || []);
+  }, [allUsers]);
+
+  const handleToggleUserStatus = async (targetUser: UserProfile) => {
+    const nextStatus = targetUser.status === 'disabled' ? 'active' : 'disabled';
+    setStatusUpdatingId(targetUser.id);
+    try {
+      const res = await authApi.updateUserStatus(targetUser.id, nextStatus);
+      if (res && res.user) {
+        setLocalUsers((prev) =>
+          prev.map((u) => (u.id === targetUser.id ? { ...u, status: nextStatus } : u))
+        );
+      }
+    } catch (err: any) {
+      alert(err?.message || '修改用户状态失败');
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  };
+
+  const filteredUsers = (localUsers || []).filter((u) => {
     const q = (searchQuery || '').toLowerCase();
     const matchesRole = selectedRoleFilter === 'all' || u.role === selectedRoleFilter;
     const matchesSearch =
@@ -388,8 +412,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 <th className="px-4 py-3">人员姓名 / 登录名</th>
                 <th className="px-4 py-3">所属部门 / 车间</th>
                 <th className="px-4 py-3">岗位角色</th>
+                <th className="px-4 py-3">账号状态</th>
                 <th className="px-4 py-3">联系电话 / 邮箱</th>
-                <th className="px-4 py-3 text-right">角色模拟切换</th>
+                <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
@@ -415,21 +440,55 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     <td className="px-4 py-3">
                       <span className="text-[11px] font-semibold text-blue-700">{u.roleTitle}</span>
                     </td>
+                    <td className="px-4 py-3">
+                      {u.status === 'disabled' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
+                          已停用
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                          正常
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
                       <div>{u.phone}</div>
                       <div className="text-[10px] text-slate-500">{u.email}</div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => onSwitchUser(u)}
-                        className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
-                          isCurrent
-                            ? 'bg-slate-100 text-slate-400 cursor-default'
-                            : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-xs'
-                        }`}
-                      >
-                        {isCurrent ? '正在使用' : '以此身份登录'}
-                      </button>
+                      <div className="flex items-center justify-end space-x-2">
+                        {currentUser.role === 'admin' && !isCurrent && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUserStatus(u)}
+                            disabled={statusUpdatingId === u.id}
+                            className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer border shadow-xs ${
+                              u.status === 'disabled'
+                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                                : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                            }`}
+                          >
+                            {statusUpdatingId === u.id
+                              ? '处理中...'
+                              : u.status === 'disabled'
+                              ? '启用账号'
+                              : '停用账号'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onSwitchUser(u)}
+                          disabled={u.status === 'disabled'}
+                          className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
+                            isCurrent
+                              ? 'bg-slate-100 text-slate-400 cursor-default'
+                              : u.status === 'disabled'
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                              : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-xs'
+                          }`}
+                        >
+                          {isCurrent ? '正在使用' : u.status === 'disabled' ? '已停用' : '以此身份登录'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

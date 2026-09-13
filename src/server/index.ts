@@ -142,6 +142,8 @@ export async function createApp() {
 
   // 全局 API 限流中间件
   app.use("/api/v1/", globalLimiter);
+  // v1 AI 接口同样可能触发 DashScope 计费，须受 AI 专属限流保护。
+  app.use("/api/v1/ai/", aiLimiter);
   app.use("/api/ai/", aiLimiter);
 
   // ==================== 全局 API 鉴权基线（默认拒绝 + 白名单放行） ====================

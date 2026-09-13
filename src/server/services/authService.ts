@@ -43,7 +43,10 @@ export function verifyJwtToken(token: string) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     const user = dbUsers.find((u) => u.id === decoded.sub || u.username === decoded.username);
-    return user || null;
+    if (!user) return null;
+    // 安全校验：用户状态必须为 active，非 active（如已禁用/停用）视为认证失败
+    if (user.status && user.status !== "active") return null;
+    return user;
   } catch {
     return null;
   }

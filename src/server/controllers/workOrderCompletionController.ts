@@ -5,6 +5,7 @@ import {
   WorkOrderLogRepository,
   SafetyPermitRepository,
   ComplianceCheckRepository,
+  VersionConflictError,
 } from "../../db/repositories/index.ts";
 import { pushNotification } from "../services/auditService.ts";
 import { callDashScopeJson } from "../services/aiClient.ts";
@@ -28,6 +29,13 @@ export async function handleCompleteWorkOrder(req: any, res: any) {
     const order = await WorkOrderRepository.getById(id);
     if (!order) return res.status(404).json({ error: "工单未找到" });
 
+    if (version !== undefined && order.version !== version) {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单已被其他人修改，请刷新重试。",
+      });
+    }
+
     if (order.status !== "in_progress") {
       return res.status(400).json({
         code: "STATE_MUTEX_ERROR",
@@ -36,17 +44,8 @@ export async function handleCompleteWorkOrder(req: any, res: any) {
       });
     }
 
-    if (version !== undefined && order.version !== version) {
-      return res.status(409).json({
-        code: "VERSION_CONFLICT",
-        message: "工单已被其他人修改，请刷新重试。",
-      });
-    }
-
-    const nowStr =
-      new Date().toLocaleDateString("zh-CN") +
-      " " +
-      new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    const nowStr = new Date().toISOString();
+    const expVersion = version !== undefined ? version : order.version;
 
     const repairLog = {
       causeAnalysis,
@@ -61,11 +60,11 @@ export async function handleCompleteWorkOrder(req: any, res: any) {
       status: "pending_acceptance",
       completedAt: nowStr,
       repairLog,
-    });
+    }, expVersion);
     aiCacheInvalidateEquipment(order.equipmentId);
 
     pushWorkOrderLog({
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       workOrderId: id,
       action: "COMPLETE",
       previousStatus: "in_progress",
@@ -151,6 +150,12 @@ export async function handleCompleteWorkOrder(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单已被其他人修改，请刷新重试。",
+      });
+    }
     res.status(500).json({ error: "完工上报失败: " + err.message });
   }
 }
@@ -164,6 +169,13 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
     const order = await WorkOrderRepository.getById(id);
     if (!order) return res.status(404).json({ error: "工单未找到" });
 
+    if (version !== undefined && order.version !== version) {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单状态已被其他人修改，请刷新后重试。",
+      });
+    }
+
     if (order.status !== "pending_acceptance") {
       return res.status(400).json({
         code: "STATE_MUTEX_ERROR",
@@ -172,10 +184,8 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
       });
     }
 
-    const nowStr =
-      new Date().toLocaleDateString("zh-CN") +
-      " " +
-      new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    const nowStr = new Date().toISOString();
+    const expVersion = version !== undefined ? version : order.version;
 
     const newStatus = pass ? "completed" : "in_progress";
     const acceptance = {
@@ -183,17 +193,17 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
       pass,
       score,
       comment,
-      signatureDate: new Date().toLocaleDateString("zh-CN"),
+      signatureDate: new Date().toISOString().slice(0, 10),
     };
 
     const updated = await WorkOrderRepository.update(id, {
       status: newStatus,
       acceptedByInspectorAt: pass ? nowStr : undefined,
       acceptance,
-    });
+    }, expVersion);
 
     pushWorkOrderLog({
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       workOrderId: id,
       action: pass ? "ACCEPT" : "REJECT",
       previousStatus: "pending_acceptance",
@@ -227,6 +237,12 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单状态已被其他人修改，请刷新后重试。",
+      });
+    }
     res.status(500).json({ error: "质检验收失败: " + err.message });
   }
 }
@@ -239,6 +255,13 @@ export async function handleTransitionStatus(req: any, res: any) {
 
     const order = await WorkOrderRepository.getById(id);
     if (!order) return res.status(404).json({ error: "工单未找到" });
+
+    if (version !== undefined && order.version !== version) {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单状态已被其他人修改，请刷新后重试。",
+      });
+    }
 
     const current = order.status;
     const allowed = ALLOWED_TRANSITIONS[current] || [];
@@ -253,24 +276,15 @@ export async function handleTransitionStatus(req: any, res: any) {
       });
     }
 
-    if (version !== undefined && order.version !== version) {
-      return res.status(409).json({
-        code: "VERSION_CONFLICT",
-        message: "工单状态已被其他人修改，请刷新后重试。",
-      });
-    }
-
-    const nowStr =
-      new Date().toLocaleDateString("zh-CN") +
-      " " +
-      new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    const nowStr = new Date().toISOString();
+    const expVersion = version !== undefined ? version : order.version;
 
     const updated = await WorkOrderRepository.update(id, {
       status: targetStatus,
-    });
+    }, expVersion);
 
     pushWorkOrderLog({
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       workOrderId: id,
       action: "TRANSITION",
       previousStatus: current,
@@ -282,6 +296,12 @@ export async function handleTransitionStatus(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单状态已被其他人修改，请刷新后重试。",
+      });
+    }
     res.status(500).json({ error: "工单状态流转失败: " + err.message });
   }
 }
