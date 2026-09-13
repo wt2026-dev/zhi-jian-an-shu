@@ -10,9 +10,11 @@ export default defineConfig({
     fileParallelism: false,
     exclude: [...configDefaults.exclude, "**/scratch/**", "**/build/**"],
     // *.test.tsx 文件自动使用 jsdom 环境
-    environmentMatchGlobs: [
-      ["**/*.test.tsx", "jsdom"],
-    ],
+    ...({
+      environmentMatchGlobs: [
+        ["**/*.test.tsx", "jsdom"],
+      ],
+    } as any),
     setupFiles: ["./tests/setup.ts"],
   },
 });
