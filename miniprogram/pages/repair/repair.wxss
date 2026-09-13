@@ -37,7 +37,7 @@
   font-size: 32rpx;
   line-height: 1;
   margin-top: -2rpx;
-  color: #0284c7;
+  color: #3b82f6;
 }
 
 .nav-title {
@@ -64,7 +64,7 @@
   width: 48rpx;
   height: 48rpx;
   border: 4rpx solid #e2e8f0;
-  border-top-color: #0284c7;
+  border-top-color: #3b82f6;
   border-radius: 50%;
   margin: 0 auto 20rpx;
   animation: spin 1s linear infinite;
@@ -106,7 +106,7 @@
 
 .btn-retry {
   display: inline-block;
-  background: #0284c7;
+  background: #3b82f6;
   color: #ffffff;
   font-size: 26rpx;
   padding: 12rpx 36rpx;
@@ -142,7 +142,7 @@
 
 .equip-code {
   font-size: 24rpx;
-  color: #38bdf8;
+  color: #3b82f6;
   margin-bottom: 12rpx;
 }
 
@@ -182,7 +182,7 @@
   display: inline-block;
   margin-top: 14rpx;
   padding: 12rpx 28rpx;
-  background: #0284c7;
+  background: #3b82f6;
   color: #ffffff;
   border-radius: 8rpx;
   font-size: 24rpx;
@@ -267,8 +267,8 @@
 }
 
 .priority-radio-item.radio-active {
-  background: #f0f9ff;
-  border-color: #38bdf8;
+  background: #eff6ff;
+  border-color: #3b82f6;
 }
 
 .priority-radio-item.priority-urgent.radio-active {
@@ -291,8 +291,8 @@
 }
 
 .radio-active .radio-indicator {
-  border-color: #0284c7;
-  background: #0284c7;
+  border-color: #3b82f6;
+  background: #3b82f6;
 }
 
 .priority-urgent.radio-active .radio-indicator {
@@ -440,14 +440,14 @@
 /* 提交按钮与防重复禁用 */
 .btn-submit {
   width: 100%;
-  background: #0284c7;
+  background: #3b82f6;
   color: #ffffff;
   font-size: 28rpx;
   font-weight: 600;
   padding: 24rpx 0;
   border-radius: 12rpx;
   border: none;
-  box-shadow: 0 4rpx 12rpx rgba(2, 132, 199, 0.25);
+  box-shadow: 0 4rpx 12rpx rgba(59, 130, 246, 0.25);
   transition: opacity 0.2s ease;
 }
 
@@ -540,7 +540,7 @@
 }
 
 .btn-primary {
-  background: #0284c7;
+  background: #3b82f6;
   color: #ffffff;
   font-size: 28rpx;
   border-radius: 12rpx;

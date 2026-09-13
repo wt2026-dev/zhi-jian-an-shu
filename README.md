@@ -29,6 +29,23 @@ docker compose up -d
 
 开发模式：`npm install && npm run dev`（tsx 直跑，Vite 中间件热更新）
 
+## 就近调度模块：真实地图配置（可选，强烈建议）
+
+调度大屏默认使用高德地图渲染真实厂区经纬度与球面距离（Haversine）；未配置 Key 或离线时自动降级为平面示意图，不影响演示。
+
+```bash
+# 1. 申请高德 Key（个人开发者免费，约 10 分钟）
+#    ① 打开 https://lbs.amap.com/ → 右上角登录（支持手机号 / 支付宝快捷登录）
+#    ② 进入控制台 → 应用管理 → 我的应用 → 创建应用（名称任意，类型选「效率」）
+#    ③ 应用下「添加 Key」：服务平台选「Web端(JS API)」，域名白名单留空（不限域名，localhost 可直接用），勾选同意条款提交
+# 2. 将 Key 填入 .env（或 .env.example 复制后填写）
+#    VITE_AMAP_KEY=你的Key
+# 3. 重启 npm run dev 后，打开「就近调度」大屏即为真实地图模式
+```
+
+- 厂区中心经纬度在迁移 `src/db/migrations/019_dispatch_geo.sql` 顶部注释中（示例 113.31, 23.12），拿到真实厂区坐标后替换常量重跑 `npm run db:migrate` 即可（幂等，仅填充空值，不覆盖已上报位置）。
+- 师傅位置上报接口支持 `{ lng, lat, status }`（真实经纬度）与 `{ mapX, mapY, status }`（旧平面坐标兼容）；"演示定位"按钮仅在无真实定位设备时演示用。
+
 ## 核心功能
 
 - **检修工单全生命周期**：创建（15 分钟防重复拦截）→ 派单（乐观锁并发防护 + AI 推荐主修）→ 接单 → 完工上报（BOM/照片）→ 质检验收 → 归档；状态机互斥校验 + 完整流转时间线
@@ -51,7 +68,7 @@ docker compose up -d # 容器化部署
 
 ## 数据库表
 
-迁移脚本 `src/db/migrations/` 按编号 001–017 连续唯一（按文件名字典序执行，全部幂等），共 **27 张业务表**：
+迁移脚本 `src/db/migrations/` 按编号 001–019 连续唯一（按文件名字典序执行，全部幂等），共 **28 张业务表**：
 
 | 分域 | 表 |
 |---|---|
@@ -65,6 +82,7 @@ docker compose up -d # 容器化部署
 | 备件 | `spare_parts`、`spare_parts_movements` |
 | 通知 / 审计 / 文件 | `notifications`、`audit_logs`、`upload_files` |
 | AI 协同与治理 | `ai_tasks`、`ai_task_steps`、`ai_generation_reviews`、`ai_model_configs` |
+| 调度与位置 | `technician_locations` |
 
 ## 数据备份
 
@@ -78,7 +96,7 @@ docker compose up -d # 容器化部署
 server.ts               # 兼容入口（装配与业务实现见 src/server/：routes/ controllers/ services/ middleware/）
 src/api/index.ts        # 前端 API 客户端
 src/components/         # React 视图与 AI 组件
-src/db/                 # 迁移 SQL（001–017）、Repository、种子数据
+src/db/                 # 迁移 SQL（001–019）、Repository、种子数据
 src/utils/logger.ts     # pino 日志（控制台 + 文件轮转）
 scripts/                # 备份/恢复脚本
 ```

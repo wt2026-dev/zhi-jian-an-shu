@@ -9,7 +9,7 @@ import {
 import { pushNotification } from "../services/auditService.ts";
 import { callDashScopeJson } from "../services/aiClient.ts";
 import { aiCacheInvalidateEquipment } from "../../utils/aiCache.ts";
-import { STATUS_LABELS, dbWorkOrderLogs, ALLOWED_TRANSITIONS } from "./workOrderController.ts";
+import { STATUS_LABELS, pushWorkOrderLog, ALLOWED_TRANSITIONS } from "./workOrderController.ts";
 
 export async function handleCompleteWorkOrder(req: any, res: any) {
   try {
@@ -64,7 +64,7 @@ export async function handleCompleteWorkOrder(req: any, res: any) {
     });
     aiCacheInvalidateEquipment(order.equipmentId);
 
-    dbWorkOrderLogs.unshift({
+    pushWorkOrderLog({
       id: `log-${Date.now()}`,
       workOrderId: id,
       action: "COMPLETE",
@@ -192,7 +192,7 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
       acceptance,
     });
 
-    dbWorkOrderLogs.unshift({
+    pushWorkOrderLog({
       id: `log-${Date.now()}`,
       workOrderId: id,
       action: pass ? "ACCEPT" : "REJECT",
@@ -269,7 +269,7 @@ export async function handleTransitionStatus(req: any, res: any) {
       status: targetStatus,
     });
 
-    dbWorkOrderLogs.unshift({
+    pushWorkOrderLog({
       id: `log-${Date.now()}`,
       workOrderId: id,
       action: "TRANSITION",

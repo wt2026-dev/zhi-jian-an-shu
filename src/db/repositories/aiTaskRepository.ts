@@ -37,6 +37,34 @@ export const AiTaskRepository = {
     return task;
   },
 
+  async list(limit = 5) {
+    const db = await getDb();
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 50));
+    const { rows } = await db.query(
+      `SELECT 
+        id, 
+        scene, 
+        status, 
+        progress, 
+        COALESCE(result_json->'report'->'equipment'->>'name', '—') AS equipment_name,
+        COALESCE(result_json->'report'->>'problemDescription', '—') AS problem_description,
+        created_at
+       FROM ai_tasks 
+       ORDER BY created_at DESC 
+       LIMIT $1;`,
+      [safeLimit]
+    );
+    return rows.map((r: any) => ({
+      id: r.id,
+      scene: r.scene,
+      status: r.status,
+      progress: r.progress,
+      equipmentName: r.equipment_name || "—",
+      problemDescription: r.problem_description || "—",
+      createdAt: r.created_at,
+    }));
+  },
+
   async markRunning(id: string, currentStep: string) {
     const db = await getDb();
     await db.query(`UPDATE ai_tasks SET status = 'running', current_step = $2 WHERE id = $1;`, [id, currentStep]);

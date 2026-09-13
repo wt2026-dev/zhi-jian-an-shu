@@ -14,6 +14,26 @@ export const STATUS_LABELS: Record<string, string> = {
 // 工单内存操作日志（原 createApp 闭包内 let 数组，仅 unshift/filter，从不整体重新赋值，逻辑保持原样）
 export const dbWorkOrderLogs: any[] = [];
 
+/**
+ * 统一工单日志入口：内存日志（列表/详情即时展示）+ 数据库落库（详情时间线持久化，重启不丢）。
+ * 修复：此前流转仅写内存数组，GET /work-orders/:id/logs 读取数据库表导致时间线恒为空。
+ */
+export function pushWorkOrderLog(log: {
+  id?: string;
+  workOrderId: string;
+  action: string;
+  previousStatus?: string | null;
+  newStatus?: string | null;
+  operatorName?: string;
+  comment?: string;
+  createdAt?: string;
+}) {
+  dbWorkOrderLogs.unshift(log);
+  void WorkOrderLogRepository.add(log).catch((err: any) => {
+    console.error("[WorkOrderLog] 落库失败（不影响主流程）:", err?.message || err);
+  });
+}
+
 // 3. 工单统计接口
 export async function handleGetWorkOrderStats(req: any, res: any) {
   try {

@@ -260,8 +260,8 @@ page {
 /* 绿色文本 */
 .text-green-100 { color: #dcfce7; }
 
-/* Accent blue (匹配原型) */
-.text-accent-blue { color: #38bdf8; }
+/* Accent blue (统一为 #3b82f6) */
+.text-accent-blue { color: #3b82f6; }
 
 /* ==================== 背景颜色 ==================== */
 .bg-surface { background-color: var(--surface); }
@@ -297,8 +297,8 @@ page {
 .bg-warning-surface { background-color: #FEF3C7; }
 .bg-surface-container-95 { background-color: rgba(255, 255, 255, 0.95); }
 .bg-surface-container-60 { background-color: rgba(255, 255, 255, 0.6); }
-.bg-primary-15 { background-color: rgba(56, 189, 248, 0.15); }
-.bg-accent-blue { background-color: #38bdf8; }
+.bg-primary-15 { background-color: rgba(59, 130, 246, 0.15); }
+.bg-accent-blue { background-color: #3b82f6; }
 .bg-accent-blue-10 { background-color: rgba(56, 189, 248, 0.1); }
 .bg-accent-blue-15 { background-color: rgba(56, 189, 248, 0.15); }
 .bg-status-green-10 { background-color: rgba(34, 197, 94, 0.1); }
@@ -366,10 +366,10 @@ page {
 .border-slate-700 { border-color: #262626; }
 .border-safety-orange-50 { border-color: rgba(249, 115, 22, 0.5); }
 .border-safety-orange-15 { border-color: rgba(249, 115, 22, 0.15); }
-.border-accent-blue { border-color: #38bdf8; }
-.border-accent-blue-30 { border-color: rgba(56, 189, 248, 0.3); }
-.border-accent-blue-40 { border-color: rgba(56, 189, 248, 0.4); }
-.border-accent-blue-50 { border-color: rgba(56, 189, 248, 0.5); }
+.border-accent-blue { border-color: #3b82f6; }
+.border-accent-blue-30 { border-color: rgba(59, 130, 246, 0.3); }
+.border-accent-blue-40 { border-color: rgba(59, 130, 246, 0.4); }
+.border-accent-blue-50 { border-color: rgba(59, 130, 246, 0.5); }
 .border-tech-dim { border-color: var(--tech-dim); }
 .border-tech-dim-40 { border-color: rgba(82, 91, 106, 0.4); }
 
@@ -987,8 +987,8 @@ page {
 .pt-safe { padding-top: env(safe-area-inset-top, 0); }
 
 /* ==================== 扩展颜色 ==================== */
-.text-accent-blue { color: #38bdf8; }
-.bg-accent-blue { background-color: #38bdf8; }
+.text-accent-blue { color: #3b82f6; }
+.bg-accent-blue { background-color: #3b82f6; }
 .text-on-tertiary { color: #552100; }
 .bg-surface-container-highest { background-color: var(--surface-container-highest); }
 
@@ -1053,8 +1053,8 @@ page {
 }
 .retry-btn {
   padding: 16rpx 48rpx;
-  background: #38bdf8;
-  color: #0a0a0a;
+  background: #3b82f6;
+  color: #ffffff;
   border-radius: 12rpx;
   font-size: 28rpx;
   font-weight: 600;

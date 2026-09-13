@@ -16,30 +16,49 @@ function hasRole(user: any, roles: string[]): boolean {
 }
 
 // POST /api/v1/dispatch/location —— 师傅位置上报（仅 technician/inspector）
+// 支持 { lng, lat, status }（真实经纬度，优先）与 { mapX, mapY, status }（旧平面坐标兼容）
 export const handleReportLocation = async (req: any, res: any) => {
   try {
     const user = req.currentUser;
     if (!hasRole(user, REPORT_ROLES)) {
       return res.status(403).json({ error: "只有检修技师（technician）或点检员（inspector）可上报位置", code: "RBAC_PERMISSION_DENIED" });
     }
-    const { mapX, mapY, status } = req.body || {};
+    const { lng, lat, mapX, mapY, status } = req.body || {};
+    const hasGeo = lng !== undefined && lng !== null && lat !== undefined && lat !== null;
+    const geoLng = hasGeo ? Number(lng) : null;
+    const geoLat = hasGeo ? Number(lat) : null;
     const x = Number(mapX);
     const y = Number(mapY);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1000 || y < 0 || y > 1000) {
+
+    // 校验：必须给出（经纬度）或（平面坐标）二者之一
+    if (!hasGeo && (!Number.isFinite(x) || !Number.isFinite(y))) {
+      return res.status(400).json({ error: "请提供 lng/lat（真实经纬度）或 mapX/mapY（0~1000 平面坐标）", code: "INVALID_INPUT" });
+    }
+    if (hasGeo && (!Number.isFinite(geoLng) || !Number.isFinite(geoLat))) {
+      return res.status(400).json({ error: "lng / lat 必须是有效数字", code: "INVALID_INPUT" });
+    }
+    if (Number.isFinite(x) && Number.isFinite(y) && (x < 0 || x > 1000 || y < 0 || y > 1000)) {
       return res.status(400).json({ error: "mapX / mapY 必须是 0~1000 之间的厂区平面坐标", code: "INVALID_INPUT" });
     }
+
+    // 平面坐标兜底：有经纬度但无平面坐标时，由经纬度推算画布坐标（避免大屏降级视图无点位）
+    const finalX = Number.isFinite(x) ? x : 500;
+    const finalY = Number.isFinite(y) ? y : 500;
+
     const normalizedStatus = ["online", "idle", "offline"].includes(status) ? status : "online";
     const reportedAt = new Date().toLocaleString("zh-CN", { hour12: false });
     const id = `tloc-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 
-    await DispatchRepository.insertLocation({ id, userId: user.id, mapX: x, mapY: y, status: normalizedStatus, reportedAt });
-    await DispatchRepository.updateUserPresence(user.id, x, y, normalizedStatus, reportedAt);
+    await DispatchRepository.insertLocation({ id, userId: user.id, mapX: finalX, mapY: finalY, status: normalizedStatus, reportedAt, geoLng, geoLat });
+    await DispatchRepository.updateUserPresence(user.id, finalX, finalY, normalizedStatus, reportedAt, geoLng, geoLat);
 
     res.status(201).json({
       success: true,
       locationId: id,
-      mapX: x,
-      mapY: y,
+      lng: geoLng,
+      lat: geoLat,
+      mapX: finalX,
+      mapY: finalY,
       status: normalizedStatus,
       reportedAt,
       message: "位置上报成功",
@@ -96,6 +115,8 @@ export const handleRecommendDispatch = async (req: any, res: any) => {
         workshop: equipment.workshop,
         mapX: equipment.mapX,
         mapY: equipment.mapY,
+        geoLng: equipment.geoLng ?? null,
+        geoLat: equipment.geoLat ?? null,
       },
       requiredKeywords,
       recommendations,
@@ -147,7 +168,7 @@ export const handleAssignDispatch = async (req: any, res: any) => {
   }
 };
 
-// POST /api/v1/dispatch/mock —— 演示接口：按车间区域随机扰动在岗师傅坐标（仅显式调用时生效）
+// POST /api/v1/dispatch/mock —— 演示接口：在厂区真实经纬度范围内随机扰动在岗师傅位置（仅显式调用时生效）
 export const handleMockLocations = async (req: any, res: any) => {
   try {
     if (!hasRole(req.currentUser, ["admin", "manager"])) {
@@ -157,18 +178,26 @@ export const handleMockLocations = async (req: any, res: any) => {
     if (!technicians.length) {
       return res.status(422).json({ error: "当前无在岗师傅（可先用技师账号上报位置）" });
     }
-    // 演示区域锚点：随机落在全厂区主要车间带内（0~1000 画布的 60~940 安全区）
-    const anchors = [
-      [140, 160], [140, 500], [420, 160], [420, 500], [420, 810],
-      [710, 160], [710, 500], [710, 810], [900, 500],
+    // 演示区域锚点：厂区中心（113.31, 23.12）周边各车间带（±0.003° ≈ ±300m）
+    const anchors: [number, number][] = [
+      [113.306, 23.122], [113.306, 23.119], [113.309, 23.122], [113.311, 23.120],
+      [113.310, 23.118], [113.313, 23.122], [113.314, 23.120], [113.313, 23.118],
+      [113.315, 23.119],
     ];
     const reportedAt = new Date().toLocaleString("zh-CN", { hour12: false });
     const updates = technicians.map((t: any, i: number) => {
       const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+      const geoLng = Number((anchor[0] + (Math.random() - 0.5) * 0.0016).toFixed(6));
+      const geoLat = Number((anchor[1] + (Math.random() - 0.5) * 0.0016).toFixed(6));
+      // 平面坐标仅作降级视图点位：由经纬度相对厂区中心线性映射到 0~1000 画布
+      const mapX = Math.min(990, Math.max(10, Math.round(500 + (geoLng - 113.31) * 250000)));
+      const mapY = Math.min(990, Math.max(10, Math.round(500 - (geoLat - 23.12) * 250000)));
       return {
         userId: t.id,
-        mapX: Math.min(990, Math.max(10, Math.round(anchor[0] + (Math.random() - 0.5) * 160))),
-        mapY: Math.min(990, Math.max(10, Math.round(anchor[1] + (Math.random() - 0.5) * 160))),
+        mapX,
+        mapY,
+        geoLng,
+        geoLat,
         status: i % 3 === 0 ? "idle" : "online",
         reportedAt,
       };
@@ -178,7 +207,7 @@ export const handleMockLocations = async (req: any, res: any) => {
       success: true,
       demo: true,
       updated: updates.length,
-      positions: updates.map((u) => ({ userId: u.userId, mapX: u.mapX, mapY: u.mapY, status: u.status })),
+      positions: updates.map((u) => ({ userId: u.userId, lng: u.geoLng, lat: u.geoLat, mapX: u.mapX, mapY: u.mapY, status: u.status })),
       message: "演示位置已刷新（仅演示环境使用，请勿在生产数据上频繁调用）",
     });
   } catch (err: any) {

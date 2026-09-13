@@ -1,3 +1,9 @@
+/**
+ * 全局统一设计 Tokens（两端一致）
+ * PRIMARY: #3B82F6 (小面积强调：按钮、激活态、进度条、图标)
+ * DEEP:    #2563EB (仅用于 hover、文字链接、重点数值，禁止大面积深蓝背景)
+ * LIGHT:   #EFF6FF (卡片底、分区底、图标底)
+ */
 page {
   background: #F5F7FA;
   color: #1E293B;

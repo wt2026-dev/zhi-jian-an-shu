@@ -183,7 +183,7 @@ page {
   position: fixed;
   right: 40rpx;
   bottom: 200rpx;
-  background: linear-gradient(135deg, #3b82f6 0%, #0ea5e9 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   border-radius: 50%;
   width: 120rpx;
   height: 120rpx;
@@ -191,7 +191,7 @@ page {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8rpx 32rpx rgba(56, 189, 248, 0.4);
+  box-shadow: 0 8rpx 32rpx rgba(59, 130, 246, 0.4);
 }
 
 .fab-btn:active {

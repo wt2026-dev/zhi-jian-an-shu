@@ -90,6 +90,27 @@ function buildPostgresUrl(): string {
 }
 
 async function createPgliteAdapter(): Promise<DatabaseAdapter> {
+  // 测试环境使用内存 PGlite：每个测试文件独立数据库实例，彻底避免共享持久化目录
+  // （postmaster.pid 互删/文件锁竞争）导致的随机 500。开发/演示仍用磁盘持久化目录。
+  if (process.env.NODE_ENV === "test" || process.env.TEST_DB === "true") {
+    console.log("[Database] 正在启动内存模式 PGlite（测试环境，文件间隔离）...");
+    const pglite = new PGlite();
+    console.log("[Database] 内存模式 PostgreSQL 初始化完成！");
+    return {
+      type: "pglite",
+      query: async function (text: string, params?: any[]) {
+        const res = await pglite.query(text, normalizeParams(params));
+        return { rows: res.rows as any[], rowCount: res.rows.length };
+      },
+      exec: async function (sql: string) {
+        await pglite.exec(sql);
+      },
+      close: async function () {
+        await pglite.close();
+        dbInstance = null;
+      },
+    };
+  }
   var dataDir = path.join(process.cwd(), "data");
   if (!fs.existsSync(dataDir)) {
     try { fs.mkdirSync(dataDir, { recursive: true }); } catch {}

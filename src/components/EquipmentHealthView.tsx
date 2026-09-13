@@ -26,7 +26,7 @@ import {
   Area,
 } from 'recharts';
 import { Equipment, WorkOrder } from '../types';
-import { equipmentApi, aiApi } from '../api';
+import { equipmentApi, aiApi, safeStorage } from '../api';
 import { AiResultModal } from './ai/AiResultModal';
 import { AiWorkOrderDraftModal } from './ai/AiWorkOrderDraftModal';
 import { AiHealthForecast, AiWorkOrderDraft, AiEquipmentSummary, AiAlarmCorrelation } from '../api';
@@ -256,7 +256,10 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
     try {
       const res = await fetch('/api/ai/diagnose', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(safeStorage.getItem('auth_token') ? { Authorization: `Bearer ${safeStorage.getItem('auth_token')}` } : {}),
+        },
         body: JSON.stringify({
           equipmentName: currentEquipment.name,
           equipmentCode: currentEquipment.code,

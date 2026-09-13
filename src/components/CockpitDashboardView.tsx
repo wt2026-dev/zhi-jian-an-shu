@@ -567,32 +567,32 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
 
       {/* Top 6 KPI Cards Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-        {/* KPI 1: 设备总数与在线率（渐变强调卡 · 可下钻：设备健康异常） */}
+        {/* KPI 1: 设备总数与在线率（轻浅渐变卡 · 可下钻：设备健康异常） */}
         <button
           type="button"
           onClick={() => openDrill('health')}
-          className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-600 via-blue-500 to-sky-400 p-3.5 shadow-md shadow-blue-500/25 relative overflow-hidden group transition-all text-left cursor-pointer w-full hover:shadow-lg hover:shadow-blue-500/30"
+          className="rounded-xl border border-blue-200 bg-gradient-to-br from-white to-blue-50/60 p-3.5 shadow-sm relative overflow-hidden group transition-all text-left cursor-pointer w-full hover:border-blue-400 hover:shadow-md"
         >
-          <div className="flex items-center justify-between text-blue-100 text-xs font-medium">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>在线设备 / 总台数</span>
-            <span className="p-1.5 rounded-lg bg-white/20">
-              <Box className="w-4 h-4 text-white" />
-            </span>
+            <div className="icon-tile icon-tile-sm icon-tile-primary">
+              <Box className="w-4 h-4 text-blue-600" />
+            </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-1.5">
-            <span className="text-3xl font-bold font-mono text-white leading-none tracking-tight">{runningEquipments}</span>
-            <span className="text-xs text-blue-100 font-sans">/ {totalEquipments} 台</span>
+            <span className="text-3xl font-bold font-mono text-blue-600 leading-none tracking-tight">{runningEquipments}</span>
+            <span className="text-xs text-slate-500 font-sans">/ {totalEquipments} 台</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
-            <span className="text-blue-100">综合在网率</span>
-            <span className="text-white font-mono font-bold">{onlineRate}%</span>
+            <span className="text-slate-500">综合在网率</span>
+            <span className="text-slate-900 font-mono font-bold">{onlineRate}%</span>
           </div>
           {/* 监测 → 定位 → 干预 闭环链路指示 */}
-          <div className="mt-2 pt-2 border-t border-white/25 flex items-center justify-between gap-1">
-            <span className="flex items-center text-[9px] text-blue-50 font-medium tracking-tight">
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
               监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
             </span>
-            <span className={`text-[9px] font-semibold truncate ${healthAbnormalCount > 0 ? 'text-white' : 'text-emerald-100'}`}>
+            <span className={`text-[9px] font-semibold truncate ${healthAbnormalCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
               {healthAbnormalCount > 0 ? `异常 ${healthAbnormalCount} 台 · 点击定位干预` : '全部健康 · 点击查看'}
             </span>
           </div>

@@ -1,6 +1,6 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
 import { Request, Response } from "express";
-import { STATUS_LABELS, dbWorkOrderLogs } from "./workOrderController.ts";
+import { STATUS_LABELS, pushWorkOrderLog } from "./workOrderController.ts";
 import { pushNotification } from "../services/auditService.ts";
 import { EquipmentRepository, WorkOrderRepository } from "../../db/repositories/index.ts";
 
@@ -115,7 +115,7 @@ export async function handleWxRepairCreate(req: Request, res: Response) {
     }
 
     // 写入流转审计日志
-    dbWorkOrderLogs.unshift({
+    pushWorkOrderLog({
       id: `log-${Date.now()}`,
       workOrderId: id,
       action: "CREATE",

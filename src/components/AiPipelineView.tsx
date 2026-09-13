@@ -319,35 +319,50 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
         </div>
       </div>
 
-      {/* 编排流程图区块 */}
-      <div className="glass-card p-5 shadow-sm border border-blue-100/70 bg-gradient-to-r from-blue-50/20 via-white/50 to-indigo-50/20">
+      {/* 编排流程图区块：DAG 拓扑流程（串行因果分析 + 双路并发协同决策） */}
+      <div className="glass-card p-5 shadow-sm border border-blue-100 bg-gradient-to-r from-blue-50/30 via-white to-indigo-50/30 relative overflow-hidden">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-4 pb-3 border-b border-slate-100">
           <div className="flex items-center space-x-2">
-            <div className="p-1.5 rounded-lg bg-blue-100/80 text-blue-700">
+            <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700">
               <GitBranch className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-900">协同编排架构（DAG 拓扑流程）</h2>
-              <p className="text-[11px] text-slate-500">机理分析串行驱动，多维决策并行加速</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-900">协同编排架构（DAG 异步并发拓扑）</h2>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold flex items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-1 animate-pulse" />
+                  Fork-Join 并行协同
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                阶段 1、2 因果链强依赖串行推演；阶段 3 方案生成后，双路专业 Agent 异步并发求解
+              </p>
             </div>
           </div>
-          <span className="text-[11px] px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-            4 项 AI 能力 · 串行依赖 2 段 · 并行执行 2 路 · 全过程可追踪可审核
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] px-2.5 py-1 rounded bg-slate-100 text-slate-600 font-mono">
+              串行 2 步 · 并行 2 路
+            </span>
+            <span className="text-[10px] px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 font-semibold font-mono">
+              Promise.all 异步非阻塞
+            </span>
+          </div>
         </div>
 
         {/* 流程拓扑节点 */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
           {/* 节点 1：故障诊断 */}
-          <div className="flex-1 p-3.5 rounded-xl border border-slate-200 bg-white/90 shadow-xs">
+          <div className="flex-1 p-3.5 rounded-xl border border-blue-100 bg-white shadow-xs hover:border-blue-300 transition-all">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">步骤 1 · 串行</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono">
+                阶段 1 · 串行强依赖
+              </span>
               <Activity className="w-3.5 h-3.5 text-blue-600" />
             </div>
-            <div className="font-bold text-xs text-slate-800">故障诊断</div>
-            <div className="text-[10px] text-slate-400 mt-1">输入：遥测数据 + 故障现象</div>
+            <div className="font-bold text-xs text-slate-800">故障诊断推演</div>
+            <div className="text-[10px] text-slate-400 mt-1">输入：遥测时序 + 故障现象</div>
             <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-blue-600 font-medium">
-              输出：严重度与可能原因
+              产出：故障根因与严重度判定
             </div>
           </div>
 
@@ -355,62 +370,75 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
           <div className="flex items-center justify-center text-blue-400 shrink-0">
             <ArrowRight className="w-4 h-4 hidden lg:block" />
             <div className="text-center py-1 lg:hidden text-blue-500 text-[11px] font-medium">
-              ↓ 串行输入诊断结论
+              ↓ 强依赖推演产物
             </div>
           </div>
 
           {/* 节点 2：检修方案生成 */}
-          <div className="flex-1 p-3.5 rounded-xl border border-slate-200 bg-white/90 shadow-xs">
+          <div className="flex-1 p-3.5 rounded-xl border border-indigo-100 bg-white shadow-xs hover:border-indigo-300 transition-all">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">步骤 2 · 串行</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-mono">
+                阶段 2 · 串行方案制定
+              </span>
               <ClipboardList className="w-3.5 h-3.5 text-indigo-600" />
             </div>
             <div className="font-bold text-xs text-slate-800">检修方案生成</div>
-            <div className="text-[10px] text-slate-400 mt-1">输入：诊断结论 + 知识库 SOP</div>
+            <div className="text-[10px] text-slate-400 mt-1">输入：根因结论 + 知识库 SOP</div>
             <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-indigo-600 font-medium">
-              输出：作业指导书与步骤
+              产出：作业指导书与执行步骤
             </div>
           </div>
 
-          {/* 串行到并行连接 */}
+          {/* 串行到并发 Fork 分发 */}
           <div className="flex items-center justify-center text-indigo-400 shrink-0">
-            <ArrowRight className="w-4 h-4 hidden lg:block" />
-            <div className="text-center py-1 lg:hidden text-indigo-500 text-[11px] font-medium">
-              ↓ 并行分发 (Promise.all)
+            <div className="hidden lg:flex flex-col items-center">
+              <span className="text-[9px] font-mono text-indigo-600 font-bold px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 mb-1">
+                FORK 并发分发
+              </span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+            <div className="text-center py-1.5 lg:hidden text-indigo-600 text-[11px] font-bold">
+              ↓ 触发异步并发 (Fork 2 路 Agent)
             </div>
           </div>
 
-          {/* 并行分支区 */}
-          <div className="flex-1 flex flex-col gap-2 p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-100">
+          {/* 并行分支区（双 Agent 异步并发） */}
+          <div className="flex-1 flex flex-col gap-2 p-2.5 rounded-xl bg-gradient-to-br from-indigo-50/60 to-purple-50/60 border border-indigo-200 shadow-xs relative">
             <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-bold text-indigo-700 flex items-center">
-                <Layers className="w-3 h-3 mr-1" /> 并行分支（Promise.all）
+              <span className="text-[10px] font-bold text-indigo-800 flex items-center">
+                <Layers className="w-3 h-3 mr-1 text-indigo-600" /> 阶段 3 · 双路异步并发协同
               </span>
-              <span className="text-[9px] text-slate-400 font-mono">2 路并发</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-200/80 text-indigo-800 font-mono font-bold">
+                Promise.all
+              </span>
             </div>
 
             {/* 分支 3A */}
-            <div className="p-2.5 rounded-lg border border-slate-200 bg-white shadow-xs">
+            <div className="p-2.5 rounded-lg border border-emerald-200 bg-white shadow-xs hover:border-emerald-300 transition-all">
               <div className="flex items-center justify-between mb-1">
                 <span className="font-bold text-xs text-slate-800 flex items-center">
                   <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                  风险审核
+                  安全审核 Agent
                 </span>
-                <span className="text-[9px] px-1 rounded bg-emerald-100 text-emerald-700 font-semibold">并行路 1</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-mono font-bold">
+                  并行路 1
+                </span>
               </div>
-              <p className="text-[10px] text-slate-400">JSA 风险等级评定与 LOTO 隔离建议</p>
+              <p className="text-[10px] text-slate-500">JSA 风险等级评定、LOTO 能量隔离与 PPE 装备推荐</p>
             </div>
 
             {/* 分支 3B */}
-            <div className="p-2.5 rounded-lg border border-slate-200 bg-white shadow-xs">
+            <div className="p-2.5 rounded-lg border border-purple-200 bg-white shadow-xs hover:border-purple-300 transition-all">
               <div className="flex items-center justify-between mb-1">
                 <span className="font-bold text-xs text-slate-800 flex items-center">
                   <UserCheck className="w-3.5 h-3.5 mr-1 text-purple-600" />
-                  派单推荐
+                  派单调度 Agent
                 </span>
-                <span className="text-[9px] px-1 rounded bg-purple-100 text-purple-700 font-semibold">并行路 2</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 font-mono font-bold">
+                  并行路 2
+                </span>
               </div>
-              <p className="text-[10px] text-slate-400">主修技师匹配、负载均衡与工时预估</p>
+              <p className="text-[10px] text-slate-500">特种资质匹配、技师排班工时与在办负载均衡</p>
             </div>
           </div>
         </div>
@@ -530,50 +558,138 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
           {/* 任务总进度条 */}
           <div className="h-1.5 w-full rounded-full bg-slate-100 mb-4 overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
+              className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400 transition-all duration-500"
               style={{ width: `${task.progress}%` }}
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {task.steps.map((step) => {
-              const meta = STEP_META[step.stepName] || { icon: Wrench, desc: '' };
-              const Icon = meta.icon;
-              return (
-                <div
-                  key={step.id}
-                  className={`p-4 rounded-xl border ${
-                    step.status === 'completed'
-                      ? 'bg-emerald-50/40 border-emerald-200'
-                      : step.status === 'failed'
-                      ? 'bg-rose-50/50 border-rose-200'
-                      : step.status === 'running'
-                      ? 'bg-blue-50/50 border-blue-200'
-                      : 'bg-slate-50 border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-800 flex items-center">
-                      <Icon className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
-                      {step.stepName}
-                    </span>
-                    <span className="flex items-center">
-                      {step.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                      {step.status === 'failed' && <XCircle className="w-4 h-4 text-rose-500" />}
-                      {step.status === 'running' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
-                      {step.status === 'pending' && <Clock className="w-4 h-4 text-slate-300" />}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 mb-2">{meta.desc}</p>
-                  {step.status === 'running' && (
-                    <div className="h-1 w-full rounded-full bg-blue-100 overflow-hidden mb-2">
-                      <div className="h-full bg-blue-500 rounded-full animate-pulse" style={{ width: `${Math.max(step.progress, 15)}%` }} />
+          {/* 步骤执行视图：前 2 步串行展示，后 2 步分叉并发展示 */}
+          <div className="space-y-3">
+            {/* 串行阶段：步骤 1 (故障诊断) & 步骤 2 (检修方案) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {task.steps.slice(0, 2).map((step) => {
+                const meta = STEP_META[step.stepName] || { icon: Wrench, desc: '' };
+                const Icon = meta.icon;
+                return (
+                  <div
+                    key={step.id}
+                    className={`p-4 rounded-xl border transition-all ${
+                      step.status === 'completed'
+                        ? 'bg-emerald-50/40 border-emerald-200'
+                        : step.status === 'failed'
+                        ? 'bg-rose-50/50 border-rose-200'
+                        : step.status === 'running'
+                        ? 'bg-blue-50/60 border-blue-300 ring-2 ring-blue-100 shadow-sm'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700">
+                          串行
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 flex items-center">
+                          <Icon className="w-3.5 h-3.5 mr-1 text-slate-600" />
+                          {step.stepName}
+                        </span>
+                      </div>
+                      <span className="flex items-center">
+                        {step.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                        {step.status === 'failed' && <XCircle className="w-4 h-4 text-rose-500" />}
+                        {step.status === 'running' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
+                        {step.status === 'pending' && <Clock className="w-4 h-4 text-slate-300" />}
+                      </span>
                     </div>
+                    <p className="text-[10px] text-slate-400 mb-2">{meta.desc}</p>
+                    {step.status === 'running' && (
+                      <div className="h-1 w-full rounded-full bg-blue-100 overflow-hidden mb-2">
+                        <div className="h-full bg-blue-500 rounded-full animate-pulse" style={{ width: `${Math.max(step.progress, 15)}%` }} />
+                      </div>
+                    )}
+                    {renderStepBody(step)}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 并行阶段提示与分发框：步骤 3A (风险审核) ∥ 步骤 3B (派单推荐) */}
+            <div className="p-3 rounded-xl bg-gradient-to-r from-indigo-50/40 via-purple-50/30 to-blue-50/40 border border-indigo-200">
+              <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-indigo-100/70">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded bg-indigo-100 text-indigo-700">
+                    <Layers className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-xs font-bold text-indigo-900">
+                    双路异步并发协同阶段（Promise.all）
+                  </span>
+                  {(task.steps[2]?.status === 'running' || task.steps[3]?.status === 'running') && (
+                    <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-indigo-100 text-indigo-700 font-semibold animate-pulse flex items-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-1" />
+                      双 Agent 异步求解中
+                    </span>
                   )}
-                  {renderStepBody(step)}
                 </div>
-              );
-            })}
+                <span className="text-[10px] font-mono text-slate-500">
+                  安全审核 ∥ 派单调度 并发无阻塞
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {task.steps.slice(2).map((step, idx) => {
+                  const meta = STEP_META[step.stepName] || { icon: Wrench, desc: '' };
+                  const Icon = meta.icon;
+                  const isBranch1 = idx === 0;
+                  return (
+                    <div
+                      key={step.id}
+                      className={`p-3.5 rounded-xl border transition-all ${
+                        step.status === 'completed'
+                          ? 'bg-white border-emerald-200'
+                          : step.status === 'failed'
+                          ? 'bg-rose-50/50 border-rose-200'
+                          : step.status === 'running'
+                          ? isBranch1
+                            ? 'bg-white border-emerald-300 ring-2 ring-emerald-100 shadow-sm'
+                            : 'bg-white border-purple-300 ring-2 ring-purple-100 shadow-sm'
+                          : 'bg-white/80 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
+                            isBranch1 ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {isBranch1 ? '并发路 1' : '并发路 2'}
+                          </span>
+                          <span className="text-xs font-bold text-slate-800 flex items-center">
+                            <Icon className={`w-3.5 h-3.5 mr-1 ${isBranch1 ? 'text-emerald-600' : 'text-purple-600'}`} />
+                            {step.stepName}
+                          </span>
+                        </div>
+                        <span className="flex items-center">
+                          {step.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                          {step.status === 'failed' && <XCircle className="w-4 h-4 text-rose-500" />}
+                          {step.status === 'running' && (
+                            <Loader2 className={`w-4 h-4 animate-spin ${isBranch1 ? 'text-emerald-500' : 'text-purple-500'}`} />
+                          )}
+                          {step.status === 'pending' && <Clock className="w-4 h-4 text-slate-300" />}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mb-2">{meta.desc}</p>
+                      {step.status === 'running' && (
+                        <div className="h-1 w-full rounded-full bg-slate-100 overflow-hidden mb-2">
+                          <div
+                            className={`h-full rounded-full animate-pulse ${isBranch1 ? 'bg-emerald-500' : 'bg-purple-500'}`}
+                            style={{ width: `${Math.max(step.progress, 15)}%` }}
+                          />
+                        </div>
+                      )}
+                      {renderStepBody(step)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -87,4 +87,26 @@ describe("7. AI 协同任务链路测试 (AI Pipeline Suite)", () => {
     expect(res.body.task.progress).toBeGreaterThanOrEqual(0);
     expect(res.body.task.steps.length).toBe(4);
   });
+
+  it("查询协同任务列表：返回 tasks 数组且包含必要字段及 limit 限制", async () => {
+    const listRes = await request(app)
+      .get("/api/v1/ai/pipeline?limit=2")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.success).toBe(true);
+    expect(Array.isArray(listRes.body.tasks)).toBe(true);
+    expect(listRes.body.tasks.length).toBeLessThanOrEqual(2);
+
+    if (listRes.body.tasks.length > 0) {
+      const item = listRes.body.tasks[0];
+      expect(typeof item.id).toBe("string");
+      expect(typeof item.scene).toBe("string");
+      expect(typeof item.status).toBe("string");
+      expect(typeof item.progress).toBe("number");
+      expect(typeof item.equipmentName).toBe("string");
+      expect(typeof item.problemDescription).toBe("string");
+      expect(item.createdAt).toBeDefined();
+    }
+  });
 });

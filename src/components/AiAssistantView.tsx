@@ -534,7 +534,10 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
     try {
       const res = await fetch('/api/ai/diagnose', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(safeStorage.getItem('auth_token') ? { Authorization: `Bearer ${safeStorage.getItem('auth_token')}` } : {}),
+        },
         body: JSON.stringify({
           equipmentName: targetEq.name,
           equipmentCode: targetEq.code,
