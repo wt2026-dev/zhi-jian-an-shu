@@ -131,6 +131,8 @@ ${metrics.map((m: string) => `- ${metricNames[m]}: 均值 ${stats[m].mean}, 峰�
         var slope = numerator / denominator;
         stats[m] = {
           mean: Number(mean.toFixed(2)), max: Number(Math.max.apply(null, series).toFixed(2)),
+          // 补齐 min 字段与 AI 成功路径的 statistics 契约对齐（评审环境无 Key 时走本降级路径，字段缺失会导致断言失败）
+          min: Number(Math.min.apply(null, series).toFixed(2)),
           slopePerHour: Number(slope.toFixed(4)),
           exceedCount:
             m === "temperature"
