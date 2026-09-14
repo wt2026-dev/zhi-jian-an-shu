@@ -693,7 +693,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             </div>
             <div>
               <span className="text-[11px] text-slate-500 block">待办派单</span>
-              <span className="text-base font-bold text-slate-900 font-mono">{createdCount} <span className="text-xs text-slate-400 font-normal">单</span></span>
+              <span className="text-base font-bold text-slate-900 font-mono">{createdCount} <span className="text-xs text-slate-500 font-normal">单</span></span>
             </div>
           </div>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 font-medium">调度中</span>
@@ -706,7 +706,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             </div>
             <div>
               <span className="text-[11px] text-slate-500 block">现场检修中</span>
-              <span className="text-base font-bold text-blue-700 font-mono">{inProgressCount} <span className="text-xs text-slate-400 font-normal">单</span></span>
+              <span className="text-base font-bold text-blue-700 font-mono">{inProgressCount} <span className="text-xs text-slate-500 font-normal">单</span></span>
             </div>
           </div>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">处置中</span>
@@ -719,7 +719,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             </div>
             <div>
               <span className="text-[11px] text-slate-500 block">质检验收</span>
-              <span className="text-base font-bold text-purple-700 font-mono">{pendingAcceptanceCount} <span className="text-xs text-slate-400 font-normal">单</span></span>
+              <span className="text-base font-bold text-purple-700 font-mono">{pendingAcceptanceCount} <span className="text-xs text-slate-500 font-normal">单</span></span>
             </div>
           </div>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 font-medium">待复核</span>
@@ -732,7 +732,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             </div>
             <div>
               <span className="text-[11px] text-slate-500 block">紧急 SLA 抢修</span>
-              <span className="text-base font-bold text-rose-600 font-mono">{urgentSlaCount} <span className="text-xs text-slate-400 font-normal">单</span></span>
+              <span className="text-base font-bold text-rose-600 font-mono">{urgentSlaCount} <span className="text-xs text-slate-500 font-normal">单</span></span>
             </div>
           </div>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-bold flex items-center gap-1 animate-pulse">
@@ -817,7 +817,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     <span className={`text-xs font-bold block ${isSelected ? 'text-blue-700' : 'text-slate-800'}`}>
                       {node.label}
                     </span>
-                    <span className="text-[10px] text-slate-400">管线处理节点</span>
+                    <span className="text-[10px] text-slate-500">管线处理节点</span>
                   </div>
                   <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${node.badge} ${node.color}`}>
                     {node.count}
@@ -835,13 +835,13 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       {/* Filter and Search */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="搜索工单号、故障标题、设备名称、责任技师..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
         </div>
 
@@ -952,7 +952,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
               {/* Right Action & Timeline Status */}
               <div className="flex items-center justify-between md:justify-end space-x-3 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
                 <div className="text-right hidden sm:block">
-                  <span className="text-[10px] text-slate-400 block">创建时间</span>
+                  <span className="text-[10px] text-slate-500 block">创建时间</span>
                   <span className="font-mono text-xs text-slate-600">{wo.createdAt}</span>
                 </div>
 
@@ -985,14 +985,14 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                   </span>
                 </div>
                 <h3 className="text-base font-bold text-slate-100 mt-1.5">{selectedOrder.title}</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   目标设备: {selectedOrder.equipmentName} ({selectedOrder.equipmentCode}) · 所属: {selectedOrder.workshop}
                 </p>
               </div>
 
               <button
                 onClick={() => setSelectedOrder(null)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-500 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1004,23 +1004,23 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
               <div className="grid grid-cols-5 gap-2 text-center text-[10px]">
                 <div className={`p-2 rounded-lg ${selectedOrder.status ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-slate-800 text-slate-500'}`}>
                   <span className="block font-bold">1. 创建申报</span>
-                  <span className="text-[9px] text-slate-400 truncate">{selectedOrder.creator.split(' ')[0]}</span>
+                  <span className="text-[9px] text-slate-500 truncate">{selectedOrder.creator.split(' ')[0]}</span>
                 </div>
                 <div className={`p-2 rounded-lg ${['dispatched', 'in_progress', 'pending_acceptance', 'completed'].includes(selectedOrder.status) ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-slate-800 text-slate-500'}`}>
                   <span className="block font-bold">2. 派发分配</span>
-                  <span className="text-[9px] text-slate-400 truncate">{selectedOrder.assignee || '待派发'}</span>
+                  <span className="text-[9px] text-slate-500 truncate">{selectedOrder.assignee || '待派发'}</span>
                 </div>
                 <div className={`p-2 rounded-lg ${['in_progress', 'pending_acceptance', 'completed'].includes(selectedOrder.status) ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-slate-800 text-slate-500'}`}>
                   <span className="block font-bold">3. 技师接单</span>
-                  <span className="text-[9px] text-slate-400 truncate">{selectedOrder.acceptedAt ? '已接单' : '等待接单'}</span>
+                  <span className="text-[9px] text-slate-500 truncate">{selectedOrder.acceptedAt ? '已接单' : '等待接单'}</span>
                 </div>
                 <div className={`p-2 rounded-lg ${['pending_acceptance', 'completed'].includes(selectedOrder.status) ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-slate-800 text-slate-500'}`}>
                   <span className="block font-bold">4. 检修完工</span>
-                  <span className="text-[9px] text-slate-400 truncate">{selectedOrder.completedAt ? '已报完工' : '检修中'}</span>
+                  <span className="text-[9px] text-slate-500 truncate">{selectedOrder.completedAt ? '已报完工' : '检修中'}</span>
                 </div>
                 <div className={`p-2 rounded-lg ${selectedOrder.status === 'completed' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'}`}>
                   <span className="block font-bold">5. 验收归档</span>
-                  <span className="text-[9px] text-slate-400 truncate">{selectedOrder.status === 'completed' ? '已验收' : '待验收'}</span>
+                  <span className="text-[9px] text-slate-500 truncate">{selectedOrder.status === 'completed' ? '已验收' : '待验收'}</span>
                 </div>
               </div>
             </div>
@@ -1047,7 +1047,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                           </span>
                           <span className="text-[10px] text-slate-500 font-mono">{log.createdAt}</span>
                         </div>
-                        <p className="text-slate-400 mt-0.5">{log.operatorName}：{log.comment}</p>
+                        <p className="text-slate-500 mt-0.5">{log.operatorName}：{log.comment}</p>
                       </div>
                     </div>
                   ))}
@@ -1082,8 +1082,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 </h4>
 
                 <div className="space-y-1 text-slate-300">
-                  <p><strong className="text-slate-400">根本原因分析:</strong> {selectedOrder.repairLog.causeAnalysis}</p>
-                  <p><strong className="text-slate-400">具体作业步骤:</strong> {selectedOrder.repairLog.resolutionSteps}</p>
+                  <p><strong className="text-slate-500">根本原因分析:</strong> {selectedOrder.repairLog.causeAnalysis}</p>
+                  <p><strong className="text-slate-500">具体作业步骤:</strong> {selectedOrder.repairLog.resolutionSteps}</p>
                 </div>
 
                 {selectedOrder.repairLog.partsUsed.length > 0 && (
@@ -1124,12 +1124,12 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
 
               {orderSpareMovements.length > 0 ? (
                 <div className="space-y-1.5">
-                  <span className="text-[11px] text-slate-400 block">本次工单现场已领用备件流水 (已实时扣减仓库库存):</span>
+                  <span className="text-[11px] text-slate-500 block">本次工单现场已领用备件流水 (已实时扣减仓库库存):</span>
                   {orderSpareMovements.map((m) => (
                     <div key={m.id} className="flex justify-between items-center p-2 rounded bg-slate-900 border border-slate-800 text-[11px]">
                       <div>
                         <span className="font-medium text-slate-200">{m.partName}</span>
-                        <span className="text-slate-400 ml-1.5">({m.spec})</span>
+                        <span className="text-slate-500 ml-1.5">({m.spec})</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="font-mono text-amber-400 font-bold">-{m.quantity} {m.unit}</span>
@@ -1160,13 +1160,13 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                   </div>
                 </div>
                 <p className="text-slate-300 text-[11px]">{selectedOrder.acceptance.comment}</p>
-                <div className="text-[10px] text-slate-400 font-mono">验收通过签署日期: {selectedOrder.acceptance.signatureDate}</div>
+                <div className="text-[10px] text-slate-500 font-mono">验收通过签署日期: {selectedOrder.acceptance.signatureDate}</div>
               </div>
             )}
 
             {/* AI 作业合规与失误审计报告 (功能三) */}
             {complianceLoading && (
-              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700 flex items-center justify-center space-x-2 text-xs text-slate-400">
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700 flex items-center justify-center space-x-2 text-xs text-slate-500">
                 <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
                 <span>正在加载 AI 作业合规审计报告...</span>
               </div>
@@ -1188,7 +1188,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] text-slate-400">合规得分: </span>
+                    <span className="text-[10px] text-slate-500">合规得分: </span>
                     <span
                       className={`text-base font-bold font-mono ${complianceRecord.score >= 85
                           ? 'text-emerald-400'
@@ -1199,7 +1199,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     >
                       {complianceRecord.score}
                     </span>
-                    <span className="text-[10px] text-slate-400">/100</span>
+                    <span className="text-[10px] text-slate-500">/100</span>
                   </div>
                 </div>
 
@@ -1376,7 +1376,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                   setCreateStep(1);
                   setDuplicateAlert(null);
                 }}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1423,7 +1423,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                           >
                             {item.title}
                           </span>
-                          <span className="text-[10px] text-slate-400 block">{item.desc}</span>
+                          <span className="text-[10px] text-slate-500 block">{item.desc}</span>
                         </div>
                       </button>
                       {idx < arr.length - 1 && (
@@ -1463,7 +1463,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                       </div>
                       <div className="flex justify-between text-slate-600">
                         <span>报单生成时间:</span>
-                        <span className="text-slate-400">{duplicateAlert.existingOrder.createdAt}</span>
+                        <span className="text-slate-500">{duplicateAlert.existingOrder.createdAt}</span>
                       </div>
                     </div>
                   )}
@@ -1540,18 +1540,18 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-600 pt-1">
                           <div className="bg-white p-2 rounded-lg border border-slate-200">
-                            <span className="text-slate-400 block text-[10px]">所属车间</span>
+                            <span className="text-slate-500 block text-[10px]">所属车间</span>
                             <span className="font-semibold text-slate-700">{currentEq.workshop}</span>
                           </div>
                           <div className="bg-white p-2 rounded-lg border border-slate-200">
-                            <span className="text-slate-400 block text-[10px]">运行状态</span>
+                            <span className="text-slate-500 block text-[10px]">运行状态</span>
                             <span className="font-semibold text-emerald-600 flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               {currentEq.status === 'running' ? '在网运行' : currentEq.status}
                             </span>
                           </div>
                           <div className="bg-white p-2 rounded-lg border border-slate-200">
-                            <span className="text-slate-400 block text-[10px]">健康度指数</span>
+                            <span className="text-slate-500 block text-[10px]">健康度指数</span>
                             <span className="font-mono font-bold text-blue-600">
                               {currentEq.healthScore || 92}%
                             </span>
@@ -1571,7 +1571,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                       placeholder="例如: 1#主驱动减速箱输出轴剧烈振动伴随异响紧急排查"
                       value={newOrderForm.title}
                       onChange={(e) => setNewOrderForm({ ...newOrderForm, title: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -1623,7 +1623,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                               <span className={`text-xs font-bold block ${isSelected ? 'text-blue-800' : 'text-slate-800'}`}>
                                 {item.type}
                               </span>
-                              <span className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{item.desc}</span>
+                              <span className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{item.desc}</span>
                             </div>
                           </button>
                         );
@@ -1655,7 +1655,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                             }`}
                           >
                             <span className="text-xs block">{p.label}</span>
-                            <span className="text-[10px] text-slate-400 block">{p.sub}</span>
+                            <span className="text-[10px] text-slate-500 block">{p.sub}</span>
                           </button>
                         );
                       })}
@@ -1672,7 +1672,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                       placeholder="详细记录异响、振动有效值(mm/s)、测温读数(℃)、漏油滴速等现场异常..."
                       value={newOrderForm.description}
                       onChange={(e) => setNewOrderForm({ ...newOrderForm, description: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -1714,14 +1714,14 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                             </div>
                             <div>
                               <span className="font-semibold text-slate-800 block">{f.name}</span>
-                              <span className="text-[10px] text-slate-400">{f.size} · {f.time} · 校验通过</span>
+                              <span className="text-[10px] text-slate-500">{f.size} · {f.time} · 校验通过</span>
                             </div>
                           </div>
                           <div className="flex items-center space-x-1.5">
                             <button
                               type="button"
                               onClick={() => alert(`查看凭证预览：${f.name}`)}
-                              className="p-1 text-slate-400 hover:text-blue-600 cursor-pointer"
+                              className="p-1 text-slate-500 hover:text-blue-600 cursor-pointer"
                               title="预览"
                             >
                               <Eye className="w-4 h-4" />
@@ -1729,7 +1729,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                             <button
                               type="button"
                               onClick={() => setEvidenceFiles(evidenceFiles.filter((x) => x.id !== f.id))}
-                              className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                              className="p-1 text-slate-500 hover:text-rose-600 cursor-pointer"
                               title="移除"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1822,21 +1822,21 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-400 block text-[10px]">工单标题</span>
+                        <span className="text-slate-500 block text-[10px]">工单标题</span>
                         <span className="font-semibold text-slate-800 line-clamp-1">{newOrderForm.title || '(未填写标题)'}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block text-[10px]">报修设备</span>
+                        <span className="text-slate-500 block text-[10px]">报修设备</span>
                         <span className="font-semibold text-slate-800">
                           {equipments.find((e) => e.id === newOrderForm.equipmentId)?.name || '未选设备'}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block text-[10px]">故障机理</span>
+                        <span className="text-slate-500 block text-[10px]">故障机理</span>
                         <span className="font-semibold text-blue-700">{newOrderForm.faultType}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block text-[10px]">现场影像凭证</span>
+                        <span className="text-slate-500 block text-[10px]">现场影像凭证</span>
                         <span className="font-semibold text-emerald-700">{evidenceFiles.length} 份影像证据就绪</span>
                       </div>
                     </div>
@@ -2015,7 +2015,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                   </div>
                   <p className="text-slate-300 leading-relaxed">{recState.data.recommended.reason}</p>
                   {recState.data.alternatives?.length > 0 && (
-                    <p className="text-slate-400">
+                    <p className="text-slate-500">
                       备选: {recState.data.alternatives.map((a: any) => `${a.name} (${a.reason})`).join('；')}
                     </p>
                   )}
@@ -2226,7 +2226,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
               </h3>
               <button
                 onClick={() => setConvertHazardModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-500 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2256,7 +2256,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 </select>
               </div>
 
-              <div className="p-3 bg-slate-800/80 rounded-xl space-y-1 text-slate-400">
+              <div className="p-3 bg-slate-800/80 rounded-xl space-y-1 text-slate-500">
                 <div>关联设备: {selectedOrder.equipmentName} ({selectedOrder.equipmentCode})</div>
                 <div>所属区域: {selectedOrder.workshop}</div>
                 <div>来源于工单: {selectedOrder.orderNo}</div>
@@ -2307,7 +2307,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowSpareModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-500 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2352,7 +2352,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     type="text"
                     disabled
                     value={`${currentUser.name} (${currentUser.roleTitle})`}
-                    className="w-full bg-slate-800/60 border border-slate-700 text-slate-400 rounded-lg px-3 py-2 text-xs"
+                    className="w-full bg-slate-800/60 border border-slate-700 text-slate-500 rounded-lg px-3 py-2 text-xs"
                   />
                 </div>
               </div>
@@ -2368,7 +2368,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 />
               </div>
 
-              <div className="p-3 bg-slate-800/80 rounded-xl space-y-1 text-slate-400 text-[11px]">
+              <div className="p-3 bg-slate-800/80 rounded-xl space-y-1 text-slate-500 text-[11px]">
                 <div>关联工单: <span className="text-cyan-400 font-mono font-bold">{selectedOrder.orderNo}</span></div>
                 <div>目标设备: {selectedOrder.equipmentName} ({selectedOrder.equipmentCode})</div>
                 <div className="text-amber-300/90 font-medium">提示：确认后将真实扣减仓库库存并生成出库台账流水。</div>

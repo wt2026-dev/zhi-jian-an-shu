@@ -17,7 +17,7 @@ import {
   handleAiVision,
   handleAiRagSearch,
 } from "../controllers/aiLegacyController.ts";
-import { handleAiMultimodalSearch } from "../controllers/aiMultimodalController.ts";
+import { handleAiMultimodalSearch } from "../controllers/aiVisionController.ts";
 
 export function registerAiLegacyRoutes(app: express.Express) {
   // 兼容层鉴权：所有 legacy /api/ai/* 端点统一要求登录（JWT），防止匿名用户消耗 AI 额度；

@@ -276,14 +276,14 @@ export const Header: React.FC<HeaderProps> = ({
                         onMarkAllNotificationsRead?.();
                       }}
                       disabled={unreadCount === 0}
-                      className="text-[11px] text-blue-600 hover:underline cursor-pointer disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed"
+                      className="text-[11px] text-blue-600 hover:underline cursor-pointer disabled:text-slate-500 disabled:no-underline disabled:cursor-not-allowed"
                     >
                       全部已读
                     </button>
                   </div>
                   <div className="space-y-2 text-xs max-h-80 overflow-y-auto pr-1">
                     {notifications.length === 0 ? (
-                      <div className="p-4 text-center text-[11px] text-slate-400">
+                      <div className="p-4 text-center text-[11px] text-slate-500">
                         暂无系统通知，业务告警与工单流转消息将在此实时推送
                       </div>
                     ) : (

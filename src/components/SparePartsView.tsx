@@ -291,18 +291,18 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
       <div className="card-industrial bg-white border border-slate-200 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xs">
         {/* Search */}
         <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="搜索备件编号、名称、规格型号、货架库位或适配设备..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
           />
           {searchTerm && (
             <button
               onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -465,7 +465,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
               {filteredParts.length === 0 && !isLoading && (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-500">
-                    <Package className="w-10 h-10 mx-auto mb-2 text-slate-400" />
+                    <Package className="w-10 h-10 mx-auto mb-2 text-slate-500" />
                     未找到匹配的备件记录
                   </td>
                 </tr>
@@ -486,7 +486,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
               </h3>
               <button
                 onClick={() => setInOutPart(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="text-slate-500 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -557,7 +557,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
                   placeholder={inOutType === 'out' ? '例: 2号离心泵故障轴承更换' : '例: 批量采购补充安全库存'}
                   value={inOutReason}
                   onChange={(e) => setInOutReason(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
@@ -615,7 +615,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
               </div>
               <button
                 onClick={() => setHistoryPart(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="text-slate-500 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -667,7 +667,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
                       >
                         {m.type === 'in' ? `+${m.quantity}` : `-${m.quantity}`} {historyPart.unit}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
+                      <div className="text-[10px] text-slate-500 font-mono">
                         {m.created_at ? new Date(m.created_at).toLocaleString() : ''}
                       </div>
                     </div>
@@ -698,7 +698,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
               </h3>
               <button
                 onClick={() => setCreateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="text-slate-500 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -714,7 +714,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
                     placeholder="例: SP-BEAR-6208"
                     value={newPart.code}
                     onChange={(e) => setNewPart({ ...newPart, code: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
                   />
                 </div>
                 <div>
@@ -725,7 +725,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
                     placeholder="例: 深沟球轴承"
                     value={newPart.name}
                     onChange={(e) => setNewPart({ ...newPart, name: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -738,7 +738,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
                     placeholder="例: 6208-2RS/C3"
                     value={newPart.specification}
                     onChange={(e) => setNewPart({ ...newPart, specification: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
                   />
                 </div>
                 <div>
@@ -798,7 +798,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
                     placeholder="例: B区-03货架-02层"
                     value={newPart.location}
                     onChange={(e) => setNewPart({ ...newPart, location: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -821,7 +821,7 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
                   placeholder="例: ISG-100-200, DG85-67X8"
                   value={newPart.compatible_models}
                   onChange={(e) => setNewPart({ ...newPart, compatible_models: e.target.value })}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 

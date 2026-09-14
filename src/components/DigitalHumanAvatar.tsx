@@ -554,7 +554,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
               <button
                 type="button"
                 onClick={() => setForce2D(true)}
-                className="text-[10px] text-slate-400 hover:text-blue-600 hover:underline cursor-pointer"
+                className="text-[10px] text-slate-500 hover:text-blue-600 hover:underline cursor-pointer"
               >
                 跳过加载直接使用 2D →
               </button>

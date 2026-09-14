@@ -80,7 +80,7 @@ docker compose up -d
 
 > 包管理器统一使用 **npm**（Dockerfile 与 CI 均为 `npm ci`），禁止混用 bun/pnpm/yarn，
 > 以唯一锁文件 `package-lock.json` 为准，避免依赖不一致。
-> 测试基线：**29 个测试文件 / 193 个用例全绿**（`npm test`），类型检查 `npm run lint` 零错误。
+> 测试基线：**32 个测试文件 / 223 个用例全绿**（`npm test`），类型检查 `npm run lint` 零错误。
 
 ```bash
 npm run dev          # 开发模式

@@ -423,7 +423,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
               </button>
             ))}
           </div>
-          <p className="text-xs text-slate-400 mt-3">{graphData.edges.length} 条关系 · {graphMessage}</p>
+          <p className="text-xs text-slate-500 mt-3">{graphData.edges.length} 条关系 · {graphMessage}</p>
         </div>
       )}
 
@@ -440,14 +440,14 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
         />
         <div className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="输入故障症状、设备型号或规范，如：离心泵振动超标对中标准、罗茨风机润滑油牌号..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleRagSearch()}
-              className="w-full pl-10 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white"
+              className="w-full pl-10 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:bg-white"
             />
             {searchQuery && (
               <button
@@ -455,7 +455,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                   setSearchQuery('');
                   setRagAnswer(null);
                 }}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -494,7 +494,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
           <div className="flex items-center space-x-2 p-1.5 px-3 rounded-lg bg-cyan-50 border border-cyan-200 text-xs text-cyan-700 w-fit animate-in fade-in">
             <img src={searchImageBase64} alt="检索图片" className="w-6 h-6 rounded object-cover border border-cyan-300" />
             <span className="truncate max-w-[200px] text-[11px]">{searchImageName || '已选设备照片'}</span>
-            <button onClick={clearSearchImage} className="text-slate-400 hover:text-rose-500 p-0.5 transition-colors">
+            <button onClick={clearSearchImage} className="text-slate-500 hover:text-rose-500 p-0.5 transition-colors">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -536,7 +536,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
             </div>
             <button
               onClick={() => setRagAnswer(null)}
-              className="text-slate-400 hover:text-slate-600"
+              className="text-slate-500 hover:text-slate-600"
             >
               <X className="w-4 h-4" />
             </button>
@@ -575,7 +575,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
       {/* Articles Grid */}
       {filteredArticles.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-xs card-industrial">
-          <BookOpen className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+          <BookOpen className="w-12 h-12 text-slate-500 mx-auto mb-3" />
           <h4 className="text-sm font-semibold text-slate-700">暂无匹配的检修规程文章</h4>
           <p className="text-xs text-slate-500 mt-1">请尝试更换检索关键词或切换所属分类</p>
         </div>
@@ -714,7 +714,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-500 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -729,7 +729,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                   placeholder="例如: 离心压缩机干气密封系统检修与静压试验 SOP"
                   value={newArticleForm.title}
                   onChange={(e) => setNewArticleForm({ ...newArticleForm, title: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:bg-white"
                 />
               </div>
 
@@ -756,7 +756,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                     placeholder="例如: 离心泵、压缩机、减速机"
                     value={newArticleForm.targetEquipment}
                     onChange={(e) => setNewArticleForm({ ...newArticleForm, targetEquipment: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:bg-white"
                   />
                 </div>
               </div>
@@ -768,7 +768,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                   placeholder="简述规程核心作业目标与适用工况"
                   value={newArticleForm.summary}
                   onChange={(e) => setNewArticleForm({ ...newArticleForm, summary: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:bg-white"
                 />
               </div>
 
@@ -780,7 +780,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                   placeholder="详细撰写前期准备、安全措施、作业步骤、质检验收标准..."
                   value={newArticleForm.content}
                   onChange={(e) => setNewArticleForm({ ...newArticleForm, content: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white font-mono text-[11px]"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:bg-white font-mono text-[11px]"
                 ></textarea>
               </div>
 
@@ -791,7 +791,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                   placeholder="轴承, 振动, 规程, 减速机"
                   value={newArticleForm.tags}
                   onChange={(e) => setNewArticleForm({ ...newArticleForm, tags: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:bg-white"
                 />
               </div>
             </div>
@@ -839,7 +839,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                   setShowUploadModal(false);
                   setUploadSuccessMsg(null);
                 }}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-500 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -879,7 +879,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-1">
-                      <Upload className="w-6 h-6 text-slate-400 mx-auto" />
+                      <Upload className="w-6 h-6 text-slate-500 mx-auto" />
                       <p className="text-slate-700 font-medium">点击浏览或拖拽文件至此区域</p>
                       <p className="text-slate-500 text-[11px]">系统将自动调用分词与切片管道，生成高维向量嵌入</p>
                     </div>
@@ -955,7 +955,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
                 disabled={!uploadFile || isUploading}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 ${
                   !uploadFile || isUploading
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
                     : 'bg-cyan-600 hover:bg-cyan-500 text-white cursor-pointer shadow-xs'
                 }`}
               >

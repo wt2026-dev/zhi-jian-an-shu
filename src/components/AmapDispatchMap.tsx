@@ -246,7 +246,7 @@ export const AmapDispatchMap: React.FC<AmapDispatchMapProps> = ({
   return (
     <div className="relative w-full h-[420px] md:h-[480px] rounded-xl overflow-hidden border border-slate-200">
       {status === 'loading' && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-[#f1f5f9] text-xs text-slate-400">
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-[#f1f5f9] text-xs text-slate-500">
           正在加载高德地图…
         </div>
       )}

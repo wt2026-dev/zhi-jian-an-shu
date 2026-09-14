@@ -32,7 +32,7 @@ export function VirtualList<T>({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
+      <div className="flex items-center justify-center py-12 text-slate-500 text-sm">
         <div className="animate-spin w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full mr-2" />
         加载中...
       </div>
@@ -82,14 +82,14 @@ export function VirtualList<T>({
         <div className="absolute bottom-3 right-3 flex flex-col gap-1 z-20">
           <button
             onClick={() => virtualizer.scrollToIndex(0)}
-            className="p-1 rounded bg-slate-800/90 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+            className="p-1 rounded bg-slate-800/90 text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
             title="滚动到顶部"
           >
             <ChevronUp className="w-4 h-4" />
           </button>
           <button
             onClick={() => virtualizer.scrollToIndex(items.length - 1)}
-            className="p-1 rounded bg-slate-800/90 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+            className="p-1 rounded bg-slate-800/90 text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
             title="滚动到底部"
           >
             <ChevronDown className="w-4 h-4" />

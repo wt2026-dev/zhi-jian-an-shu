@@ -86,7 +86,7 @@ const SectionTitle: React.FC<{
       <span className={`w-1 h-4 rounded-full ${bar}`} />
       <span className="flex items-center gap-1.5">{icon}</span>
       <h2 className="text-sm font-bold text-slate-900 tracking-tight">{title}</h2>
-      {hint && <span className="text-[11px] text-slate-400 hidden sm:inline">{hint}</span>}
+      {hint && <span className="text-[11px] text-slate-500 hidden sm:inline">{hint}</span>}
     </div>
   );
 };
@@ -488,7 +488,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 紧急 {urgentOrders.length}
               </span>
             ) : (
-              <span className="text-[11px] text-slate-400">无紧急</span>
+              <span className="text-[11px] text-slate-500">无紧急</span>
             )}
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
@@ -511,7 +511,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="mt-2 flex items-baseline justify-between">
             <span className="text-2xl font-bold font-mono text-slate-900 leading-none">
               {inspections.reduce((s, i) => s + i.completedPoints, 0)}
-              <span className="text-xs font-normal text-slate-400 ml-1">
+              <span className="text-xs font-normal text-slate-500 ml-1">
                 /{inspections.reduce((s, i) => s + i.totalPoints, 0)}点
               </span>
             </span>
@@ -579,7 +579,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <p className="text-[10px] text-slate-500 mt-0.5">串行方案 · 风险与派单并行协同</p>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-            <span className="text-slate-400">通义千问</span>
+            <span className="text-slate-500">通义千问</span>
             <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono font-semibold">
               DAG Pipeline
             </span>
@@ -694,7 +694,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Wrench className="w-5 h-5" />
                 </span>
                 <span className="text-[11px] font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">创建报修工单</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">突发故障一键派单</span>
+                <span className="text-[9px] text-slate-500 -mt-1.5">突发故障一键派单</span>
               </button>
 
               {/* 安全作业票 = amber (LOTO) */}
@@ -707,7 +707,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <ShieldCheck className="w-5 h-5" />
                 </span>
                 <span className="text-[11px] font-semibold text-slate-700 group-hover:text-amber-600 transition-colors">申请安全作业票</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">动火/高处/LOTO</span>
+                <span className="text-[9px] text-slate-500 -mt-1.5">动火/高处/LOTO</span>
               </button>
 
               {/* AI 诊断 = sky */}
@@ -720,7 +720,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Sparkles className="w-5 h-5" />
                 </span>
                 <span className="text-[11px] font-semibold text-slate-700 group-hover:text-sky-600 transition-colors">AI故障诊断向导</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">输入症状秒出SOP</span>
+                <span className="text-[9px] text-slate-500 -mt-1.5">输入症状秒出SOP</span>
               </button>
 
               {/* 知识库 = purple */}
@@ -733,7 +733,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Search className="w-5 h-5" />
                 </span>
                 <span className="text-[11px] font-semibold text-slate-700 group-hover:text-purple-600 transition-colors">检索检修规程</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">SOP/事故案例/图谱</span>
+                <span className="text-[9px] text-slate-500 -mt-1.5">SOP/事故案例/图谱</span>
               </button>
 
               {/* AI 报告 = violet */}
@@ -746,7 +746,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <CalendarDays className="w-5 h-5" />
                 </span>
                 <span className="text-[11px] font-semibold text-slate-700 group-hover:text-violet-600 transition-colors">AI 智能报告</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">巡检/检修/月度</span>
+                <span className="text-[9px] text-slate-500 -mt-1.5">巡检/检修/月度</span>
               </button>
             </div>
           </div>
@@ -835,8 +835,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end space-x-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                      <span className="text-[10px] font-mono text-slate-400 flex items-center">
-                        <Clock className="w-3 h-3 mr-1 text-slate-400" />
+                      <span className="text-[10px] font-mono text-slate-500 flex items-center">
+                        <Clock className="w-3 h-3 mr-1 text-slate-500" />
                         {wo.createdAt.split(' ')[1] || wo.createdAt}
                       </span>
                       <button className="px-2.5 py-1 text-xs bg-slate-100 group-hover:bg-blue-600 text-slate-700 group-hover:text-white rounded-md transition-colors flex items-center font-medium shadow-xs">
@@ -850,9 +850,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               {dashboardWorkOrders.length === 0 && (
                 <div className="p-8 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center text-center">
-                  <CheckCircle2 className="w-8 h-8 text-slate-400 mb-2" />
+                  <CheckCircle2 className="w-8 h-8 text-slate-500 mb-2" />
                   <p className="text-xs font-semibold text-slate-700">暂无进行中工单</p>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-slate-500 mt-1">
                     当前没有待派单 / 待接单 / 检修中 / 待验收的活动工单，可点击上方「创建报修工单」发起。
                   </p>
                 </div>
@@ -989,7 +989,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               ))}
               {activeLotoLocks.length === 0 && (
-                <div className="p-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center text-[11px] text-slate-400">
+                <div className="p-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center text-[11px] text-slate-500">
                   当前无挂锁执行中的 LOTO 能量隔离作业
                 </div>
               )}
@@ -1085,7 +1085,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 近 14 日作业合规趋势与审计量
               </span>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">大模型核验步骤率 + 日审计工单</span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">大模型核验步骤率 + 日审计工单</span>
             </div>
             <div ref={complianceChartRef} className="w-full h-44" />
           </div>
@@ -1115,7 +1115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span className="text-xs font-medium text-slate-800 truncate max-w-[140px]">
                           {log.userName || log.operator || '系统审计员'}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
+                        <span className="text-[10px] text-slate-500 font-mono">
                           {log.timestamp ? String(log.timestamp).split(' ')[1] || log.timestamp : '刚刚'}
                         </span>
                       </div>
@@ -1130,7 +1130,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))
                 ) : (
-                  <div className="py-6 text-center text-xs text-slate-400">
+                  <div className="py-6 text-center text-xs text-slate-500">
                     暂无待处理审计告警日志
                   </div>
                 )}
@@ -1173,7 +1173,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {extractFeedback && (
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-medium flex items-center justify-between animate-in fade-in">
             <span>{extractFeedback}</span>
-            <button onClick={() => setExtractFeedback(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            <button onClick={() => setExtractFeedback(null)} className="text-slate-500 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
           </div>
         )}
 
@@ -1254,7 +1254,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))}
                   {recentAuditLogs.length === 0 && (
-                    <div className="p-3 text-center text-slate-400 text-[11px]">暂无最近审计流水</div>
+                    <div className="p-3 text-center text-slate-500 text-[11px]">暂无最近审计流水</div>
                   )}
                 </div>
               </div>
@@ -1299,7 +1299,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))}
                   {pendingHazardsList.length === 0 && (
-                    <div className="p-3 text-center text-slate-400 text-[11px]">当前全厂无未闭环隐患</div>
+                    <div className="p-3 text-center text-slate-500 text-[11px]">当前全厂无未闭环隐患</div>
                   )}
                 </div>
               </div>
@@ -1389,7 +1389,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))}
                   {pendingSafetyApprovals.length === 0 && (
-                    <div className="p-3 text-center text-slate-400 text-[11px]">当前无待审批作业票</div>
+                    <div className="p-3 text-center text-slate-500 text-[11px]">当前无待审批作业票</div>
                   )}
                 </div>
               </div>
@@ -1720,7 +1720,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))}
                   {workOrders.filter(w => (w.creator && w.creator.includes(currentUser.name)) || (w.assignee && w.assignee.includes(currentUser.name))).length === 0 && (
-                    <div className="p-3 text-center text-slate-400 text-[11px]">
+                    <div className="p-3 text-center text-slate-500 text-[11px]">
                       WO-20260904-122 (离心风机皮带异响) 张技师已接单
                     </div>
                   )}
@@ -1858,7 +1858,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))}
                   {pendingReviewArticles.length === 0 && (
-                    <div className="p-3 text-center text-slate-400 text-[11px]">
+                    <div className="p-3 text-center text-slate-500 text-[11px]">
                       暂无待审核知识条目，所有提交规程均已完成入库归档
                     </div>
                   )}

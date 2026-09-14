@@ -64,7 +64,7 @@ export function VirtualTable<T extends Record<string, any>>({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
+      <div className="flex items-center justify-center py-12 text-slate-500 text-sm">
         <div className="animate-spin w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full mr-2" />
         加载中...
       </div>
@@ -86,7 +86,7 @@ export function VirtualTable<T extends Record<string, any>>({
         {columns.map((col) => (
           <div
             key={col.key}
-            className={`px-3 py-2.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider shrink-0 ${
+            className={`px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider shrink-0 ${
               col.sortable ? 'cursor-pointer hover:text-cyan-400 select-none' : ''
             } ${col.className || ''}`}
             style={{ width: col.width || 'auto', minWidth: col.width ? undefined : 100 }}
@@ -148,14 +148,14 @@ export function VirtualTable<T extends Record<string, any>>({
         <div className="absolute bottom-3 right-3 flex flex-col gap-1 z-20">
           <button
             onClick={() => virtualizer.scrollToIndex(0)}
-            className="p-1 rounded bg-slate-800/90 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+            className="p-1 rounded bg-slate-800/90 text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
             title="滚动到顶部"
           >
             <ChevronUp className="w-4 h-4" />
           </button>
           <button
             onClick={() => virtualizer.scrollToIndex(data.length - 1)}
-            className="p-1 rounded bg-slate-800/90 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+            className="p-1 rounded bg-slate-800/90 text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
             title="滚动到底部"
           >
             <ChevronDown className="w-4 h-4" />

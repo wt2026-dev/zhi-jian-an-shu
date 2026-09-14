@@ -239,7 +239,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             <Users className="w-5 h-5 mr-2 text-cyan-400" />
             系统用户管理与四级 RBAC 角色权限矩阵
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             面向管理员、维修人员、巡检人员与普通操作员，实现工业级业务职责分离与数字签名合规
           </p>
         </div>
@@ -380,13 +380,13 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
           <div className="flex items-center space-x-2">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="搜索姓名、部门、工号..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:bg-white"
               />
             </div>
 
@@ -480,9 +480,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           disabled={u.status === 'disabled'}
                           className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
                             isCurrent
-                              ? 'bg-slate-100 text-slate-400 cursor-default'
+                              ? 'bg-slate-100 text-slate-500 cursor-default'
                               : u.status === 'disabled'
-                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                              ? 'bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-200'
                               : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-xs'
                           }`}
                         >
@@ -513,7 +513,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="text-slate-500 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -528,7 +528,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   placeholder="例如: 赵明远"
                   value={newUserForm.name}
                   onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
@@ -540,7 +540,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   placeholder="例如: tech_zhao"
                   value={newUserForm.username}
                   onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
                 />
               </div>
 
@@ -565,7 +565,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   placeholder="例如: 一号动力车间电气维保组"
                   value={newUserForm.department}
                   onChange={(e) => setNewUserForm({ ...newUserForm, department: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
@@ -576,7 +576,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   placeholder="13800138000"
                   value={newUserForm.phone}
                   onChange={(e) => setNewUserForm({ ...newUserForm, phone: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
                 />
               </div>
             </div>

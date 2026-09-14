@@ -24,12 +24,10 @@ import {
   handleCreateWorkOrder,
   handleDispatchWorkOrder,
   handleClaimWorkOrder,
-} from "../controllers/workOrderWorkflowController.ts";
-import {
   handleCompleteWorkOrder,
   handleAcceptWorkOrder,
   handleTransitionStatus,
-} from "../controllers/workOrderCompletionController.ts";
+} from "../controllers/workOrderWorkflowController.ts";
 
 export function registerWorkOrderRoutes(app: express.Express) {
   // 3. 工单统计接口

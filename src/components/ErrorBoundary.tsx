@@ -28,7 +28,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <AlertTriangle className="w-8 h-8" />
             </div>
             <h2 className="text-base font-bold text-slate-100">页面渲染出现异常</h2>
-            <p className="text-xs text-slate-400 break-all">{this.state.message}</p>
+            <p className="text-xs text-slate-500 break-all">{this.state.message}</p>
             <p className="text-[11px] text-slate-500">业务数据不受影响。可点击下方按钮刷新页面恢复。</p>
             <button
               onClick={() => window.location.reload()}

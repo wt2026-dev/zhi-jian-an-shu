@@ -3,6 +3,7 @@ import path from "path";
 import pg from "pg";
 import { PGlite } from "@electric-sql/pglite";
 import dotenv from "dotenv";
+import { logger } from "../utils/logger";
 
 dotenv.config();
 
@@ -39,7 +40,7 @@ function recordQuery(sql: string, ms: number) {
   const slow = ms > queryStats.slowThresholdMs;
   if (slow) {
     queryStats.slowCount += 1;
-    console.warn(`[DB][慢查询 ${ms}ms] ${sql.slice(0, 120).replace(/\s+/g, " ")}`);
+    logger.warn(`[DB][慢查询 ${ms}ms] ${sql.slice(0, 120).replace(/\s+/g, " ")}`);
   }
   queryStats.recent.push({ sql: sql.slice(0, 120).replace(/\s+/g, " "), ms, slow, at: new Date().toISOString() });
   if (queryStats.recent.length > 50) queryStats.recent.shift();
@@ -93,9 +94,9 @@ async function createPgliteAdapter(): Promise<DatabaseAdapter> {
   // 测试环境使用内存 PGlite：每个测试文件独立数据库实例，彻底避免共享持久化目录
   // （postmaster.pid 互删/文件锁竞争）导致的随机 500。开发/演示仍用磁盘持久化目录。
   if (process.env.NODE_ENV === "test" || process.env.TEST_DB === "true") {
-    console.log("[Database] 正在启动内存模式 PGlite（测试环境，文件间隔离）...");
+    logger.info("[Database] 正在启动内存模式 PGlite（测试环境，文件间隔离）...");
     const pglite = new PGlite();
-    console.log("[Database] 内存模式 PostgreSQL 初始化完成！");
+    logger.info("[Database] 内存模式 PostgreSQL 初始化完成！");
     return {
       type: "pglite",
       query: async function (text: string, params?: any[]) {
@@ -129,12 +130,12 @@ async function createPgliteAdapter(): Promise<DatabaseAdapter> {
   if (fs.existsSync(pidFile)) {
     try {
       fs.unlinkSync(pidFile);
-      console.log(`[Database] 已清理异常残留的锁定文件: ${pidFile}`);
+      logger.info(`[Database] 已清理异常残留的锁定文件: ${pidFile}`);
     } catch {}
   }
-  console.log(`[Database] 正在加载嵌入式持久化 PostgreSQL 数据库 (存储路径: ${pgDataPath}) ...`);
+  logger.info(`[Database] 正在加载嵌入式持久化 PostgreSQL 数据库 (存储路径: ${pgDataPath}) ...`);
   var pglite = new PGlite(pgDataPath);
-  console.log("[Database] 本地持久化 PostgreSQL 数据库初始化完成！");
+  logger.info("[Database] 本地持久化 PostgreSQL 数据库初始化完成！");
   return {
     type: "pglite",
     query: async function (text: string, params?: any[]) {
@@ -154,7 +155,7 @@ async function createPgliteAdapter(): Promise<DatabaseAdapter> {
 
 async function createPostgresAdapter(): Promise<DatabaseAdapter> {
   var url = buildPostgresUrl();
-  console.log(
+  logger.info(
     `[Database] 正在尝试连接 PostgreSQL 服务: ${url.replace(/:[^:@]+@/, ":****@")} ...`
   );
   var pool = new pg.Pool({
@@ -163,7 +164,7 @@ async function createPostgresAdapter(): Promise<DatabaseAdapter> {
     max: Number(process.env.DB_POOL_MAX || 10),
   });
   await pool.query("SELECT 1 AS health_check");
-  console.log("[Database] PostgreSQL 连接成功并保持就绪（连接池已启用）！");
+  logger.info("[Database] PostgreSQL 连接成功并保持就绪（连接池已启用）！");
   return {
     type: "postgres",
     query: async function (text: string, params?: any[]) {
@@ -208,7 +209,7 @@ export async function getDb(): Promise<DatabaseAdapter> {
       dbInstance = withStats(await createPostgresAdapter());
       return dbInstance;
     } catch (err: any) {
-      console.warn(
+      logger.warn(
         `[Database] PostgreSQL 连接失败 (${err.message})，正在平滑降级至本地持久化 PostgreSQL (PGlite) 引擎...`
       );
     }
@@ -240,7 +241,7 @@ export async function runMigrations(): Promise<void> {
 
   for (const file of migrationFiles) {
     const sqlContent = fs.readFileSync(path.join(migrationsDir, file), "utf-8").replace(/^\uFEFF/, "");
-    console.log(`[Migration] 开始执行 ${file} 建表迁移...`);
+    logger.info(`[Migration] 开始执行 ${file} 建表迁移...`);
     // 按分号切分语句逐条执行，确保 DDL 模式变更立即在后续语句生效 (解决 PGlite 单批次编译报错)
     const statements = sqlContent
       .split(/;\s*(?:\r?\n|$)/)
@@ -259,7 +260,7 @@ export async function runMigrations(): Promise<void> {
     }
   }
 
-  console.log(`[Migration] 数据库建表迁移成功完成 (${migrationFiles.length} 个迁移文件)！`);
+  logger.info(`[Migration] 数据库建表迁移成功完成 (${migrationFiles.length} 个迁移文件)！`);
 }
 
 /**
@@ -274,7 +275,7 @@ export async function initDatabase(): Promise<DatabaseAdapter> {
   const count = Number(rows[0]?.count || 0);
 
   if (count === 0) {
-    console.log("[Seed] 检测到 users 表为空，正在自动导入初始管理员、安全员与演示业务数据...");
+    logger.info("[Seed] 检测到 users 表为空，正在自动导入初始管理员、安全员与演示业务数据...");
     const { seedDatabase } = await import("./seed.ts");
     await seedDatabase();
   }
@@ -289,7 +290,7 @@ export async function initDatabase(): Promise<DatabaseAdapter> {
     ]);
     await db.query(`UPDATE users SET certifications = $1 WHERE id = 'u-admin' AND (certifications IS NULL OR certifications = '{}'::jsonb OR certifications = '[]'::jsonb);`, [adminCerts]);
   } catch (e) {
-    console.log("[Seed] certifications 更新跳过:", (e as any)?.message);
+    logger.info("[Seed] certifications 更新跳过:", (e as any)?.message);
   }
 
   return db;

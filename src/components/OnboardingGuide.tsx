@@ -225,7 +225,7 @@ export const OnboardingGuide: React.FC = () => {
             <div className="mt-3 flex items-center justify-between">
               <button
                 onClick={finish}
-                className="text-[11px] text-slate-400 hover:text-slate-700 cursor-pointer"
+                className="text-[11px] text-slate-500 hover:text-slate-700 cursor-pointer"
               >
                 跳过
               </button>

@@ -848,7 +848,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                         )}
                         <span
                           className={`text-[9px] block mt-1 ${
-                            isUser ? 'text-blue-100 text-right' : 'text-slate-400'
+                            isUser ? 'text-blue-100 text-right' : 'text-slate-500'
                           }`}
                         >
                           {m.timestamp}
@@ -878,7 +878,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                       {q}
                     </button>
                   ))}
-                  {loadingFollowups && <span className="text-[10px] text-slate-400 animate-pulse">追问生成中...</span>}
+                  {loadingFollowups && <span className="text-[10px] text-slate-500 animate-pulse">追问生成中...</span>}
                 </div>
               )}
 
@@ -909,7 +909,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setContributionSuggestion(null)}
-                      className="text-slate-400 hover:text-slate-600 text-xs px-1.5 py-0.5 rounded cursor-pointer"
+                      className="text-slate-500 hover:text-slate-600 text-xs px-1.5 py-0.5 rounded cursor-pointer"
                       title="忽略"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -918,18 +918,18 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
 
                   <div className="p-2.5 rounded-lg bg-slate-50/90 border border-slate-200/80 text-xs space-y-1">
                     <div className="font-semibold text-slate-800">
-                      <span className="text-[11px] text-slate-400 mr-1.5">标题:</span>
+                      <span className="text-[11px] text-slate-500 mr-1.5">标题:</span>
                       <span>{contributionSuggestion.title}</span>
                     </div>
                     {contributionSuggestion.summary && (
                       <p className="text-slate-600 text-[11px] leading-relaxed">
-                        <span className="text-slate-400 mr-1">摘要:</span>
+                        <span className="text-slate-500 mr-1">摘要:</span>
                         {contributionSuggestion.summary}
                       </p>
                     )}
                     {contributionSuggestion.solution && (
                       <p className="text-slate-600 text-[11px] leading-relaxed">
-                        <span className="text-slate-400 mr-1">处置要点:</span>
+                        <span className="text-slate-500 mr-1">处置要点:</span>
                         {contributionSuggestion.solution}
                       </p>
                     )}
@@ -984,7 +984,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                     <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                     <span>{voiceNotice}</span>
                   </span>
-                  <button onClick={() => setVoiceNotice(null)} className="text-slate-400 hover:text-slate-700 ml-2">
+                  <button onClick={() => setVoiceNotice(null)} className="text-slate-500 hover:text-slate-700 ml-2">
                     <X className="w-3 h-3" />
                   </button>
                 </div>
@@ -1071,7 +1071,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                       handleSendMessage();
                     }
                   }}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:bg-white resize-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
 
                 {isStreaming ? (
@@ -1145,7 +1145,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                 </h3>
                 <div className="space-y-2">
                   {hotPrompts.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 p-2">知识库规程加载中或暂无可推荐内容...</p>
+                    <p className="text-[11px] text-slate-500 p-2">知识库规程加载中或暂无可推荐内容...</p>
                   ) : (
                     hotPrompts.map((k, idx) => (
                       <button
@@ -1226,7 +1226,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                   value={diagSymptoms}
                   onChange={(e) => setDiagSymptoms(e.target.value)}
                   placeholder="详细描述异常异响（低频轰鸣/尖锐啸叫）、振动部位、漏油滴速等..."
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 text-xs"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 text-xs"
                 ></textarea>
               </div>
 
@@ -1390,10 +1390,10 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="card-industrial bg-white border border-slate-200 rounded-lg p-12 text-center text-slate-400 shadow-xs relative">
+              <div className="card-industrial bg-white border border-slate-200 rounded-lg p-12 text-center text-slate-500 shadow-xs relative">
                 <Wrench className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                 <h4 className="text-sm font-semibold text-slate-700">请在左侧填写或修改征兆参数</h4>
-                <p className="text-xs text-slate-400 mt-1">点击“生成智能研判”获取 AI 故障根因树与安全 SOP</p>
+                <p className="text-xs text-slate-500 mt-1">点击“生成智能研判”获取 AI 故障根因树与安全 SOP</p>
               </div>
             )}
           </div>
@@ -1415,9 +1415,9 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
               <div>
                 <label className="block text-slate-700 font-medium mb-1.5">上传现场拍摄照片</label>
                 <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-lg cursor-pointer bg-slate-50 transition-colors">
-                  <Upload className="w-6 h-6 text-slate-400 mb-1" />
+                  <Upload className="w-6 h-6 text-slate-500 mb-1" />
                   <span className="text-xs text-slate-700 font-medium">点击选择或拖拽现场拍摄图片</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5">支持 JPG、PNG 工业内窥镜/手持照片 (自动保存至 /uploads)</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">支持 JPG、PNG 工业内窥镜/手持照片 (自动保存至 /uploads)</span>
                   <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
                 </label>
               </div>
@@ -1617,7 +1617,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                         知识库相似案例推荐 ({multimodalCases.length} 篇)
                       </h4>
                       {multimodalVisionDesc && (
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-[10px] text-slate-500">
                           基于视觉特征检索
                         </span>
                       )}
@@ -1641,7 +1641,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                     )}
 
                     {multimodalCases.length === 0 ? (
-                      <div className="text-center py-4 text-slate-400 text-xs">
+                      <div className="text-center py-4 text-slate-500 text-xs">
                         未检索到高相似度的知识库案例
                       </div>
                     ) : (
@@ -1710,10 +1710,10 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                 )}
               </div>
             ) : (
-              <div className="card-industrial bg-white border border-slate-200 rounded-lg p-12 text-center text-slate-400 shadow-xs relative">
+              <div className="card-industrial bg-white border border-slate-200 rounded-lg p-12 text-center text-slate-500 shadow-xs relative">
                 <ImageIcon className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                 <h4 className="text-sm font-semibold text-slate-700">暂无视觉识别结果</h4>
-                <p className="text-xs text-slate-400 mt-1">请上传现场照片或选择典型样本后点击“发起 DashScope 工业缺陷识别”</p>
+                <p className="text-xs text-slate-500 mt-1">请上传现场照片或选择典型样本后点击“发起 DashScope 工业缺陷识别”</p>
               </div>
             )}
           </div>
@@ -1738,7 +1738,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
               </div>
               <button
                 onClick={() => setFeedbackModal((prev) => ({ ...prev, isOpen: false }))}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer"
+                className="text-slate-500 hover:text-slate-600 p-1 rounded-md cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1804,7 +1804,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                 value={feedbackModal.correction}
                 onChange={(e) => setFeedbackModal((prev) => ({ ...prev, correction: e.target.value }))}
                 placeholder="例如：关于离心泵同轴度径向偏差，国家标准 GB 50275 要求控制在 ≤ 0.05mm 以内，而不是 0.15mm..."
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 font-sans"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-sans"
               />
             </div>
 

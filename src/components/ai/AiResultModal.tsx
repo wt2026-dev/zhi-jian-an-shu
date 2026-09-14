@@ -197,7 +197,7 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
             {data && !loading && (
               <button
                 onClick={handleCopy}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-500 hover:text-white transition-colors cursor-pointer"
                 title="复制结果"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
@@ -205,7 +205,7 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
             )}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-500 hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -215,7 +215,7 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
           {loading && (
-            <div className="flex flex-col items-center justify-center py-14 space-y-3 text-slate-400">
+            <div className="flex flex-col items-center justify-center py-14 space-y-3 text-slate-500">
               <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
               <p className="text-xs font-medium">AI 正在基于真实业务数据深度分析中，请稍候 (约 10~30 秒)...</p>
             </div>

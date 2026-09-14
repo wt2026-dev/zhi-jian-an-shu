@@ -32,6 +32,15 @@ export default defineConfig(({ mode }) => {
     plugins,
     build: {
       sourcemap: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-charts': ['recharts'],
+            'vendor-icons': ['lucide-react'],
+          },
+        },
+      },
     },
     resolve: {
       alias: {

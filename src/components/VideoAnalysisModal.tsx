@@ -192,14 +192,14 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
                   Qwen-VL-Max
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500">
                 上传巡检视频（≤80MB），自动捕获 6 帧关键胶卷并由大模型推理故障部位与维修建议
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -223,7 +223,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
               </div>
               <div className="text-center">
                 <p className="text-xs font-semibold text-white">点击选择或拖拽上传设备巡检视频</p>
-                <p className="text-[11px] text-slate-400 mt-1">支持 MP4, MOV, AVI, WEBM 格式，单个视频大小 ≤ 80MB</p>
+                <p className="text-[11px] text-slate-500 mt-1">支持 MP4, MOV, AVI, WEBM 格式，单个视频大小 ≤ 80MB</p>
               </div>
             </label>
           ) : (
@@ -233,7 +233,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
                 <div className="flex items-center space-x-2.5">
                   <FileVideo className="w-4 h-4 text-blue-400" />
                   <span className="font-semibold text-white">{selectedFile.name}</span>
-                  <span className="text-slate-400 font-mono">({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                  <span className="text-slate-500 font-mono">({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)</span>
                 </div>
                 <label className="text-xs text-blue-400 hover:text-blue-300 font-medium cursor-pointer">
                   重新选择
@@ -274,7 +274,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
               {/* 分析参数配置 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium">受检设备型号 / 类型：</label>
+                  <label className="block text-slate-500 mb-1 font-medium">受检设备型号 / 类型：</label>
                   <input
                     type="text"
                     value={deviceModel}
@@ -284,7 +284,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium">现场异常现象疑问说明：</label>
+                  <label className="block text-slate-500 mb-1 font-medium">现场异常现象疑问说明：</label>
                   <input
                     type="text"
                     value={question}
@@ -322,7 +322,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div className="space-y-1">
-                      <span className="text-slate-400 font-semibold flex items-center gap-1">
+                      <span className="text-slate-500 font-semibold flex items-center gap-1">
                         <Wrench className="w-3.5 h-3.5 text-blue-400" /> 研判故障部位:
                       </span>
                       <p className="text-slate-100 font-bold bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
@@ -331,7 +331,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-slate-400 font-semibold flex items-center gap-1">
+                      <span className="text-slate-500 font-semibold flex items-center gap-1">
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> 观察异常物理现象:
                       </span>
                       <p className="text-slate-200 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
@@ -342,7 +342,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
 
                   {/* 可能原因 */}
                   <div className="space-y-1.5 text-xs">
-                    <span className="text-slate-400 font-semibold">潜在根本原因推断 (FTA/FMEA)：</span>
+                    <span className="text-slate-500 font-semibold">潜在根本原因推断 (FTA/FMEA)：</span>
                     <div className="flex flex-wrap gap-2">
                       {analysisResult.causes?.map((c, i) => (
                         <span key={i} className="px-2.5 py-1 rounded-lg bg-red-950/40 text-red-300 border border-red-900/40 text-[11px]">
@@ -354,7 +354,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
 
                   {/* 处置建议 */}
                   <div className="space-y-1.5 text-xs">
-                    <span className="text-slate-400 font-semibold flex items-center gap-1">
+                    <span className="text-slate-500 font-semibold flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> 专业检修与预防处置建议：
                     </span>
                     <ul className="space-y-1.5 bg-slate-950/50 p-3 rounded-lg border border-slate-800 text-[11px] text-slate-300">

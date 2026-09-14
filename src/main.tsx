@@ -55,7 +55,7 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
               !
             </div>
             <h2 className="text-lg font-bold text-white">系统运行时防护拦截</h2>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-xs text-slate-500 leading-relaxed">
               检测到界面渲染异常：
               <span className="block mt-1 font-mono text-rose-400 bg-slate-950 p-2 rounded border border-slate-800 text-left overflow-auto max-h-24">
                 {this.state.error?.message || '未知异常'}

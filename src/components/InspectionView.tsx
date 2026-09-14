@@ -501,7 +501,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
               <div>
                 <span className="text-[11px] text-slate-500 block">今日巡检测点</span>
                 <div className="text-sm font-bold text-slate-900 font-mono">
-                  {completedPointsCount} <span className="text-xs text-slate-400 font-normal">/ {totalPointsCount} 点</span>
+                  {completedPointsCount} <span className="text-xs text-slate-500 font-normal">/ {totalPointsCount} 点</span>
                 </div>
               </div>
             </div>
@@ -684,7 +684,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
               {hazardNotice && (
                 <div className="p-2.5 rounded-lg bg-orange-50 border border-orange-200 text-orange-800 text-xs flex items-center justify-between">
                   <span>{hazardNotice}</span>
-                  <button onClick={() => setHazardNotice(null)} className="text-slate-400 hover:text-slate-700">
+                  <button onClick={() => setHazardNotice(null)} className="text-slate-500 hover:text-slate-700">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -800,7 +800,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
             </div>
           ) : (
             <div className="card-industrial bg-white border border-slate-200 rounded-lg p-12 text-center text-slate-500 shadow-xs">
-              <ClipboardCheck className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+              <ClipboardCheck className="w-12 h-12 text-slate-500 mx-auto mb-3" />
               <h4 className="text-sm font-semibold text-slate-800">请选择左侧巡检任务</h4>
               <p className="text-xs text-slate-500 mt-1">选择任务后将在此展开现场测点清单与数据采集工作台</p>
             </div>
@@ -846,7 +846,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
               </h3>
               <button
                 onClick={() => setSelectedPoint(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="text-slate-500 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -885,7 +885,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
                   placeholder="如发现异常振动、漏油、摩擦声响请在此记录..."
                   value={pointReading.notes}
                   onChange={(e) => setPointReading({ ...pointReading, notes: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 ></textarea>
               </div>
 
@@ -966,7 +966,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
               </h3>
               <button
                 onClick={() => setShowQrModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="text-slate-500 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1054,7 +1054,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({
             <div className="space-y-3 text-xs pt-3 border-t border-slate-100">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Wrench className="w-3.5 h-3.5 text-slate-400" />
+                  <Wrench className="w-3.5 h-3.5 text-slate-500" />
                   手动选择设备
                 </label>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">

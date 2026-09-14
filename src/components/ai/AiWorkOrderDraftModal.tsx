@@ -100,14 +100,14 @@ export const AiWorkOrderDraftModal: React.FC<AiWorkOrderDraftModalProps> = ({
             </div>
             <h3 className="text-sm font-bold text-slate-100">{title}</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer">
+          <button onClick={onClose} className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-500 hover:text-white cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {loading && (
-            <div className="flex flex-col items-center justify-center py-14 space-y-3 text-slate-400">
+            <div className="flex flex-col items-center justify-center py-14 space-y-3 text-slate-500">
               <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
               <p className="text-xs font-medium">AI 正在结合设备档案与历史工单生成工单草稿，请稍候 (约 10~30 秒)...</p>
             </div>
@@ -131,7 +131,7 @@ export const AiWorkOrderDraftModal: React.FC<AiWorkOrderDraftModalProps> = ({
 
               <div className="space-y-3 text-xs">
                 <div>
-                  <label className="block text-slate-400 mb-1">工单标题 *</label>
+                  <label className="block text-slate-500 mb-1">工单标题 *</label>
                   <input
                     value={form.title}
                     onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -140,7 +140,7 @@ export const AiWorkOrderDraftModal: React.FC<AiWorkOrderDraftModalProps> = ({
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-slate-400 mb-1">优先级</label>
+                    <label className="block text-slate-500 mb-1">优先级</label>
                     <select
                       value={form.priority}
                       onChange={(e) => setForm({ ...form, priority: e.target.value })}
@@ -152,7 +152,7 @@ export const AiWorkOrderDraftModal: React.FC<AiWorkOrderDraftModalProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-slate-400 mb-1">故障类型</label>
+                    <label className="block text-slate-500 mb-1">故障类型</label>
                     <select
                       value={form.faultType}
                       onChange={(e) => setForm({ ...form, faultType: e.target.value })}
@@ -164,14 +164,14 @@ export const AiWorkOrderDraftModal: React.FC<AiWorkOrderDraftModalProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-slate-400 mb-1">关联设备</label>
+                    <label className="block text-slate-500 mb-1">关联设备</label>
                     <div className="px-3 py-2 bg-slate-800/60 border border-slate-700 rounded-lg text-slate-300 truncate">
                       {equipment.name}
                     </div>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1">故障描述 *</label>
+                  <label className="block text-slate-500 mb-1">故障描述 *</label>
                   <textarea
                     rows={4}
                     value={form.description}

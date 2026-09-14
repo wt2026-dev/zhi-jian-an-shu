@@ -28,7 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={onCloseMobile}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div key={group.id} className="space-y-1">
             {/* Group Header */}
             {!isCollapsed ? (
-              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
                 {group.label}
               </div>
             ) : (
@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className={`w-4 h-4 shrink-0 transition-transform duration-150 ${
                         isSelected
                           ? 'text-blue-600 scale-105'
-                          : 'text-slate-400 group-hover:text-blue-600 group-hover:scale-105'
+                          : 'text-slate-500 group-hover:text-blue-600 group-hover:scale-105'
                       }`}
                     />
 

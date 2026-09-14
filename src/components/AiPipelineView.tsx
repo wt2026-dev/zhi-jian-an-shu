@@ -31,7 +31,7 @@ import {
 import { Equipment } from '../types';
 
 /**
- * AI 协同任务链路视图：把 14 项点状 AI 能力中的 4 项
+ * AI 协同任务链路视图：把 20 项点状 AI 能力中的 4 项
  * （故障诊断 → 检修方案生成 → 风险审核 ∥ 派单推荐）
  * 编排为一次可追踪、可审核的「AI 协同诊断」任务。
  */
@@ -229,7 +229,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
 
   const renderStepBody = (step: AiPipelineStep) => {
     if (step.status === 'pending') {
-      return <p className="text-xs text-slate-400">等待前序步骤完成…</p>;
+      return <p className="text-xs text-slate-500">等待前序步骤完成…</p>;
     }
     if (step.status === 'failed') {
       return (
@@ -248,7 +248,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
               严重度：{d.severity || '—'}
             </span>
-            <span className="text-[10px] font-mono text-slate-400">紧急评分 {d.urgencyScore ?? '—'}</span>
+            <span className="text-[10px] font-mono text-slate-500">紧急评分 {d.urgencyScore ?? '—'}</span>
             {step.result?.degraded && <DegradedBadge />}
           </div>
           <p className="text-xs text-slate-700">{d.summary}</p>
@@ -271,7 +271,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
               <li key={s.step}>{s.operation}</li>
             ))}
           </ol>
-          <p className="text-[10px] text-slate-400 font-mono">预估工时 {p.estimatedHours ?? '—'}h · {(p.steps || []).length} 个步骤</p>
+          <p className="text-[10px] text-slate-500 font-mono">预估工时 {p.estimatedHours ?? '—'}h · {(p.steps || []).length} 个步骤</p>
         </div>
       );
     }
@@ -312,18 +312,18 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
             <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
               推荐主修：{r.recommended?.name || '—'}
             </span>
-            <span className="text-[10px] font-mono text-slate-400">预估 {r.estimatedHours ?? '—'}h</span>
+            <span className="text-[10px] font-mono text-slate-500">预估 {r.estimatedHours ?? '—'}h</span>
           </div>
           <p className="text-[11px] text-slate-500">{r.recommended?.reason}</p>
           {(r.alternatives || []).length > 0 && (
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-500">
               备选：{r.alternatives.map((a: any) => a.name).join('、')}
             </p>
           )}
         </div>
       );
     }
-    return <p className="text-xs text-slate-400">{step.result?.message || '结果待生成…'}</p>;
+    return <p className="text-xs text-slate-500">{step.result?.message || '结果待生成…'}</p>;
   };
 
   const report = task?.result?.report;
@@ -388,7 +388,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
                   Fork-Join 并发协同
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 阶段 1、2 因果链强依赖串行推演；阶段 3 作业方案确定后，双路专业 Agent 异步并发求解
               </p>
             </div>
@@ -527,11 +527,11 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
                 </div>
                 <div className="space-y-1 pt-2.5 border-t border-slate-100 text-[11px]">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">输入契约</span>
+                    <span className="text-slate-500">输入契约</span>
                     <span className="font-mono text-slate-600 truncate max-w-[120px] text-right">{cap.input}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">核心产出</span>
+                    <span className="text-slate-500">核心产出</span>
                     <span className="font-semibold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-md border border-blue-100/80 text-[10px]">
                       {cap.output}
                     </span>
@@ -552,12 +552,12 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-900">发起 AI 协同诊断</h2>
-              <p className="text-xs text-slate-400">选择受检设备并输入异常现象，一键编排启动全链路决策</p>
+              <p className="text-xs text-slate-500">选择受检设备并输入异常现象，一键编排启动全链路决策</p>
             </div>
           </div>
           {/* 预设工况快捷填入 */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs text-slate-400 font-medium mr-1">快捷测试工况:</span>
+            <span className="text-xs text-slate-500 font-medium mr-1">快捷测试工况:</span>
             {PRESET_SCENARIOS.map((preset) => (
               <button
                 key={preset.label}
@@ -632,7 +632,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
               <h2 className="text-sm font-bold text-slate-900">
                 协同任务执行流水线
               </h2>
-              <span className="font-mono text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+              <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                 ID: {task.id.slice(0, 12)}…
               </span>
             </div>
@@ -711,7 +711,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
                         {step.status === 'pending' && <Clock className="w-4 h-4 text-slate-300" />}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mb-2.5 leading-relaxed">{meta.desc}</p>
+                    <p className="text-xs text-slate-500 mb-2.5 leading-relaxed">{meta.desc}</p>
                     {step.status === 'running' && (
                       <div className="h-1.5 w-full rounded-full bg-blue-100 overflow-hidden mb-2.5">
                         <div className="h-full bg-blue-500 rounded-full animate-pulse" style={{ width: `${Math.max(step.progress, 15)}%` }} />
@@ -786,7 +786,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
                           {step.status === 'pending' && <Clock className="w-4 h-4 text-slate-300" />}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mb-2.5 leading-relaxed">{meta.desc}</p>
+                      <p className="text-xs text-slate-500 mb-2.5 leading-relaxed">{meta.desc}</p>
                       {step.status === 'running' && (
                         <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden mb-2.5">
                           <div
@@ -851,7 +851,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
               <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 space-y-1.5">
                 <p className="font-bold text-slate-800 text-xs">② 检修方案{report.plan.degraded ? '（降级）' : ''}</p>
                 <p className="text-slate-700 leading-relaxed">{report.plan.overview}</p>
-                <p className="text-xs text-slate-400 font-mono pt-1">预估工时 {report.plan.estimatedHours ?? '—'}h · 标准 SOP 步骤</p>
+                <p className="text-xs text-slate-500 font-mono pt-1">预估工时 {report.plan.estimatedHours ?? '—'}h · 标准 SOP 步骤</p>
               </div>
             )}
             {report.risk && (
@@ -887,7 +887,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
               </div>
             )}
           </div>
-          <p className="text-xs text-slate-400 font-mono">报告生成时间：{report.generatedAt}</p>
+          <p className="text-xs text-slate-500 font-mono">报告生成时间：{report.generatedAt}</p>
         </div>
       )}
 
@@ -900,7 +900,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-900">最近协同诊断历史</h2>
-              <p className="text-xs text-slate-400">最近 5 次 AI 协同诊断记录与执行结果回溯</p>
+              <p className="text-xs text-slate-500">最近 5 次 AI 协同诊断记录与执行结果回溯</p>
             </div>
           </div>
           <button
@@ -915,7 +915,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
         </div>
 
         {loadingRecent && recentTasks.length === 0 ? (
-          <div className="py-12 flex flex-col items-center justify-center text-slate-400 space-y-2">
+          <div className="py-12 flex flex-col items-center justify-center text-slate-500 space-y-2">
             <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
             <p className="text-xs">加载最近任务记录…</p>
           </div>
@@ -923,7 +923,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
           <div className="py-12 text-center rounded-2xl bg-slate-50/60 border border-dashed border-slate-200">
             <Clock className="w-8 h-8 mx-auto text-slate-300 mb-2" />
             <p className="text-xs font-semibold text-slate-700">暂无协同诊断记录</p>
-            <p className="text-xs text-slate-400 mt-1">发起一次协同诊断后，历史任务与推演结果会持久化展示在这里</p>
+            <p className="text-xs text-slate-500 mt-1">发起一次协同诊断后，历史任务与推演结果会持久化展示在这里</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -1008,7 +1008,7 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
                           {statusText}
                         </span>
                       </td>
-                      <td className="py-3.5 px-3 text-slate-400 font-mono text-xs whitespace-nowrap">
+                      <td className="py-3.5 px-3 text-slate-500 font-mono text-xs whitespace-nowrap">
                         {dateFormatted}
                       </td>
                       <td className="py-3.5 px-3.5 text-right">

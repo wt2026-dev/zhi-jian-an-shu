@@ -2,7 +2,7 @@
 import express from "express";
 import { validateBody } from "../middleware/validate.ts";
 import { wxRepairSchema } from "../schemas/wx.ts";
-import { handleWxRepairCreate } from "../controllers/wxRepairController.ts";
+import { handleWxRepairCreate } from "../controllers/wechatController.ts";
 
 export function registerWxRoutes(app: express.Express) {
   // 接口④ POST /api/v1/wx/repairs 微信小程序免登录快速扫码报修创建

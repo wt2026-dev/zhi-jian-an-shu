@@ -384,7 +384,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                       {count}
                     </div>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
                     <span>{card.desc}</span>
                     {isSelected && (
                       <span className="font-semibold text-blue-600">当前筛选</span>
@@ -427,7 +427,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                       <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{step.desc}</p>
                     </div>
                     {idx < REVIEW_PROCESS_STEPS.length - 1 && (
-                      <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-5 h-5 rounded-full bg-white border border-slate-200 shadow-xs items-center justify-center text-slate-400">
+                      <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-5 h-5 rounded-full bg-white border border-slate-200 shadow-xs items-center justify-center text-slate-500">
                         <ArrowRight className="w-2.5 h-2.5" />
                       </div>
                     )}
@@ -487,7 +487,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
         /* 审核列表 */
         <div className="glass-card p-4 shadow-sm">
         {loading ? (
-          <div className="py-12 flex flex-col items-center text-slate-400 text-xs">
+          <div className="py-12 flex flex-col items-center text-slate-500 text-xs">
             <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-2" />
             加载审核列表…
           </div>
@@ -505,7 +505,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                 ? '暂无已驳回的审核记录'
                 : '暂无任何 AI 生成内容记录'}
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto mb-6">
+            <p className="text-xs text-slate-500 max-w-md mx-auto mb-6">
               所有工业大模型生成的关键作业与风控内容均需管理员双人或专职核验，当前筛选分类下无条目。
             </p>
 
@@ -601,7 +601,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
           </div>
         ) : (
           <div className="space-y-2.5">
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-500">
               共 {reviews.length} 条{statusFilter === 'pending' && pendingCount > 0 ? ` · 待处理 ${pendingCount} 条` : ''}
             </p>
             {reviews.map((r) => {
@@ -627,7 +627,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                           {st.label}
                         </span>
                         {(r.knowledgeSources || []).length > 0 && (
-                          <span className="text-[10px] text-slate-400 flex items-center">
+                          <span className="text-[10px] text-slate-500 flex items-center">
                             <BookOpen className="w-3 h-3 mr-0.5" />
                             知识库引用 {r.knowledgeSources.length} 篇
                           </span>
@@ -636,7 +636,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                       <p className="mt-1.5 text-xs text-slate-700 truncate">
                         {r.content?.overview || r.content?.summary || r.content?.title || JSON.stringify(r.content).slice(0, 80)}
                       </p>
-                      <p className="mt-1 text-[10px] text-slate-400 font-mono truncate">
+                      <p className="mt-1 text-[10px] text-slate-500 font-mono truncate">
                         {r.aiEndpoint} · {new Date(r.createdAt).toLocaleString('zh-CN')}
                         {r.reviewer ? ` · 审核人: ${r.reviewer}` : ''}
                       </p>
@@ -675,7 +675,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
         /* 追溯审计日志列表 */
         <div className="glass-card p-4 shadow-sm">
           {traceLoading ? (
-            <div className="py-12 flex flex-col items-center text-slate-400 text-xs">
+            <div className="py-12 flex flex-col items-center text-slate-500 text-xs">
               <Loader2 className="w-6 h-6 animate-spin text-indigo-500 mb-2" />
               加载追溯审计记录…
             </div>
@@ -685,7 +685,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                 <Database className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-slate-800 mb-1">暂无追溯审计日志</h3>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
                 当调用故障诊断向导、检修方案或作业票风险评估时，系统会自动在此沉淀包含模型版本、提示词版本与输入摘要的追溯日志。
               </p>
             </div>
@@ -722,11 +722,11 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                       </div>
 
                       <div className="text-xs text-slate-800 font-medium">
-                        <span className="text-slate-400 mr-1.5 font-normal">输入摘要:</span>
+                        <span className="text-slate-500 mr-1.5 font-normal">输入摘要:</span>
                         {log.inputDigest || log.question || '无输入摘要'}
                       </div>
 
-                      <div className="text-[10px] text-slate-400 font-mono flex items-center gap-3">
+                      <div className="text-[10px] text-slate-500 font-mono flex items-center gap-3">
                         <span>设备/对象: {log.deviceModel || '未指定'}</span>
                         <span>{new Date(log.createdAt).toLocaleString('zh-CN')}</span>
                         <span>ID: {log.id}</span>
@@ -763,11 +763,11 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                   <Database className="w-4 h-4 mr-1.5 text-indigo-600" />
                   AI 调用追溯明细
                 </h3>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5">{traceDetail.id}</p>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">{traceDetail.id}</p>
               </div>
               <button
                 onClick={() => setTraceDetail(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <XCircle className="w-4 h-4" />
               </button>
@@ -777,19 +777,19 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
               {/* 四要素卡片 */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-medium">调用模型 (model)</span>
+                  <span className="text-[10px] text-slate-500 block font-medium">调用模型 (model)</span>
                   <span className="font-bold text-slate-800 font-mono mt-0.5 block">{traceDetail.model}</span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-medium">提示词版本 (promptVersion)</span>
+                  <span className="text-[10px] text-slate-500 block font-medium">提示词版本 (promptVersion)</span>
                   <span className="font-bold text-purple-700 font-mono mt-0.5 block">{traceDetail.promptVersion}</span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-medium">审核状态 (reviewStatus)</span>
+                  <span className="text-[10px] text-slate-500 block font-medium">审核状态 (reviewStatus)</span>
                   <span className="font-bold text-indigo-700 font-mono mt-0.5 block">{traceDetail.reviewStatus}</span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-medium">调用时间 (createdAt)</span>
+                  <span className="text-[10px] text-slate-500 block font-medium">调用时间 (createdAt)</span>
                   <span className="font-mono text-slate-700 text-[11px] mt-0.5 block">
                     {new Date(traceDetail.createdAt).toLocaleString('zh-CN')}
                   </span>
@@ -847,13 +847,13 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                   <FileSearch className="w-4 h-4 mr-1.5 text-blue-600" />
                   生成内容详情
                 </h3>
-                <p className="text-[10px] text-slate-400 font-mono mt-1">
+                <p className="text-[10px] text-slate-500 font-mono mt-1">
                   {detail.aiEndpoint} · {new Date(detail.createdAt).toLocaleString('zh-CN')}
                 </p>
               </div>
               <button
                 onClick={() => { setDetail(null); setRejectOpen(false); }}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <XCircle className="w-4 h-4" />
               </button>
@@ -898,7 +898,7 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
                   </p>
                   {detail.reviewNote && <p className="text-slate-500 mt-1">审核意见：{detail.reviewNote}</p>}
                   {detail.reviewedAt && (
-                    <p className="text-[10px] text-slate-400 font-mono mt-1">
+                    <p className="text-[10px] text-slate-500 font-mono mt-1">
                       {new Date(detail.reviewedAt).toLocaleString('zh-CN')}
                     </p>
                   )}

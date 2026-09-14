@@ -515,7 +515,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             <Clock className="w-4 h-4 text-blue-500" />
             <span>{currentTime.toLocaleTimeString('zh-CN', { hour12: false })}</span>
           </div>
-          <div className="text-[10px] text-slate-400 font-mono">
+          <div className="text-[10px] text-slate-500 font-mono">
             {currentTime.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })}
           </div>
         </div>
@@ -589,7 +589,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           </div>
           {/* 监测 → 定位 → 干预 闭环链路指示 */}
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+            <span className="flex items-center text-[9px] text-slate-500 font-medium tracking-tight">
               监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
             </span>
             <span className={`text-[9px] font-semibold truncate ${healthAbnormalCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -612,7 +612,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           </div>
           <div className="mt-2 flex items-baseline space-x-1.5">
             <span className="data-number text-2xl tracking-tight">{completedOrders}</span>
-            <span className="text-xs text-slate-400 font-sans">/ {totalOrders} 笔</span>
+            <span className="text-xs text-slate-500 font-sans">/ {totalOrders} 笔</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">工单完结率</span>
@@ -620,7 +620,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           </div>
           {/* 监测 → 定位 → 干预 闭环链路指示 */}
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+            <span className="flex items-center text-[9px] text-slate-500 font-medium tracking-tight">
               监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
             </span>
             <span className={`text-[9px] font-semibold truncate ${orderBacklogCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -650,7 +650,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           </div>
           {/* 监测 → 定位 → 干预 闭环链路指示 */}
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+            <span className="flex items-center text-[9px] text-slate-500 font-medium tracking-tight">
               监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
             </span>
             <span className={`text-[9px] font-semibold truncate ${inspectionAbnormalCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -685,7 +685,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           </div>
           {/* 监测 → 定位 → 干预 闭环链路指示 */}
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+            <span className="flex items-center text-[9px] text-slate-500 font-medium tracking-tight">
               监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
             </span>
             <span className={`text-[9px] font-semibold truncate ${hazardPendingCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -704,7 +704,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           </div>
           <div className="mt-2 flex items-baseline space-x-1">
             <span className="data-number text-2xl text-blue-700 tracking-tight">{aiCallsCount}</span>
-            <span className="text-xs text-slate-400 font-sans">次</span>
+            <span className="text-xs text-slate-500 font-sans">次</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">多模态命中</span>
@@ -742,7 +742,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                 <Activity className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
                 设备健康分布与在行状态
               </h3>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">动态传感器聚合</span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">动态传感器聚合</span>
             </div>
             <div className="h-44 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -826,12 +826,12 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                       <div className="font-mono font-bold text-rose-600">
                         {part.stock} {part.unit}
                       </div>
-                      <div className="text-[9px] text-slate-400 font-mono">告警线 {part.safe_stock}</div>
+                      <div className="text-[9px] text-slate-500 font-mono">告警线 {part.safe_stock}</div>
                     </div>
                   </div>
                 ))}
               {spareParts.filter((p) => p.stock <= p.safe_stock).length === 0 && (
-                <p className="text-xs text-slate-400 py-3 text-center">所有核心备件余量均在安全线以上</p>
+                <p className="text-xs text-slate-500 py-3 text-center">所有核心备件余量均在安全线以上</p>
               )}
             </div>
           </div>
@@ -847,7 +847,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                 <TrendingUp className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
                 14天检修工单下发与智能排查走势
               </h3>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">日频次波动统计</span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">日频次波动统计</span>
             </div>
             <div className="h-44 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -898,7 +898,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                 <BarChart3 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
                 各生产单元设备在役与负荷分布
               </h3>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">单元机组对账</span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">单元机组对账</span>
             </div>
             <div className="h-36 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -979,7 +979,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                     </span>
                   </div>
                   <div className="text-[10px] text-slate-600 line-clamp-2">{h.description}</div>
-                  <div className="text-[9px] text-slate-400 font-mono">截止: {h.deadline || '今日下班前'}</div>
+                  <div className="text-[9px] text-slate-500 font-mono">截止: {h.deadline || '今日下班前'}</div>
                 </div>
               ))}
               {majorHazards.length === 0 && (
@@ -1003,7 +1003,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="flex items-center space-x-6 animate-marquee whitespace-nowrap text-xs text-slate-700">
             {eventTicker.map((item) => (
               <div key={item.id} className="inline-flex items-center space-x-2">
-                <span className="font-mono text-slate-400 text-[11px]">[{item.time}]</span>
+                <span className="font-mono text-slate-500 text-[11px]">[{item.time}]</span>
                 <span
                   className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                     item.level === 'major'
@@ -1023,7 +1023,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             ))}
           </div>
         </div>
-        <div className="text-[10px] text-slate-400 shrink-0 font-mono hidden md:block">
+        <div className="text-[10px] text-slate-500 shrink-0 font-mono hidden md:block">
           上次刷新: {lastRefreshedAt.toLocaleTimeString()}
         </div>
       </div>
@@ -1045,7 +1045,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
               </h4>
               <button
                 onClick={() => setChartInsight(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                className="text-slate-500 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1093,7 +1093,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                 </h3>
                 <button
                   onClick={closeDrill}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
                   aria-label="关闭异常定位抽屉"
                 >
                   <X className="w-4 h-4" />
@@ -1107,14 +1107,14 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                   <ChevronRight className="w-3 h-3 mx-0.5 text-slate-300" />
                   <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">干预</span>
                 </span>
-                <span className="text-[10px] text-slate-400">{DRILL_META[drillType].desc}</span>
+                <span className="text-[10px] text-slate-500">{DRILL_META[drillType].desc}</span>
               </div>
             </div>
 
             {/* 明细列表 */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
               {drillLoading && (
-                <div className="py-10 flex flex-col items-center text-slate-400 text-xs">
+                <div className="py-10 flex flex-col items-center text-slate-500 text-xs">
                   <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-2" />
                   正在定位异常设备…
                 </div>
@@ -1173,22 +1173,22 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                       {/* 关键字段网格：异常类型 / 指标值 / 最近巡检 / 健康分 */}
                       <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px]">
                         <div className="p-1.5 rounded-lg bg-white/80 border border-slate-100">
-                          <span className="text-slate-400 block">异常类型</span>
+                          <span className="text-slate-500 block">异常类型</span>
                           <span className="font-semibold text-slate-800">{item.abnormalType}</span>
                         </div>
                         <div className="p-1.5 rounded-lg bg-white/80 border border-slate-100">
-                          <span className="text-slate-400 block">{item.metricLabel}</span>
+                          <span className="text-slate-500 block">{item.metricLabel}</span>
                           <span className="font-mono font-bold text-blue-600">{String(item.metricValue)}</span>
                         </div>
                         <div className="p-1.5 rounded-lg bg-white/80 border border-slate-100">
-                          <span className="text-slate-400 block">最近巡检</span>
+                          <span className="text-slate-500 block">最近巡检</span>
                           <span className="font-mono text-slate-700">{item.lastInspectionAt || '无记录'}</span>
                         </div>
                         <div className="p-1.5 rounded-lg bg-white/80 border border-slate-100">
-                          <span className="text-slate-400 block">健康分</span>
+                          <span className="text-slate-500 block">健康分</span>
                           <span
                             className={`font-mono font-bold ${
-                              item.healthScore == null ? 'text-slate-400' : item.healthScore < 70 ? 'text-rose-600' : 'text-emerald-600'
+                              item.healthScore == null ? 'text-slate-500' : item.healthScore < 70 ? 'text-rose-600' : 'text-emerald-600'
                             }`}
                           >
                             {item.healthScore == null ? '—' : item.healthScore}
@@ -1205,7 +1205,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                           isCreated
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
                             : !item.equipmentId
-                            ? 'bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed'
+                            ? 'bg-slate-50 text-slate-500 border border-slate-200 cursor-not-allowed'
                             : 'btn-gradient text-white cursor-pointer hover:shadow-md disabled:opacity-60'
                         }`}
                       >
@@ -1227,7 +1227,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                         )}
                       </button>
                       {!item.equipmentId && (
-                        <p className="mt-1 text-[9px] text-slate-400 flex items-center">
+                        <p className="mt-1 text-[9px] text-slate-500 flex items-center">
                           <FilePlus2 className="w-3 h-3 mr-1" />
                           该异常未关联设备，请到工单页手动创建
                         </p>

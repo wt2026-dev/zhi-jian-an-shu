@@ -290,7 +290,7 @@ export const AiAssistantPanel: React.FC = () => {
                     {m.streaming && (
                       <span className="inline-block w-1.5 h-3 bg-blue-500 rounded-sm ml-0.5 align-text-bottom" />
                     )}
-                    <div className={`text-[9px] mt-1 ${isUser ? 'text-blue-200 text-right' : 'text-slate-400'}`}>
+                    <div className={`text-[9px] mt-1 ${isUser ? 'text-blue-200 text-right' : 'text-slate-500'}`}>
                       {m.timestamp}
                     </div>
                   </div>
@@ -318,7 +318,7 @@ export const AiAssistantPanel: React.FC = () => {
           {chat.voiceNotice && (
             <div className="mx-3 mb-1.5 px-2.5 py-1.5 rounded-md bg-blue-50 border border-blue-200 text-[10px] text-blue-800 flex items-start justify-between gap-2">
               <span className="flex-1">{chat.voiceNotice}</span>
-              <button onClick={() => chat.setVoiceNotice(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => chat.setVoiceNotice(null)} className="text-slate-500 hover:text-slate-600">
                 <X className="w-3 h-3" />
               </button>
             </div>
@@ -364,7 +364,7 @@ export const AiAssistantPanel: React.FC = () => {
                     ? `录音中 ${chat.recordingSeconds}s，点击麦克风结束`
                     : '描述故障现象或提问 (Enter 发送)'
                 }
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white resize-none disabled:opacity-60"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:bg-white resize-none disabled:opacity-60"
               />
 
               {chat.isStreaming ? (

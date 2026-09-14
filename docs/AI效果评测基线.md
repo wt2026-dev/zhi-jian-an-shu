@@ -1,4 +1,4 @@
-# AI 效果评测基线（离线降级模式）
+﻿# AI 效果评测基线（离线降级模式）
 
 > 生成方式：`npx tsx scripts/ai-eval.ts`（无 Key 降级模式，零外部调用、零费用）
 > 基线日期：2026-09-13　|　样本集：12 条固定样本　|　结果：**11/11 通过（100%）**
@@ -60,7 +60,7 @@
 ## 四、与测试的关系
 
 - `tests/ai-verification.test.ts`（6 用例）：将 A/C/D 的契约固化进 CI，防回归；
-- `vitest.config.ts` 的 `test.env` 将外部凭据置空（dotenv 不覆盖已存在变量）→ **全量 29 文件/193 用例在无网、无 Key 环境稳定全绿**，测试不再依赖真实 DashScope 配额。
+- `vitest.config.ts` 的 `test.env` 将外部凭据置空（dotenv 不覆盖已存在变量）→ **全量 32 文件/223 用例在无网、无 Key 环境稳定全绿**，测试不再依赖真实 DashScope 配额。
 
 ## 五、复跑方式
 

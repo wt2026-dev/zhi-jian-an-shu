@@ -259,21 +259,21 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
             <span>在岗师傅</span>
             <Users className="w-4 h-4 text-blue-500" />
           </div>
-          <div className="mt-1.5 data-number text-lg">{onlineCount}<span className="text-xs text-slate-400 font-sans"> 人</span></div>
+          <div className="mt-1.5 data-number text-lg">{onlineCount}<span className="text-xs text-slate-500 font-sans"> 人</span></div>
         </div>
         <div className="glass-card p-3.5 shadow-sm">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>当前空闲</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           </div>
-          <div className="mt-1.5 data-number text-lg text-emerald-700">{idleCount}<span className="text-xs text-slate-400 font-sans"> 人</span></div>
+          <div className="mt-1.5 data-number text-lg text-emerald-700">{idleCount}<span className="text-xs text-slate-500 font-sans"> 人</span></div>
         </div>
         <div className="glass-card p-3.5 shadow-sm">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>待派工单</span>
             <ClipboardIcon />
           </div>
-          <div className="mt-1.5 data-number text-lg text-amber-700">{pendingCount}<span className="text-xs text-slate-400 font-sans"> 单</span></div>
+          <div className="mt-1.5 data-number text-lg text-amber-700">{pendingCount}<span className="text-xs text-slate-500 font-sans"> 单</span></div>
         </div>
         <div className="glass-card p-3.5 shadow-sm">
           <div className="flex items-center justify-between text-xs text-slate-500">
@@ -294,7 +294,7 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
               <h2 className="text-sm font-bold text-slate-900 flex items-center">
                 <MapPin className="w-4 h-4 mr-1.5 text-blue-600" />
                 {hasAmapKey && !amapFailed ? '厂区地图调度' : '厂区平面调度图'}
-                <span className="ml-2 text-[10px] text-slate-400 font-mono">
+                <span className="ml-2 text-[10px] text-slate-500 font-mono">
                   {hasAmapKey && !amapFailed ? '高德地图 · 真实经纬度 · 球面距离' : '0~1000 归一化坐标 · 降级示意图'}
                 </span>
               </h2>
@@ -306,7 +306,7 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
             </div>
 
             {boardLoading ? (
-              <div className="h-[420px] flex items-center justify-center text-slate-400 text-xs">
+              <div className="h-[420px] flex items-center justify-center text-slate-500 text-xs">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500 mr-2" />
                 加载厂区数据…
               </div>
@@ -492,12 +492,12 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
 
           <div className="glass-card p-4 shadow-sm flex-1">
             {recLoading ? (
-              <div className="py-10 flex flex-col items-center text-slate-400 text-xs">
+              <div className="py-10 flex flex-col items-center text-slate-500 text-xs">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-2" />
                 正在计算就近推荐…
               </div>
             ) : !selectedOrderId ? (
-              <div className="py-8 text-center text-xs text-slate-400">
+              <div className="py-8 text-center text-xs text-slate-500">
                 <Route className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                 选择待派工单后，自动按「距离 40% · 空闲 30% · 技能 30%」推荐在岗师傅
               </div>
@@ -522,7 +522,7 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
                             <span className="px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] font-bold">最优</span>
                           )}
                           <span className="font-bold text-slate-900">{r.technician.name}</span>
-                          <span className="text-[10px] text-slate-400">{r.technician.roleTitle}</span>
+                          <span className="text-[10px] text-slate-500">{r.technician.roleTitle}</span>
                         </div>
                         <p className="text-[11px] text-slate-600 mt-1">{r.reason}</p>
                         <div className="mt-1.5 flex flex-wrap gap-1">
@@ -530,7 +530,7 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
                             <span key={s} className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-500 text-[10px]">{s}</span>
                           ))}
                         </div>
-                        <p className="mt-1.5 text-[10px] text-slate-400 font-mono">
+                        <p className="mt-1.5 text-[10px] text-slate-500 font-mono">
                           {r.distanceLabel} · 技能匹配 {(r.skillMatch * 100).toFixed(0)}% · 综合得分 {r.score.toFixed(2)}
                           {r.technician.lastLocationAt ? ` · 上报 ${r.technician.lastLocationAt}` : ''}
                         </p>

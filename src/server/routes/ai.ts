@@ -23,7 +23,6 @@ import {
   alarmCorrelationSchema,
   pipelineCreateSchema,
 } from "../schemas/ai.ts";
-import { handleGetAiStats } from "../controllers/aiStatsController.ts";
 import {
   handleAiChat,
   handleAiChatStream,
@@ -32,8 +31,9 @@ import {
   handleRecommendAssignee,
   handleAlarmCorrelation,
   handleAiRagSearch,
+  handleGetAiStats,
 } from "../controllers/aiAssistantController.ts";
-import { handleVisionDefectDetect, makeVisionCompatHandler, handleSpeechToText, handleVideoAnalysis } from "../controllers/aiVisionController.ts";
+import { handleVisionDefectDetect, makeVisionCompatHandler, handleSpeechToText, handleVideoAnalysis, handleAiMultimodalSearch } from "../controllers/aiVisionController.ts";
 import {
   handleGenerateWorkOrder,
   handleRootCauseAnalysis,
@@ -41,7 +41,6 @@ import {
   handleAiDiagnose,
 } from "../controllers/aiGenerationController.ts";
 import { handleAiSuggestContribution } from "../controllers/contributionController.ts";
-import { handleAiMultimodalSearch } from "../controllers/aiMultimodalController.ts";
 import { handleHealthForecast, handleGenerateReport, handleSafetyRiskAssessment } from "../controllers/aiForecastController.ts";
 import { handleCreatePipeline, handleGetPipeline, handlePipelineEvents, handleListPipeline } from "../controllers/aiPipelineController.ts";
 

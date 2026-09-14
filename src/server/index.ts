@@ -193,7 +193,7 @@ async function initKnowledgeStartupState() {
       await db.query("UPDATE knowledge_articles SET embedding=$2 WHERE id=$1", [article.id, JSON.stringify(embedding)]);
     }
   } catch (err: any) {
-    console.warn("[Knowledge] 存量向量回填未完成，将在下次启动重试:", err.message);
+    logger.warn("[Knowledge] 存量向量回填未完成，将在下次启动重试:", err.message);
   }
 }
 
@@ -217,7 +217,7 @@ export async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Industrial Ops System v2.0.0] Server running at http://0.0.0.0:${PORT}`);
+    logger.info(`[Industrial Ops System v2.0.0] Server running at http://0.0.0.0:${PORT}`);
   });
 }
 

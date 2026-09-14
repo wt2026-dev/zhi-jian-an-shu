@@ -243,18 +243,18 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
           {/* Search Input */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="搜索设备名称、位号编码、型号规格、制造厂商..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:bg-white"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:bg-white"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -316,7 +316,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
       {/* Equipment View: Grid vs Table */}
       {filteredEquipments.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-xs card-industrial">
-          <Layers className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+          <Layers className="w-12 h-12 text-slate-500 mx-auto mb-3" />
           <h4 className="text-sm font-semibold text-slate-700">未检索到匹配的工业设备</h4>
           <p className="text-xs text-slate-500 mt-1">请尝试更换搜索关键字或重置筛选条件</p>
         </div>
@@ -427,11 +427,11 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-slate-800">{eq.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{eq.model}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">{eq.model}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {eq.workshop}
-                        <div className="text-[10px] text-slate-400">{eq.location}</div>
+                        <div className="text-[10px] text-slate-500">{eq.location}</div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-[10px] px-2 py-0.5 rounded border ${statusBadge.color}`}>
@@ -671,7 +671,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
                       <div className="font-semibold text-slate-800 flex items-center space-x-1.5">
                         <span>扫码直达：</span>
                         <span className="font-mono text-cyan-700">{activeEquipment.code}</span>
-                        <span className="text-slate-400">({activeEquipment.name})</span>
+                        <span className="text-slate-500">({activeEquipment.name})</span>
                       </div>
                       <p className="text-[11px] text-slate-500 leading-relaxed">
                         {useH5
@@ -744,7 +744,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
               </div>
               <button
                 onClick={() => setShowQrModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                className="text-slate-500 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -878,7 +878,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-500 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -893,7 +893,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
                   placeholder="例如: 2#循环水冷却泵"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:bg-white"
                 />
               </div>
 
@@ -905,7 +905,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
                   placeholder="例如: PUMP-B202"
                   value={formData.code}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:bg-white font-mono"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:bg-white font-mono"
                 />
               </div>
 
@@ -931,7 +931,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
                   placeholder="例如: ISG 150-315A"
                   value={formData.model}
                   onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:bg-white font-mono"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:bg-white font-mono"
                 />
               </div>
 
@@ -957,7 +957,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
                   placeholder="例如: B区-02号机位"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:bg-white"
                 />
               </div>
 
@@ -968,7 +968,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
                   placeholder="例如: 凯泉泵业集团有限公司"
                   value={formData.manufacturer}
                   onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:bg-white"
                 />
               </div>
             </div>

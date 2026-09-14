@@ -278,7 +278,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
       <div className="card-industrial bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
         <div className="flex items-center space-x-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={equipmentFilter}
@@ -331,7 +331,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
           <div className="h-full flex items-center justify-center text-red-500 text-sm">{error}</div>
         ) : nodes.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm space-y-4">
-            <Layers className="w-12 h-12 text-slate-400" />
+            <Layers className="w-12 h-12 text-slate-500" />
             <span>知识图谱中暂无节点数据。</span>
             {currentUser.role === 'admin' && (
               <button
@@ -359,7 +359,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
                 </span>
                 <h4 className="text-sm font-bold text-slate-800 line-clamp-1">{selectedNode.entity_name}</h4>
               </div>
-              <button onClick={() => setSelectedNode(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
+              <button onClick={() => setSelectedNode(null)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>

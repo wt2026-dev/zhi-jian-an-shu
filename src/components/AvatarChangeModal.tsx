@@ -154,7 +154,7 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -225,7 +225,7 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
                 <span>工业科技矢量</span>
               </button>
             </div>
-            <span className="text-[11px] text-slate-400">共 6 类岗位标杆</span>
+            <span className="text-[11px] text-slate-500">共 6 类岗位标杆</span>
           </div>
 
           {styleTab === 'photos' ? (
@@ -238,7 +238,7 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                     <span>第一套：标准岗风经典照 (6类标杆岗位)</span>
                   </span>
-                  <span className="text-[10px] text-slate-400">标准款 · 清爽正面</span>
+                  <span className="text-[10px] text-slate-500">标准款 · 清爽正面</span>
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {BUILTIN_ROLE_PHOTOS.filter((p) => p.series === 'set1').map((photo) => {
@@ -270,7 +270,7 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
                           <span className={`text-[11px] font-bold block truncate ${isSelected ? 'text-blue-700' : 'text-slate-800'}`}>
                             {photo.name.split('/')[0].trim()}
                           </span>
-                          <span className="text-[9px] text-slate-400 block truncate">{photo.roleLabel.split('·')[0]}</span>
+                          <span className="text-[9px] text-slate-500 block truncate">{photo.roleLabel.split('·')[0]}</span>
                         </div>
                       </button>
                     );
@@ -285,7 +285,7 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                     <span>第二套：多元变体工作照 (工装 / 现场督导)</span>
                   </span>
-                  <span className="text-[10px] text-slate-400">同岗错位区分 · 现场风貌</span>
+                  <span className="text-[10px] text-slate-500">同岗错位区分 · 现场风貌</span>
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {BUILTIN_ROLE_PHOTOS.filter((p) => p.series === 'set2').map((photo) => {
@@ -317,7 +317,7 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
                           <span className={`text-[11px] font-bold block truncate ${isSelected ? 'text-blue-700' : 'text-slate-800'}`}>
                             {photo.name.split('/')[0].trim()}
                           </span>
-                          <span className="text-[9px] text-slate-400 block truncate">{photo.roleLabel.split('·')[0]}</span>
+                          <span className="text-[9px] text-slate-500 block truncate">{photo.roleLabel.split('·')[0]}</span>
                         </div>
                       </button>
                     );
@@ -357,7 +357,7 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
                       <span className={`text-[10px] font-bold block truncate ${isSelected ? 'text-cyan-700' : 'text-slate-800'}`}>
                         {style.name}
                       </span>
-                      <span className="text-[9px] text-slate-400 block truncate">{style.roleLabel.split(' ')[0]}</span>
+                      <span className="text-[9px] text-slate-500 block truncate">{style.roleLabel.split(' ')[0]}</span>
                     </div>
                   </button>
                 );
@@ -386,13 +386,13 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
             </label>
 
             <div className="flex-1 relative">
-              <Link className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Link className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="粘贴图片链接 URL..."
                 value={customUrl}
                 onChange={handleCustomUrlChange}
-                className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>

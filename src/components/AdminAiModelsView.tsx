@@ -262,7 +262,7 @@ export const AdminAiModelsView: React.FC = () => {
                 诊断/方案/报告等业务模块统一调用 AI 网关入口
               </p>
             </div>
-            <div className="mt-2 pt-2 border-t border-slate-100 text-[9px] text-slate-400 font-mono">
+            <div className="mt-2 pt-2 border-t border-slate-100 text-[9px] text-slate-500 font-mono">
               入参校验与上下文装配
             </div>
           </div>
@@ -350,7 +350,7 @@ export const AdminAiModelsView: React.FC = () => {
           <div className="flex items-center space-x-2 text-xs font-bold text-slate-800">
             <Layers className="w-4 h-4 text-blue-600" />
             <span>模型池状态统计</span>
-            <span className="text-[10px] text-slate-400 font-normal">（自动计算，操作后实时同步）</span>
+            <span className="text-[10px] text-slate-500 font-normal">（自动计算，操作后实时同步）</span>
           </div>
           <div className="flex items-center flex-wrap gap-2 text-xs">
             <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
@@ -381,7 +381,7 @@ export const AdminAiModelsView: React.FC = () => {
 
       {/* 模型卡片列表（按降级优先级排序） */}
       {loading ? (
-        <div className="glass-card p-10 flex flex-col items-center text-slate-400 text-xs">
+        <div className="glass-card p-10 flex flex-col items-center text-slate-500 text-xs">
           <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-2" />
           加载模型配置…
         </div>
@@ -399,7 +399,7 @@ export const AdminAiModelsView: React.FC = () => {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[10px] text-slate-400 font-bold">#{i + 1}</span>
+                    <span className="font-mono text-[10px] text-slate-500 font-bold">#{i + 1}</span>
                     <span className="text-sm font-bold text-slate-900">{m.displayName}</span>
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${hm.cls}`}>
                       {hm.label}
@@ -418,7 +418,7 @@ export const AdminAiModelsView: React.FC = () => {
                   <p className="mt-1 text-[11px] text-slate-500 font-mono truncate">
                     {m.provider} · {m.modelName} · {m.baseUrl}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-slate-400 font-mono">
+                  <p className="mt-0.5 text-[10px] text-slate-500 font-mono">
                     密钥：{m.apiKeyMasked}
                     {m.lastCheckedAt ? ` · 最近检测 ${new Date(m.lastCheckedAt).toLocaleString('zh-CN')}` : ''}
                   </p>

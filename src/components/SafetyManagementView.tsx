@@ -97,7 +97,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
       id: '低风险 (Level 4)',
       label: '🔵 低风险 (Level 4)',
       count: safetyPermits.filter((s) => s.riskLevel.includes('Level 4')).length,
-      color: 'text-slate-400',
+      color: 'text-slate-500',
     },
   ];
 
@@ -325,7 +325,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
           </div>
           <button
             onClick={() => setRbacNotice(null)}
-            className="p-1 rounded hover:bg-black/5 text-slate-400 hover:text-slate-700"
+            className="p-1 rounded hover:bg-black/5 text-slate-500 hover:text-slate-700"
           >
             <X className="w-4 h-4" />
           </button>
@@ -410,7 +410,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
       <div className="space-y-3">
         {filteredPermits.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-xs card-industrial">
-            <ShieldCheck className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+            <ShieldCheck className="w-12 h-12 text-slate-500 mx-auto mb-3" />
             <h4 className="text-sm font-semibold text-slate-700">暂无此筛选条件下的安全作业票</h4>
             <p className="text-xs text-slate-500 mt-1">生产现场各项指标安全平稳</p>
           </div>
@@ -676,7 +676,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-500 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -723,7 +723,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
                   placeholder="例如: 动力站主蒸汽管线更换二道截止阀气割作业"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:bg-white"
                 />
               </div>
 
@@ -765,7 +765,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
                   placeholder="例如: LOCK-RED-8820"
                   value={formData.lotoNumber}
                   onChange={(e) => setFormData({ ...formData, lotoNumber: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 focus:bg-white font-mono"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:bg-white font-mono"
                 />
               </div>
             </div>

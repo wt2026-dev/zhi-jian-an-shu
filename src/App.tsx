@@ -1,27 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/Header';
-import { DashboardView } from './components/DashboardView';
-import { EquipmentArchivesView } from './components/EquipmentArchivesView';
-import { EquipmentHealthView } from './components/EquipmentHealthView';
-import { WorkOrdersView } from './components/WorkOrdersView';
-import { InspectionView } from './components/InspectionView';
-import { SafetyManagementView } from './components/SafetyManagementView';
-import { KnowledgeBaseView } from './components/KnowledgeBaseView';
-import { ProceduresView } from './components/ProceduresView';
-import { KnowledgeGraphView } from './components/KnowledgeGraphView';
-import { AiAssistantView } from './components/AiAssistantView';
-import { UserManagementView } from './components/UserManagementView';
-import { LoginView } from './components/LoginView';
-import { CockpitDashboardView } from './components/CockpitDashboardView';
-import { AiPipelineView } from './components/AiPipelineView';
-import { AdminAiReviewsView } from './components/AdminAiReviewsView';
-import { AdminAiModelsView } from './components/AdminAiModelsView';
-import { DispatchBoardView } from './components/DispatchBoardView';
-import { SparePartsView } from './components/SparePartsView';
-import { HazardsView } from './components/HazardsView';
 import { workOrderApi, equipmentApi, authApi, safetyPermitApi, knowledgeApi, inspectionApi, notificationApi } from './api';
+import { logger } from './utils/logger';
+
+// Lazy-loaded view components (code-split per route)
+const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+const EquipmentArchivesView = React.lazy(() => import('./components/EquipmentArchivesView').then(m => ({ default: m.EquipmentArchivesView })));
+const EquipmentHealthView = React.lazy(() => import('./components/EquipmentHealthView').then(m => ({ default: m.EquipmentHealthView })));
+const WorkOrdersView = React.lazy(() => import('./components/WorkOrdersView').then(m => ({ default: m.WorkOrdersView })));
+const InspectionView = React.lazy(() => import('./components/InspectionView').then(m => ({ default: m.InspectionView })));
+const SafetyManagementView = React.lazy(() => import('./components/SafetyManagementView').then(m => ({ default: m.SafetyManagementView })));
+const KnowledgeBaseView = React.lazy(() => import('./components/KnowledgeBaseView').then(m => ({ default: m.KnowledgeBaseView })));
+const ProceduresView = React.lazy(() => import('./components/ProceduresView').then(m => ({ default: m.ProceduresView })));
+const KnowledgeGraphView = React.lazy(() => import('./components/KnowledgeGraphView').then(m => ({ default: m.KnowledgeGraphView })));
+const AiAssistantView = React.lazy(() => import('./components/AiAssistantView').then(m => ({ default: m.AiAssistantView })));
+const UserManagementView = React.lazy(() => import('./components/UserManagementView').then(m => ({ default: m.UserManagementView })));
+const LoginView = React.lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
+const CockpitDashboardView = React.lazy(() => import('./components/CockpitDashboardView').then(m => ({ default: m.CockpitDashboardView })));
+const AiPipelineView = React.lazy(() => import('./components/AiPipelineView').then(m => ({ default: m.AiPipelineView })));
+const AdminAiReviewsView = React.lazy(() => import('./components/AdminAiReviewsView').then(m => ({ default: m.AdminAiReviewsView })));
+const AdminAiModelsView = React.lazy(() => import('./components/AdminAiModelsView').then(m => ({ default: m.AdminAiModelsView })));
+const DispatchBoardView = React.lazy(() => import('./components/DispatchBoardView').then(m => ({ default: m.DispatchBoardView })));
+const SparePartsView = React.lazy(() => import('./components/SparePartsView').then(m => ({ default: m.SparePartsView })));
+const HazardsView = React.lazy(() => import('./components/HazardsView').then(m => ({ default: m.HazardsView })));
 
 import {
   Equipment,
@@ -128,7 +131,7 @@ export default function App() {
         setActiveTab(targetView === 'equipment' ? 'equipments' : targetView);
       }
     } catch (e) {
-      console.warn('URL search parse fallback:', e);
+      logger.warn('URL search parse fallback:', e);
     }
   }, []);
 
@@ -162,7 +165,7 @@ export default function App() {
       const apiNotifications = await notificationApi.list({ userId: meUser?.id });
       setNotifications(Array.isArray(apiNotifications) ? apiNotifications : []);
     } catch (err: any) {
-      console.error('Backend API full sync error:', err);
+      logger.error('Backend API full sync error:', err);
       setLoadError(err?.message || '后端接口请求失败，无法加载真实业务数据');
     } finally {
       setIsInitialLoading(false);
@@ -176,7 +179,7 @@ export default function App() {
       const list = await notificationApi.list({ userId: targetId });
       setNotifications(Array.isArray(list) ? list : []);
     } catch (err) {
-      console.warn('通知刷新失败:', err);
+      logger.warn('通知刷新失败:', err);
     }
   }, [currentUser?.id]);
 
@@ -192,7 +195,7 @@ export default function App() {
       const list = await notificationApi.list({ userId: user.id });
       setNotifications(Array.isArray(list) ? list : []);
     } catch (err) {
-      console.warn('切换用户后端同步提示（已切换前端视图）:', err);
+      logger.warn('切换用户后端同步提示（已切换前端视图）:', err);
       try {
         const list = await notificationApi.list({ userId: user.id });
         setNotifications(Array.isArray(list) ? list : []);
@@ -259,7 +262,7 @@ export default function App() {
     try {
       await inspectionApi.update(updatedTask.id, updatedTask);
     } catch (err) {
-      console.warn('巡检数据后端同步失败（本地已更新，后台稍后重试）:', err);
+      logger.warn('巡检数据后端同步失败（本地已更新，后台稍后重试）:', err);
     }
   };
 
@@ -323,7 +326,7 @@ export default function App() {
     try {
       await notificationApi.markRead(id);
     } catch (err) {
-      console.warn('标记已读失败:', err);
+      logger.warn('标记已读失败:', err);
       refreshNotifications();
     }
   };
@@ -333,7 +336,7 @@ export default function App() {
     try {
       await notificationApi.markAllRead();
     } catch (err) {
-      console.warn('全部已读失败:', err);
+      logger.warn('全部已读失败:', err);
       refreshNotifications();
     }
   };
@@ -441,7 +444,7 @@ export default function App() {
           </div>
           <h2 className="text-base font-bold text-slate-900">后端数据加载失败</h2>
           <p className="text-xs text-slate-600 leading-relaxed break-all">{loadError}</p>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-slate-500">
             系统已禁止使用本地模拟数据兜底，请确认后端服务与数据库正常后重试。
           </p>
           <button
@@ -539,6 +542,7 @@ export default function App() {
             }`}
           >
         <ErrorBoundary>
+          <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400 text-sm">页面加载中...</div>}>
           {activeTab === 'dashboard' && (
             <DashboardView
               currentUser={currentUser}
@@ -633,7 +637,7 @@ export default function App() {
             <ProceduresView
               currentUser={currentUser}
               onSelectProcedure={(proc) => {
-                console.log('Selected procedure:', proc);
+                logger.log('Selected procedure:', proc);
               }}
             />
           )}
@@ -693,6 +697,7 @@ export default function App() {
               onSwitchUser={handleSwitchUser}
             />
           )}
+          </Suspense>
         </ErrorBoundary>
           </div>
         </main>
@@ -709,12 +714,12 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">工业设备电子铭牌与扫码中心</h3>
-                  <p className="text-[11px] text-slate-400">桌面端快捷核验模拟 · 手机端微信真机扫码直达</p>
+                  <p className="text-[11px] text-slate-500">桌面端快捷核验模拟 · 手机端微信真机扫码直达</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowQrScannerModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors"
+                className="text-slate-500 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -780,7 +785,7 @@ export default function App() {
                       >
                         <div>
                           <div className="font-semibold text-slate-700 group-hover:text-blue-600">{eq.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">
+                          <div className="text-[10px] text-slate-500 font-mono">
                             {eq.code} | {eq.workshop} · {eq.location}
                           </div>
                         </div>

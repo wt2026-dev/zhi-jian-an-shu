@@ -167,7 +167,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 登录账号 / 工号
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                   <User className="w-4 h-4" />
                 </div>
                 <input
@@ -175,7 +175,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="请输入用户名 (如 admin / manager / tech1)"
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-xs"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-xs"
                   required
                 />
               </div>
@@ -185,10 +185,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <div>
               <label className="block text-slate-700 font-medium mb-1.5 flex items-center justify-between">
                 <span>登录密码</span>
-                <span className="text-[10px] text-slate-400 font-normal">各角色独立强密码（点击预设自动填入）</span>
+                <span className="text-[10px] text-slate-500 font-normal">各角色独立强密码（点击预设自动填入）</span>
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -196,13 +196,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="请输入密码"
-                  className="w-full pl-9 pr-10 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-xs"
+                  className="w-full pl-9 pr-10 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-xs"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-600 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -215,7 +215,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               disabled={loading}
               className={`w-full py-2.5 px-4 rounded-lg font-semibold text-xs transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-sm ${
                 loading
-                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-[0.99]'
               }`}
             >
@@ -270,9 +270,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         </div>
 
         {/* 底部合规与技术栈标注 */}
-        <div className="text-center space-y-1 text-[11px] text-slate-400">
+        <div className="text-center space-y-1 text-[11px] text-slate-500">
           <p>工业互联网安全防护体系（参照等保三级规范设计） · 生产制造安全作业许可标准 GB 30871</p>
-          <p className="text-[10px] text-slate-400">FastAPI + Redis Mutex + PostgreSQL 16 + ChromaDB RAG</p>
+          <p className="text-[10px] text-slate-500">FastAPI + Redis Mutex + PostgreSQL 16 + ChromaDB RAG</p>
         </div>
       </div>
 

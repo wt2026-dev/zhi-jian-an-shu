@@ -3,6 +3,9 @@ import { Request, Response } from "express";
 import QRCode from "qrcode";
 import { logger } from "../../utils/logger.ts";
 import { XINGYUN_APP_ID, XINGYUN_APP_SECRET, WECHAT_APP_ID, WECHAT_APP_SECRET } from "../utils/config.ts";
+import { STATUS_LABELS, pushWorkOrderLog } from "./workOrderController.ts";
+import { pushNotification } from "../services/auditService.ts";
+import { EquipmentRepository, WorkOrderRepository } from "../../db/repositories/index.ts";
 
 // POST /api/v1/xingyun/session 魔珐星云数字人会话代理
 export async function handleXingyunSession(req: Request, res: Response) {
@@ -286,6 +289,147 @@ export async function handleWechatH5Qrcode(req: Request, res: Response) {
     res.status(500).json({
       success: false,
       msg: "生成 H5 二维码失败: " + err?.message,
+    });
+  }
+}
+
+// ==================== 微信小程序免登录快速扫码报修 ====================
+const wxRepairRateLimitMap = new Map<string, number[]>();
+export async function handleWxRepairCreate(req: Request, res: Response) {
+  try {
+    const { deviceId, desc, level = "normal", faultType = "扫码现场报修", images = [], reporter, phone, openid, userId } = req.body;
+    const clientIp = req.ip || req.connection?.remoteAddress || "unknown_ip";
+    const rateLimitKey = openid || userId || `dev_${deviceId}_${clientIp}`;
+
+    const nowTime = Date.now();
+    const tenMinutesAgo = nowTime - 10 * 60 * 1000;
+    if (wxRepairRateLimitMap.size > 5000) {
+      for (const [key, stamps] of wxRepairRateLimitMap) {
+        if (!stamps.some((t) => t >= tenMinutesAgo)) wxRepairRateLimitMap.delete(key);
+      }
+    }
+    const historyTimestamps = (wxRepairRateLimitMap.get(rateLimitKey) || []).filter((t) => t >= tenMinutesAgo);
+    if (historyTimestamps.length >= 5) {
+      return res.status(429).json({
+        success: false,
+        code: "RATE_LIMIT_EXCEEDED",
+        error: "报修提交过于频繁，同账号/设备10分钟内最多创建5笔报修工单",
+      });
+    }
+    historyTimestamps.push(nowTime);
+    wxRepairRateLimitMap.set(rateLimitKey, historyTimestamps);
+
+    const eq = await EquipmentRepository.getById(deviceId);
+    if (!eq) {
+      return res.status(404).json({
+        success: false,
+        code: "EQUIPMENT_NOT_FOUND",
+        error: `设备【${deviceId}】不存在，请重新扫码或核对设备编码`,
+      });
+    }
+
+    const activeStatuses = ["created", "dispatched", "in_progress"];
+    const allOrders = await WorkOrderRepository.getAll();
+    const existingDuplicate = allOrders.find(
+      (w: any) =>
+        w.equipmentId === eq.id &&
+        activeStatuses.includes(w.status) &&
+        (Number(w.createdTimestamp) || 0) >= tenMinutesAgo &&
+        (!openid ||
+          w.wxOpenid === openid ||
+          w.creator?.includes(openid) ||
+          (typeof w.description === "string" && w.description.includes(openid)))
+    );
+
+    if (existingDuplicate) {
+      const statusLabel = STATUS_LABELS[existingDuplicate.status] || existingDuplicate.status;
+      return res.status(409).json({
+        success: false,
+        code: "DUPLICATE_WORK_ORDER",
+        error: `已有进行中的报修单：设备【${eq.name}】当前已有未闭环工单【${existingDuplicate.orderNo}】(${statusLabel})，机电保全部正在处理中，请勿重复提交。`,
+        orderNo: existingDuplicate.orderNo,
+      });
+    }
+
+    let priority = "medium";
+    const lvlStr = String(level).toLowerCase();
+    if (lvlStr.includes("critical") || lvlStr.includes("特急")) {
+      priority = "urgent";
+    } else if (lvlStr.includes("urgent") || lvlStr.includes("high") || lvlStr.includes("紧急")) {
+      priority = "high";
+    } else {
+      priority = "medium";
+    }
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const orderNo = `WO-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
+    const id = `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const createdAtStr = now.toISOString();
+
+    const creatorName = reporter || (userId ? `用户(${userId})` : (openid ? `微信工友(${openid.slice(-4)})` : "微信扫码现场人员"));
+
+    const newOrder: any = {
+      id,
+      orderNo,
+      title: `【扫码报修】${eq.name} - ${faultType}`,
+      equipmentId: eq.id,
+      equipmentName: eq.name,
+      equipmentCode: eq.code,
+      workshop: eq.workshop,
+      faultType,
+      priority,
+      status: "created",
+      creator: creatorName,
+      source: "wx_scan",
+      createdAt: createdAtStr,
+      description: `${desc.trim()}${phone ? ` (联系电话: ${phone})` : ""}${openid ? ` [openid: ${openid}]` : ""}`,
+      safetyRequirements: ["穿戴劳保鞋与安全帽", "实施现场安全警示", "实施 LOTO 停电挂牌"],
+      photos: images,
+      repairLog: null,
+      acceptance: null,
+      version: 1,
+      createdTimestamp: Date.now(),
+      wxOpenid: openid || null,
+    };
+
+    const created = await WorkOrderRepository.create(newOrder);
+
+    if (priority === "urgent" || priority === "high") {
+      await EquipmentRepository.updateStatus(eq.id, "fault");
+    }
+
+    pushWorkOrderLog({
+      id: `log-${Date.now()}`,
+      workOrderId: id,
+      action: "CREATE",
+      previousStatus: null,
+      newStatus: "created",
+      operatorName: creatorName,
+      comment: `微信扫码申报工单 [来源: wx_scan]: ${newOrder.title}`,
+      createdAt: createdAtStr,
+    });
+
+    pushNotification({
+      title: priority === "urgent" ? `【特急扫码报修】${orderNo} 待派单` : `【扫码报修】${orderNo} 已创建待派单`,
+      content: `设备 ${eq.name} (${eq.code}) 来自微信扫码报修，报修人 ${creatorName}，请尽快派发机电人员！`,
+      type: priority === "urgent" ? "alert" : "info",
+      refType: "work_order",
+      refId: orderNo,
+    });
+
+    res.status(201).json({
+      success: true,
+      orderNo,
+      id,
+      status: "created",
+      source: "wx_scan",
+      message: "报修工单创建成功，已指派生产机电保全部待调度队列",
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: "创建报修单失败: " + err.message,
     });
   }
 }
