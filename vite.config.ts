@@ -34,10 +34,16 @@ export default defineConfig(({ mode }) => {
       sourcemap: true,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom'],
-            'vendor-charts': ['recharts'],
-            'vendor-icons': ['lucide-react'],
+          // 说明：仅对首屏必需的依赖做 manualChunks（react 全家桶）。
+          // recharts / echarts / lucide-react 的消费方（DashboardView、KnowledgeGraphView、
+          // CockpitDashboardView、EquipmentHealthView 等）均通过 React.lazy 懒加载，
+          // 交由 Rollup 按动态 import 自动分包，避免被 modulepreload 拉进首屏。
+          // 注意：manualChunks 的 key 必须与 Rollup 解析到的一致，否则会产出空 chunk
+          // （此前 'vendor-react' 因名称不匹配长期产出 0 字节空 chunk，react 实际被打进 index）。
+          manualChunks(id) {
+            if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/scheduler')) {
+              return 'vendor-react';
+            }
           },
         },
       },

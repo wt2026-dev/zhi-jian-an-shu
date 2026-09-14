@@ -45,7 +45,7 @@ beforeAll(async () => {
   // 从而可验证规则引擎降级的完整输出契约。全流程零真实模型依赖。
   process.env.DASHSCOPE_API_KEY = "offline-verification-fake-key";
   app = await createApp();
-  const login = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "password123" });
+  const login = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "Admin@2026#Demo" });
   adminToken = login.body.token;
   expect(adminToken).toBeTruthy();
 });

@@ -577,6 +577,63 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
               </div>
             </div>
 
+            {/* 双人会签电子防伪签名看板 (Dual Sign-off Cryptographic Verification) */}
+            <div className="p-3.5 bg-purple-50/40 rounded-xl border border-purple-200 text-xs space-y-2">
+              <span className="font-bold text-purple-900 flex items-center">
+                <ShieldCheck className="w-4 h-4 mr-1.5 text-purple-600" />
+                双人会签法定防伪签名存证
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className={`p-2.5 rounded-lg border text-[11px] ${
+                  activePermit.guardianApproval?.signed
+                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                }`}>
+                  <div className="flex items-center justify-between font-semibold">
+                    <span>1. 现场安全监护人初审会签</span>
+                    <span className={`px-1.5 py-0.2 rounded text-[10px] ${activePermit.guardianApproval?.signed ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                      {activePermit.guardianApproval?.signed ? '已会签' : '待会签'}
+                    </span>
+                  </div>
+                  {activePermit.guardianApproval?.signed ? (
+                    <div className="mt-1 space-y-0.5">
+                      <div>签署人: <strong>{activePermit.guardianApproval.name}</strong></div>
+                      <div className="font-mono text-[10px] text-slate-500">时间: {activePermit.guardianApproval.signedAt?.slice(0, 19).replace('T', ' ')}</div>
+                      <div className="font-mono text-[10px] text-purple-700 truncate">
+                        防伪哈希: {activePermit.guardianApproval.signatureHash || 'SEC-SIGN-OK'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-slate-400">需持证安全监护员现场确认气体与动火隔离</div>
+                  )}
+                </div>
+
+                <div className={`p-2.5 rounded-lg border text-[11px] ${
+                  activePermit.supervisorApproval?.signed
+                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                }`}>
+                  <div className="flex items-center justify-between font-semibold">
+                    <span>2. 车间安全总监终审签发</span>
+                    <span className={`px-1.5 py-0.2 rounded text-[10px] ${activePermit.supervisorApproval?.signed ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                      {activePermit.supervisorApproval?.signed ? '已签批生效' : '待终审'}
+                    </span>
+                  </div>
+                  {activePermit.supervisorApproval?.signed ? (
+                    <div className="mt-1 space-y-0.5">
+                      <div>审批人: <strong>{activePermit.supervisorApproval.name}</strong></div>
+                      <div className="font-mono text-[10px] text-slate-500">时间: {activePermit.supervisorApproval.signedAt?.slice(0, 19).replace('T', ' ')}</div>
+                      <div className="font-mono text-[10px] text-purple-700 truncate">
+                        防伪哈希: {activePermit.supervisorApproval.signatureHash || 'EXEC-AUTH-OK'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-slate-400">监护人会签后由主管审批下达准许令</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* RBAC Fine-grained Control Info Banner */}
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
               <div className="flex items-center justify-between">

@@ -14,8 +14,8 @@ let techToken = "";
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
   app = await createApp();
-  adminToken = (await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "password123" })).body.token;
-  techToken = (await request(app).post("/api/v1/auth/login").send({ username: "tech1", password: "password123" })).body.token;
+  adminToken = (await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "Admin@2026#Demo" })).body.token;
+  techToken = (await request(app).post("/api/v1/auth/login").send({ username: "tech1", password: "Tech1@2026#Work" })).body.token;
   expect(adminToken).toBeTruthy();
   expect(techToken).toBeTruthy();
 });
@@ -155,7 +155,7 @@ describe("全局鉴权基线：白名单路径匿名可达", () => {
   });
 
   it("登录接口匿名可用（正确凭据 200 签发 token）", async () => {
-    const res = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "password123" });
+    const res = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "Admin@2026#Demo" });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("token");
   });

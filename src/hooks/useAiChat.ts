@@ -154,12 +154,11 @@ export function useAiChat(userRoleTitle?: string) {
     let chatId = '';
 
     try {
-      const token = safeStorage.getItem('auth_token');
       const res = await fetch('/api/v1/ai/chat/stream', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         signal: controller.signal,
         body: JSON.stringify({

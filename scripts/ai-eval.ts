@@ -48,7 +48,7 @@ function noFabrication(payload: any): boolean {
 }
 
 const app = await createApp();
-const login = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "password123" });
+const login = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "Admin@2026#Demo" });
 const token = login.body.token;
 if (!token) {
   console.error("[ai-eval] 登录失败，无法评测");

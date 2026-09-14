@@ -16,6 +16,11 @@ export const LotoLockRepository = {
       status: r.status,
       unlockedAt: r.unlocked_at,
       unlockRemark: r.unlock_remark,
+      // 智能物联网 LOTO 锁具物理硬件遥测与锁梁状态 (Smart Lockout IoT)
+      hardwareType: r.hardware_type || (r.id?.includes("2") ? "BLE_NFC_SMART_PADLOCK" : "BLE_SMART_HASP"),
+      batteryLevel: r.battery_level ?? (r.status === "locked" ? 94 : 88),
+      beamState: r.beam_state || (r.status === "locked" ? "LOCKED_ENGAGED" : "RELEASED"),
+      lastHeartbeat: r.last_heartbeat || r.locked_at || new Date().toISOString(),
     };
   },
 

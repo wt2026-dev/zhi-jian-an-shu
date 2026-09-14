@@ -11,6 +11,7 @@ import { pushNotification } from "../services/auditService.ts";
 import { callDashScopeJson } from "../services/aiClient.ts";
 import { aiCacheInvalidateEquipment } from "../../utils/aiCache.ts";
 import { STATUS_LABELS, pushWorkOrderLog, ALLOWED_TRANSITIONS, DUPLICATE_WINDOW_MS } from "./workOrderController.ts";
+import { logger } from "../../utils/logger.ts";
 
 // 6. 创建工单
 export async function handleCreateWorkOrder(req: any, res: any) {
@@ -69,7 +70,7 @@ export async function handleCreateWorkOrder(req: any, res: any) {
 
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const orderNo = `WO-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
+    const orderNo = `WO-${dateStr}-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`;
     const id = `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const createdAtStr = now.toISOString();
 
@@ -126,6 +127,7 @@ export async function handleCreateWorkOrder(req: any, res: any) {
 
     res.status(201).json(created || newOrder);
   } catch (err: any) {
+    logger.error({ err }, `[handleCreateWorkOrder] 创建工单失败: ${err?.message}`);
     res.status(500).json({ error: "创建工单失败: " + err.message });
   }
 }

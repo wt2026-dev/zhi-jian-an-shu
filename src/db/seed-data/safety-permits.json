@@ -1,0 +1,711 @@
+[
+  {
+    "id": "sp-101",
+    "permitNo": "SP-20260902-01",
+    "permitType": "动火作业票",
+    "riskLevel": "极大风险 (Level 1)",
+    "title": "3# 轧机主传动行星减速箱齿圈表面等离子电弧热喷涂补焊",
+    "equipmentId": "eq-103",
+    "equipmentName": "3# 轧机主传动行星减速箱",
+    "workshop": "重型热轧车间",
+    "location": "主轧制线 3# 精轧机组侧",
+    "applicant": "张建国 (高级技师)",
+    "applicantDept": "机械维保一班",
+    "appliedAt": "2026/09/02 08:30:00",
+    "validUntil": "2026/09/02 18:00:00",
+    "status": "pending_approval",
+    "precautions": [
+      "动火作业点半径 10 米内易燃润滑油脂及棉纱必须彻底清理干净",
+      "现场配备两具 8kg 磷酸铵盐干粉灭火器及灭火水带，保持消防水压正常",
+      "必须办理 LOTO 停电上锁隔离，并实施机械传动制动闭锁"
+    ],
+    "lotoNumber": "LOTO-2026-0902-01",
+    "hazards": [
+      "高温飞溅灼伤",
+      "易燃油气爆燃",
+      "高温有害烟气吸入"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "作业区域周边 10m 内易燃杂物清除",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "消防灭火器材就位且压力指针在绿区",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "电焊机外壳有效接地，二次线绝缘良好",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "受限空间/易燃气体可燃度测试合格",
+        "checked": false
+      }
+    ],
+    "gasTestResults": {
+      "oxygen": 20.9,
+      "combustible_gas": 0.05,
+      "toxic_gas": 0,
+      "tester": "赵安全",
+      "test_time": "2026/09/02 08:45:00"
+    },
+    "guardianApproval": {
+      "signed": true,
+      "name": "赵安全",
+      "role": "现场专职安全监护员",
+      "signedAt": "2026/09/02 08:50:00",
+      "comment": "现场防火隔离帘布已铺设，气体检测仪读数正常合格，符合监护要求。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": null,
+    "closedAt": null,
+    "closedBy": null,
+    "closeRemark": null,
+    "version": 1
+  },
+  {
+    "id": "sp-102",
+    "permitNo": "SP-20260902-02",
+    "permitType": "受限空间作业票",
+    "riskLevel": "极大风险 (Level 1)",
+    "title": "给水泵房地下蓄水廊道泥沙清淤与进水滤网防腐探伤",
+    "equipmentId": "eq-101",
+    "equipmentName": "1# 离心主循环给水泵",
+    "workshop": "动力一车间",
+    "location": "地下 -4.5m 进水涵洞",
+    "applicant": "李志强 (电气专工)",
+    "applicantDept": "动力机电检修班",
+    "appliedAt": "2026/09/02 07:40:00",
+    "validUntil": "2026/09/02 12:00:00",
+    "status": "approved",
+    "precautions": [
+      "强制机械送风通风至少 30 分钟方可入内",
+      "持续佩戴四合一便携式多气体检测报警仪",
+      "必须系挂全身式安全带及防坠救生绳"
+    ],
+    "lotoNumber": "LOTO-2026-0902-02",
+    "hazards": [
+      "缺氧窒息",
+      "硫化氢/一氧化碳中毒",
+      "滑跌淹溺"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "进水管道阀门双重截止上锁并加盲板",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "轴流风机持续送风且风量满足规范",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "36V 安全电压防爆防潮照明灯",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "洞口双人警戒监护与对讲联络正常",
+        "checked": true
+      }
+    ],
+    "gasTestResults": {
+      "oxygen": 21,
+      "combustible_gas": 0,
+      "toxic_gas": 0,
+      "tester": "赵安全",
+      "test_time": "2026/09/02 07:50:00"
+    },
+    "guardianApproval": {
+      "signed": true,
+      "name": "赵安全",
+      "role": "现场专职安全监护员",
+      "signedAt": "2026/09/02 08:00:00",
+      "comment": "连续强制排风合格，多气体检测正常，救生三脚架绳索牢固。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": {
+      "signed": true,
+      "name": "陈主管",
+      "role": "车间安全总监/主管",
+      "signedAt": "2026/09/02 08:15:00",
+      "comment": "安全前置措施完备，双人会签合格，核准作业。"
+    },
+    "closedAt": null,
+    "closedBy": null,
+    "closeRemark": null,
+    "version": 2
+  },
+  {
+    "id": "sp-103",
+    "permitNo": "SP-20260904-03",
+    "permitType": "高处作业票",
+    "riskLevel": "较大风险 (Level 2)",
+    "title": "16# 环冷机余热回收烟道顶部栏杆更换与平台防腐补漆 (标高 +18.6m)",
+    "equipmentId": "eq-116",
+    "equipmentName": "16# 环冷机余热回收热管换热器",
+    "workshop": "烧结车间",
+    "location": "环冷机余热回收段 16# 烟道顶部平台 (+18.6m)",
+    "applicant": "张建国 (高级技师)",
+    "applicantDept": "机械维保一班",
+    "appliedAt": "2026/09/04 07:20:00",
+    "validUntil": "2026/09/04 16:30:00",
+    "status": "approved",
+    "precautions": [
+      "作业人员必须持高处作业证上岗，正确系挂全身式双钩安全带 (高挂低用)",
+      "遇 6 级以上大风、雷雨、浓雾等恶劣天气立即停止作业",
+      "作业平台下方设置警戒区与专人看护，严禁交叉作业",
+      "严禁上下投掷工具材料，必须使用工具袋与绳索传递"
+    ],
+    "lotoNumber": null,
+    "hazards": [
+      "高处坠落",
+      "物体打击",
+      "焊接火花引燃下方可燃物"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "安全带、安全帽、防滑鞋穿戴齐全并检验合格",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "脚手架/平台验收挂牌，护栏踢脚板完好",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "下方警戒区设置到位并设专人监护",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "作业工具系绳防坠，工具袋完好",
+        "checked": true
+      }
+    ],
+    "gasTestResults": null,
+    "guardianApproval": {
+      "signed": true,
+      "name": "赵安全",
+      "role": "现场专职安全监护员",
+      "signedAt": "2026/09/04 07:55:00",
+      "comment": "脚手架验收牌齐全、生命线拉设规范，作业人员持证，同意高处作业。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": {
+      "signed": true,
+      "name": "陈建平",
+      "role": "总工 / 机电部长",
+      "signedAt": "2026/09/04 08:20:00",
+      "comment": "二级高处作业安全交底完成，双人会签合格，核准作业。"
+    },
+    "closedAt": null,
+    "closedBy": null,
+    "closeRemark": null,
+    "version": 2
+  },
+  {
+    "id": "sp-104",
+    "permitNo": "SP-20260904-04",
+    "permitType": "吊装作业票",
+    "riskLevel": "较大风险 (Level 2)",
+    "title": "12# 结晶器冷却循环泵电机 (2.4t) 拆除吊装外运检修",
+    "equipmentId": "eq-112",
+    "equipmentName": "12# 连铸结晶器冷却循环泵",
+    "workshop": "连铸车间",
+    "location": "连铸机结晶器水泵房 12# 机位",
+    "applicant": "周大伟 (吊装司机)",
+    "applicantDept": "物流装运车间",
+    "appliedAt": "2026/09/04 09:10:00",
+    "validUntil": "2026/09/04 15:00:00",
+    "status": "active",
+    "precautions": [
+      "严格执行起重吊装十不吊，由持证起重指挥统一信号指挥",
+      "吊物下方及吊臂旋转半径内严禁站人，设置硬质警戒隔离",
+      "作业前检查吊钩防脱装置、钢丝绳断丝与卸扣变形情况",
+      "额定载荷 2.4t 使用 5t 吊带 (安全系数 ≥ 6)，严禁超载斜拉斜吊"
+    ],
+    "lotoNumber": "LOTO-2026-0904-04",
+    "hazards": [
+      "起重伤害 / 吊物坠落",
+      "机械挤压",
+      "吊索具断裂打击"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "起重机械检验合格证在有效期内",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "吊索具点检合格，无断丝/变形/裂纹",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "吊装区域警戒线设置与专人监护到位",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "吊物重量核实准确，试吊 200mm 检查制动可靠",
+        "checked": true
+      }
+    ],
+    "gasTestResults": null,
+    "guardianApproval": {
+      "signed": true,
+      "name": "赵安全",
+      "role": "现场专职安全监护员",
+      "signedAt": "2026/09/04 09:35:00",
+      "comment": "吊车支腿全伸垫实，吊索具点检合格，警戒区已封闭，准许起吊。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": {
+      "signed": true,
+      "name": "陈建平",
+      "role": "总工 / 机电部长",
+      "signedAt": "2026/09/04 09:50:00",
+      "comment": "起重方案已审批，指挥与司机持证，双人会签合格，作业生效。"
+    },
+    "closedAt": null,
+    "closedBy": null,
+    "closeRemark": null,
+    "version": 2
+  },
+  {
+    "id": "sp-105",
+    "permitNo": "SP-20260903-05",
+    "permitType": "临时用电作业票",
+    "riskLevel": "一般风险 (Level 3)",
+    "title": "连铸水泵房检修临时配电箱与手持电动工具接引 (三级配电两级保护)",
+    "equipmentId": "eq-112",
+    "equipmentName": "12# 连铸结晶器冷却循环泵",
+    "workshop": "连铸车间",
+    "location": "连铸机结晶器水泵房检修临时用电点",
+    "applicant": "李志强 (电气专工)",
+    "applicantDept": "电气维保二班",
+    "appliedAt": "2026/09/03 14:00:00",
+    "validUntil": "2026/09/06 18:00:00",
+    "status": "approved",
+    "precautions": [
+      "严格执行三级配电两级保护，末级开关箱漏电动作电流 ≤30mA、动作时间 ≤0.1s",
+      "电缆架空或穿管保护，严禁拖地浸水与被车辆碾压",
+      "手持电动工具必须经绝缘电阻检测合格后方可使用",
+      "每日收工必须切断临时电源并上锁，做好防雨防潮"
+    ],
+    "lotoNumber": null,
+    "hazards": [
+      "触电伤害",
+      "电气短路电弧灼伤",
+      "电缆破损漏电"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "漏电保护器试跳试验合格并记录",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "保护接零 (PE) 线连接可靠，接地电阻 ≤4Ω",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "配电箱门锁完好并张贴当心触电警示标识",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "电缆绝缘层无破损，过路处穿钢管保护",
+        "checked": true
+      }
+    ],
+    "gasTestResults": null,
+    "guardianApproval": {
+      "signed": true,
+      "name": "刘德胜",
+      "role": "现场安全监护员",
+      "signedAt": "2026/09/03 14:25:00",
+      "comment": "漏电保护试跳合格，接地电阻复测 2.7Ω，线路敷设规范，同意送电。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": {
+      "signed": true,
+      "name": "陈主管",
+      "role": "车间安全总监/主管",
+      "signedAt": "2026/09/03 14:50:00",
+      "comment": "临时用电方案合规，有效期 3 天内使用，逾期须重新开票，核准。"
+    },
+    "closedAt": null,
+    "closedBy": null,
+    "closeRemark": null,
+    "version": 2
+  },
+  {
+    "id": "sp-106",
+    "permitNo": "SP-20260903-06",
+    "permitType": "LOTO停电挂牌作业票",
+    "riskLevel": "较大风险 (Level 2)",
+    "title": "8# 烧结主抽风机同步电动机冷油器在线清洗能量隔离与挂牌上锁",
+    "equipmentId": "eq-108",
+    "equipmentName": "8# 10kV烧结主抽风机同步电动机",
+    "workshop": "烧结车间",
+    "location": "烧结主抽风机房 10kV 高压配电室 8# 柜",
+    "applicant": "李志强 (电气专工)",
+    "applicantDept": "电气维保二班",
+    "appliedAt": "2026/09/03 16:00:00",
+    "validUntil": "2026/09/03 23:00:00",
+    "status": "closed",
+    "precautions": [
+      "10kV 高压柜停电后必须执行验电、放电、挂接地线三步法并装设遮栏",
+      "上锁挂牌实行一人一锁一钥匙，严禁代解锁",
+      "主抽风机转子设机械防转销，防止气流倒灌自转伤人",
+      "送电前必须清点工具、撤离人员、摘除接地线后方可合闸"
+    ],
+    "lotoNumber": "LOTO-2026-0903-06",
+    "hazards": [
+      "高压触电",
+      "误送电导致机械卷入",
+      "残余电荷放电击伤"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "高压柜已停电、验电、放电并挂接地线",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "个人锁具上锁挂牌 (共计 3 人 3 锁) 并记录",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "现场悬挂禁止合闸标示牌与遮栏",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "风机转子防转销已安装，就地事故按钮已锁定",
+        "checked": true
+      }
+    ],
+    "gasTestResults": null,
+    "guardianApproval": {
+      "signed": true,
+      "name": "赵安全",
+      "role": "现场专职安全监护员",
+      "signedAt": "2026/09/03 16:25:00",
+      "comment": "三相验电确认无电压，接地线已挂设，三人三锁挂牌执行到位，准许检修。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": {
+      "signed": true,
+      "name": "陈主管",
+      "role": "车间安全总监/主管",
+      "signedAt": "2026/09/03 16:40:00",
+      "comment": "LOTO 能量隔离清单完整，隔离点 5 处全部确认，核准作业。"
+    },
+    "closedAt": "2026/09/03 22:40:00",
+    "closedBy": "李志强 (电气专工)",
+    "closeRemark": "冷油器清洗完毕，油质复检合格。工具人员已清点无误，接地线拆除、锁具解除，已办理作业票注销闭环并恢复送电。",
+    "version": 3
+  },
+  {
+    "id": "sp-107",
+    "permitNo": "SP-20260902-07",
+    "permitType": "动火作业票",
+    "riskLevel": "极大风险 (Level 1)",
+    "title": "制冷站氨系统管道锈蚀段补焊 (气体检测不合格被驳回)",
+    "equipmentId": "eq-113",
+    "equipmentName": "13# 螺杆式制冷压缩机组",
+    "workshop": "冷轧精整车间",
+    "location": "制冷站 5# 机组氨管道锈蚀段",
+    "applicant": "张建国 (高级技师)",
+    "applicantDept": "机械维保一班",
+    "appliedAt": "2026/09/02 15:10:00",
+    "validUntil": "2026/09/02 20:00:00",
+    "status": "rejected",
+    "precautions": [
+      "氨系统动火前必须对管段进行氮气置换并检测可燃有毒气体浓度",
+      "作业人员佩戴正压式空气呼吸器，配备氨气泄漏应急喷淋设施",
+      "动火点周边 15m 设置警戒，配备氨气检测报警仪连续监测"
+    ],
+    "lotoNumber": "LOTO-2026-0902-07",
+    "hazards": [
+      "氨气中毒窒息",
+      "氨气遇火源燃爆",
+      "冻伤 (液氨气化吸热)"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "管段已加盲板隔离并完成氮气置换",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "可燃/有毒气体检测合格 (可燃气 ≤0.5%, 氨 ≤20ppm)",
+        "checked": false
+      },
+      {
+        "id": "sc-3",
+        "item": "正压式空气呼吸器与应急喷淋设施就位",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "消防器材就位且监护人员在岗",
+        "checked": true
+      }
+    ],
+    "gasTestResults": {
+      "oxygen": 20.6,
+      "combustible_gas": 0.08,
+      "toxic_gas": 46,
+      "tester": "赵安全",
+      "test_time": "2026/09/02 15:35:00"
+    },
+    "guardianApproval": {
+      "signed": false,
+      "name": "赵安全",
+      "role": "现场专职安全监护员",
+      "signedAt": "2026/09/02 15:40:00",
+      "comment": "氨气检测 46ppm 超出 20ppm 限值，氮气置换不彻底，现场不具备动火条件，予以驳回。",
+      "gasTestPassed": false
+    },
+    "supervisorApproval": {
+      "signed": false,
+      "name": "陈主管",
+      "role": "车间安全总监/主管",
+      "signedAt": "2026/09/02 15:55:00",
+      "comment": "气体检测不合格，严禁动火。要求重新进行氮气置换至氨气浓度 ≤20ppm 后重新申报作业票。"
+    },
+    "closedAt": null,
+    "closedBy": null,
+    "closeRemark": null,
+    "version": 2
+  },
+  {
+    "id": "sp-108",
+    "permitNo": "SP-20260901-08",
+    "permitType": "受限空间作业票",
+    "riskLevel": "极大风险 (Level 1)",
+    "title": "1# 给水泵进水前池清淤与池壁防腐层修补",
+    "equipmentId": "eq-101",
+    "equipmentName": "1# 离心主循环给水泵",
+    "workshop": "动力一车间",
+    "location": "给水泵房进水前池 (受限空间, 容积 260m³)",
+    "applicant": "张建国 (高级技师)",
+    "applicantDept": "机械维保一班",
+    "appliedAt": "2026/09/01 07:30:00",
+    "validUntil": "2026/09/01 17:00:00",
+    "status": "closed",
+    "precautions": [
+      "作业前强制通风不少于 30 分钟，作业期间持续机械送风不得中断",
+      "入池人员必须系挂救生绳，池口设双人监护并保持对讲畅通",
+      "使用 36V 安全电压防爆照明，严禁使用 220V 照明与非防爆电器",
+      "每 30 分钟复测一次氧含量与有毒有害气体并记录"
+    ],
+    "lotoNumber": "LOTO-2026-0901-08",
+    "hazards": [
+      "缺氧窒息",
+      "硫化氢中毒",
+      "淹溺",
+      "池壁坍塌掩埋"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "进水阀门双重截止上锁并加装盲板",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "轴流风机持续送风，风量满足 3 次/h 换气",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "四合一气体检测仪在校验有效期内",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "三脚架、救生绳、正压式呼吸器就位",
+        "checked": true
+      }
+    ],
+    "gasTestResults": {
+      "oxygen": 20.9,
+      "combustible_gas": 0,
+      "toxic_gas": 2,
+      "tester": "赵安全",
+      "test_time": "2026/09/01 07:45:00"
+    },
+    "guardianApproval": {
+      "signed": true,
+      "name": "赵安全",
+      "role": "现场专职安全监护员",
+      "signedAt": "2026/09/01 07:55:00",
+      "comment": "强制通风 40 分钟后氧含量 20.9%，硫化氢 0ppm，救生三脚架固定牢固，准许入池。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": {
+      "signed": true,
+      "name": "陈建平",
+      "role": "总工 / 机电部长",
+      "signedAt": "2026/09/01 08:10:00",
+      "comment": "受限空间作业审批齐全，应急物资到位，双人会签合格，核准作业。"
+    },
+    "closedAt": "2026/09/01 16:20:00",
+    "closedBy": "张建国 (高级技师)",
+    "closeRemark": "清淤与池壁防腐修补完毕，人员工具已全部撤出，气体检测连续记录完整，LOTO 锁具已解除，作业票注销闭环。",
+    "version": 3
+  },
+  {
+    "id": "sp-109",
+    "permitNo": "SP-20260904-09",
+    "permitType": "高处作业票",
+    "riskLevel": "一般风险 (Level 3)",
+    "title": "成品包装线码垛区照明灯具更换与电缆桥架紧固 (标高 +6.2m)",
+    "equipmentId": "eq-115",
+    "equipmentName": "15# 成品自动码垛工业机器人",
+    "workshop": "成品包装线",
+    "location": "成品库码垛区上方灯具桥架 (+6.2m)",
+    "applicant": "李志强 (电气专工)",
+    "applicantDept": "电气维保二班",
+    "appliedAt": "2026/09/04 10:30:00",
+    "validUntil": "2026/09/04 14:00:00",
+    "status": "pending_approval",
+    "precautions": [
+      "使用检验合格的人字梯或移动平台，严禁站在码垛机器人本体上作业",
+      "作业前必须将机器人切换至手动低速模式并挂检修锁，防止误动作",
+      "更换灯具前切断照明回路电源并挂牌，验电确认无电"
+    ],
+    "lotoNumber": "LOTO-2026-0904-09",
+    "hazards": [
+      "高处坠落",
+      "触电",
+      "机器人误动作碰撞伤害"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "人字梯完好并有人扶持，防滑垫齐全",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "照明回路已断电挂牌并验电",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "机器人已挂检修锁，示教器专人保管",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "作业区域设置警戒并设监护人",
+        "checked": false
+      }
+    ],
+    "gasTestResults": null,
+    "guardianApproval": {
+      "signed": true,
+      "name": "刘德胜",
+      "role": "现场安全监护员",
+      "signedAt": "2026/09/04 10:50:00",
+      "comment": "一级高处作业，梯子与断电措施已确认。待警戒区设置完毕并补签后报主管终审。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": null,
+    "closedAt": null,
+    "closedBy": null,
+    "closeRemark": null,
+    "version": 1
+  },
+  {
+    "id": "sp-110",
+    "permitNo": "SP-20260904-10",
+    "permitType": "吊装作业票",
+    "riskLevel": "较大风险 (Level 2)",
+    "title": "7# 冷轧卷取机减速机上盖 (3.8t) 吊装开箱检齿面作业",
+    "equipmentId": "eq-107",
+    "equipmentName": "7# 冷轧卷取机主传动硬齿面减速机",
+    "workshop": "冷轧精整车间",
+    "location": "冷轧线卷取段 07# 传动位",
+    "applicant": "周大伟 (吊装司机)",
+    "applicantDept": "物流装运车间",
+    "appliedAt": "2026/09/04 08:40:00",
+    "validUntil": "2026/09/04 20:00:00",
+    "status": "active",
+    "precautions": [
+      "吊装前确认上盖与箱体联结螺栓全部拆除，严禁带力强拉",
+      "使用 4 点吊挂保持水平，试吊 100mm 静止检查无误后方可继续起升",
+      "吊运通道上方无障碍物，吊物下方严禁站人或通行",
+      "减速机已停机挂牌并执行 LOTO，防止误启动"
+    ],
+    "lotoNumber": "LOTO-2026-0904-10",
+    "hazards": [
+      "起重伤害 / 吊物坠落",
+      "机械挤压",
+      "齿轮油滑跌"
+    ],
+    "safetyChecklist": [
+      {
+        "id": "sc-1",
+        "item": "桥式起重机检验合格，制动器与限位可靠",
+        "checked": true
+      },
+      {
+        "id": "sc-2",
+        "item": "吊索具 (4 条 3t 吊带) 点检合格无损伤",
+        "checked": true
+      },
+      {
+        "id": "sc-3",
+        "item": "试吊 100mm 检查平衡与制动，无异常",
+        "checked": true
+      },
+      {
+        "id": "sc-4",
+        "item": "作业区警戒与起重指挥持证在岗",
+        "checked": true
+      }
+    ],
+    "gasTestResults": null,
+    "guardianApproval": {
+      "signed": true,
+      "name": "赵安全",
+      "role": "现场专职安全监护员",
+      "signedAt": "2026/09/04 09:05:00",
+      "comment": "吊具与指挥人员资质核验通过，LOTO 已执行，减速机已冷却至常温，准许开箱吊装。",
+      "gasTestPassed": true
+    },
+    "supervisorApproval": {
+      "signed": true,
+      "name": "陈主管",
+      "role": "车间安全总监/主管",
+      "signedAt": "2026/09/04 09:20:00",
+      "comment": "吊装方案与工单 WO-20260904-121 联动核验一致，双人会签合格，作业生效。"
+    },
+    "closedAt": null,
+    "closedBy": null,
+    "closeRemark": null,
+    "version": 2
+  }
+]

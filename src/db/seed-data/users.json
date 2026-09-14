@@ -1,0 +1,114 @@
+[
+  {
+    "id": "u-admin",
+    "username": "admin",
+    "name": "陈建平",
+    "role": "admin",
+    "roleTitle": "总工 / 机电部长",
+    "department": "生产机电保全部",
+    "phone": "13800100001",
+    "email": "chen.jp@plant.industry.cn",
+    "permissions": ["all"],
+    "certifications": [
+      { "name": "注册安全工程师", "issuer": "应急管理部", "expiry": "2027.06.30", "status": "valid" },
+      { "name": "高压电工作业证", "issuer": "省应急管理厅", "expiry": "2025.12.31", "status": "review" },
+      { "name": "一级动火监护人证", "issuer": "市应急管理局", "expiry": "2026.09.15", "status": "valid" }
+    ]
+  },
+  {
+    "id": "u-manager",
+    "username": "manager",
+    "name": "陈主管",
+    "role": "manager",
+    "roleTitle": "车间安全总监 / 维保主管",
+    "department": "动力一车间",
+    "phone": "13800100002",
+    "email": "manager.chen@plant.industry.cn",
+    "permissions": ["dispatch", "safety_final_approval", "work_order_audit", "delete_permit"],
+    "certifications": []
+  },
+  {
+    "id": "u-tech1",
+    "username": "tech1",
+    "name": "张建国",
+    "role": "technician",
+    "roleTitle": "机电检修高级技师",
+    "department": "机械维保一班",
+    "phone": "13800100003",
+    "email": "zhang.jg@plant.industry.cn",
+    "permissions": ["claim_order", "complete_order", "safety_apply"],
+    "certifications": []
+  },
+  {
+    "id": "u-inspector",
+    "username": "inspector",
+    "name": "赵安全",
+    "role": "inspector",
+    "roleTitle": "点检工程师 / 专职安全监护员",
+    "department": "安全环保与设备质检科",
+    "phone": "13800100004",
+    "email": "zhao.safe@plant.industry.cn",
+    "permissions": ["inspection", "safety_guardian_approval", "qa_acceptance"],
+    "certifications": []
+  },
+  {
+    "id": "u-operator",
+    "username": "operator",
+    "name": "王操作",
+    "role": "operator",
+    "roleTitle": "现场生产岗位操作工",
+    "department": "热轧重型车间",
+    "phone": "13800100005",
+    "email": "wang.op@plant.industry.cn",
+    "permissions": ["create_work_order", "scan_qr"],
+    "certifications": []
+  },
+  {
+    "id": "u-tech2",
+    "username": "tech2",
+    "name": "李志强",
+    "role": "technician",
+    "roleTitle": "电气专工 / 高压试验负责人",
+    "department": "电气维保二班",
+    "phone": "13800100006",
+    "email": "li.zq@plant.industry.cn",
+    "permissions": ["claim_order", "complete_order", "safety_apply", "loto_operation"],
+    "certifications": []
+  },
+  {
+    "id": "u-inspector2",
+    "username": "inspector2",
+    "name": "刘德胜",
+    "role": "inspector",
+    "roleTitle": "巡检主管 / 设备状态点检长",
+    "department": "安全环保与设备质检科",
+    "phone": "13800100007",
+    "email": "liu.ds@plant.industry.cn",
+    "permissions": ["inspection", "safety_guardian_approval", "qa_acceptance", "inspection_route_manage"],
+    "certifications": []
+  },
+  {
+    "id": "u-operator2",
+    "username": "operator2",
+    "name": "周大伟",
+    "role": "user",
+    "roleTitle": "吊装司机 / 起重机械操作岗",
+    "department": "物流装运车间",
+    "phone": "13800100008",
+    "email": "zhou.dw@plant.industry.cn",
+    "permissions": ["create_work_order", "scan_qr", "lifting_operation"],
+    "certifications": []
+  },
+  {
+    "id": "u-archivist",
+    "username": "archivist",
+    "name": "吴晓芳",
+    "role": "archivist",
+    "roleTitle": "档案管理员 / 检修知识库专员",
+    "department": "生产机电保全部",
+    "phone": "13800100009",
+    "email": "wu.xf@plant.industry.cn",
+    "permissions": ["knowledge_manage", "archive_export", "view_audit"],
+    "certifications": []
+  }
+]

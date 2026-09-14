@@ -233,6 +233,8 @@ export interface SafetyPermit {
     signedAt?: string;
     comment?: string;
     gasTestPassed?: boolean;
+    signatureHash?: string;
+    signatureMethod?: string;
   } | null;
   supervisorApproval?: {
     signed: boolean;
@@ -240,6 +242,8 @@ export interface SafetyPermit {
     role?: string;
     signedAt?: string;
     comment?: string;
+    signatureHash?: string;
+    signatureMethod?: string;
   } | null;
   hazards?: string[];
   safetyChecklist?: {
@@ -333,6 +337,11 @@ export interface LotoLock {
   status: 'locked' | 'unlocked' | string;
   unlockedAt?: string | null;
   unlockRemark?: string | null;
+  // 智能物联网 LOTO 锁具物理硬件遥测与锁梁状态 (Smart Lockout IoT)
+  hardwareType?: 'BLE_NFC_SMART_PADLOCK' | 'MANUAL_HASP_LOCK' | string;
+  batteryLevel?: number; // 锁具电量百分比
+  beamState?: 'LOCKED_ENGAGED' | 'RELEASED' | 'TAMPER_ALERT' | string; // 锁梁物理咬合传感器状态
+  lastHeartbeat?: string; // 锁具基站通信心跳
 }
 
 // 生产环境安全审计日志数据模型 (Operation Audit Log)

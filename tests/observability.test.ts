@@ -31,7 +31,7 @@ describe("5. 生产可观测性与健康检查测试 (Observability Suite)", () 
     // 全局鉴权基线生效后 /api/v1/* 需要登录，先取 token 再触发异常端点
     const loginRes = await request(app)
       .post("/api/v1/auth/login")
-      .send({ username: "admin", password: "password123" });
+      .send({ username: "admin", password: "Admin@2026#Demo" });
     const res = await request(app)
       .get("/api/v1/test/error")
       .set("Authorization", `Bearer ${loginRes.body.token}`);

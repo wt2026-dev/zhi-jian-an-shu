@@ -1,0 +1,730 @@
+[
+  {
+    "id": "eq-101",
+    "code": "EQ-2024-PUMP-01",
+    "name": "1# 离心主循环给水泵",
+    "category": "泵类设备",
+    "model": "KOBELCO KIS-300D",
+    "workshop": "动力一车间",
+    "location": "给水泵房 A 区 101# 机位",
+    "installDate": "2021-03-15",
+    "manufacturer": "神户制钢 (KOBELCO)",
+    "status": "warning",
+    "healthScore": 78,
+    "criticality": "特级核心",
+    "telemetry": {
+      "temperature": 78.5,
+      "vibration": 4.8,
+      "voltage": 380,
+      "current": 65.2,
+      "rpm": 2980,
+      "loadRate": 85,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "额定流量": "320 m³/h",
+      "额定扬程": "85 m",
+      "额定功率": "110 kW",
+      "密封类型": "双端面机械密封"
+    },
+    "maintenanceHistory": [],
+    "nextInspectionDate": "2026-09-10",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-PUMP-01"
+  },
+  {
+    "id": "eq-102",
+    "code": "EQ-2024-COMP-02",
+    "name": "2# 无油螺杆空压机主机",
+    "category": "压缩机类",
+    "model": "阿特拉斯·科普柯 ZR-250",
+    "workshop": "动力一车间",
+    "location": "压缩机房 B 区 202# 机位",
+    "installDate": "2020-08-20",
+    "manufacturer": "Atlas Copco (瑞典)",
+    "status": "running",
+    "healthScore": 92,
+    "criticality": "一级关键",
+    "telemetry": {
+      "temperature": 68.2,
+      "vibration": 1.8,
+      "voltage": 380,
+      "current": 142,
+      "rpm": 1480,
+      "loadRate": 72,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "排气压力": "0.85 MPa",
+      "容积流量": "42.5 m³/min",
+      "额定功率": "250 kW"
+    },
+    "maintenanceHistory": [],
+    "nextInspectionDate": "2026-09-15",
+    "assignedTechnician": "李志强 (电气专工)",
+    "qrCode": "QR-EQ-COMP-02"
+  },
+  {
+    "id": "eq-103",
+    "code": "EQ-2024-GEAR-03",
+    "name": "3# 轧机主传动行星减速箱",
+    "category": "齿轮传动",
+    "model": "弗兰德 FLENDER PLN-450",
+    "workshop": "重型热轧车间",
+    "location": "粗轧机组下道 03# 主轴位",
+    "installDate": "2019-11-10",
+    "manufacturer": "弗兰德传动系统 (Flender)",
+    "status": "critical",
+    "healthScore": 54,
+    "criticality": "特级核心",
+    "telemetry": {
+      "temperature": 91.3,
+      "vibration": 7.4,
+      "voltage": 0,
+      "current": 0,
+      "rpm": 980,
+      "loadRate": 92,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "传动比": "1:18.5",
+      "额定扭矩": "125 kN·m",
+      "润滑油牌号": "ISO VG 320 重负荷工业齿轮油"
+    },
+    "maintenanceHistory": [],
+    "nextInspectionDate": "2026-09-03",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-GEAR-03"
+  },
+  {
+    "id": "eq-104",
+    "code": "EQ-2024-MOT-04",
+    "name": "4# 10kV高压循环水主电机",
+    "category": "大型电机",
+    "model": "西门子 1LA4 500-4",
+    "workshop": "公用工程车间",
+    "location": "循环水池泵房配电间",
+    "installDate": "2022-05-18",
+    "manufacturer": "西门子电机 (中国)",
+    "status": "running",
+    "healthScore": 96,
+    "criticality": "主要生产",
+    "telemetry": {
+      "temperature": 54.1,
+      "vibration": 0.9,
+      "voltage": 10000,
+      "current": 38,
+      "rpm": 1495,
+      "loadRate": 68,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "额定电压": "10 kV",
+      "额定功率": "630 kW",
+      "绝缘等级": "F级"
+    },
+    "maintenanceHistory": [],
+    "nextInspectionDate": "2026-10-01",
+    "assignedTechnician": "赵安全 (安全总监)",
+    "qrCode": "QR-EQ-MOT-04"
+  },
+  {
+    "id": "eq-105",
+    "code": "EQ-2024-PUMP-05",
+    "name": "5# 多级高压锅炉给水泵",
+    "category": "泵类设备",
+    "model": "沈阳水泵 DG46-50×8 (8级)",
+    "workshop": "动力一车间",
+    "location": "锅炉给水泵房 C 区 105# 机位",
+    "installDate": "2021-06-22",
+    "manufacturer": "沈阳鼓风机集团水泵厂",
+    "status": "running",
+    "healthScore": 88,
+    "criticality": "一级关键",
+    "telemetry": {
+      "temperature": 62.4,
+      "vibration": 2.1,
+      "voltage": 6000,
+      "current": 46.3,
+      "rpm": 2985,
+      "loadRate": 79.5,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "额定流量": "46 m³/h",
+      "额定扬程": "400 m",
+      "额定功率": "450 kW",
+      "级数": "8 级 (平衡盘轴向力自平衡)",
+      "密封类型": "集装式机械密封 + 平衡盘"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-105-1",
+        "orderNo": "WO-20260312-017",
+        "date": "2026-03-12",
+        "type": "定期大修",
+        "technician": "张建国",
+        "cost": 18600,
+        "durationHours": 14.5,
+        "summary": "解体检查首级叶轮与导叶，更换平衡盘密封环，复测转子轴向窜动量至 0.18mm。",
+        "partsReplaced": [
+          "首级叶轮密封环",
+          "平衡盘耐磨环",
+          "机械密封集装件 60mm"
+        ]
+      },
+      {
+        "id": "mr-105-2",
+        "orderNo": "WO-20260708-041",
+        "date": "2026-07-08",
+        "type": "状态检修",
+        "technician": "张建国",
+        "cost": 3200,
+        "durationHours": 3,
+        "summary": "非驱动端轴承补充 3# 锂基脂，清理稀油站双联滤网并复测油压 0.34MPa。",
+        "partsReplaced": [
+          "双联滤网滤芯",
+          "3# 通用锂基润滑脂 2kg"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-12",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-PUMP-05"
+  },
+  {
+    "id": "eq-106",
+    "code": "EQ-2024-COMP-06",
+    "name": "6# 离心式工艺空气压缩机",
+    "category": "压缩机类",
+    "model": "陕鼓动力 EI1000-3.2/0.98",
+    "workshop": "公用工程车间",
+    "location": "空压站 3# 机房 106# 机位",
+    "installDate": "2020-11-08",
+    "manufacturer": "西安陕鼓动力 (SHAANGU)",
+    "status": "running",
+    "healthScore": 90,
+    "criticality": "一级关键",
+    "telemetry": {
+      "temperature": 71.6,
+      "vibration": 1.5,
+      "voltage": 10000,
+      "current": 68.4,
+      "rpm": 7600,
+      "loadRate": 81,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "容积流量": "1000 m³/min",
+      "排气压力": "0.98 MPa",
+      "轴功率": "5200 kW",
+      "冷却方式": "级间水冷 + 末端后冷器"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-106-1",
+        "orderNo": "WO-20260520-026",
+        "date": "2026-05-20",
+        "type": "定期大修",
+        "technician": "李志强",
+        "cost": 76000,
+        "durationHours": 26,
+        "summary": "年度大修：检查三元流叶轮叶型与推力瓦块，级间冷却器化学清洗除垢，复测轴振动。",
+        "partsReplaced": [
+          "推力瓦块 (可倾瓦式)",
+          "级间冷却器密封垫",
+          "气封梳齿组件"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-20",
+    "assignedTechnician": "李志强 (电气专工)",
+    "qrCode": "QR-EQ-COMP-06"
+  },
+  {
+    "id": "eq-107",
+    "code": "EQ-2024-GEAR-07",
+    "name": "7# 冷轧卷取机主传动硬齿面减速机",
+    "category": "传动减速机",
+    "model": "SEW-EURODRIVE M4PSF80",
+    "workshop": "冷轧精整车间",
+    "location": "冷轧线卷取段 07# 传动位",
+    "installDate": "2019-04-26",
+    "manufacturer": "SEW-传动设备 (天津)",
+    "status": "warning",
+    "healthScore": 71,
+    "criticality": "一级关键",
+    "telemetry": {
+      "temperature": 76.8,
+      "vibration": 5.2,
+      "voltage": 0,
+      "current": 0,
+      "rpm": 1180,
+      "loadRate": 86,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "传动比": "1:12.6",
+      "额定输出扭矩": "86 kN·m",
+      "润滑油牌号": "ISO VG 220 重负荷工业齿轮油",
+      "齿面硬度": "HRC 58-62 (渗碳淬火磨齿)"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-107-1",
+        "orderNo": "WO-20260218-009",
+        "date": "2026-02-18",
+        "type": "状态检修",
+        "technician": "张建国",
+        "cost": 9800,
+        "durationHours": 7.5,
+        "summary": "高速轴输出端骨架油封渗漏处理，开箱检查齿面接触斑点并重新调整轴承游隙。",
+        "partsReplaced": [
+          "骨架油封 130×160×12",
+          "ISO VG220 齿轮油 60L"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-06",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-GEAR-07"
+  },
+  {
+    "id": "eq-108",
+    "code": "EQ-2024-MOT-08",
+    "name": "8# 10kV烧结主抽风机同步电动机",
+    "category": "大型电机",
+    "model": "湘潭电机 TDMK1600-12/1730",
+    "workshop": "烧结车间",
+    "location": "烧结主抽风机房 8# 驱动端",
+    "installDate": "2020-02-14",
+    "manufacturer": "湘潭电机股份有限公司",
+    "status": "running",
+    "healthScore": 94,
+    "criticality": "特级核心",
+    "telemetry": {
+      "temperature": 58.3,
+      "vibration": 1.2,
+      "voltage": 10000,
+      "current": 108.6,
+      "rpm": 495,
+      "loadRate": 83,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "额定电压": "10 kV",
+      "额定功率": "1600 kW",
+      "极数": "12 极 (同步转速 500 rpm)",
+      "绝缘等级": "F 级 (B 级温升考核)",
+      "冷却方式": "空-水冷 (IC81W)"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-108-1",
+        "orderNo": "WO-20260416-014",
+        "date": "2026-04-16",
+        "type": "定期大修",
+        "technician": "李志强",
+        "cost": 42000,
+        "durationHours": 18,
+        "summary": "抽转子处理，定子绕组清洗烘干后浸漆，复测绝缘电阻 2500MΩ、吸收比 1.62 合格。",
+        "partsReplaced": [
+          "滑动轴瓦巴氏合金瓦块",
+          "励磁碳刷组件",
+          "冷油器铜管堵漏 3 根"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-18",
+    "assignedTechnician": "李志强 (电气专工)",
+    "qrCode": "QR-EQ-MOT-08"
+  },
+  {
+    "id": "eq-109",
+    "code": "EQ-2024-CNC-09",
+    "name": "9# 五轴数控龙门加工中心",
+    "category": "数控机床",
+    "model": "沈阳机床 GMC2560u/5X",
+    "workshop": "机加工车间",
+    "location": "机加工恒温车间 B 跨 09# 工位",
+    "installDate": "2023-03-09",
+    "manufacturer": "沈阳机床 (SMTCL)",
+    "status": "running",
+    "healthScore": 87,
+    "criticality": "主要生产",
+    "telemetry": {
+      "temperature": 41.2,
+      "vibration": 0.7,
+      "voltage": 380,
+      "current": 46.8,
+      "rpm": 8000,
+      "loadRate": 62,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "工作台尺寸": "2500 × 6000 mm",
+      "主轴最高转速": "12000 rpm (电主轴)",
+      "定位精度": "±0.008 mm",
+      "数控系统": "SIEMENS SINUMERIK 840D sl"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-109-1",
+        "orderNo": "WO-20260625-033",
+        "date": "2026-06-25",
+        "type": "定期保养",
+        "technician": "张建国",
+        "cost": 5400,
+        "durationHours": 6,
+        "summary": "主轴拉刀机构碟形弹簧组更换，X/Y/Z 轴导轨润滑脂加注，激光干涉仪补偿反向间隙。",
+        "partsReplaced": [
+          "主轴碟形弹簧组",
+          "导轨润滑脂 1.5kg",
+          "切削液浓缩液 20L"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-25",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-CNC-09"
+  },
+  {
+    "id": "eq-110",
+    "code": "EQ-2024-ROB-10",
+    "name": "10# 六轴重载搬运工业机器人",
+    "category": "工业机器人",
+    "model": "KUKA KR 360-3 PA",
+    "workshop": "智能装配车间",
+    "location": "智能装配岛 3# 工位",
+    "installDate": "2022-09-30",
+    "manufacturer": "库卡机器人 (KUKA)",
+    "status": "warning",
+    "healthScore": 69,
+    "criticality": "主要生产",
+    "telemetry": {
+      "temperature": 52.7,
+      "vibration": 2.8,
+      "voltage": 380,
+      "current": 24.6,
+      "rpm": 0,
+      "loadRate": 64,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "额定负载": "360 kg",
+      "最大臂展": "3200 mm",
+      "重复定位精度": "±0.08 mm",
+      "防护等级": "IP65 (铸造专家型)"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-110-1",
+        "orderNo": "WO-20260810-048",
+        "date": "2026-08-10",
+        "type": "状态检修",
+        "technician": "李志强",
+        "cost": 6800,
+        "durationHours": 4.5,
+        "summary": "J3 轴 RV 减速机异响检查，更换减速机润滑脂并复测各轴零位标定偏差。",
+        "partsReplaced": [
+          "RV 减速机专用润滑脂 0.8kg",
+          "J3 轴油封"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-05",
+    "assignedTechnician": "李志强 (电气专工)",
+    "qrCode": "QR-EQ-ROB-10"
+  },
+  {
+    "id": "eq-111",
+    "code": "EQ-2024-HEX-11",
+    "name": "11# 板式热交换器组 (循环水/软水)",
+    "category": "换热容器",
+    "model": "阿法拉伐 T20-BFG (M10 板片)",
+    "workshop": "公用工程车间",
+    "location": "换热站 D 列 11# 机组",
+    "installDate": "2021-08-11",
+    "manufacturer": "Alfa Laval (瑞典)",
+    "status": "running",
+    "healthScore": 91,
+    "criticality": "主要生产",
+    "telemetry": {
+      "temperature": 48.6,
+      "vibration": 0.4,
+      "voltage": 0,
+      "current": 0,
+      "rpm": 0,
+      "loadRate": 74,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "换热面积": "260 m²",
+      "设计压力": "1.0 MPa",
+      "设计温度": "150 °C",
+      "板片材质": "AISI 316L 不锈钢"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-111-1",
+        "orderNo": "WO-20260506-022",
+        "date": "2026-05-06",
+        "type": "定期保养",
+        "technician": "张建国",
+        "cost": 7300,
+        "durationHours": 9,
+        "summary": "板片整体拆解高压水射流清洗，更换老化密封胶条 42 片，1.25 倍设计压力水压试验合格。",
+        "partsReplaced": [
+          "板片密封胶条 (NBR) 42片",
+          "夹紧螺栓螺母组 8套"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-28",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-HEX-11"
+  },
+  {
+    "id": "eq-112",
+    "code": "EQ-2024-PUMP-12",
+    "name": "12# 连铸结晶器冷却循环泵",
+    "category": "泵类设备",
+    "model": "格兰富 NBG 200-150-400/451",
+    "workshop": "连铸车间",
+    "location": "连铸机结晶器水泵房 12# 机位",
+    "installDate": "2022-01-25",
+    "manufacturer": "格兰富 (GRUNDFOS)",
+    "status": "fault",
+    "healthScore": 42,
+    "criticality": "特级核心",
+    "telemetry": {
+      "temperature": 94.7,
+      "vibration": 8.6,
+      "voltage": 380,
+      "current": 78.3,
+      "rpm": 1475,
+      "loadRate": 96,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "额定流量": "420 m³/h",
+      "额定扬程": "52 m",
+      "额定功率": "90 kW",
+      "密封类型": "集装式机械密封",
+      "介质温度": "≤ 95 °C (软化冷却水)"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-112-1",
+        "orderNo": "WO-20260122-005",
+        "date": "2026-01-22",
+        "type": "应急抢修",
+        "technician": "张建国",
+        "cost": 15600,
+        "durationHours": 8.5,
+        "summary": "叶轮口环严重磨损导致流量不足，更换叶轮与口环并做动平衡校验。",
+        "partsReplaced": [
+          "不锈钢叶轮",
+          "泵体口环",
+          "机械密封集装件"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-04 (今日到期)",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-PUMP-12"
+  },
+  {
+    "id": "eq-113",
+    "code": "EQ-2024-COMP-13",
+    "name": "13# 螺杆式制冷压缩机组",
+    "category": "压缩机类",
+    "model": "约克 YSFAAS55-CHE (R717)",
+    "workshop": "冷轧精整车间",
+    "location": "制冷站 5# 机组位",
+    "installDate": "2021-12-06",
+    "manufacturer": "江森自控约克 (Johnson Controls-YORK)",
+    "status": "running",
+    "healthScore": 85,
+    "criticality": "主要生产",
+    "telemetry": {
+      "temperature": 64.2,
+      "vibration": 2.4,
+      "voltage": 380,
+      "current": 152.8,
+      "rpm": 2960,
+      "loadRate": 76,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "制冷剂": "R717 (氨)",
+      "制冷量": "1750 kW",
+      "电机功率": "400 kW",
+      "蒸发温度": "-12 °C"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-113-1",
+        "orderNo": "WO-20260330-019",
+        "date": "2026-03-30",
+        "type": "定期保养",
+        "technician": "李志强",
+        "cost": 12800,
+        "durationHours": 10,
+        "summary": "更换冷冻机油与油过滤器，清洗油冷却器，校验高低压压力控制器与油压差开关动作值。",
+        "partsReplaced": [
+          "冷冻机油 200L",
+          "油过滤器芯 3只",
+          "油压差开关"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-22",
+    "assignedTechnician": "李志强 (电气专工)",
+    "qrCode": "QR-EQ-COMP-13"
+  },
+  {
+    "id": "eq-114",
+    "code": "EQ-2024-MOT-14",
+    "name": "14# 成品线变频调速三相异步电机 (备用)",
+    "category": "大型电机",
+    "model": "ABB M3BP 400LA4 (变频专用)",
+    "workshop": "成品包装线",
+    "location": "包装线输送驱动站 14# 备用位",
+    "installDate": "2023-07-19",
+    "manufacturer": "ABB 电机 (上海)",
+    "status": "standby",
+    "healthScore": 97,
+    "criticality": "主要生产",
+    "telemetry": {
+      "temperature": 34.8,
+      "vibration": 0.05,
+      "voltage": 380,
+      "current": 0,
+      "rpm": 0,
+      "loadRate": 0,
+      "lastUpdated": "备用热态待机 (防潮加热器投运)"
+    },
+    "specs": {
+      "额定电压": "380 V",
+      "额定功率": "315 kW",
+      "调速范围": "5 ~ 50 Hz (变频运行)",
+      "绝缘等级": "H 级 (变频耐电晕漆包线)",
+      "编码器": "增量式 1024 ppr"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-114-1",
+        "orderNo": "WO-20260715-045",
+        "date": "2026-07-15",
+        "type": "定期保养",
+        "technician": "李志强",
+        "cost": 1800,
+        "durationHours": 2.5,
+        "summary": "备用电机定期绝缘检测 (相间及对地绝缘 800MΩ)，轴承补脂并投运防潮空间加热器。",
+        "partsReplaced": [
+          "聚脲基润滑脂 0.6kg"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-10-08",
+    "assignedTechnician": "李志强 (电气专工)",
+    "qrCode": "QR-EQ-MOT-14"
+  },
+  {
+    "id": "eq-115",
+    "code": "EQ-2024-ROB-15",
+    "name": "15# 成品自动码垛工业机器人",
+    "category": "工业机器人",
+    "model": "ABB IRB 660-180",
+    "workshop": "成品包装线",
+    "location": "成品库码垛区 15# 工位",
+    "installDate": "2022-11-15",
+    "manufacturer": "ABB 机器人 (中国)",
+    "status": "running",
+    "healthScore": 89,
+    "criticality": "主要生产",
+    "telemetry": {
+      "temperature": 44.1,
+      "vibration": 1.6,
+      "voltage": 380,
+      "current": 18.9,
+      "rpm": 0,
+      "loadRate": 58,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "额定负载": "180 kg",
+      "最大臂展": "3150 mm",
+      "码垛节拍": "1900 次/小时",
+      "重复定位精度": "±0.05 mm"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-115-1",
+        "orderNo": "WO-20260828-052",
+        "date": "2026-08-28",
+        "type": "状态检修",
+        "technician": "张建国",
+        "cost": 2600,
+        "durationHours": 3,
+        "summary": "真空抓具吸盘老化导致掉箱，更换真空吸盘 16 件并重新标定抓取点位偏移。",
+        "partsReplaced": [
+          "真空吸盘 (波纹型) 16件",
+          "真空发生器滤芯"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-16",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-ROB-15"
+  },
+  {
+    "id": "eq-116",
+    "code": "EQ-2024-HEX-16",
+    "name": "16# 环冷机余热回收热管换热器",
+    "category": "换热容器",
+    "model": "南京圣诺 SN-HP-2600 热管式换热器",
+    "workshop": "烧结车间",
+    "location": "环冷机余热回收段 16# 烟道位",
+    "installDate": "2020-05-30",
+    "manufacturer": "南京圣诺热管",
+    "status": "warning",
+    "healthScore": 74,
+    "criticality": "主要生产",
+    "telemetry": {
+      "temperature": 82.3,
+      "vibration": 1.1,
+      "voltage": 0,
+      "current": 0,
+      "rpm": 0,
+      "loadRate": 88,
+      "lastUpdated": "刚刚"
+    },
+    "specs": {
+      "换热功率": "2600 kW",
+      "烟气侧入口温度": "380 °C",
+      "设计压力": "0.6 MPa",
+      "热管材质": "钢-水重力热管 (翅片管)"
+    },
+    "maintenanceHistory": [
+      {
+        "id": "mr-116-1",
+        "orderNo": "WO-20260226-011",
+        "date": "2026-02-26",
+        "type": "状态检修",
+        "technician": "王操作",
+        "cost": 15600,
+        "durationHours": 16,
+        "summary": "热管翅片积灰严重导致换热效率衰减至 71%，高压风吹扫清灰并更换失效热管 24 根。",
+        "partsReplaced": [
+          "钢-水重力热管 24根",
+          "烟道膨胀节密封填料"
+        ]
+      }
+    ],
+    "nextInspectionDate": "2026-09-11",
+    "assignedTechnician": "张建国 (高级技师)",
+    "qrCode": "QR-EQ-HEX-16"
+  }
+]

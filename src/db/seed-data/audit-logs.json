@@ -1,0 +1,479 @@
+[
+  {
+    "id": "audit-1001",
+    "hoursAgo": 1,
+    "userId": "u-admin",
+    "userName": "陈建平",
+    "userRole": "总工 / 机电部长",
+    "ip": "192.168.1.102",
+    "actionType": "LOGIN",
+    "module": "认证中心",
+    "detail": "管理员账号密码鉴权成功，签发 JWT 访问凭证",
+    "status": "SUCCESS",
+    "metadata": {
+      "method": "PASSWORD"
+    }
+  },
+  {
+    "id": "audit-1002",
+    "hoursAgo": 0.75,
+    "userId": "u-manager",
+    "userName": "陈主管",
+    "userRole": "车间安全总监 / 维保主管",
+    "ip": "192.168.1.115",
+    "actionType": "PERMIT_APPROVE",
+    "module": "安全作业票",
+    "detail": "安全总监会签核准动火作业票 SP-20260902-01 (现场气体测试合格，防坠与消防灭火器具已核验)",
+    "status": "SUCCESS",
+    "metadata": {
+      "permitNo": "SP-20260902-01"
+    }
+  },
+  {
+    "id": "audit-1003",
+    "hoursAgo": 0.5,
+    "userId": "u-operator",
+    "userName": "王操作",
+    "userRole": "现场生产岗位操作工",
+    "ip": "192.168.2.88",
+    "actionType": "PERMIT_DELETE",
+    "module": "安全作业票",
+    "detail": "[RBAC安全拦截] 普通操作员王操作尝试删除高危作业票 SP-20260902-02，已触发细粒度权限拦截",
+    "status": "BLOCKED",
+    "metadata": {
+      "blocked": true,
+      "role": "operator"
+    }
+  },
+  {
+    "id": "audit-1004",
+    "hoursAgo": 0.25,
+    "userId": "u-tech1",
+    "userName": "张建国",
+    "userRole": "机电检修高级技师",
+    "ip": "192.168.1.103",
+    "actionType": "WORKORDER_TRANSITION",
+    "module": "工单流转",
+    "detail": "接单响应工单 WO-2026-0901-002，状态变更为进行中并绑定检修领料清单",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-2026-0901-002"
+    }
+  },
+  {
+    "id": "audit-1005",
+    "hoursAgo": 71.5,
+    "userId": "u-admin",
+    "userName": "陈建平",
+    "userRole": "总工 / 机电部长",
+    "ip": "192.168.1.102",
+    "actionType": "LOGIN",
+    "module": "认证中心",
+    "detail": "管理员登录生产机电保全工作台，加载全量设备台账",
+    "status": "SUCCESS",
+    "metadata": {
+      "method": "PASSWORD",
+      "client": "Web"
+    }
+  },
+  {
+    "id": "audit-1006",
+    "hoursAgo": 70,
+    "userId": "u-inspector2",
+    "userName": "刘德胜",
+    "userRole": "巡检主管 / 设备状态点检长",
+    "ip": "192.168.2.61",
+    "actionType": "LOGIN",
+    "module": "认证中心",
+    "detail": "巡检主管登录，同步下载当日巡检路线与测点清单",
+    "status": "SUCCESS",
+    "metadata": {
+      "method": "PASSWORD",
+      "client": "Pad"
+    }
+  },
+  {
+    "id": "audit-1007",
+    "hoursAgo": 69.2,
+    "userId": "u-inspector2",
+    "userName": "刘德胜",
+    "userRole": "巡检主管 / 设备状态点检长",
+    "ip": "192.168.2.61",
+    "actionType": "WORKORDER_CREATE",
+    "module": "工单流转",
+    "detail": "创建检修工单 WO-20260901-095：11# 板式换热器压差升高清洗 (依据 9 月年度维保计划)",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-20260901-095",
+      "equipmentId": "eq-111"
+    }
+  },
+  {
+    "id": "audit-1008",
+    "hoursAgo": 68.4,
+    "userId": "u-manager",
+    "userName": "陈主管",
+    "userRole": "车间安全总监 / 维保主管",
+    "ip": "192.168.1.115",
+    "actionType": "WORKORDER_TRANSITION",
+    "module": "工单流转",
+    "detail": "派发工单 WO-20260901-095 至 张建国 (高级技师)，要求 8 小时内完成",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-20260901-095",
+      "assigneeId": "u-tech1"
+    }
+  },
+  {
+    "id": "audit-1009",
+    "hoursAgo": 67.8,
+    "userId": "u-operator",
+    "userName": "王操作",
+    "userRole": "现场生产岗位操作工",
+    "ip": "192.168.2.88",
+    "actionType": "EQUIPMENT_STATUS_UPDATE",
+    "module": "设备台账",
+    "detail": "扫码点检上报 11# 板式换热器状态，系统同步刷新健康分至 91",
+    "status": "SUCCESS",
+    "metadata": {
+      "equipmentId": "eq-111",
+      "scan": true
+    }
+  },
+  {
+    "id": "audit-1010",
+    "hoursAgo": 66,
+    "userId": "u-tech1",
+    "userName": "张建国",
+    "userRole": "机电检修高级技师",
+    "ip": "192.168.1.103",
+    "actionType": "WORKORDER_TRANSITION",
+    "module": "工单流转",
+    "detail": "确认接单 WO-20260901-095，执行 LOTO 停电挂牌并落实安全隔离措施",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-20260901-095"
+    }
+  },
+  {
+    "id": "audit-1011",
+    "hoursAgo": 65.5,
+    "userId": "u-archivist",
+    "userName": "吴晓芳",
+    "userRole": "档案管理员 / 检修知识库专员",
+    "ip": "192.168.1.131",
+    "actionType": "KNOWLEDGE_CREATE",
+    "module": "检修知识库",
+    "detail": "归档并发布检修规程《板式换热器板片清洗与密封胶条更换 SOP 第三版》，完成 RAG 向量切片",
+    "status": "SUCCESS",
+    "metadata": {
+      "articleId": "kb-111",
+      "chunks": 4
+    }
+  },
+  {
+    "id": "audit-1012",
+    "hoursAgo": 64,
+    "userId": "u-inspector",
+    "userName": "赵安全",
+    "userRole": "点检工程师 / 专职安全监护员",
+    "ip": "192.168.1.118",
+    "actionType": "PERMIT_APPROVE",
+    "module": "安全作业票",
+    "detail": "现场监护节点会签通过受限空间作业票 SP-20260901-08 (氧含量 20.9%，硫化氢 0ppm)",
+    "status": "SUCCESS",
+    "metadata": {
+      "permitNo": "SP-20260901-08",
+      "step": "guardian"
+    }
+  },
+  {
+    "id": "audit-1013",
+    "hoursAgo": 63.2,
+    "userId": "u-manager",
+    "userName": "陈主管",
+    "userRole": "车间安全总监 / 维保主管",
+    "ip": "192.168.1.115",
+    "actionType": "PERMIT_APPROVE",
+    "module": "安全作业票",
+    "detail": "主管终审节点会签通过受限空间作业票 SP-20260901-08，双人会签合格生效",
+    "status": "SUCCESS",
+    "metadata": {
+      "permitNo": "SP-20260901-08",
+      "step": "supervisor"
+    }
+  },
+  {
+    "id": "audit-1014",
+    "hoursAgo": 61,
+    "userId": "u-tech1",
+    "userName": "张建国",
+    "userRole": "机电检修高级技师",
+    "ip": "192.168.1.103",
+    "actionType": "WORKORDER_TRANSITION",
+    "module": "工单流转",
+    "detail": "完工上报 WO-20260901-095，工时 8.0h，更换板片密封胶条 42 片，水压试验合格",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-20260901-095",
+      "workHours": 8
+    }
+  },
+  {
+    "id": "audit-1015",
+    "hoursAgo": 60,
+    "userId": "u-inspector",
+    "userName": "赵安全",
+    "userRole": "点检工程师 / 专职安全监护员",
+    "ip": "192.168.1.118",
+    "actionType": "WORKORDER_ACCEPT",
+    "module": "工单流转",
+    "detail": "质检验收工单 WO-20260901-095 合格闭环 (评分 5 星)，设备健康分回升至 91",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-20260901-095",
+      "score": 5
+    }
+  },
+  {
+    "id": "audit-1016",
+    "hoursAgo": 58.5,
+    "userId": "u-tech1",
+    "userName": "张建国",
+    "userRole": "机电检修高级技师",
+    "ip": "192.168.1.103",
+    "actionType": "PERMIT_CLOSE",
+    "module": "安全作业票",
+    "detail": "办理受限空间作业票 SP-20260901-08 注销闭环，人员工具已清点撤出，LOTO 锁具解除",
+    "status": "SUCCESS",
+    "metadata": {
+      "permitNo": "SP-20260901-08"
+    }
+  },
+  {
+    "id": "audit-1017",
+    "hoursAgo": 52,
+    "userId": "u-tech2",
+    "userName": "李志强",
+    "userRole": "电气专工 / 高压试验负责人",
+    "ip": "192.168.1.107",
+    "actionType": "PERMIT_CREATE",
+    "module": "安全作业票",
+    "detail": "创建 LOTO 停电挂牌作业票 SP-20260903-06：8# 烧结主抽风机同步电机冷油器清洗能量隔离",
+    "status": "SUCCESS",
+    "metadata": {
+      "permitNo": "SP-20260903-06",
+      "lotoNumber": "LOTO-2026-0903-06"
+    }
+  },
+  {
+    "id": "audit-1018",
+    "hoursAgo": 51.2,
+    "userId": "u-inspector",
+    "userName": "赵安全",
+    "userRole": "点检工程师 / 专职安全监护员",
+    "ip": "192.168.1.118",
+    "actionType": "PERMIT_APPROVE",
+    "module": "安全作业票",
+    "detail": "现场监护会签 SP-20260903-06，三相验电确认无电压、接地线已挂设、三人三锁挂牌到位",
+    "status": "SUCCESS",
+    "metadata": {
+      "permitNo": "SP-20260903-06",
+      "step": "guardian"
+    }
+  },
+  {
+    "id": "audit-1019",
+    "hoursAgo": 50.5,
+    "userId": "u-manager",
+    "userName": "陈主管",
+    "userRole": "车间安全总监 / 维保主管",
+    "ip": "192.168.1.115",
+    "actionType": "PERMIT_APPROVE",
+    "module": "安全作业票",
+    "detail": "主管终审会签 SP-20260903-06，5 处隔离点全部确认，作业票生效",
+    "status": "SUCCESS",
+    "metadata": {
+      "permitNo": "SP-20260903-06",
+      "step": "supervisor"
+    }
+  },
+  {
+    "id": "audit-1020",
+    "hoursAgo": 49,
+    "userId": "u-operator2",
+    "userName": "周大伟",
+    "userRole": "吊装司机 / 起重机械操作岗",
+    "ip": "192.168.3.24",
+    "actionType": "RBAC_ACCESS_DENIED",
+    "module": "安全合规",
+    "detail": "[越权拦截] 吊装司机周大伟尝试执行主管终审签批作业票 SP-20260903-06，角色权限不足已被拦截",
+    "status": "BLOCKED",
+    "metadata": {
+      "requiredRoles": [
+        "admin",
+        "manager"
+      ],
+      "currentRole": "operator",
+      "permitNo": "SP-20260903-06"
+    }
+  },
+  {
+    "id": "audit-1021",
+    "hoursAgo": 47.5,
+    "userId": "u-tech2",
+    "userName": "李志强",
+    "userRole": "电气专工 / 高压试验负责人",
+    "ip": "192.168.1.107",
+    "actionType": "PERMIT_CLOSE",
+    "module": "安全作业票",
+    "detail": "办理 LOTO 作业票 SP-20260903-06 注销闭环，油质复检合格，恢复送电",
+    "status": "SUCCESS",
+    "metadata": {
+      "permitNo": "SP-20260903-06"
+    }
+  },
+  {
+    "id": "audit-1022",
+    "hoursAgo": 44,
+    "userId": "u-operator",
+    "userName": "王操作",
+    "userRole": "现场生产岗位操作工",
+    "ip": "192.168.2.88",
+    "actionType": "WORKORDER_CREATE",
+    "module": "工单流转",
+    "detail": "现场扫码报单创建 WO-20260902-112：13# 螺杆制冷压缩机油压差开关误动作频繁跳停",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-20260902-112",
+      "equipmentId": "eq-113"
+    }
+  },
+  {
+    "id": "audit-1023",
+    "hoursAgo": 43,
+    "userId": "u-tech2",
+    "userName": "李志强",
+    "userRole": "电气专工 / 高压试验负责人",
+    "ip": "192.168.1.107",
+    "actionType": "WORKORDER_TRANSITION",
+    "module": "工单流转",
+    "detail": "完工上报 WO-20260902-112，整定油压差开关动作值至 0.15MPa，连续运行 4 小时无跳停",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-20260902-112"
+    }
+  },
+  {
+    "id": "audit-1024",
+    "hoursAgo": 42,
+    "userId": "u-inspector",
+    "userName": "赵安全",
+    "userRole": "点检工程师 / 专职安全监护员",
+    "ip": "192.168.1.118",
+    "actionType": "WORKORDER_ACCEPT",
+    "module": "工单流转",
+    "detail": "质检验收 WO-20260902-112 合格闭环，氨区作业安全防护到位，保护定值记录完整",
+    "status": "SUCCESS",
+    "metadata": {
+      "orderNo": "WO-20260902-112",
+      "score": 5
+    }
+  },
+  {
+    "id": "audit-1025",
+    "hoursAgo": 30,
+    "userId": "u-inspector2",
+    "userName": "刘德胜",
+    "userRole": "巡检主管 / 设备状态点检长",
+    "ip": "192.168.2.61",
+    "actionType": "INSPECTION_CREATE",
+    "module": "巡检作业",
+    "detail": "创建巡检任务 INSP-20260903-04「冷轧精整车间每日重点设备点检」(5 个测点)",
+    "status": "SUCCESS",
+    "metadata": {
+      "taskNo": "INSP-20260903-04",
+      "totalPoints": 5
+    }
+  },
+  {
+    "id": "audit-1026",
+    "hoursAgo": 28.5,
+    "userId": "u-inspector2",
+    "userName": "刘德胜",
+    "userRole": "巡检主管 / 设备状态点检长",
+    "ip": "192.168.2.61",
+    "actionType": "INSPECTION_UPDATE",
+    "module": "巡检作业",
+    "detail": "更新巡检任务 INSP-20260903-04 状态为已完成，5/5 测点打卡完毕，无异常项",
+    "status": "SUCCESS",
+    "metadata": {
+      "taskNo": "INSP-20260903-04",
+      "status": "completed"
+    }
+  },
+  {
+    "id": "audit-1027",
+    "hoursAgo": 21,
+    "userId": "u-inspector",
+    "userName": "赵安全",
+    "userRole": "点检工程师 / 专职安全监护员",
+    "ip": "192.168.1.118",
+    "actionType": "INSPECTION_UPDATE",
+    "module": "巡检作业",
+    "detail": "更新巡检任务 INSP-20260902-05 判定为异常，连铸结晶器冷却泵 4 个测点中 2 项超标并已转派工单",
+    "status": "SUCCESS",
+    "metadata": {
+      "taskNo": "INSP-20260902-05",
+      "status": "abnormal",
+      "abnormalCount": 2
+    }
+  },
+  {
+    "id": "audit-1028",
+    "hoursAgo": 14,
+    "userId": "u-tech1",
+    "userName": "张建国",
+    "userRole": "机电检修高级技师",
+    "ip": "192.168.1.103",
+    "actionType": "FILE_UPLOAD",
+    "module": "AI视觉质检",
+    "detail": "上传 3# 轧机行星减速箱齿面点蚀检修照片 img_20260903_pt01.jpg (1.42 MB) 用于视觉缺陷识别",
+    "status": "SUCCESS",
+    "metadata": {
+      "filename": "img_20260903_pt01.jpg",
+      "sizeBytes": 1489000
+    }
+  },
+  {
+    "id": "audit-1029",
+    "hoursAgo": 13.5,
+    "userId": "u-tech1",
+    "userName": "张建国",
+    "userRole": "机电检修高级技师",
+    "ip": "192.168.1.103",
+    "actionType": "VISION_INSPECT",
+    "module": "AI视觉质检",
+    "detail": "工业视觉分析完成质检：检测到 [齿面接触疲劳点蚀]，评级 较大，置信度 0.94",
+    "status": "SUCCESS",
+    "metadata": {
+      "defectType": "齿面接触疲劳点蚀",
+      "confidence": 0.94
+    }
+  },
+  {
+    "id": "audit-1030",
+    "hoursAgo": 2,
+    "userId": "u-admin",
+    "userName": "陈建平",
+    "userRole": "总工 / 机电部长",
+    "ip": "192.168.1.102",
+    "actionType": "LOGOUT",
+    "module": "认证中心",
+    "detail": "管理员主动登出系统，当前 JWT 凭证已加入失效黑名单",
+    "status": "SUCCESS",
+    "metadata": {
+      "reason": "USER_LOGOUT"
+    }
+  }
+]

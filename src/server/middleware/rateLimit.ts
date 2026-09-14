@@ -2,6 +2,29 @@ import { addAuditLog, getClientIp } from "../services/auditService.ts";
 
 // ==================== 接口滑动窗口限流引擎 (Rate Limiter)（原 createApp 闭包逻辑模块化） ====================
 
+// ==================== 架构约束声明（Architecture Constraint Notice）====================
+// 【重要】当前限流实现为「进程内内存存储」，具有以下约束：
+//
+//   ✅ 适用场景：单实例部署（docker compose up，不使用 --scale 参数）
+//   ❌ 不适用：多副本水平扩展（docker compose up --scale app=N，N>1）
+//
+// 约束原因：rateLimitStore 和 loginFailureStore 存储在当前 Node.js 进程的堆内存中；
+// 多副本部署时，各实例各自维护独立计数器，同一 IP 的请求分散到不同实例会导致：
+//   - 限流阈值实际等效为「单实例阈值 × 副本数」，限流失效
+//   - 登录防爆破 IP 锁定在同一 IP 请求落到不同副本时无法累积计数
+//
+// 后续升级路径（需要水平扩展时）：
+//   1. 引入 Redis（推荐 redis@4.x）
+//   2. 限流改为 Redis + Lua 原子脚本（EVALSHA + sliding window）
+//   3. 登录防爆破改为 Redis SET / INCR + TTL
+//   推荐库：ioredis + express-rate-limit（配合 rate-limit-redis store adapter）
+//
+// 当前单实例内存实现的优势：
+//   - 零依赖（无需 Redis）、零配置、零延迟（纯内存 O(1)）
+//   - 对于工业内网部署单节点场景（本系统设计目标）完全足够
+//   - 附带超阈值自动清扫（sweepRateLimitStore）防止长跑服务内存持续增长
+// ====================================================================================
+
 interface RateLimitRecord {
   timestamps: number[];
 }

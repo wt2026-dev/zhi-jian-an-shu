@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS safety_permits (
   safety_checklist JSONB DEFAULT '[]'::jsonb,
   gas_test_results JSONB,
   guardian_approval JSONB,
-  supervisorApproval JSONB,
+  supervisor_approval JSONB,
   closed_at VARCHAR(64),
   closed_by VARCHAR(64),
   close_remark TEXT,

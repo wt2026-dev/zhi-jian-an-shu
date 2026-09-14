@@ -363,7 +363,7 @@ export async function handleWxRepairCreate(req: Request, res: Response) {
 
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const orderNo = `WO-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
+    const orderNo = `WO-${dateStr}-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`;
     const id = `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const createdAtStr = now.toISOString();
 

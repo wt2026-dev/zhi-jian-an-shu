@@ -25,19 +25,20 @@ import {
   AreaChart,
   Area,
 } from 'recharts';
-import { Equipment, WorkOrder } from '../types';
+import { Equipment, WorkOrder, UserProfile } from '../types';
 import { equipmentApi, aiApi, safeStorage } from '../api';
 import { AiResultModal } from './ai/AiResultModal';
 import { AiWorkOrderDraftModal } from './ai/AiWorkOrderDraftModal';
 import { AiHealthForecast, AiWorkOrderDraft, AiEquipmentSummary, AiAlarmCorrelation } from '../api';
+import { isDemoMode } from '../utils/demoMode';
 
 interface EquipmentHealthViewProps {
   equipments: Equipment[];
   selectedEquipmentId?: string;
   onOpenWorkOrder: (eq: Equipment) => void;
   onOpenAiDiagnose: (eq: Equipment) => void;
-  onCreateWorkOrder?: (wo: WorkOrder) => void;
-  currentUser?: { name: string; roleTitle: string };
+  onCreateWorkOrder: (wo: any) => void;
+  currentUser?: UserProfile;
 }
 
 interface TelemetrySample {
@@ -60,7 +61,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
   const [activeEqId, setActiveEqId] = useState<string>(
     selectedEquipmentId || equipments[0]?.id || 'eq-001'
   );
-  const [isSimulating, setIsSimulating] = useState<boolean>(true);
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [sampleSpeed, setSampleSpeed] = useState<number>(2000); // ms
   const [historyData, setHistoryData] = useState<TelemetrySample[]>([]);
   const [loadingTelemetry, setLoadingTelemetry] = useState<boolean>(false);
@@ -178,29 +179,8 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
       setLoadingTelemetry(false);
     }
 
-    // 后备初始化：基于当前设备真实工况基线
-    if (currentEquipment) {
-      const baseTemp = currentEquipment.telemetry?.temperature || 65;
-      const baseVib = currentEquipment.telemetry?.vibration || 2.4;
-      const baseCur = currentEquipment.telemetry?.current || 48;
-      const baseVolt = currentEquipment.telemetry?.voltage || 380;
-      const baseLoad = currentEquipment.telemetry?.loadRate || 72;
-
-      const fallbackPoints: TelemetrySample[] = [];
-      const now = new Date();
-      for (let i = 12; i >= 0; i--) {
-        const t = new Date(now.getTime() - i * 3600 * 1000);
-        fallbackPoints.push({
-          time: `${t.getHours().toString().padStart(2, '0')}:00`,
-          temperature: +(baseTemp).toFixed(1),
-          vibration: +(baseVib).toFixed(2),
-          current: +(baseCur).toFixed(1),
-          voltage: +(baseVolt).toFixed(1),
-          loadRate: +(baseLoad).toFixed(1),
-        });
-      }
-      setHistoryData(fallbackPoints);
-    }
+    // 无真实遥测数据且未开启模拟时置空，展示标准空态，坚决不得用伪造数据填充
+    setHistoryData([]);
   };
 
   useEffect(() => {
@@ -209,9 +189,35 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
     }
   }, [activeEqId]);
 
-  // Live simulation tick
+  const demo = isDemoMode();
+
+  // Live simulation tick (仅在显式开启模拟且在演示模式下执行)
   useEffect(() => {
     if (!isSimulating || !currentEquipment) return;
+
+    // 若当前没有时序数据，在开启模拟时注入基准点
+    setHistoryData((prev) => {
+      if (prev.length > 0) return prev;
+      const baseTemp = currentEquipment.telemetry?.temperature || 65;
+      const baseVib = currentEquipment.telemetry?.vibration || 2.4;
+      const baseCur = currentEquipment.telemetry?.current || 48;
+      const baseVolt = currentEquipment.telemetry?.voltage || 380;
+      const baseLoad = currentEquipment.telemetry?.loadRate || 72;
+      const initial: TelemetrySample[] = [];
+      const now = new Date();
+      for (let i = 12; i >= 0; i--) {
+        const t = new Date(now.getTime() - i * 3600 * 1000);
+        initial.push({
+          time: `${t.getHours().toString().padStart(2, '0')}:00`,
+          temperature: +baseTemp.toFixed(1),
+          vibration: +baseVib.toFixed(2),
+          current: +baseCur.toFixed(1),
+          voltage: +baseVolt.toFixed(1),
+          loadRate: +baseLoad.toFixed(1),
+        });
+      }
+      return initial;
+    });
 
     const interval = setInterval(() => {
       const now = new Date();
@@ -260,9 +266,9 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
     try {
       const res = await fetch('/api/v1/ai/diagnose', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(safeStorage.getItem('auth_token') ? { Authorization: `Bearer ${safeStorage.getItem('auth_token')}` } : {}),
         },
         body: JSON.stringify({
           equipmentName: currentEquipment.name,
@@ -279,9 +285,11 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
         setAiAnalysisResult(
           `【AI 研判结论】${data.diagnosis.summary}\n【紧急程度】${data.diagnosis.severity} (风险分值 ${data.diagnosis.urgencyScore})\n【首要原因】${data.diagnosis.probableCauses?.[0]?.cause || '轴承与对中磨损'}\n【建议措施】${data.diagnosis.recommendedActions?.[0]?.action || '停机检查'}`
         );
+      } else {
+        setAiAnalysisResult(`研判失败: ${data.message || '未知错误'}`);
       }
-    } catch (e) {
-      setAiAnalysisResult('AI 诊断完成：当前轴承振动波形呈现高频脉冲，需重点复测动静同轴度及润滑油品。');
+    } catch (err: any) {
+      setAiAnalysisResult(`网络异常或服务暂不可用: ${err.message}`);
     } finally {
       setAiAnalyzing(false);
     }
@@ -289,6 +297,30 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
+      {/* 顶部常驻显式模拟角标/横幅 */}
+      {isSimulating && (
+        <div className="p-3.5 bg-amber-500/15 border-2 border-amber-500 rounded-xl flex items-center justify-between text-amber-900 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center space-x-2.5">
+            <span className="flex h-3 w-3 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <span className="font-extrabold text-xs bg-amber-500 text-white px-2.5 py-0.5 rounded shadow-xs">
+              模拟数据运行中
+            </span>
+            <span className="text-xs text-amber-900 font-medium">
+              当前展示数据为本地算法生成的演示扰动波形，非现场硬件直连真实传感器数据（参赛演示模式专用）
+            </span>
+          </div>
+          <button
+            onClick={() => setIsSimulating(false)}
+            className="text-xs text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer ml-3 shrink-0"
+          >
+            关闭模拟
+          </button>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -301,7 +333,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
           </p>
         </div>
 
-        {/* Simulation Controls */}
+        {/* Simulation Controls (仅演示模式展示) */}
         <div className="flex items-center space-x-2">
           <button
             type="button"
@@ -311,30 +343,37 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
             title="调用真实后端 API /api/v1/equipments/:id/telemetry-history 获取最新时序传感器数据"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingTelemetry ? 'animate-spin text-blue-600' : ''}`} />
-            <span>{loadingTelemetry ? '同步API中' : '刷新后端时序'}</span>
+            <span>{loadingTelemetry ? '同步API中' : '刷新真实时序'}</span>
           </button>
 
-          <button
-            onClick={() => setIsSimulating(!isSimulating)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-colors cursor-pointer ${
-              isSimulating
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'bg-white text-slate-600 border border-slate-200'
-            }`}
-          >
-            {isSimulating ? <Pause className="w-3.5 h-3.5 text-emerald-600" /> : <Play className="w-3.5 h-3.5" />}
-            <span>{isSimulating ? '数据流采集中' : '已暂停'}</span>
-          </button>
+          {demo && (
+            <>
+              <button
+                onClick={() => setIsSimulating(!isSimulating)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-colors cursor-pointer ${
+                  isSimulating
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                    : 'bg-white text-slate-600 border border-slate-200'
+                }`}
+                title="演示模式开关：启动前端动态扰动波形模拟"
+              >
+                {isSimulating ? <Pause className="w-3.5 h-3.5 text-amber-600" /> : <Play className="w-3.5 h-3.5" />}
+                <span>{isSimulating ? '模拟运行中' : '启用模拟数据'}</span>
+              </button>
 
-          <select
-            value={sampleSpeed}
-            onChange={(e) => setSampleSpeed(Number(e.target.value))}
-            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-blue-500 shadow-xs"
-          >
-            <option value={1000}>采样率: 1秒/次 (高速)</option>
-            <option value={2000}>采样率: 2秒/次 (标准)</option>
-            <option value={5000}>采样率: 5秒/次 (低频)</option>
-          </select>
+              {isSimulating && (
+                <select
+                  value={sampleSpeed}
+                  onChange={(e) => setSampleSpeed(Number(e.target.value))}
+                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-blue-500 shadow-xs"
+                >
+                  <option value={1000}>模拟步进: 1秒 (高速)</option>
+                  <option value={2000}>模拟步进: 2秒 (标准)</option>
+                  <option value={5000}>模拟步进: 5秒 (低频)</option>
+                </select>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -584,54 +623,72 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
                   黄色警戒线: 4.5mm/s (振动), 70°C (温度) | 红色停机线: 7.1mm/s, 80°C
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-semibold">
-                实时刷新
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold ${isSimulating ? 'text-amber-800 bg-amber-100 border border-amber-300' : 'text-blue-700 bg-blue-50 border border-blue-200'}`}>
+                {isSimulating ? '⚠️ 演示模拟波形' : '现场真实时序'}
               </span>
             </div>
 
-            <div className="h-60 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={historyData}>
-                  <defs>
-                    <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorVib" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="time" stroke="#94a3b8" fontSize={10} />
-                  <YAxis yAxisId="left" stroke="#ef4444" fontSize={10} domain={[20, 100]} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#2563eb" fontSize={10} domain={[0, 12]} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', fontSize: '11px', color: '#1e293b' }}
-                  />
-                  <Area
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="temperature"
-                    name="轴承温度(°C)"
-                    stroke="#ef4444"
-                    fillOpacity={1}
-                    fill="url(#colorTemp)"
-                    strokeWidth={2}
-                  />
-                  <Area
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="vibration"
-                    name="振动RMS(mm/s)"
-                    stroke="#2563eb"
-                    fillOpacity={1}
-                    fill="url(#colorVib)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            {historyData.length === 0 ? (
+              <div className="h-60 w-full flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-lg bg-slate-50/50 p-6 text-center">
+                <Activity className="w-8 h-8 text-slate-300 mb-2" />
+                <p className="text-xs font-semibold text-slate-700">暂无实时遥测历史数据</p>
+                <p className="text-[11px] text-slate-400 mt-1 max-w-sm">
+                  {demo ? '未接入现场硬件时序。当前处于演示模式，可点击右上角"启用模拟数据"体验动态波形。' : '设备传感器离线或尚未采集到连续时序样本，请检查现场测点连接状态。'}
+                </p>
+                {demo && !isSimulating && (
+                  <button
+                    onClick={() => setIsSimulating(true)}
+                    className="mt-3 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-xs transition-colors"
+                  >
+                    启用演示模拟数据
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="h-60 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={historyData}>
+                    <defs>
+                      <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorVib" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="time" stroke="#94a3b8" fontSize={10} />
+                    <YAxis yAxisId="left" stroke="#ef4444" fontSize={10} domain={[20, 100]} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#2563eb" fontSize={10} domain={[0, 12]} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', fontSize: '11px', color: '#1e293b' }}
+                    />
+                    <Area
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="temperature"
+                      name="轴承温度(°C)"
+                      stroke="#ef4444"
+                      fillOpacity={1}
+                      fill="url(#colorTemp)"
+                      strokeWidth={2}
+                    />
+                    <Area
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="vibration"
+                      name="振动RMS(mm/s)"
+                      stroke="#2563eb"
+                      fillOpacity={1}
+                      fill="url(#colorVib)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
           {/* Chart 2: Current & Load Rate */}
@@ -646,39 +703,48 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
                   评估电机驱动负荷与传动阻力矩突变
                 </span>
               </div>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold ${isSimulating ? 'text-amber-800 bg-amber-100 border border-amber-300' : 'text-slate-600 bg-slate-100 border border-slate-200'}`}>
+                {isSimulating ? '⚠️ 模拟数据' : '现场真实'}
+              </span>
             </div>
 
-            <div className="h-48 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={historyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="time" stroke="#94a3b8" fontSize={10} />
-                  <YAxis yAxisId="left" stroke="#f59e0b" fontSize={10} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={10} domain={[0, 100]} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', fontSize: '11px', color: '#1e293b' }}
-                  />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="current"
-                    name="电流(A)"
-                    stroke="#f59e0b"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="loadRate"
-                    name="负载率(%)"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            {historyData.length === 0 ? (
+              <div className="h-48 w-full flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-lg bg-slate-50/50 p-4 text-center">
+                <p className="text-xs text-slate-400">暂无运行电流与负荷率数据</p>
+              </div>
+            ) : (
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={historyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="time" stroke="#94a3b8" fontSize={10} />
+                    <YAxis yAxisId="left" stroke="#f59e0b" fontSize={10} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={10} domain={[0, 100]} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', fontSize: '11px', color: '#1e293b' }}
+                    />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="current"
+                      name="电流(A)"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="loadRate"
+                      name="负载率(%)"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         </div>
       </div>

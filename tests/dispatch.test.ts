@@ -13,13 +13,13 @@ beforeAll(async () => {
 
   const adminLogin = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "admin", password: "password123" });
+    .send({ username: "admin", password: "Admin@2026#Demo" });
   adminToken = adminLogin.body.token;
 
-  // tech1 为种子技师（默认密码 password123）
+  // tech1 为种子技师（种子密码 Tech1@2026#Work）
   const techLogin = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "tech1", password: "password123" });
+    .send({ username: "tech1", password: "Tech1@2026#Work" });
   techToken = techLogin.body.token;
   techUserId = techLogin.body.user?.id;
 });
@@ -153,5 +153,39 @@ describe("11. 内部师傅距离调度测试 (Dispatch Suite)", () => {
       .send({});
     expect(mockAdmin.status).toBe(200);
     expect(mockAdmin.body.demo).toBe(true);
+  });
+
+  it("环境隔离守卫：生产环境下若未开启 DEMO_MODE=true，mock 接口返回 403 阻断", async () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    const prevDemoMode = process.env.DEMO_MODE;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.DEMO_MODE;
+
+      const res = await request(app)
+        .post("/api/v1/dispatch/mock")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({});
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe("MOCK_DISPATCH_FORBIDDEN");
+
+      // 显式开启 DEMO_MODE=true 后允许调用
+      process.env.DEMO_MODE = "true";
+      const resWithDemo = await request(app)
+        .post("/api/v1/dispatch/mock")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({});
+
+      expect(resWithDemo.status).toBe(200);
+      expect(resWithDemo.body.demo).toBe(true);
+    } finally {
+      process.env.NODE_ENV = prevNodeEnv;
+      if (prevDemoMode !== undefined) {
+        process.env.DEMO_MODE = prevDemoMode;
+      } else {
+        delete process.env.DEMO_MODE;
+      }
+    }
   });
 });

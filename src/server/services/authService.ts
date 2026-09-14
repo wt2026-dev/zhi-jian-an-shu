@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { UserRepository } from "../../db/repositories/userRepository.ts";
 import { JWT_SECRET } from "../utils/config.ts";
@@ -31,6 +32,7 @@ export function signJwtToken(user: any) {
     role: user.role,
     roleTitle: user.roleTitle,
     department: user.department,
+    jti: crypto.randomUUID(),
   };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "8h" });
 }
@@ -56,9 +58,26 @@ export function revokeToken(token: string) {
   revokedTokens.add(token);
 }
 
-export function authenticateBearer(req: any) {
+export function extractToken(req: any): string | null {
+  if (!req || !req.headers) return null;
+  // 1. 优先从 cookie 读 token（生产前端 HttpOnly Cookie 闭环）
+  const cookieHeader = req.headers["cookie"];
+  if (cookieHeader && typeof cookieHeader === "string") {
+    const match = cookieHeader.match(/(?:^|;\s*)token=([^;]*)/);
+    if (match && match[1]) {
+      return decodeURIComponent(match[1].trim());
+    }
+  }
+  // 2. 兼容 Authorization: Bearer（保留给 API 客户端与自动化测试）
   const auth = req.headers["authorization"];
-  if (!auth || !auth.startsWith("Bearer ")) return null;
-  const token = auth.slice(7).trim();
+  if (auth && typeof auth === "string" && auth.startsWith("Bearer ")) {
+    return auth.slice(7).trim();
+  }
+  return null;
+}
+
+export function authenticateBearer(req: any) {
+  const token = extractToken(req);
+  if (!token) return null;
   return verifyJwtToken(token);
 }

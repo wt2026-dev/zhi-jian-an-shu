@@ -11,7 +11,7 @@ beforeAll(async () => {
 
   const loginRes = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "admin", password: "password123" });
+    .send({ username: "admin", password: "Admin@2026#Demo" });
   token = loginRes.body.token;
 });
 
@@ -70,5 +70,24 @@ describe("3. 图片上传安全控制测试 (Upload Security Suite)", () => {
     expect(res.body.success).toBe(true);
     expect(res.body).toHaveProperty("url");
     expect(res.body.url).toMatch(/\/uploads\/img_.*\.(png|jpg|webp)/);
+    expect(res.body).toHaveProperty("authenticity");
+  });
+
+  it("防伪核验：附带现场可信时间戳的照片应返回 verified 防伪认证状态", async () => {
+    const validBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+    const res = await request(app)
+      .post("/api/v1/upload/image")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        imageBase64: validBase64,
+        filename: "onsite_pump.png",
+        capturedAt: new Date().toISOString(),
+        captureDevice: "Ex-Phone-5G-Pro",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.authenticity.status).toBe("verified");
+    expect(res.body.authenticity.captureDevice).toBe("Ex-Phone-5G-Pro");
   });
 });

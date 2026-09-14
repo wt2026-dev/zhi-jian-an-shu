@@ -10,7 +10,9 @@ export default defineConfig({
     environment: "node",
     testTimeout: 30000,
     hookTimeout: 30000,
-    fileParallelism: false,
+    fileParallelism: true,
+    maxWorkers: 6,
+    pool: "forks",
     exclude: [...configDefaults.exclude, "**/scratch/**", "**/build/**", "**/archive/**"],
     setupFiles: ["./tests/setup.ts"],
     // 离线确定性：测试进程内将外部服务凭据置空（dotenv 不覆盖已存在变量，

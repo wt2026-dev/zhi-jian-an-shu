@@ -296,12 +296,11 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
     let chatId = '';
 
     try {
-      const token = safeStorage.getItem('auth_token');
       const res = await fetch('/api/v1/ai/chat/stream', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         signal: controller.signal,
         body: JSON.stringify({
@@ -548,9 +547,9 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
     try {
       const res = await fetch('/api/v1/ai/diagnose', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(safeStorage.getItem('auth_token') ? { Authorization: `Bearer ${safeStorage.getItem('auth_token')}` } : {}),
         },
         body: JSON.stringify({
           equipmentName: targetEq.name,

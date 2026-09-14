@@ -22,6 +22,7 @@ import {
   DutyTechnician,
 } from '../api';
 import { AmapDispatchMap } from './AmapDispatchMap';
+import { isDemoMode } from '../utils/demoMode';
 
 /**
  * 内部师傅距离调度大屏：
@@ -170,7 +171,7 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
     setMocking(true);
     try {
       const res = await dispatchApi.mock();
-      showToast(true, res.message || `已刷新 ${res.updated} 位师傅的演示位置`);
+      showToast(true, `【演示数据】${res.message || `已刷新 ${res.updated} 位师傅的演示位置`}`);
       await fetchBoard();
     } catch (e: any) {
       showToast(false, e?.data?.error || e?.message || '模拟位置生成失败');
@@ -225,15 +226,17 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <button
-              onClick={handleMock}
-              disabled={mocking}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
-              title="演示环境：在厂区真实经纬度范围内随机扰动在岗师傅位置（无真实定位设备时演示用）"
-            >
-              {mocking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crosshair className="w-3.5 h-3.5" />}
-              <span>演示定位</span>
-            </button>
+            {isDemoMode() && (
+              <button
+                onClick={handleMock}
+                disabled={mocking}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60 shadow-xs"
+                title="演示模式：在厂区真实经纬度范围内随机扰动在岗师傅位置（仅参赛演示使用）"
+              >
+                {mocking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crosshair className="w-3.5 h-3.5" />}
+                <span>演示模拟定位</span>
+              </button>
+            )}
             <button
               onClick={fetchBoard}
               className="p-2 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-blue-600 transition-colors cursor-pointer"

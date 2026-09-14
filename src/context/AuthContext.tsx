@@ -1,0 +1,151 @@
+/**
+ * AuthContext — 用户认证与通知状态 Context
+ *
+ * 从 App.tsx 提取的认证相关状态管理层，与业务数据（AppDataContext）解耦。
+ *
+ * 职责边界：
+ *   - authToken / currentUser / allUsers ← 登录状态
+ *   - notifications ← 当前用户的通知列表
+ *   - login / logout / switchUser ← 认证操作
+ *   - refreshNotifications ← 通知刷新
+ *
+ * 不包含：设备、工单、巡检、安全票等业务数据（见 AppDataContext）
+ *
+ * 使用示例：
+ *   const { currentUser, handleLogout } = useAuth();
+ */
+
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { UserProfile, NotificationItem } from '../types';
+import { authApi, notificationApi } from '../api';
+import { logger } from '../utils/logger';
+
+// ─── Context 类型定义 ────────────────────────────────────────────────────────
+
+export interface AuthContextValue {
+  authToken: string | null;
+  currentUser: UserProfile | null;
+  allUsers: UserProfile[];
+  notifications: NotificationItem[];
+
+  setAuthToken: (token: string | null) => void;
+  setCurrentUser: (user: UserProfile | null) => void;
+  setAllUsers: (users: UserProfile[]) => void;
+
+  handleLogout: () => void;
+  handleSwitchUser: (user: UserProfile) => Promise<void>;
+  refreshNotifications: (userId?: string) => Promise<void>;
+  handleMarkNotificationRead: (id: string) => Promise<void>;
+  handleMarkAllNotificationsRead: () => Promise<void>;
+  handleAddUser: (user: UserProfile) => void;
+}
+
+// ─── Context 实例 ────────────────────────────────────────────────────────────
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+// ─── Provider ────────────────────────────────────────────────────────────────
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [authToken, setAuthToken] = useState<string | null>(() => {
+    return authApi.getToken();
+  });
+
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  const refreshNotifications = useCallback(async (userId?: string) => {
+    try {
+      const targetId = userId || currentUser?.id;
+      const list = await notificationApi.list({ userId: targetId });
+      setNotifications(Array.isArray(list) ? list : []);
+    } catch (err) {
+      logger.warn('AuthContext: 通知刷新失败:', err);
+    }
+  }, [currentUser?.id]);
+
+  const handleLogout = () => {
+    authApi.logout();
+    setAuthToken(null);
+    setCurrentUser(null);
+    setNotifications([]);
+  };
+
+  const handleSwitchUser = async (user: UserProfile) => {
+    setCurrentUser(user);
+    try {
+      const res = await authApi.switchUser(user.id);
+      if (res?.token) {
+        authApi.saveToken(res.token);
+        setAuthToken(res.token);
+      }
+      const list = await notificationApi.list({ userId: user.id });
+      setNotifications(Array.isArray(list) ? list : []);
+    } catch (err) {
+      logger.warn('AuthContext: 切换用户后端同步提示（已切换前端视图）:', err);
+      try {
+        const list = await notificationApi.list({ userId: user.id });
+        setNotifications(Array.isArray(list) ? list : []);
+      } catch (_) {}
+    }
+  };
+
+  const handleMarkNotificationRead = async (id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await notificationApi.markRead(id);
+    } catch (err) {
+      logger.warn('AuthContext: 标记已读失败:', err);
+      await refreshNotifications();
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await notificationApi.markAllRead();
+    } catch (err) {
+      logger.warn('AuthContext: 全部已读失败:', err);
+      await refreshNotifications();
+    }
+  };
+
+  const handleAddUser = (user: UserProfile) => {
+    setAllUsers((prev) => [...prev, user]);
+  };
+
+  const value: AuthContextValue = {
+    authToken,
+    currentUser,
+    allUsers,
+    notifications,
+    setAuthToken,
+    setCurrentUser,
+    setAllUsers,
+    handleLogout,
+    handleSwitchUser,
+    refreshNotifications,
+    handleMarkNotificationRead,
+    handleMarkAllNotificationsRead,
+    handleAddUser,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+// ─── Hook ────────────────────────────────────────────────────────────────────
+
+/**
+ * 消费 AuthContext 的 hook。
+ * 必须在 AuthProvider 内部调用，否则抛出明确错误。
+ */
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error('useAuth() 必须在 <AuthProvider> 内部调用');
+  }
+  return ctx;
+}
+
+export default AuthContext;

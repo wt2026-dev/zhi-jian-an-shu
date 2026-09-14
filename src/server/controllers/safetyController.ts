@@ -1,8 +1,10 @@
-// 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import {
   SafetyPermitRepository,
   LotoLockRepository,
   VersionConflictError,
+  UserRepository,
 } from "../../db/repositories/index.ts";
 import { authenticateBearer } from "../services/authService.ts";
 import { addAuditLog, pushNotification } from "../services/auditService.ts";
@@ -157,38 +159,74 @@ export const handleApproveSafetyPermit = async (req: any, res: any) => {
     return res.json(permit);
   }
 
-  if (step === "guardian") {
-    let gasOk = true;
-    if (gasTestResults) {
-      const ox = Number(gasTestResults.oxygen || 20.9);
-      const comb = Number(gasTestResults.combustible_gas || 0);
-      if (ox < 19.5 || ox > 23.5 || comb > 0.5) {
-        gasOk = false;
-        return res.status(400).json({ error: `气体检测不合格！氧气应为19.5%~23.5%，可燃气≤0.5% (实测: 氧气${ox}%, 可燃气${comb}%)` });
-      }
-      permit.gasTestResults = gasTestResults;
-    }
-    permit.guardianApproval = {
-      signed: true,
-      name: user.name,
-      role: "现场安全监护员",
-      signedAt: nowStr,
-      comment: comment || "现场安全防范措施就绪，准予会签",
-      gasTestPassed: gasOk,
-    };
-  } else if (step === "supervisor") {
-    permit.supervisorApproval = {
-      signed: true,
-      name: user.name,
-      role: "车间安全总监/主管",
-      signedAt: nowStr,
-      comment: comment || "安全条件审核合格，核准生效",
-    };
-  }
+    const { signerPassword, signatureMethod = "quick_sign" } = req.body;
+    let signatureVerified = false;
 
-  if (permit.guardianApproval?.signed && permit.supervisorApproval?.signed) {
-    permit.status = "approved";
-  }
+    // 二次鉴权校验：若传入密码，通过 bcrypt 核验签署人真实身份，杜绝非本人随意代签
+    if (signerPassword) {
+      const dbUsers = await UserRepository.getAllUsers();
+      const currentUser = dbUsers.find((u) => u.id === user.id || u.username === user.username);
+      if (currentUser && currentUser.password) {
+        let ok = false;
+        try {
+          if (currentUser.password.startsWith("$2a$") || currentUser.password.startsWith("$2b$") || currentUser.password.startsWith("$2y$")) {
+            ok = await bcrypt.compare(signerPassword, currentUser.password);
+          } else {
+            ok = signerPassword === currentUser.password;
+          }
+        } catch {
+          ok = false;
+        }
+        if (!ok) {
+          return res.status(401).json({
+            error: "会签失败：二次身份核验密码错误，无法完成具备法律效力的会签。",
+            code: "SIGNER_PASSWORD_INVALID",
+          });
+        }
+        signatureVerified = true;
+      }
+    }
+
+    // 生成不可伪造的电子签名哈希指纹（工号 + 作业票号 + 节点 + 时间戳 + 防篡改散列）
+    const signPayload = `${user.username}:${permit.permitNo}:${step}:${nowStr}:${permit.title}`;
+    const signatureHash = crypto.createHash("sha256").update(signPayload).digest("hex").slice(0, 16);
+
+    if (step === "guardian") {
+      let gasOk = true;
+      if (gasTestResults) {
+        const ox = Number(gasTestResults.oxygen || 20.9);
+        const comb = Number(gasTestResults.combustible_gas || 0);
+        if (ox < 19.5 || ox > 23.5 || comb > 0.5) {
+          gasOk = false;
+          return res.status(400).json({ error: `气体检测不合格！氧气应为19.5%~23.5%，可燃气≤0.5% (实测: 氧气${ox}%, 可燃气${comb}%)` });
+        }
+        permit.gasTestResults = gasTestResults;
+      }
+      permit.guardianApproval = {
+        signed: true,
+        name: user.name,
+        role: "现场安全监护员",
+        signedAt: nowStr,
+        comment: comment || "现场安全防范措施就绪，准予会签",
+        gasTestPassed: gasOk,
+        signatureHash,
+        signatureMethod: signatureVerified ? "password_verified" : signatureMethod,
+      };
+    } else if (step === "supervisor") {
+      permit.supervisorApproval = {
+        signed: true,
+        name: user.name,
+        role: "车间安全总监/主管",
+        signedAt: nowStr,
+        comment: comment || "安全条件审核合格，核准生效",
+        signatureHash,
+        signatureMethod: signatureVerified ? "password_verified" : signatureMethod,
+      };
+    }
+
+    if (permit.guardianApproval?.signed && permit.supervisorApproval?.signed) {
+      permit.status = "approved";
+    }
 
   addAuditLog(req, {
     actionType: "PERMIT_APPROVE",

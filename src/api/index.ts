@@ -87,14 +87,16 @@ const API_BASE = '/api/v1';
 
 export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
-  const token = safeStorage.getItem('auth_token');
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, {
+    credentials: 'include',
+    ...options,
+    headers,
+  });
   
   if (!response.ok) {
     let errorData: ApiErrorResponse = {};
@@ -221,13 +223,10 @@ export const workOrderApi = {
     if (params?.workshop && params.workshop !== 'all') query.append('workshop', params.workshop);
     const qs = query.toString();
     const endpoint = `/work-orders/export${qs ? `?${qs}` : ''}`;
-    const token = safeStorage.getItem('auth_token');
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       method: 'GET',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -285,6 +284,7 @@ export const equipmentApi = {
 };
 
 // 认证与权限 API (JWT / RBAC)
+let memoryAuthToken: string | null = null;
 export const authApi = {
   login: (credentials: { username: string; password: string }) =>
     request<{
@@ -306,11 +306,11 @@ export const authApi = {
       body: JSON.stringify(credentials),
     }),
 
-  getMe: () => request<any>('/auth/me'),
+  getMe: () => request<UserProfile | null>('/auth/me'),
 
-  getCurrentUser: () => request<any>('/auth/me'),
+  getCurrentUser: () => request<UserProfile | null>('/auth/me'),
 
-  getUsers: () => request<any[]>('/auth/users'),
+  getUsers: () => request<UserProfile[]>('/auth/users'),
 
   // 创建用户账号 (真实落库，RBAC: 仅管理员)
   createUser: (data: {
@@ -342,13 +342,13 @@ export const authApi = {
     }),
 
   saveToken: (token: string) => {
-    safeStorage.setItem('auth_token', token);
+    memoryAuthToken = token;
   },
 
-  getToken: () => safeStorage.getItem('auth_token'),
+  getToken: () => memoryAuthToken,
 
   clearToken: () => {
-    safeStorage.removeItem('auth_token');
+    memoryAuthToken = null;
   },
 
   switchUser: (userId: string) =>
@@ -362,8 +362,13 @@ export const authApi = {
       body: JSON.stringify({ userId }),
     }),
 
-  logout: () => {
-    safeStorage.removeItem('auth_token');
+  logout: async () => {
+    memoryAuthToken = null;
+    try {
+      await request<{ success: boolean; message: string }>('/auth/logout', { method: 'POST' });
+    } catch {
+      // 忽略登出时的网络错误
+    }
   },
 };
 
@@ -394,7 +399,7 @@ export const safetyPermitApi = {
     return request<LotoLock[]>(`/loto-locks${qs ? `?${qs}` : ''}`);
   },
 
-  approve: (id: string, data: { step: 'guardian' | 'supervisor'; pass: boolean; comment?: string; gasTestResults?: any }) =>
+  approve: (id: string, data: { step: 'guardian' | 'supervisor'; pass: boolean; comment?: string; gasTestResults?: any; signerPassword?: string; signatureMethod?: string }) =>
     request<any>(`/safety-permits/${id}/approve`, {
       method: 'POST',
       body: JSON.stringify(data),

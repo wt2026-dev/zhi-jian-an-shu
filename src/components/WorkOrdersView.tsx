@@ -54,6 +54,16 @@ import { AiResultModal } from './ai/AiResultModal';
 import { VideoAnalysisModal } from './VideoAnalysisModal';
 import { AiRootCauseAnalysis, AiMaintenancePlan, AiAssigneeRecommendation } from '../api';
 import { VirtualList } from './VirtualList';
+// ─── 提取的子组件（原内联于本文件，已拆分至独立模块）────────────────────────────
+// 重构说明：状态/优先级的文案与配色原为本文件闭包内函数，无法跨视图复用
+// （DashboardView 等处重复实现了相同逻辑）。现统一收敛至
+// ./workorders/WorkOrderStatusBadge.tsx，通过 <WorkOrderStatusBadge> /
+// <WorkOrderPriorityBadge> 组件渲染，保证全局状态映射单一数据源且可单独测试。
+import {
+  WorkOrderStatusBadge,
+  WorkOrderPriorityBadge,
+} from './workorders/WorkOrderStatusBadge';
+
 
 interface WorkOrdersViewProps {
   currentUser: UserProfile;
@@ -431,35 +441,10 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
     return matchesStatus && matchesPriority && matchesSearch;
   });
 
-  const getStatusInfo = (status: WorkOrderStatus) => {
-    switch (status) {
-      case 'created':
-        return { label: '待派单', color: 'bg-orange-50 text-orange-700 border-orange-200' };
-      case 'dispatched':
-        return { label: '待接单', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-      case 'in_progress':
-        return { label: '检修中', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-      case 'pending_acceptance':
-        return { label: '待验收', color: 'bg-purple-50 text-purple-700 border-purple-200' };
-      case 'completed':
-        return { label: '已归档', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-      default:
-        return { label: status, color: 'bg-slate-100 text-slate-600 border-slate-200' };
-    }
-  };
+  // ─── 状态/优先级映射 ────────────────────────────────────────────────────────
+  // 状态与优先级的文案/配色已收敛至 ./workorders/WorkOrderStatusBadge.tsx（单一数据源），
+  // 本文件统一使用 <WorkOrderStatusBadge> / <WorkOrderPriorityBadge> 渲染，不再本地映射。
 
-  const getPriorityInfo = (priority: WorkOrderPriority) => {
-    switch (priority) {
-      case 'urgent':
-        return { label: '紧急抢修', color: 'bg-red-50 text-red-700 border-red-200' };
-      case 'high':
-        return { label: '高优先级', color: 'bg-orange-50 text-orange-700 border-orange-200' };
-      case 'medium':
-        return { label: '中优先级', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-      case 'low':
-        return { label: '常规维保', color: 'bg-slate-100 text-slate-600 border-slate-200' };
-    }
-  };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -883,8 +868,6 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
         estimateItemHeight={140}
         emptyText="暂无此状态下的检修工单"
         renderItem={(wo) => {
-          const statusInfo = getStatusInfo(wo.status);
-          const priorityInfo = getPriorityInfo(wo.priority);
           const isUrgent = wo.priority === 'urgent';
           const isHigh = wo.priority === 'high';
           const isMedium = wo.priority === 'medium';
@@ -917,12 +900,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1.5">
                     <span className="font-mono text-xs font-bold text-blue-600">{wo.orderNo}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${priorityInfo.color}`}>
-                      {priorityInfo.label}
-                    </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${statusInfo.color}`}>
-                      {statusInfo.label}
-                    </span>
+                    <WorkOrderPriorityBadge priority={wo.priority} size="xs" />
+                    <WorkOrderStatusBadge status={wo.status} size="xs" />
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                       {wo.faultType}
                     </span>
@@ -977,12 +956,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                   <span className="font-mono text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
                     {selectedOrder.orderNo}
                   </span>
-                  <span className={`text-xs px-2 py-0.5 rounded border ${getStatusInfo(selectedOrder.status).color}`}>
-                    {getStatusInfo(selectedOrder.status).label}
-                  </span>
-                  <span className={`text-xs px-2 py-0.5 rounded border ${getPriorityInfo(selectedOrder.priority).color}`}>
-                    {getPriorityInfo(selectedOrder.priority).label}
-                  </span>
+                  <WorkOrderStatusBadge status={selectedOrder.status} />
+                  <WorkOrderPriorityBadge priority={selectedOrder.priority} />
                 </div>
                 <h3 className="text-base font-bold text-slate-100 mt-1.5">{selectedOrder.title}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">

@@ -171,6 +171,16 @@ export const handleAssignDispatch = async (req: any, res: any) => {
 // POST /api/v1/dispatch/mock —— 演示接口：在厂区真实经纬度范围内随机扰动在岗师傅位置（仅显式调用时生效）
 export const handleMockLocations = async (req: any, res: any) => {
   try {
+    // 1. 环境与演示模式守卫：生产环境下仅显式开启 DEMO_MODE=true 时允许调用，否则 403 阻断
+    const isProd = process.env.NODE_ENV === "production";
+    const isDemoEnabled = process.env.DEMO_MODE === "true";
+    if (isProd && !isDemoEnabled) {
+      return res.status(403).json({
+        error: "生产环境已禁用位置模拟接口，仅在开发/测试或显式开启 DEMO_MODE=true 时允许调用",
+        code: "MOCK_DISPATCH_FORBIDDEN",
+      });
+    }
+
     if (!hasRole(req.currentUser, ["admin", "manager"])) {
       return res.status(403).json({ error: "仅管理员 / 维保主管可执行演示模拟", code: "RBAC_PERMISSION_DENIED" });
     }

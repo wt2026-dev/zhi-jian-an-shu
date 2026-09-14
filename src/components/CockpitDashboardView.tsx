@@ -151,7 +151,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
         complianceApi.getStats(),
         knowledgeApi.list(),
         fetch('/api/v1/ai-stats', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}` },
+          credentials: 'include',
         }).then((r) => r.json()),
       ]);
 

@@ -29,7 +29,7 @@ beforeAll(async () => {
 
   const loginRes = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "admin", password: "password123" });
+    .send({ username: "admin", password: "Admin@2026#Demo" });
   adminToken = loginRes.body.token;
   expect(adminToken).toBeTruthy();
 });
@@ -180,6 +180,52 @@ describe("并发控制与时间戳口径加固测试 (Concurrency & Timestamp Su
     expect(statuses).toEqual([200, 409]);
     const conflictRes = res1.status === 409 ? res1 : res2;
     expect(conflictRes.body.code).toBe("VERSION_CONFLICT");
+
+    // 验证审批成功的数据中包含防伪电子签名哈希指纹
+    const successRes = res1.status === 200 ? res1 : res2;
+    expect(successRes.body.guardianApproval).toHaveProperty("signatureHash");
+    expect(successRes.body.guardianApproval.signatureHash).toBeDefined();
+  });
+
+  it("会签二次身份验证：错误密码拦截与正确密码验证通过", async () => {
+    const eqId = await createTestEquipment("SIGN-VERIFY-EQ");
+    const permitRes = await request(app)
+      .post("/api/v1/safety-permits")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        permitType: "hot_work",
+        title: "会签密码防伪测试作业票",
+        equipmentId: eqId,
+        workshop: "动力二车间",
+      });
+    expect(permitRes.status).toBe(201);
+    const permit = permitRes.body;
+
+    // 1. 错误会签密码 -> 401 SIGNER_PASSWORD_INVALID
+    const failRes = await request(app)
+      .post(`/api/v1/safety-permits/${permit.id}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        step: "guardian",
+        pass: true,
+        comment: "会签通过",
+        signerPassword: "WrongPassword@123",
+      });
+    expect(failRes.status).toBe(401);
+    expect(failRes.body.code).toBe("SIGNER_PASSWORD_INVALID");
+
+    // 2. 正确会签密码 -> 200 且标记 password_verified
+    const okRes = await request(app)
+      .post(`/api/v1/safety-permits/${permit.id}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        step: "guardian",
+        pass: true,
+        comment: "监护人会签通过",
+        signerPassword: "Admin@2026#Demo",
+      });
+    expect(okRes.status).toBe(200);
+    expect(okRes.body.guardianApproval.signatureMethod).toBe("password_verified");
   });
 
   // -------------------------------------------------------------

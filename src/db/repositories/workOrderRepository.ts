@@ -77,7 +77,7 @@ export const WorkOrderRepository = {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
     const id = order.id || `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const orderNo = order.orderNo || `WO-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
+    const orderNo = order.orderNo || `WO-${dateStr}-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`;
     const createdAt = order.createdAt || now.toISOString();
     const status = order.status || (order.assigneeId || order.assignee ? "dispatched" : "created");
 

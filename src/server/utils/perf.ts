@@ -2,6 +2,10 @@ import { logger } from "../../utils/logger.ts";
 
 // ==================== 性能指标注册表（P2-8 监控，原 createApp 闭包逻辑模块化） ====================
 
+// 生产监控指标环形队列：设定最大采样深度上限（防内存泄漏）与时间滑动窗口
+const MAX_PERF_SAMPLES = 2000;
+const MAX_ALERTS = 50;
+
 export const perfRegistry: {
   requests: { path: string; method: string; status: number; ms: number; at: number }[];
   alerts: { at: number; message: string }[];
@@ -10,8 +14,18 @@ export const perfRegistry: {
 
 export function recordPerf(path: string, method: string, status: number, ms: number) {
   perfRegistry.requests.push({ path: path, method: method, status: status, ms: ms, at: Date.now() });
+  
+  // 1. 时间窗口裁剪（近 10 分钟）
   const cutoff = Date.now() - 10 * 60 * 1000;
-  while (perfRegistry.requests.length > 0 && perfRegistry.requests[0].at < cutoff) perfRegistry.requests.shift();
+  while (perfRegistry.requests.length > 0 && perfRegistry.requests[0].at < cutoff) {
+    perfRegistry.requests.shift();
+  }
+  // 2. 容量环形截断（上限 2000 条，防止极端高 QPS 下内存膨胀）
+  if (perfRegistry.requests.length > MAX_PERF_SAMPLES) {
+    perfRegistry.requests.splice(0, perfRegistry.requests.length - MAX_PERF_SAMPLES);
+  }
+
+  // 3. 告警阈值判定
   if (perfRegistry.requests.length >= 20 && Date.now() - perfRegistry.lastAlertAt > 10 * 60 * 1000) {
     const recent = perfRegistry.requests;
     const errors = recent.filter((r) => r.status >= 500).length;
@@ -23,6 +37,9 @@ export function recordPerf(path: string, method: string, status: number, ms: num
     if (alertMsg) {
       perfRegistry.lastAlertAt = Date.now();
       perfRegistry.alerts.push({ at: Date.now(), message: alertMsg });
+      if (perfRegistry.alerts.length > MAX_ALERTS) {
+        perfRegistry.alerts.splice(0, perfRegistry.alerts.length - MAX_ALERTS);
+      }
       logger.warn("[ALERT] " + alertMsg);
       const hook = process.env.ALERT_WEBHOOK_URL;
       if (hook) {

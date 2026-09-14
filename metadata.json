@@ -1,6 +1,5 @@
 {
   "name": "工业设备智能检修与作业协同系统 v2.0.0",
   "description": "面向工业设备维护场景的一体化管理系统，支持设备档案、健康监测、工单全流程、巡检作业、安全审批、RAG知识库与AI智能诊断。",
-  "requestFramePermissions": ["camera", "microphone"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_DASHSCOPE_API"]
+  "requestFramePermissions": ["camera", "microphone"]
 }

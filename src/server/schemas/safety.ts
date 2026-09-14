@@ -28,6 +28,8 @@ export const approveSafetyPermitSchema = z.object({
   comment: z.string().optional(),
   gasTestResults: z.any().optional(),
   version: z.number().optional(),
+  signerPassword: z.string().optional(), // 会签二次安全凭据校验（防止账号代签）
+  signatureMethod: z.enum(["password_verified", "quick_sign", "biometric_simulated"]).optional(),
 });
 
 export const closeSafetyPermitSchema = z.object({

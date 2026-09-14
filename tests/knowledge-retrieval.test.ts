@@ -36,7 +36,7 @@ beforeAll(async () => {
   process.env.NODE_ENV = "test";
   app = await createApp();
   // 冒烟：API 层正常（登录可用）
-  const login = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "password123" });
+  const login = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "Admin@2026#Demo" });
   expect(login.status).toBe(200);
 });
 
@@ -122,5 +122,30 @@ describe("知识库混合检索", () => {
     // limit 生效
     const limited = await searchSimilar(QUERY_VEC, 1);
     expect(limited.length).toBeLessThanOrEqual(1);
+  });
+
+  it("召回结果包含可解释理由字段 explanation", async () => {
+    // 关键词命中 + 向量同向
+    await upsertEmbedding("kb-101", QUERY_VEC, "test-model");
+    __setEmbedOverrideForTests(async () => QUERY_VEC);
+    const results = await findRelevantKnowledge(["螺杆空压机"], 5);
+    expect(results.length).toBeGreaterThan(0);
+    const first = results[0] as any;
+    expect(first.explanation).toBeDefined();
+    expect(typeof first.explanation).toBe("string");
+    expect(first.explanation).toContain("召回理由");
+    // kb-101 标题含"螺杆空压机"，应有关键词命中理由
+    if (first.id === "kb-101") {
+      expect(first.explanation).toContain("关键词");
+    }
+  });
+
+  it("纯关键词召回时 explanation 仅含关键词理由", async () => {
+    __setEmbedOverrideForTests(async () => null); // 无向量
+    const results = await findRelevantKnowledge(["螺杆空压机"], 5);
+    expect(results.length).toBeGreaterThan(0);
+    const first = results[0] as any;
+    expect(first.explanation).toContain("关键词");
+    expect(first.explanation).not.toContain("语义相似度");
   });
 });

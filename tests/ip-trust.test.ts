@@ -63,8 +63,8 @@ describe("getClientIp 防 X-Forwarded-For 伪造", () => {
     process.env.NODE_ENV = "test";
     const app = await createApp();
     // 登录写入审计（携带伪造 XFF），随后以 admin 读取审计日志验证 ip 为 socket 地址
-    await request(app).post("/api/v1/auth/login").set("x-forwarded-for", "6.6.6.6").send({ username: "tech1", password: "password123" });
-    const adminLogin = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "password123" });
+    await request(app).post("/api/v1/auth/login").set("x-forwarded-for", "6.6.6.6").send({ username: "tech1", password: "Tech1@2026#Work" });
+    const adminLogin = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "Admin@2026#Demo" });
     const auditRes = await request(app)
       .get("/api/v1/audit-logs?actionType=LOGIN")
       .set("Authorization", `Bearer ${adminLogin.body.token}`);

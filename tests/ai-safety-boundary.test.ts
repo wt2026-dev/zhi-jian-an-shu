@@ -15,7 +15,7 @@ describe("AI 工业级安全边界与全链路追溯测试 (AI Safety Boundary a
 
     const loginRes = await request(app)
       .post("/api/v1/auth/login")
-      .send({ username: "admin", password: "password123" });
+      .send({ username: "admin", password: "Admin@2026#Demo" });
     adminToken = loginRes.body.token;
     expect(adminToken).toBeTruthy();
   });

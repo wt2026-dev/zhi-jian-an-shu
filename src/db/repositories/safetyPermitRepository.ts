@@ -39,7 +39,7 @@ export const SafetyPermitRepository = {
   async create(permit: any) {
     const db = await getDb();
     await db.query(
-      `INSERT INTO safety_permits (id, permit_no, permit_type, risk_level, title, equipment_id, equipment_name, workshop, location, applicant, applicant_dept, applied_at, valid_until, status, precautions, loto_number, hazards, safety_checklist, gas_test_results, guardian_approval, supervisorApproval, version)
+      `INSERT INTO safety_permits (id, permit_no, permit_type, risk_level, title, equipment_id, equipment_name, workshop, location, applicant, applicant_dept, applied_at, valid_until, status, precautions, loto_number, hazards, safety_checklist, gas_test_results, guardian_approval, supervisor_approval, version)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22);`,
       [
         permit.id,
@@ -95,7 +95,7 @@ export const SafetyPermitRepository = {
            safety_checklist = $7,
            gas_test_results = $8,
            guardian_approval = $9,
-           supervisorApproval = $10,
+           supervisor_approval = $10,
            closed_at = $11,
            closed_by = $12,
            close_remark = $13,
@@ -137,7 +137,7 @@ export const SafetyPermitRepository = {
            safety_checklist = $7,
            gas_test_results = $8,
            guardian_approval = $9,
-           supervisorApproval = $10,
+           supervisor_approval = $10,
            closed_at = $11,
            closed_by = $12,
            close_remark = $13,
@@ -195,7 +195,7 @@ function mapSafetyPermitRow(r: any) {
     safetyChecklist: parseJson(r.safety_checklist, []),
     gasTestResults: parseJson(r.gas_test_results, null),
     guardianApproval: parseJson(r.guardian_approval, null),
-    supervisorApproval: parseJson(r.supervisorapproval, null) || parseJson(r.supervisorApproval, null),
+    supervisorApproval: parseJson(r.supervisor_approval, null) || parseJson(r.supervisorapproval, null) || parseJson(r.supervisorApproval, null),
     closedAt: r.closed_at,
     closedBy: r.closed_by,
     closeRemark: r.close_remark,

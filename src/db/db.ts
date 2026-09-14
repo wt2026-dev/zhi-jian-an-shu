@@ -128,10 +128,30 @@ async function createPgliteAdapter(): Promise<DatabaseAdapter> {
   var pgDataPath = path.join(dataDir, dbFolderName);
   var pidFile = path.join(pgDataPath, "postmaster.pid");
   if (fs.existsSync(pidFile)) {
+    let isStale = true;
     try {
-      fs.unlinkSync(pidFile);
-      logger.info(`[Database] 已清理异常残留的锁定文件: ${pidFile}`);
+      const pidContent = fs.readFileSync(pidFile, "utf8").trim().split("\n")[0];
+      const pidNum = parseInt(pidContent, 10);
+      if (!isNaN(pidNum) && pidNum > 0 && pidNum !== process.pid) {
+        // 尝试发送信号 0 测试该 PID 进程是否存活
+        try {
+          process.kill(pidNum, 0);
+          // 进程存活！说明已有另一个正在运行的服务实例占用该数据目录
+          isStale = false;
+          logger.warn(`[Database] 检测到正在运行的活跃实例 (PID ${pidNum}) 持有数据库锁。为防止数据脏写损坏，请勿并发启动多个实例！`);
+        } catch {
+          // ESRCH 表明进程已不存在，确实是异常退出残留的死锁文件
+          isStale = true;
+        }
+      }
     } catch {}
+
+    if (isStale) {
+      try {
+        fs.unlinkSync(pidFile);
+        logger.info(`[Database] 已清理异常退出残留的陈旧锁定文件: ${pidFile}`);
+      } catch {}
+    }
   }
   logger.info(`[Database] 正在加载嵌入式持久化 PostgreSQL 数据库 (存储路径: ${pgDataPath}) ...`);
   var pglite = new PGlite(pgDataPath);
@@ -209,10 +229,22 @@ export async function getDb(): Promise<DatabaseAdapter> {
       dbInstance = withStats(await createPostgresAdapter());
       return dbInstance;
     } catch (err: any) {
+      const errMsg = `[Database] 生产环境/显式指定 PostgreSQL 连接失败 (${err.message})！严禁静默降级至本地单机文件，防止工业数据分叉与裂脑。进程中止。`;
+      logger.error(errMsg);
+      // 工业级数据安全底线：生产模式下外部 PG 不可达时直接 Fail-Fast 报错，拒绝写入本地单机库造成数据分叉
+      if (process.env.NODE_ENV === "production" || process.env.DB_TYPE === "postgres") {
+        throw new Error(errMsg);
+      }
+      // 仅在非生产开发联调环境下，若未强制锁定 DB_TYPE，才允许输出严重告警并回退
       logger.warn(
-        `[Database] PostgreSQL 连接失败 (${err.message})，正在平滑降级至本地持久化 PostgreSQL (PGlite) 引擎...`
+        `[Database] [DEV ONLY] 开发调试环境 PostgreSQL 连接失败，临时回退至本地嵌入式 PGlite（数据仅保存在当前单机开发目录）...`
       );
     }
+  }
+
+  // 本地嵌入式 PGlite 仅限开发、演示或自动化测试模式
+  if (process.env.NODE_ENV === "production") {
+    logger.warn("[Database] 警告：生产环境正在以单机嵌入式 PGlite 运行，仅适用于单节点隔离演示部署，多节点集群必须配置 DB_TYPE=postgres！");
   }
 
   dbInstance = withStats(await createPgliteAdapter());

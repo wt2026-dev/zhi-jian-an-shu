@@ -12,7 +12,7 @@ beforeAll(async () => {
 
   const loginRes = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "admin", password: "password123" });
+    .send({ username: "admin", password: "Admin@2026#Demo" });
   token = loginRes.body.token;
 });
 

@@ -58,6 +58,11 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
+// ─── 提取的子组件（原内联于本文件）──────────────────────────────────────────────
+// 重构说明：KpiCard 原以内联 JSX 重复实现了 5 次（5张卡片 × ~30行），
+// 提取为独立组件后统一样式、减少重复代码，并可在驾驶舱等视图复用。
+import { KpiCard } from './dashboard/KpiCard';
+
 
 interface DashboardViewProps {
   currentUser: UserProfile;
@@ -445,81 +450,71 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* L2 KPI 核心态势网格：5 列对称工业玻璃态卡片 */}
+      {/* 重构说明：KPI 1–4（设备总数/待办工单/巡检进度/安全作业票）已提取为 <KpiCard> 子组件；
+          KPI 5 为 AI 协同卡片，结构上无主数值（标题+描述+标签），不属于 KpiCard 的数值卡形态，故保留独立实现。 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-        {/* KPI 1: 设备总数与台账 */}
-        <div
-          onClick={() => onNavigate('equipment')}
-          className="glass-card data-card p-4 relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">设备总数</span>
-            <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:scale-105 transition-transform">
-              <Activity className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{totalEquipments}</span>
+        {/* KPI 1: 设备总数与台账（已提取为 <KpiCard> 组件） */}
+        <KpiCard
+          title="设备总数"
+          value={totalEquipments}
+          icon={<Activity className="w-4 h-4" />}
+          iconColor="bg-blue-50 text-blue-600"
+          accentColor="hover:border-blue-400"
+          badge={
             <span className="text-[11px] text-emerald-600 flex items-center font-medium">
               <TrendingUp className="w-3 h-3 mr-0.5" /> 100% 台账
             </span>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-            <span className="text-emerald-600">运行 {runningEquipments}</span>
-            <span className="text-amber-600">预警 {warningEquipments}</span>
-            <span className="text-rose-600">故障 {faultEquipments}</span>
-          </div>
-        </div>
+          }
+          footer={
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+              <span className="text-emerald-600">运行 {runningEquipments}</span>
+              <span className="text-amber-600">预警 {warningEquipments}</span>
+              <span className="text-rose-600">故障 {faultEquipments}</span>
+            </div>
+          }
+          onClick={() => onNavigate('equipment')}
+        />
 
-        {/* KPI 2: 待办检修工单 */}
-        <div
-          onClick={() => onNavigate('work_orders')}
-          className="glass-card data-card p-4 relative overflow-hidden group hover:border-amber-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">待办检修工单</span>
-            <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform">
-              <Wrench className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{pendingWorkOrders.length}</span>
-            {urgentOrders.length > 0 ? (
+
+        {/* KPI 2: 待办检修工单（已提取为 <KpiCard> 组件） */}
+        <KpiCard
+          title="待办检修工单"
+          value={pendingWorkOrders.length}
+          icon={<Wrench className="w-4 h-4" />}
+          iconColor="bg-amber-50 text-amber-600"
+          accentColor="hover:border-amber-400"
+          badge={
+            urgentOrders.length > 0 ? (
               <span className="text-[11px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-semibold animate-pulse">
                 紧急 {urgentOrders.length}
               </span>
             ) : (
               <span className="text-[11px] text-slate-500">无紧急</span>
-            )}
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>检修中: {workOrders.filter((w) => w.status === 'in_progress').length}</span>
-            <span>待验收: {workOrders.filter((w) => w.status === 'pending_acceptance').length}</span>
-          </div>
-        </div>
+            )
+          }
+          footer={
+            <div className="flex items-center justify-between text-[11px] text-slate-500">
+              <span>检修中: {workOrders.filter((w) => w.status === 'in_progress').length}</span>
+              <span>待验收: {workOrders.filter((w) => w.status === 'pending_acceptance').length}</span>
+            </div>
+          }
+          onClick={() => onNavigate('work_orders')}
+        />
 
-        {/* KPI 3: 今日巡检进度 */}
-        <div
-          onClick={() => onNavigate('inspections')}
-          className="glass-card data-card p-4 relative overflow-hidden group hover:border-cyan-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">今日巡检进度</span>
-            <span className="p-1.5 rounded-lg bg-cyan-50 text-cyan-600 group-hover:scale-105 transition-transform">
-              <CheckCircle2 className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">
-              {inspections.reduce((s, i) => s + i.completedPoints, 0)}
-              <span className="text-xs font-normal text-slate-500 ml-1">
-                /{inspections.reduce((s, i) => s + i.totalPoints, 0)}点
-              </span>
-            </span>
+        {/* KPI 3: 今日巡检进度（已提取为 <KpiCard> 组件） */}
+        <KpiCard
+          title="今日巡检进度"
+          value={inspections.reduce((s, i) => s + i.completedPoints, 0)}
+          unit={`/${inspections.reduce((s, i) => s + i.totalPoints, 0)}点`}
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          iconColor="bg-cyan-50 text-cyan-600"
+          accentColor="hover:border-cyan-400"
+          badge={
             <span className={`text-[11px] font-medium ${inspections.reduce((s, i) => s + i.abnormalCount, 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
               异常: {inspections.reduce((s, i) => s + i.abnormalCount, 0)}
             </span>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100">
+          }
+          footer={
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
               <div
                 className="h-full bg-cyan-500 rounded-full transition-all duration-500"
@@ -532,36 +527,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 }}
               />
             </div>
-          </div>
-        </div>
+          }
+          onClick={() => onNavigate('inspections')}
+        />
 
-        {/* KPI 4: 在控安全作业票 */}
-        <div
-          onClick={() => onNavigate('safety')}
-          className="glass-card data-card p-4 relative overflow-hidden group hover:border-purple-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">在控安全作业票</span>
-            <span className="p-1.5 rounded-lg bg-purple-50 text-purple-600 group-hover:scale-105 transition-transform">
-              <ShieldCheck className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{activeSafetyPermits.length}</span>
-            {pendingSafetyApprovals.length > 0 ? (
+        {/* KPI 4: 在控安全作业票（已提取为 <KpiCard> 组件） */}
+        <KpiCard
+          title="在控安全作业票"
+          value={activeSafetyPermits.length}
+          icon={<ShieldCheck className="w-4 h-4" />}
+          iconColor="bg-purple-50 text-purple-600"
+          accentColor="hover:border-purple-400"
+          badge={
+            pendingSafetyApprovals.length > 0 ? (
               <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium">
                 {pendingSafetyApprovals.length} 待审批
               </span>
             ) : (
               <span className="text-[11px] text-emerald-600 font-medium">受控闭环</span>
-            )}
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100 text-[10px] text-slate-500 flex justify-between">
-            <span>LOTO: {lotoPermitCount}</span>
-            <span>动火: {hotWorkPermitCount}</span>
-            <span>高处: {heightWorkPermitCount}</span>
-          </div>
-        </div>
+            )
+          }
+          footer={
+            <div className="text-[10px] text-slate-500 flex justify-between">
+              <span>LOTO: {lotoPermitCount}</span>
+              <span>动火: {hotWorkPermitCount}</span>
+              <span>高处: {heightWorkPermitCount}</span>
+            </div>
+          }
+          onClick={() => onNavigate('safety')}
+        />
 
         {/* KPI 5: AI 检修大脑 */}
         <div

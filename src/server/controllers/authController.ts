@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { getDb } from "../../db/db.ts";
 import { UserRepository } from "../../db/repositories/index.ts";
 import { addAuditLog, getClientIp } from "../services/auditService.ts";
-import { signJwtToken, revokeToken, authenticateBearer, reloadUsers } from "../services/authService.ts";
+import { signJwtToken, revokeToken, authenticateBearer, extractToken, reloadUsers } from "../services/authService.ts";
 import { checkLoginBruteForce, recordLoginFailure, recordLoginSuccess } from "../middleware/rateLimit.ts";
 import { WECHAT_APP_ID, WECHAT_APP_SECRET } from "../utils/config.ts";
 
@@ -45,10 +45,6 @@ export async function handleLogin(req: any, res: any) {
   if (user && user.password) {
     if (user.password.startsWith("$2a$") || user.password.startsWith("$2b$") || user.password.startsWith("$2y$")) {
       isPasswordValid = await bcrypt.compare(password, user.password);
-      // 测试环境向后兼容：当 NODE_ENV===test 时若既有测试用例使用旧默认密码 password123 则平滑放行，确保既有全量测试用例 0 回归
-      if (!isPasswordValid && process.env.NODE_ENV === "test" && password === "password123") {
-        isPasswordValid = true;
-      }
     } else {
       // 兼容平滑升级旧明文密码（任务 3 加固）
       if (process.env.NODE_ENV === "production") {
@@ -124,6 +120,14 @@ export async function handleLogin(req: any, res: any) {
 
   const isForcePasswordChangeEnabled = process.env.DEMO_FORCE_PASSWORD_CHANGE === "true";
 
+  // 设置安全 HttpOnly Cookie
+  res.cookie("token", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 28800 * 1000, // 8h
+  });
+
   res.json({
     token,
     tokenType: "bearer",
@@ -143,13 +147,17 @@ export async function handleLogin(req: any, res: any) {
   });
 }
 
-// 用户登出 API (使当前 Token 失效)
+// 用户登出 API (使当前 Token 失效并清除 Cookie)
 export function handleLogout(req: any, res: any) {
-  const auth = req.headers["authorization"];
-  if (auth && auth.startsWith("Bearer ")) {
-    const token = auth.slice(7).trim();
+  const token = extractToken(req);
+  if (token) {
     revokeToken(token);
   }
+  res.clearCookie("token", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+  });
   res.json({ success: true, message: "已成功登出并作废当前 Token" });
 }
 
@@ -159,11 +167,17 @@ export function handleRefresh(req: any, res: any) {
   if (!user) {
     return res.status(401).json({ error: "无效或已过期的登录凭证，无法刷新 Token", code: "UNAUTHORIZED" });
   }
-  const auth = req.headers["authorization"];
-  if (auth && auth.startsWith("Bearer ")) {
-    revokeToken(auth.slice(7).trim());
+  const oldToken = extractToken(req);
+  if (oldToken) {
+    revokeToken(oldToken);
   }
   const newToken = signJwtToken(user);
+  res.cookie("token", newToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 28800 * 1000,
+  });
   res.json({
     token: newToken,
     tokenType: "bearer",
@@ -210,6 +224,12 @@ export async function handleSwitchUser(req: any, res: any) {
       return res.status(403).json({ error: "目标用户已被停用，禁止切换身份", code: "USER_DISABLED" });
     }
     const token = signJwtToken(user);
+    res.cookie("token", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 28800 * 1000,
+    });
     res.json({
       token,
       tokenType: "bearer",
@@ -412,8 +432,16 @@ export async function handleWxLogin(req: any, res: any) {
       metadata: { userId: user.id, openid, devMode, client: "MiniProgram" },
     });
 
+    const token = signJwtToken(user);
+    res.cookie("token", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 28800 * 1000,
+    });
+
     res.json({
-      token: signJwtToken(user),
+      token,
       tokenType: "bearer",
       expiresIn: 480 * 60,
       openid,

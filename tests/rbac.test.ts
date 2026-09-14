@@ -21,12 +21,12 @@ beforeAll(async () => {
     return res.body.token;
   };
 
-  operatorToken = await login("operator", "password123");
-  adminToken = await login("admin", "password123");
-  managerToken = await login("manager", "password123");
-  technicianToken = await login("tech1", "password123");
-  inspectorToken = await login("inspector", "password123");
-  archivistToken = await login("archivist", "password123");
+  operatorToken = await login("operator", "Operator@2026#Line");
+  adminToken = await login("admin", "Admin@2026#Demo");
+  managerToken = await login("manager", "Manager@2026#Safe");
+  technicianToken = await login("tech1", "Tech1@2026#Work");
+  inspectorToken = await login("inspector", "Inspect@2026#Check");
+  archivistToken = await login("archivist", "Archive@2026#Doc");
 });
 
 describe("RBAC 权限控制全面测试", () => {

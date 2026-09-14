@@ -10,7 +10,7 @@ describe("AI v1 路由与 Legacy 下线验证", () => {
     app = await createApp();
     const loginRes = await request(app).post("/api/v1/auth/login").send({
       username: "admin",
-      password: "password123",
+      password: "Admin@2026#Demo",
     });
     adminToken = loginRes.body.token;
     expect(adminToken).toBeTruthy();

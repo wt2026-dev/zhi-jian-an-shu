@@ -23,17 +23,17 @@ beforeAll(async () => {
   // 获取测试 Token
   const adminLogin = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "admin", password: "password123" });
+    .send({ username: "admin", password: "Admin@2026#Demo" });
   adminToken = adminLogin.body.token;
 
   const tech1Login = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "tech1", password: "password123" });
+    .send({ username: "tech1", password: "Tech1@2026#Work" });
   tech1Token = tech1Login.body.token;
 
   const tech2Login = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "tech2", password: "password123" });
+    .send({ username: "tech2", password: "Tech2@2026#Elec" });
   tech2Token = tech2Login.body.token;
 
   expect(adminToken).toBeTruthy();
@@ -108,7 +108,7 @@ describe("用户状态字段与停用能力 (User Status & Disablement)", () => 
   it("② 被禁用用户尝试登录必须被拒绝 (403 + USER_DISABLED)", async () => {
     const res = await request(app)
       .post("/api/v1/auth/login")
-      .send({ username: "tech1", password: "password123" });
+      .send({ username: "tech1", password: "Tech1@2026#Work" });
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("USER_DISABLED");
@@ -127,7 +127,7 @@ describe("用户状态字段与停用能力 (User Status & Disablement)", () => 
     // 重新登录获取新 Token
     const loginRes = await request(app)
       .post("/api/v1/auth/login")
-      .send({ username: "tech1", password: "password123" });
+      .send({ username: "tech1", password: "Tech1@2026#Work" });
 
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.token).toBeTruthy();

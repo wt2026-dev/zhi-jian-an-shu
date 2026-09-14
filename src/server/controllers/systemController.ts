@@ -308,9 +308,22 @@ export function handleDebugLog(req: any, res: any) {
   res.json({ received: true });
 }
 
-// 全量源码工程打包下载 ZIP
+// 全量源码工程打包下载 ZIP (受 ENABLE_SOURCE_DOWNLOAD 环境变量保护，生产环境默认关闭)
 export async function handleDownloadZip(req: any, res: any) {
   try {
+    if (process.env.ENABLE_SOURCE_DOWNLOAD !== "true" && process.env.NODE_ENV === "production") {
+      addAuditLog(req, {
+        actionType: "SECURITY_BLOCK",
+        module: "系统管理",
+        detail: "生产环境拒绝源码工程打包下载 (未开启 ENABLE_SOURCE_DOWNLOAD 开关)",
+        status: "BLOCKED",
+      });
+      return res.status(403).json({
+        error: "生产环境默认禁用源码打包下载功能，以防源代码全量泄露风险。如需打包请设置 ENABLE_SOURCE_DOWNLOAD=true",
+        code: "DOWNLOAD_ZIP_DISABLED",
+      });
+    }
+
     // archiver v8（纯 ESM）导出 ZipArchive 等类，不再提供 v7 的 archiver("zip", opts) 工厂函数；
     // ZipArchive 继承 Transform，directory/file/finalize 与 v7 同名，直接实例化即可。
     const archiverModule: any = await import("archiver").catch(() => null);

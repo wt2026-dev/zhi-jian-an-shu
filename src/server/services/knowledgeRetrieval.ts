@@ -27,10 +27,17 @@ export async function findRelevantKnowledge(keywords: string[], limit = 5) {
   const byId = new Map<string, any>(approved.map((k: any) => [k.id, k]));
 
   // ---- 关键词路（保留原打分逻辑）----
+  const keywordScoreMap = new Map<string, number>();
+  const keywordMatchDetail = new Map<string, string[]>();
   const keywordRanked: string[] = approved
     .map((k: any) => {
       const hay = `${k.title || ""} ${k.category || ""} ${k.targetEquipment || ""} ${(k.tags || []).join(" ")}`;
-      const score = keywords.reduce((acc, kw) => (kw && hay.includes(kw) ? acc + 1 : acc), 0);
+      const matchedKws = keywords.filter((kw) => kw && hay.includes(kw));
+      const score = matchedKws.length;
+      if (score > 0) {
+        keywordScoreMap.set(k.id, score);
+        keywordMatchDetail.set(k.id, matchedKws);
+      }
       return { id: k.id, score };
     })
     .filter((x) => x.score > 0)
@@ -39,6 +46,7 @@ export async function findRelevantKnowledge(keywords: string[], limit = 5) {
 
   // ---- 向量路 ----
   const vectorRanked: string[] = [];
+  const vectorScoreMap = new Map<string, number>();
   const queryText = (Array.isArray(keywords) ? keywords : []).filter(Boolean).join(" ");
   if (queryText) {
     const queryVector = await embed(queryText).catch(() => null);
@@ -47,7 +55,10 @@ export async function findRelevantKnowledge(keywords: string[], limit = 5) {
         await getVectorStoreMode(); // 确保存储就绪（幂等）
         const similar = await searchSimilar(queryVector, VECTOR_TOP_K);
         for (const hit of similar) {
-          if (byId.has(hit.articleId)) vectorRanked.push(hit.articleId);
+          if (byId.has(hit.articleId)) {
+            vectorRanked.push(hit.articleId);
+            vectorScoreMap.set(hit.articleId, hit.score);
+          }
         }
       } catch (err: any) {
         // 向量存储不可用：优雅降级为纯关键词路径
@@ -70,7 +81,20 @@ export async function findRelevantKnowledge(keywords: string[], limit = 5) {
     return [...fused.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, limit)
-      .map(([id]) => byId.get(id))
+      .map(([id, rrfScore]) => {
+        const article = byId.get(id);
+        if (!article) return null;
+        // 生成可解释理由
+        const kwHits = keywordMatchDetail.get(id) || [];
+        const vecScore = vectorScoreMap.get(id);
+        const reasons: string[] = [];
+        if (kwHits.length > 0) reasons.push(`关键词「${kwHits.join("、")}」命中`);
+        if (vecScore !== undefined) reasons.push(`语义相似度 ${vecScore.toFixed(3)}`);
+        const explanation = reasons.length > 0
+          ? `召回理由：${reasons.join("；")}（RRF 综合分 ${rrfScore.toFixed(4)}）`
+          : `召回理由：RRF 综合分 ${rrfScore.toFixed(4)}`;
+        return { ...article, explanation };
+      })
       .filter(Boolean);
   }
 

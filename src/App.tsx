@@ -1,9 +1,30 @@
+/**
+ * App.tsx — 应用根组件（组合层）
+ *
+ * 重构状态（2026-09）：
+ *   原文件为 885 行"上帝组件"：equipments/workOrders/inspections/safetyPermits/
+ *   articles/lotoLocks 等全局状态 + 全部 CRUD handler + UI 骨架全部堆在此处。
+ *
+ *   当前重构进度：
+ *   ✅ 业务数据状态 → AppDataContext（src/context/AppDataContext.tsx）
+ *   ✅ 认证/用户/通知状态 → AuthContext（src/context/AuthContext.tsx）
+ *   ✅ AI 聊天状态 → AiChatContext（已有）
+ *   🔄 子视图 props 替换为 useAppData()/useAuth() ← 渐进式迁移中
+ *      （当前仍保留 props 透传作为过渡，不破坏功能）
+ *
+ * 目标架构（完成后）：
+ *   App.tsx 只负责：Provider 组合 + 路由切换 + 全局 Modal
+ *   预期行数：< 250 行（当前：885 行）
+ */
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/Header';
-import { workOrderApi, equipmentApi, authApi, safetyPermitApi, knowledgeApi, inspectionApi, notificationApi } from './api';
+import { authApi } from './api';
 import { logger } from './utils/logger';
+// ─── Context Providers（状态管理层，已从本文件拆出）────────────────────────────
+import { AppDataProvider, useAppData } from './context/AppDataContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Lazy-loaded view components (code-split per route)
 const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
@@ -44,19 +65,130 @@ import { AiChatProvider, useAiChatContext } from './context/AiChatContext';
 import { AiAssistantPanel } from './components/AiAssistantPanel';
 import { OnboardingGuide } from './components/OnboardingGuide';
 
+/**
+ * 根组件：只负责 Provider 组合，不持有任何业务状态。
+ *
+ * 状态分层（重构前 App.tsx 为 885 行上帝组件，状态/逻辑/UI 三类职责混杂）：
+ *   - 认证与通知 → AuthContext（src/context/AuthContext.tsx）
+ *   - 业务数据   → AppDataContext（src/context/AppDataContext.tsx）
+ *   - UI 骨架    → 本文件 AppShell（导航/侧边栏/模态框等纯视图状态）
+ */
 export default function App() {
-  const [authToken, setAuthToken] = useState<string | null>(() => {
-    try {
-      const urlToken = new URLSearchParams(window.location.search).get('token');
-      if (urlToken) {
-        authApi.saveToken(urlToken);
-        return urlToken;
-      }
-    } catch {}
-    return authApi.getToken();
-  });
+  return (
+    <AuthProvider>
+      <AppDataBridge />
+    </AuthProvider>
+  );
+}
 
-  // Navigation
+/**
+ * 登录页挂载点。
+ * LoginView 是 React.lazy 懒加载组件，必须置于 Suspense 边界内，
+ * 否则首次挂起时会被 RootErrorBoundary 误判为渲染异常。
+ */
+function LoginScreen({ onLoginSuccess }: { onLoginSuccess: (user: UserProfile, token: string) => void }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center text-slate-500 text-sm">
+          正在加载登录页...
+        </div>
+      }
+    >
+      <LoginView onLoginSuccess={onLoginSuccess} />
+    </Suspense>
+  );
+}
+
+/**
+ * 认证守卫 + 业务数据 Provider 桥接层。
+ * 未登录时不挂载 AppDataProvider，因此不会发起任何业务数据请求。
+ */
+function AppDataBridge() {
+  const { authToken, setAuthToken, setCurrentUser, setAllUsers, refreshNotifications } = useAuth();
+
+  // 数据加载完成后回填认证态（currentUser / allUsers 归 AuthContext 单一数据源）
+  const handleDataLoaded = useCallback(
+    (user: UserProfile | null, users: UserProfile[]) => {
+      setCurrentUser(user);
+      setAllUsers(users);
+    },
+    [setCurrentUser, setAllUsers]
+  );
+
+  const handleRefreshNotifications = useCallback(
+    (userId?: string) => {
+      void refreshNotifications(userId);
+    },
+    [refreshNotifications]
+  );
+
+  // 全局路由守卫：未登录直接拦截并跳转至统一登录页，严禁直接访问系统内部页面
+  if (!authToken) {
+    return (
+      <LoginScreen
+        onLoginSuccess={(_user, token) => {
+          setAuthToken(token);
+        }}
+      />
+    );
+  }
+
+  return (
+    <AppDataProvider
+      authToken={authToken}
+      onDataLoaded={handleDataLoaded}
+      onRefreshNotifications={handleRefreshNotifications}
+    >
+      <AppShell />
+    </AppDataProvider>
+  );
+}
+
+/**
+ * 应用外壳：只保留 UI 骨架状态与视图编排。
+ * 业务数据/认证状态一律从 Context 读取，不再逐层 useState + prop-drilling。
+ */
+function AppShell() {
+  const {
+    currentUser,
+    allUsers,
+    notifications,
+    handleLogout,
+    handleSwitchUser,
+    handleMarkNotificationRead,
+    handleMarkAllNotificationsRead,
+    handleAddUser,
+    setAuthToken,
+    setCurrentUser,
+    setAllUsers,
+  } = useAuth();
+
+  const {
+    equipments,
+    workOrders,
+    inspections,
+    safetyPermits,
+    articles,
+    lotoLocks,
+    isInitialLoading,
+    loadError,
+    loadAllBackendData,
+    handleAddEquipment,
+    handleUpdateEquipment,
+    handleDeleteEquipment,
+    handleAddWorkOrder,
+    handleUpdateWorkOrder,
+    handleUpdateInspection,
+    handleConvertAbnormalToWorkOrder,
+    handleAddSafetyPermit,
+    handleUpdateSafetyPermit,
+    handleDeleteSafetyPermit,
+    handleAddArticle,
+    handleCreateWorkOrderFromAi,
+  } = useAppData();
+
+  // ── 纯 UI 状态（导航 / 跨模块跳转 / 模态框，不属于业务数据）──────────────────
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   // 调度大屏预选：从检修工单「就近派单」或 AI 协同「前往调度」跳入时携带
   const [dispatchPreset, setDispatchPreset] = useState<{ workOrderId?: string | null; equipmentId?: string | null }>({});
@@ -64,21 +196,6 @@ export default function App() {
     setDispatchPreset(preset);
     setActiveTab('dispatch');
   }, []);
-
-  // 数据加载状态：加载中 / 失败原因 (接口失败时展示错误提示与重试按钮，绝不使用 mock 兜底)
-  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  // Core Data States (全部初始为空，仅由后端接口真实数据填充)
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  const [equipments, setEquipments] = useState<Equipment[]>([]);
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
-  const [inspections, setInspections] = useState<InspectionTask[]>([]);
-  const [safetyPermits, setSafetyPermits] = useState<SafetyPermit[]>([]);
-  const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [lotoLocks, setLotoLocks] = useState<LotoLock[]>([]);
 
   // 手机扫码直达巡检目标设备 ID
   const [mobileScanEquipmentId, setMobileScanEquipmentId] = useState<string | null>(null);
@@ -135,212 +252,6 @@ export default function App() {
     }
   }, []);
 
-  // 全量真实后端接口数据加载 (空状态 + loading + 失败重试，无任何 mock 兜底)
-  const loadAllBackendData = useCallback(async () => {
-    setIsInitialLoading(true);
-    setLoadError(null);
-    try {
-      const [apiOrders, apiEquips, apiPermits, apiArticles, apiUsers, apiInspections, meUser, apiLotoLocks] =
-        await Promise.all([
-          workOrderApi.list(),
-          equipmentApi.list(),
-          safetyPermitApi.list(),
-          knowledgeApi.list(),
-          authApi.getUsers(),
-          inspectionApi.list(),
-          authApi.getCurrentUser(),
-          safetyPermitApi.getLotoLocks(),
-        ]);
-
-      setWorkOrders(Array.isArray(apiOrders) ? apiOrders : []);
-      setEquipments(Array.isArray(apiEquips) ? apiEquips : []);
-      setSafetyPermits(Array.isArray(apiPermits) ? apiPermits : []);
-      setArticles(Array.isArray(apiArticles) ? apiArticles : []);
-      setAllUsers(Array.isArray(apiUsers) ? apiUsers : []);
-      setInspections(Array.isArray(apiInspections) ? apiInspections : []);
-      setCurrentUser(meUser || null);
-      setLotoLocks(Array.isArray(apiLotoLocks) ? apiLotoLocks : []);
-
-      // 按当前用户隔离拉取通知列表
-      const apiNotifications = await notificationApi.list({ userId: meUser?.id });
-      setNotifications(Array.isArray(apiNotifications) ? apiNotifications : []);
-    } catch (err: any) {
-      logger.error('Backend API full sync error:', err);
-      setLoadError(err?.message || '后端接口请求失败，无法加载真实业务数据');
-    } finally {
-      setIsInitialLoading(false);
-    }
-  }, []);
-
-  // 刷新通知中心 (按当前用户隔离)
-  const refreshNotifications = useCallback(async (userId?: string) => {
-    try {
-      const targetId = userId || currentUser?.id;
-      const list = await notificationApi.list({ userId: targetId });
-      setNotifications(Array.isArray(list) ? list : []);
-    } catch (err) {
-      logger.warn('通知刷新失败:', err);
-    }
-  }, [currentUser?.id]);
-
-  // 切换用户角色处理 (支持切号获取对应角色真实 JWT 并即时刷新该用户专属通知与工作台)
-  const handleSwitchUser = async (user: UserProfile) => {
-    setCurrentUser(user);
-    try {
-      const res = await authApi.switchUser(user.id);
-      if (res?.token) {
-        authApi.saveToken(res.token);
-        setAuthToken(res.token);
-      }
-      const list = await notificationApi.list({ userId: user.id });
-      setNotifications(Array.isArray(list) ? list : []);
-    } catch (err) {
-      logger.warn('切换用户后端同步提示（已切换前端视图）:', err);
-      try {
-        const list = await notificationApi.list({ userId: user.id });
-        setNotifications(Array.isArray(list) ? list : []);
-      } catch (_) {}
-    }
-  };
-
-  // 当登录有效时，自动拉取后端所有业务模型真实数据
-  useEffect(() => {
-    if (authToken) {
-      loadAllBackendData();
-    } else {
-      setIsInitialLoading(false);
-    }
-  }, [authToken, loadAllBackendData]);
-
-  // 登出处理
-  const handleLogout = () => {
-    authApi.logout();
-    setAuthToken(null);
-  };
-
-  // Handlers
-  const handleAddEquipment = (newEq: Equipment) => {
-    // 设备由 EquipmentArchivesView 通过 equipmentApi.create 真实落库后回调
-    setEquipments((prev) => [newEq, ...prev]);
-    refreshNotifications();
-  };
-
-  const handleUpdateEquipment = (updatedEq: Equipment) => {
-    setEquipments((prev) => prev.map((e) => (e.id === updatedEq.id ? updatedEq : e)));
-  };
-
-  const handleDeleteEquipment = (id: string) => {
-    setEquipments((prev) => prev.filter((e) => e.id !== id));
-  };
-
-  const handleAddWorkOrder = (newWo: WorkOrder) => {
-    // 工单由各视图通过 workOrderApi.create 真实落库后回调
-    setWorkOrders((prev) => [newWo, ...prev]);
-    // 与后端同步：紧急/高优先级报修将设备置为故障待修
-    if (newWo.priority === 'urgent' || newWo.priority === 'high') {
-      setEquipments((prev) =>
-        prev.map((e) => (e.id === newWo.equipmentId ? { ...e, status: 'fault' } : e))
-      );
-    }
-    refreshNotifications();
-  };
-
-  const handleUpdateWorkOrder = (updatedWo: WorkOrder) => {
-    setWorkOrders((prev) => prev.map((w) => (w.id === updatedWo.id ? updatedWo : w)));
-    if (updatedWo.status === 'completed') {
-      // 与后端一致：验收归档后设备恢复运行
-      setEquipments((prev) =>
-        prev.map((e) => (e.id === updatedWo.equipmentId ? { ...e, status: 'running' } : e))
-      );
-    }
-    refreshNotifications();
-  };
-
-  const handleUpdateInspection = async (updatedTask: InspectionTask) => {
-    // 本地即时更新，同时持久化到后端 inspections 表
-    setInspections((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
-    try {
-      await inspectionApi.update(updatedTask.id, updatedTask);
-    } catch (err) {
-      logger.warn('巡检数据后端同步失败（本地已更新，后台稍后重试）:', err);
-    }
-  };
-
-  const handleConvertAbnormalToWorkOrder = async (point: InspectionItem, equipmentName: string) => {
-    const eq = equipments.find((e) => e.name === equipmentName || e.id === point.equipmentId) || equipments[0];
-    const checkName = point.checkPoint || point.checkItem || '关键测点';
-    const limitVal = point.maxLimit ?? point.maxVal ?? '标准限值';
-    const unit = point.unit || '';
-    const desc = `巡检中发现实测数值 ${point.recordedValue}${unit}，超出标准上限 ${limitVal}${unit}。巡检备注: ${point.notes || '无'}`;
-
-    try {
-      const created = await workOrderApi.create({
-        title: `【巡检异常】${equipmentName} ${checkName} 实测超标`,
-        equipmentId: eq.id,
-        faultType: '机械振动',
-        priority: 'high',
-        description: desc,
-        safetyRequirements: ['作业前实施现场停电上锁隔离', '穿戴劳保绝缘装备'],
-        creator: `${currentUser?.name || '巡检员'} (巡检现场转单)`,
-        forceSubmit: true, // 现场巡检超标应急转单允许穿透防重
-      });
-      handleAddWorkOrder(created);
-    } catch (err: any) {
-      // 绝不本地伪造工单兜底，失败必须向用户明确提示
-      alert(`巡检异常转工单失败: ${err?.message || '后端接口请求异常'}，请稍后重试`);
-      return;
-    }
-    setActiveTab('work_orders');
-  };
-
-  const handleAddSafetyPermit = (newPermit: SafetyPermit) => {
-    // 作业票由 SafetyManagementView 通过 safetyPermitApi.create 真实落库后回调
-    setSafetyPermits((prev) => [newPermit, ...prev]);
-    refreshNotifications();
-  };
-
-  const handleUpdateSafetyPermit = (updatedPermit: SafetyPermit) => {
-    // 审批结果由 SafetyManagementView 通过 safetyPermitApi.approve 真实落库后回调
-    setSafetyPermits((prev) => prev.map((p) => (p.id === updatedPermit.id ? updatedPermit : p)));
-    refreshNotifications();
-  };
-
-  const handleDeleteSafetyPermit = (permitId: string) => {
-    setSafetyPermits((prev) => prev.filter((p) => p.id !== permitId));
-    refreshNotifications();
-  };
-
-  const handleAddArticle = (newArt: KnowledgeArticle) => {
-    // 文章由 KnowledgeBaseView 通过 knowledgeApi.create 真实落库后回调
-    setArticles((prev) => [newArt, ...prev]);
-  };
-
-  const handleAddUser = (newUser: UserProfile) => {
-    // 账号由 UserManagementView 通过 authApi.createUser 真实落库后回调
-    setAllUsers((prev) => [...prev, newUser]);
-  };
-
-  // 通知中心操作 (真实落库)
-  const handleMarkNotificationRead = async (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-    try {
-      await notificationApi.markRead(id);
-    } catch (err) {
-      logger.warn('标记已读失败:', err);
-      refreshNotifications();
-    }
-  };
-
-  const handleMarkAllNotificationsRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    try {
-      await notificationApi.markAllRead();
-    } catch (err) {
-      logger.warn('全部已读失败:', err);
-      refreshNotifications();
-    }
-  };
-
   // Cross-Navigation Shortcuts
   const handleSelectEquipmentForHealth = (eq: Equipment) => {
     setSelectedEquipmentForHealth(eq);
@@ -361,45 +272,6 @@ export default function App() {
     setAiPrefilledQuery(query);
     setActiveTab('ai_assistant');
   };
-
-  const handleCreateWorkOrderFromAi = async (title: string, equipmentName: string, description: string) => {
-    const eq = equipments.find((e) => e.name === equipmentName) || equipments[0];
-    if (!eq) {
-      alert('未找到匹配设备，无法创建工单，请先在设备档案中确认设备台账。');
-      return;
-    }
-    try {
-      const created = await workOrderApi.create({
-        title,
-        equipmentId: eq.id,
-        faultType: '机械振动',
-        priority: 'urgent',
-        description,
-        safetyRequirements: ['执行 MCC 动力柜 LOTO 挂牌上锁', '佩戴防飞溅护目镜与劳保手套'],
-        creator: `${currentUser?.name || 'AI 助手'} (AI 诊断生成)`,
-        forceSubmit: true,
-      });
-      handleAddWorkOrder(created);
-      setActiveTab('work_orders');
-    } catch (err: any) {
-      alert(`AI 诊断转工单失败: ${err?.message || '后端接口请求异常'}`);
-    }
-  };
-
-  // 全局路由守卫：未登录直接拦截并跳转至统一登录页，严禁直接访问系统内部页面
-  if (!authToken) {
-    return (
-      <LoginView
-        onLoginSuccess={(user, token) => {
-          setAuthToken(token);
-          if (user) {
-            setCurrentUser(user);
-          }
-          loadAllBackendData();
-        }}
-      />
-    );
-  }
 
   // 首屏数据加载中：仪表盘骨架屏（非转圈 loading），绝不展示任何 mock 假数据
   if (isInitialLoading) {
@@ -471,13 +343,10 @@ export default function App() {
   // 后端返回当前用户为空（Token 失效）时回登录页
   if (!currentUser) {
     return (
-      <LoginView
-        onLoginSuccess={(user, token) => {
+      <LoginScreen
+        onLoginSuccess={(_user, token) => {
+          // 仅更新 token；用户态与业务数据由 AppDataBridge / AppDataProvider 重新拉取
           setAuthToken(token);
-          if (user) {
-            setCurrentUser(user);
-          }
-          loadAllBackendData();
         }}
       />
     );
@@ -501,7 +370,7 @@ export default function App() {
         onSwitchUser={handleSwitchUser}
         onUpdateCurrentUser={(updated) => {
           setCurrentUser(updated);
-          setAllUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+          setAllUsers(allUsers.map((u) => (u.id === updated.id ? updated : u)));
         }}
         allUsers={allUsers}
         onLogout={handleLogout}
@@ -628,7 +497,15 @@ export default function App() {
               equipments={equipments}
               targetEquipmentId={mobileScanEquipmentId || undefined}
               onUpdateInspection={handleUpdateInspection}
-              onConvertAbnormalToWorkOrder={handleConvertAbnormalToWorkOrder}
+              onConvertAbnormalToWorkOrder={async (point, equipmentName) => {
+                // 转单成功后才跳转工单页；失败时 Context 内已 alert 提示，保持停留当前页
+                try {
+                  await handleConvertAbnormalToWorkOrder(point, equipmentName);
+                  setActiveTab('work_orders');
+                } catch {
+                  /* 错误提示已在 AppDataContext 内完成 */
+                }
+              }}
               onCreateWorkOrder={handleAddWorkOrder}
             />
           )}
@@ -675,7 +552,15 @@ export default function App() {
               equipments={equipments}
               prefilledEquipment={aiTargetEquipment}
               prefilledQuery={aiPrefilledQuery}
-              onCreateWorkOrderFromAi={handleCreateWorkOrderFromAi}
+              onCreateWorkOrderFromAi={(title, equipmentName, description) =>
+                handleCreateWorkOrderFromAi(
+                  title,
+                  equipmentName,
+                  description,
+                  currentUser,
+                  () => setActiveTab('work_orders')
+                )
+              }
             />
           )}
           {activeTab === 'ai_pipeline' && <AiPipelineView onGoDispatch={navigateToDispatch} />}

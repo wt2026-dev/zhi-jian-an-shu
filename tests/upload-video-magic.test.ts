@@ -13,7 +13,7 @@ let adminToken = "";
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
   app = await createApp();
-  adminToken = (await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "password123" })).body.token;
+  adminToken = (await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "Admin@2026#Demo" })).body.token;
   expect(adminToken).toBeTruthy();
 });
 

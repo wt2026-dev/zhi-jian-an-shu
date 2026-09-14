@@ -61,7 +61,7 @@ beforeAll(async () => {
 
   const loginRes = await request(app)
     .post("/api/v1/auth/login")
-    .send({ username: "admin", password: "password123" });
+    .send({ username: "admin", password: "Admin@2026#Demo" });
   adminToken = loginRes.body.token;
 });
 
@@ -143,7 +143,7 @@ describe("AI 预算控制 (Budget Suite)", () => {
     it("非 admin 用户无法访问预算接口", async () => {
       const techLogin = await request(app)
         .post("/api/v1/auth/login")
-        .send({ username: "tech1", password: "password123" });
+        .send({ username: "tech1", password: "Tech1@2026#Work" });
       const techToken = techLogin.body.token;
 
       const res = await request(app)

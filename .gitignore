@@ -27,3 +27,6 @@ _dir_listing*.txt
 
 # Temp backup/done markers
 *.done
+
+data.bak*/
+.workbuddy-ai/
