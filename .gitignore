@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 build/
 dist/
 coverage/
@@ -22,3 +22,8 @@ archive/
 scratch/
 scratch_shots/
 
+# Debug output
+_dir_listing*.txt
+
+# Temp backup/done markers
+*.done
