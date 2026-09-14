@@ -2,7 +2,7 @@
 import express from "express";
 import swaggerUi from "swagger-ui-express";
 import { buildOpenApiSpec } from "../../openapi.ts";
-import { requireRole } from "../middleware/auth.ts";
+import { requireAuth, requireRole } from "../middleware/auth.ts";
 import { validateBody, validateQuery } from "../middleware/validate.ts";
 import { auditLogsQuerySchema, debugLogSchema } from "../schemas/system.ts";
 import {
@@ -17,6 +17,12 @@ import {
   handleDebugLog,
   handleDownloadZip,
 } from "../controllers/systemController.ts";
+import {
+  handleListAiModels,
+  handleUpsertAiModel,
+  handleTestAiModel,
+  handleReorderAiModels,
+} from "../controllers/aiModelConfigController.ts";
 
 export function registerSystemRoutes(app: express.Express) {
   // 审计日志查询 API (GET /api/v1/audit-logs)
@@ -53,4 +59,11 @@ export function registerSystemRoutes(app: express.Express) {
 
   // 全量源码工程打包下载 ZIP
   app.get("/api/download-zip", handleDownloadZip);
+
+  // ==================== AI 模型路由管理（多模型接入 / 降级优先级 / 连接测试，仅管理员） ====================
+  app.get("/api/v1/admin/ai-models", requireAuth, requireRole(["admin"], "查看 AI 模型配置"), handleListAiModels);
+  app.post("/api/v1/admin/ai-models", requireAuth, requireRole(["admin"], "新增/更新 AI 模型配置"), handleUpsertAiModel);
+  app.post("/api/v1/admin/ai-models/reorder", requireAuth, requireRole(["admin"], "调整模型降级优先级"), handleReorderAiModels);
+  app.post("/api/v1/admin/ai-models/:id/test", requireAuth, requireRole(["admin"], "测试模型连接"), handleTestAiModel);
 }
+

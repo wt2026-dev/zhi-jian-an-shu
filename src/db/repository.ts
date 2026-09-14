@@ -18,3 +18,6 @@ export { AiAnalysisLogRepository } from "./repositories/aiAnalysisLogRepository.
 export { SparePartsRepository } from "./repositories/sparePartsRepository.ts";
 export { HazardsRepository } from "./repositories/hazardsRepository.ts";
 export { ProcedureVideoRepository } from "./repositories/procedureVideoRepository.ts";
+export { AiTaskRepository, AiTaskStepRepository } from "./repositories/aiTaskRepository.ts";
+export { AiGenerationReviewRepository } from "./repositories/aiGenerationReviewRepository.ts";
+export { AiModelConfigRepository } from "./repositories/aiModelConfigRepository.ts";

@@ -200,11 +200,11 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
   const activeLotoLocks = lotoLocks.filter((l) => l.status === 'locked');
 
   // AI 作业票风险评估状态 (功能 6)
-  const [riskAssessState, setRiskAssessState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; data?: AiSafetyAssessment | null }>({ open: false, loading: false, error: null });
+  const [riskAssessState, setRiskAssessState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; reviewId?: string | null; data?: AiSafetyAssessment | null }>({ open: false, loading: false, error: null });
 
   const applyRiskAssessment = (res: any) => {
     if (res.success && res.assessment) {
-      setRiskAssessState({ open: true, loading: false, error: null, data: res.assessment });
+      setRiskAssessState({ open: true, loading: false, error: null, data: res.assessment, reviewId: res.reviewId });
     } else {
       setRiskAssessState({ open: true, loading: false, error: res.message || res.error || 'AI 风险评估失败', degraded: res.degraded });
     }
@@ -811,6 +811,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
         loading={riskAssessState.loading}
         error={riskAssessState.error}
         degraded={riskAssessState.degraded}
+        pendingReview={!!riskAssessState.reviewId}
         data={riskAssessState.data}
         onClose={() => setRiskAssessState((prev) => ({ ...prev, open: false }))}
         footer={

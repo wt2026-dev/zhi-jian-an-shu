@@ -110,6 +110,8 @@ interface AiResultModalProps {
   loading: boolean;
   error: string | null;
   degraded?: boolean;
+  /** AI 生成内容待管理员审核角标 */
+  pendingReview?: boolean;
   data?: any;
   onClose: () => void;
   footer?: React.ReactNode;
@@ -123,6 +125,7 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
   loading,
   error,
   degraded,
+  pendingReview,
   data,
   onClose,
   footer,
@@ -152,6 +155,16 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
             {degraded && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 AI 未配置 · 降级提示
+              </span>
+            )}
+            {pendingReview && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold animate-pulse">
+                待管理员审核
+              </span>
+            )}
+            {pendingReview && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold animate-pulse">
+                待管理员审核
               </span>
             )}
           </div>

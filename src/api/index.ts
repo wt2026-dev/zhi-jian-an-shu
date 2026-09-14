@@ -627,7 +627,7 @@ export const aiApi = {
 
   // 功能 3：检修方案 / 作业指导书生成
   generateMaintenancePlan: (data: { equipmentId: string; faultDescription: string; workOrderId?: string }) =>
-    request<{ success: boolean; degraded?: boolean; message?: string; plan?: AiMaintenancePlan; error?: string; model?: string }>(
+    request<{ success: boolean; degraded?: boolean; message?: string; plan?: AiMaintenancePlan; error?: string; model?: string; reviewId?: string | null }>(
       '/ai/generate-maintenance-plan',
       { method: 'POST', body: JSON.stringify(data) }
     ),
@@ -641,14 +641,14 @@ export const aiApi = {
 
   // 功能 5：智能报告生成 (巡检/检修/月度)
   generateReport: (data: { reportType: 'inspection' | 'maintenance' | 'monthly'; startDate: string; endDate: string; workshop?: string }) =>
-    request<{ success: boolean; degraded?: boolean; message?: string; report?: AiReport; meta?: any; error?: string; model?: string }>(
+    request<{ success: boolean; degraded?: boolean; message?: string; report?: AiReport; meta?: any; error?: string; model?: string; reviewId?: string | null }>(
       '/ai/generate-report',
       { method: 'POST', body: JSON.stringify(data) }
     ),
 
   // 功能 6：作业票 AI 风险评估 (JSA)
   safetyRiskAssessment: (data: { permitType: string; equipmentId?: string; workDescription: string; location?: string; hazards?: string[] }) =>
-    request<{ success: boolean; degraded?: boolean; message?: string; assessment?: AiSafetyAssessment; error?: string; model?: string }>(
+    request<{ success: boolean; degraded?: boolean; message?: string; assessment?: AiSafetyAssessment; error?: string; model?: string; reviewId?: string | null }>(
       '/ai/safety-risk-assessment',
       { method: 'POST', body: JSON.stringify(data) }
     ),
@@ -914,4 +914,136 @@ export const cockpitApi = {
     request<{ type: CockpitAbnormalType; count: number; items: CockpitAbnormalItem[]; timestamp: string }>(
       `/cockpit/abnormal-equipments?type=${type}`
     ),
+};
+
+// ==================== AI 协同任务链路（Pipeline） ====================
+
+export interface AiPipelineStep {
+  id: string;
+  taskId: string;
+  stepName: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  result: { outcome?: string; degraded?: boolean; message?: string; data?: any } | null;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface AiPipelineReport {
+  equipment: { id: string; name: string; code: string; workshop?: string; healthScore?: number };
+  problemDescription: string;
+  diagnosis?: any;
+  plan?: any;
+  risk?: any;
+  assignee?: any;
+  degradedSteps: string[];
+  generatedAt: string;
+}
+
+export interface AiPipelineTask {
+  id: string;
+  scene: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  currentStep: string | null;
+  result: { failedSteps?: string[]; degradedSteps?: string[]; report?: AiPipelineReport } | null;
+  steps: AiPipelineStep[];
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export const aiPipelineApi = {
+  /** 创建并启动协同任务（故障诊断 → 检修方案 → 风险审核 ∥ 派单推荐） */
+  create: (data: { equipmentId: string; problemDescription: string; scene?: string }) =>
+    request<{ success: boolean; taskId: string; scene: string; steps: string[]; message: string }>('/ai/pipeline', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** 查询任务与各步骤状态 */
+  getById: (id: string) => request<{ success: boolean; task: AiPipelineTask }>(`/ai/pipeline/${id}`),
+};
+
+// ==================== AI 生成内容审核台（管理端） ====================
+
+export interface AiGenerationReview {
+  id: string;
+  aiEndpoint: string;
+  sourceType: 'maintenance_plan' | 'safety_risk' | 'report' | 'work_order_draft';
+  sourceTypeLabel?: string;
+  content: any;
+  knowledgeSources: string[];
+  knowledgeRefs?: { id: string; title: string; category: string; excerpt: string }[];
+  status: 'pending' | 'approved' | 'rejected';
+  reviewer: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export const adminAiReviewApi = {
+  list: (status?: 'pending' | 'approved' | 'rejected') =>
+    request<AiGenerationReview[]>(`/admin/ai-reviews${status ? `?status=${status}` : ''}`),
+
+  approve: (id: string, reviewNote?: string) =>
+    request<{ success: boolean; review: AiGenerationReview }>(`/admin/ai-reviews/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ review_note: reviewNote || '' }),
+    }),
+
+  reject: (id: string, reviewNote: string) =>
+    request<{ success: boolean; review: AiGenerationReview }>(`/admin/ai-reviews/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ review_note: reviewNote }),
+    }),
+};
+
+// ==================== AI 模型路由（管理端） ====================
+
+export interface AiModelConfig {
+  id: string;
+  provider: string;
+  displayName: string;
+  baseUrl: string;
+  apiKeyMasked: string;
+  modelName: string;
+  capabilities: ('chat' | 'vision' | 'video')[];
+  priority: number;
+  enabled: boolean;
+  healthStatus: 'unknown' | 'healthy' | 'unhealthy';
+  lastCheckedAt: string | null;
+}
+
+export const adminAiModelApi = {
+  list: () => request<AiModelConfig[]>('/admin/ai-models'),
+
+  upsert: (data: {
+    id?: string;
+    provider: string;
+    displayName: string;
+    baseUrl?: string;
+    apiKey?: string;
+    apiKeyEnv?: string;
+    modelName: string;
+    capabilities: ('chat' | 'vision' | 'video')[];
+    priority?: number;
+    enabled?: boolean;
+  }) =>
+    request<{ success: boolean; config: AiModelConfig }>('/admin/ai-models', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  test: (id: string) =>
+    request<{ success: boolean; configId: string; latencyMs: number; model: string; error?: string; reply?: string }>(
+      `/admin/ai-models/${id}/test`,
+      { method: 'POST', body: JSON.stringify({}) }
+    ),
+
+  reorder: (orderedIds: string[]) =>
+    request<{ success: boolean; configs: AiModelConfig[] }>('/admin/ai-models/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ orderedIds }),
+    }),
 };

@@ -8,6 +8,7 @@ import { validateBody } from "../middleware/validate.ts";
 import { aiChatSchema, suggestFollowupsSchema, equipmentSummarySchema, recommendAssigneeSchema, alarmCorrelationSchema } from "../schemas/ai.ts";
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { EquipmentRepository, WorkOrderRepository, TelemetryRepository, InspectionRepository, UserRepository } from "../../db/repositories/index.ts";
+import { runRecommendAssigneeCore } from "../services/aiCapabilityService.ts";
 export const handleAiChat = async (req: any, res: any) => {
   const { message, history = [] } = req.body;
   const chatId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -283,65 +284,43 @@ export const handleRecommendAssignee = async (req: any, res: any) => {
     if (!eq) {
       return res.status(404).json({ success: false, error: "设备不存在，请核对 equipmentId" });
     }
-    // 候选技师 (technician 角色) 与当前负载
-    const users = await UserRepository.getAllUsers();
-    const techs = users.filter((u: any) => u.role === "technician" || u.role === "manager");
-    const allOrders = await WorkOrderRepository.getAll();
-    const activeStatuses = ["dispatched", "in_progress", "pending_acceptance"];
-    const techCtx = techs
-      .map((u: any) => {
-        const activeCount = allOrders.filter((w: any) => w.assigneeId === u.id && activeStatuses.includes(w.status)).length;
-        const doneCount = allOrders.filter((w: any) => w.assigneeId === u.id && w.status === "completed").length;
-        return `- ${u.name} (${u.roleTitle}, id=${u.id}, 部门:${u.department}) 当前在办 ${activeCount} 单 / 历史完成 ${doneCount} 单`;
-      })
-      .join("\n");
-    // 历史类似工单处理人 (按设备 + 故障类型关键词)
-    const keywords = faultDescription.slice(0, 30);
-    const similarOrders = allOrders
-      .filter((w: any) => w.assigneeId && (w.equipmentId === equipmentId || (w.title + (w.description || "")).includes(keywords.slice(0, 8))))
-      .slice(0, 5);
-    const similarCtx = similarOrders
-      .map((w: any) => `- [${w.orderNo}] ${w.title} → 处理人: ${w.assignee || "未知"} (id=${w.assigneeId})`)
-      .join("\n") || "无";
-
-    const userPrompt = `请为以下检修工单推荐最合适的主修技师。
-【设备】${eq.name} (${eq.code}) | 类别: ${eq.category} | 车间: ${eq.workshop}
-【故障描述】${faultDescription}
-【指定优先级】${priority || "未指定 (请给出建议)"}
-【候选技师及当前负载】
-${techCtx}
-【历史类似工单处理人】
-${similarCtx}
-
-严格按如下 JSON 结构输出:
-{
-  "recommended": {"id": "技师id", "name": "姓名", "reason": "推荐理由 (技能匹配/负载/历史经验)"},
-  "alternatives": [{"id": "技师id", "name": "姓名", "reason": "备选理由"}],
-  "estimatedHours": 3.5,
-  "suggestedPriority": "urgent|high|medium|low 之一"
-}
-alternatives 给 1-2 名。必须从候选技师中选人，不得虚构。`;
-
-    const __cached = aiCacheGet("recommend-assignee", req.body);
-    if (__cached) {
-      return res.json(Object.assign({}, __cached.value, { fromCache: true, cachedAt: __cached.cachedAt, model: "cache" }));
+    // 核心逻辑抽取至 services/aiCapabilityService.runRecommendAssigneeCore，此处保留审计与 HTTP 语义
+    const result = await runRecommendAssigneeCore({ equipmentId, faultDescription, priority });
+    if (result.outcome === "cache") {
+      return res.json(result.body);
     }
-    const { data } = await callDashScopeJson(AI_EXPERT_SYSTEM, userPrompt);
+    if (result.outcome === "success") {
+      addAuditLog(req, {
+        actionType: "AI_RECOMMEND_ASSIGNEE",
+        module: "ai",
+        detail: `AI 推荐派单 (${eq.name}): 主修 ${result.body.recommendation?.recommended?.name || "N/A"}，预估 ${result.body.recommendation?.estimatedHours}h`,
+        status: "SUCCESS",
+        metadata: { equipmentId, recommended: result.body.recommendation?.recommended?.name, estimatedHours: result.body.recommendation?.estimatedHours, model: DASHSCOPE_CHAT_MODEL },
+      });
+      return res.json(result.body);
+    }
+    if (result.outcome === "unavailable") {
+      addAuditLog(req, {
+        actionType: "AI_RECOMMEND_ASSIGNEE",
+        module: "ai",
+        detail: `AI 功能降级 (未配置密钥): ${result.errorMessage}`,
+        status: "FAILED",
+        metadata: { degraded: true },
+      });
+      return res.status(200).json(result.body);
+    }
     addAuditLog(req, {
       actionType: "AI_RECOMMEND_ASSIGNEE",
       module: "ai",
-      detail: `AI 推荐派单 (${eq.name}): 主修 ${data.recommended?.name || "N/A"}，预估 ${data.estimatedHours}h`,
-      status: "SUCCESS",
-      metadata: { equipmentId, recommended: data.recommended?.name, estimatedHours: data.estimatedHours, model: DASHSCOPE_CHAT_MODEL },
+      detail: `AI 调用失败: ${result.errorMessage}`,
+      status: "FAILED",
+      metadata: { error: String(result.errorMessage).slice(0, 200) },
     });
-    const __body = { success: true, recommendation: data, model: DASHSCOPE_CHAT_MODEL };
-    aiCacheSet("recommend-assignee", req.body, __body, { equipmentId: equipmentId });
-    res.json(__body);
+    return res.status(200).json(result.body);
   } catch (err: any) {
     handleAiRouteError(res, err, "AI_RECOMMEND_ASSIGNEE", req);
   }
 };
-// ---------- 功能 10：报警智能关联分析 ----------
 export const handleAlarmCorrelation = async (req: any, res: any) => {
   try {
     const { alarms } = req.body;

@@ -143,3 +143,10 @@ export const videoAnalyzeSchema = z.object({
 });
 
 export const feedbackSchema = z.object({ chatId: z.string().min(1), user_correction: z.string().min(1), corrected_content: z.string().min(1), model_response: z.string().optional(), device_id: z.string().optional() });
+
+// ==================== AI 协同任务链路（Pipeline） ====================
+export const pipelineCreateSchema = z.object({
+  equipmentId: z.string().min(1, { message: "equipmentId 必填" }),
+  problemDescription: z.string().min(2, { message: "问题描述必填（至少 2 个字符）" }),
+  scene: z.string().optional(),
+});

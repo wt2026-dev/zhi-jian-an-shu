@@ -244,7 +244,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
 
   // AI 扩展功能状态 (功能 2：根因分析 / 功能 3：检修方案)
   const [rcaState, setRcaState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; data?: AiRootCauseAnalysis | null }>({ open: false, loading: false, error: null });
-  const [planState, setPlanState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; data?: AiMaintenancePlan | null }>({ open: false, loading: false, error: null });
+  const [planState, setPlanState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; reviewId?: string | null; data?: AiMaintenancePlan | null }>({ open: false, loading: false, error: null });
 
   // AI 辅助派单状态 (功能 9)
   const [recState, setRecState] = useState<{ loading: boolean; error: string | null; degraded?: boolean; data?: AiAssigneeRecommendation | null }>({ loading: false, error: null });
@@ -304,7 +304,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
         workOrderId: selectedOrder.id,
       });
       if (res.success && res.plan) {
-        setPlanState({ open: true, loading: false, error: null, data: res.plan });
+        setPlanState({ open: true, loading: false, error: null, data: res.plan, reviewId: res.reviewId });
       } else {
         setPlanState({ open: true, loading: false, error: res.message || res.error || 'AI 检修方案生成失败', degraded: res.degraded });
       }
@@ -2115,6 +2115,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
         loading={planState.loading}
         error={planState.error}
         degraded={planState.degraded}
+        pendingReview={!!planState.reviewId}
         data={planState.data}
         onClose={() => setPlanState((prev) => ({ ...prev, open: false }))}
       />

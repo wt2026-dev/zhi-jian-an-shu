@@ -3,6 +3,9 @@ import {
   Activity,
   Tv,
   Sparkles,
+  Workflow,
+  ScanSearch,
+  Route,
   Layers,
   Zap,
   Box,
@@ -43,6 +46,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     label: '智能 AI',
     items: [
       { id: 'ai_assistant', label: 'AI数字人助手', icon: Sparkles, highlight: true },
+      { id: 'ai_pipeline', label: 'AI 协同', icon: Workflow, highlight: true },
     ],
   },
   {
@@ -84,6 +88,8 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     label: '系统管理',
     items: [
       { id: 'users', label: '用户与权限', icon: UserCheck },
+      { id: 'ai_reviews', label: 'AI 内容审核', icon: ScanSearch },
+      { id: 'ai_models', label: 'AI 模型路由', icon: Route },
     ],
   },
 ];

@@ -1,40 +1,93 @@
-import OpenAI from "openai";
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
 import { addAuditLog } from "./auditService.ts";
+import { resolveCandidates, clientFor, markHealth, isFailoverEligible } from "./aiModelRouter.ts";
 
 // ==================== 阿里云百炼 (DashScope) 大模型客户端与统一调用辅助 ====================
 // 原 server.ts 模块级 AI 辅助函数模块化；审计日志通过 addAuditLog 直接依赖（无循环依赖）
 
-let aiClient: OpenAI | null = null;
-let aiWarned = false;
+// ==================== 多模型路由器外观（原单模型客户端已升级，导出保持兼容） ====================
+// getAiClient()/getVisionClient() 保持同步签名，返回懒解析路由客户端：
+// - 候选模型在首次 create() 时异步解析（ai_model_configs 5s 缓存 + 环境变量回退），调用方用法完全不变
+// - 无任何可用候选时 create() 抛 AiUnavailableError，与原"未配置密钥"降级路径完全一致
+// - 失败切换/健康回写/审计见 aiModelRouter.ts
 
-export function getAiClient(): OpenAI | null {
-  const apiKey = process.env.DASHSCOPE_API_KEY;
-  if (!apiKey) {
-    // 密钥缺失时仅告警一次并返回 null，由各路由做友好降级，绝不崩溃
-    if (!aiWarned) {
-      console.warn("[AI] 未配置 DASHSCOPE_API_KEY，AI 功能将使用本地规则引擎友好降级。");
-      aiWarned = true;
-    }
-    return null;
-  }
-  if (!aiClient) {
-    try {
-      aiClient = new OpenAI({
-        apiKey,
-        baseURL: process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        timeout: 120000,
-        maxRetries: 1,
-      });
-      const visionModel = process.env.DASHSCOPE_VISION_MODEL || "qwen-vl-max";
-      console.log(`[AI] 阿里云百炼 DashScope 客户端初始化成功 (chat: ${DASHSCOPE_CHAT_MODEL} / vision: ${visionModel})`);
-    } catch (e) {
-      console.error("[AI] DashScope OpenAI 兼容客户端初始化失败:", e);
-      return null;
-    }
-  }
-  return aiClient;
+export interface LazyModelRouter {
+  chat: {
+    completions: {
+      create: (params: any) => Promise<any>;
+    };
+  };
+}
+
+/** 同步构建懒解析路由客户端；preferredCapability 仅在请求 model 与任何配置都不匹配时影响候选排序 */
+function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRouter {
+  return {
+    chat: {
+      completions: {
+        create: async (params: any) => {
+          const resolved = await resolveCandidates();
+          if (!resolved.length) {
+            throw new AiUnavailableError(
+              "AI 服务未配置：请在 .env 中配置 DASHSCOPE_API_KEY，或在「AI 模型路由」中添加可用模型配置。"
+            );
+          }
+          // 排序：请求 model 与配置精确一致者优先 > 首选能力 > priority
+          let ordered = [...resolved];
+          const reqModel = params?.model;
+          if (reqModel) {
+            const exact = ordered.find((c) => c.modelName === reqModel);
+            if (exact) ordered = [exact, ...ordered.filter((c) => c !== exact)];
+          } else {
+            ordered.sort((a, b) => {
+              const aPref = a.capabilities.includes(preferredCapability) ? 0 : 1;
+              const bPref = b.capabilities.includes(preferredCapability) ? 0 : 1;
+              return aPref - bPref;
+            });
+          }
+
+          let lastError: any = null;
+          for (let i = 0; i < ordered.length; i++) {
+            const cand = ordered[i];
+            // 环境变量回退候选（configId=null）：完全沿用调用方传入的 model，保持升级前行为
+            const attemptParams = cand.configId === null ? { ...params } : { ...params, model: cand.modelName };
+            try {
+              const client = clientFor(cand);
+              const response = await client.chat.completions.create(attemptParams);
+              void markHealth(cand.configId, "healthy");
+              return response;
+            } catch (err: any) {
+              lastError = err;
+              console.error(`[AI Model Router] ${cand.displayName}(${cand.modelName}) 调用失败:`, err?.message || err);
+              void markHealth(cand.configId, "unhealthy");
+              if (i < ordered.length - 1 && isFailoverEligible(err)) {
+                addAuditLog(undefined, {
+                  actionType: "AI_MODEL_FAILOVER",
+                  module: "ai",
+                  detail: `模型 ${cand.displayName}(${cand.modelName}) 调用失败，自动降级切换到下一候选模型`,
+                  status: "FAILED",
+                  metadata: { failedProvider: cand.provider, failedModel: cand.modelName, error: String(err?.message || err).slice(0, 200) },
+                });
+                continue;
+              }
+              throw err;
+            }
+          }
+          throw lastError;
+        },
+      },
+    },
+  };
+}
+
+/** chat 能力路由客户端（兼容原 getAiClient 导出与调用方式） */
+export function getAiClient(): LazyModelRouter {
+  return lazyModelRouter("chat");
+}
+
+/** vision 能力路由客户端（新增，供视觉能力使用，同样支持降级） */
+export function getVisionClient(): LazyModelRouter {
+  return lazyModelRouter("vision");
 }
 
 /** AI 服务未配置 (DASHSCOPE_API_KEY 缺失) 时的友好降级错误 */
