@@ -1,4 +1,6 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
+// 兼容保留：本模块由 src/server/routes/aiLegacy.ts 挂载为 /api/ai/* 无鉴权兼容层（历史前端/第三方调用仍在用），
+// 新代码请走 aiPipelineController（协同任务）或 v1 鉴权端点；全部 5 个导出均被挂载，无未使用导出。
 import { getAiClient, extractAiJson } from "../services/aiClient.ts";
 import { generateFallbackExpertReply, generateFallbackDiagnosis } from "../services/aiExpert.ts";
 import { DASHSCOPE_CHAT_MODEL, DASHSCOPE_VISION_MODEL } from "../utils/config.ts";

@@ -146,7 +146,9 @@ export const AdminAiModelsView: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!form.displayName.trim() || !form.modelName.trim() || !form.capabilities.length) {
+    // Unicode NFC 规范化 + trim：防止粘贴入异常编码字符（如分解形字符）或首尾空白入库产生乱码观感
+    const clean = (s: string) => s.normalize("NFC").trim();
+    if (!clean(form.displayName) || !clean(form.modelName) || !form.capabilities.length) {
       setError('名称、模型名、能力至少一项能力为必填');
       return;
     }
@@ -154,10 +156,10 @@ export const AdminAiModelsView: React.FC = () => {
     try {
       await adminAiModelApi.upsert({
         id: editing?.id,
-        provider: form.provider,
-        displayName: form.displayName.trim(),
-        baseUrl: form.baseUrl,
-        modelName: form.modelName.trim(),
+        provider: clean(form.provider),
+        displayName: clean(form.displayName),
+        baseUrl: form.baseUrl.trim(),
+        modelName: clean(form.modelName),
         capabilities: form.capabilities,
         enabled: form.enabled,
         ...(form.apiKeyEnv ? { apiKeyEnv: form.apiKeyEnv.trim() } : {}),

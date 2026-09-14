@@ -41,9 +41,18 @@ export const handleListAiModels = async (req: any, res: any) => {
 // POST /api/v1/admin/ai-models  (携带 id 为更新，否则新增)
 export const handleUpsertAiModel = async (req: any, res: any) => {
   try {
-    const { id, provider, displayName, baseUrl, apiKey, apiKeyEnv, modelName, capabilities, priority, enabled } = req.body;
+    const { id, apiKey, apiKeyEnv, capabilities, priority, enabled } = req.body;
+    // 入参净化：NFC 规范化 + trim，防止异常编码字符或空白入库产生乱码
+    const nfcTrim = (v: any) => (typeof v === "string" ? v.normalize("NFC").trim() : v);
+    const provider = nfcTrim(req.body.provider);
+    const displayName = nfcTrim(req.body.displayName);
+    const modelName = nfcTrim(req.body.modelName);
+    const baseUrl = nfcTrim(req.body.baseUrl);
     if (!provider || !displayName || !modelName) {
       return res.status(400).json({ error: "provider / displayName / modelName 必填", code: "INVALID_INPUT" });
+    }
+    if (String(displayName).length > 128 || String(modelName).length > 128 || String(provider).length > 64) {
+      return res.status(400).json({ error: "provider / displayName / modelName 超过长度限制（64/128/128）", code: "INVALID_INPUT" });
     }
     const caps = Array.isArray(capabilities) ? capabilities.filter((c: string) => VALID_CAPABILITIES.includes(c)) : [];
     if (!caps.length) {
