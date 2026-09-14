@@ -2,12 +2,18 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
   Clock,
+  ExternalLink,
+  GitBranch,
+  History,
+  Layers,
   Loader2,
   Play,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   UserCheck,
@@ -15,7 +21,13 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import { equipmentApi, aiPipelineApi, AiPipelineTask, AiPipelineStep } from '../api';
+import {
+  equipmentApi,
+  aiPipelineApi,
+  AiPipelineTask,
+  AiPipelineStep,
+  AiPipelineListItem,
+} from '../api';
 import { Equipment } from '../types';
 
 /**
@@ -30,14 +42,75 @@ const STEP_META: Record<string, { icon: React.ComponentType<{ className?: string
   '派单推荐': { icon: UserCheck, desc: '按负载与历史经验推荐主修技师' },
 };
 
-export const AiPipelineView: React.FC = () => {
+interface CapabilityItem {
+  name: string;
+  stageBadge: string;
+  icon: React.ComponentType<{ className?: string }>;
+  desc: string;
+  output: string;
+}
+
+const CAPABILITY_CARDS: CapabilityItem[] = [
+  {
+    name: '故障诊断',
+    stageBadge: '机理分析 · 串行',
+    icon: Activity,
+    desc: STEP_META['故障诊断'].desc,
+    output: '诊断结论 + 可能原因',
+  },
+  {
+    name: '检修方案生成',
+    stageBadge: 'SOP生成 · 串行',
+    icon: ClipboardList,
+    desc: STEP_META['检修方案生成'].desc,
+    output: '作业指导书',
+  },
+  {
+    name: '风险审核',
+    stageBadge: 'JSA风控 · 并行',
+    icon: ShieldCheck,
+    desc: STEP_META['风险审核'].desc,
+    output: '风险等级 + LOTO 建议',
+  },
+  {
+    name: '派单推荐',
+    stageBadge: '智能派工 · 并行',
+    icon: UserCheck,
+    desc: STEP_META['派单推荐'].desc,
+    output: '主修技师推荐',
+  },
+];
+
+interface AiPipelineViewProps {
+  /** 携带任务设备跳转调度大屏（派单推荐卡片「前往调度」） */
+  onGoDispatch?: (preset: { workOrderId?: string | null; equipmentId?: string | null }) => void;
+}
+
+export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) => {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [equipmentId, setEquipmentId] = useState('');
   const [problem, setProblem] = useState('');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [task, setTask] = useState<AiPipelineTask | null>(null);
+  const [recentTasks, setRecentTasks] = useState<AiPipelineListItem[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const taskSectionRef = useRef<HTMLDivElement>(null);
+
+  const loadRecentTasks = useCallback(async () => {
+    setLoadingRecent(true);
+    try {
+      const res = await aiPipelineApi.list(5);
+      setRecentTasks(res.tasks || []);
+    } catch {
+      // 容错处理，不中断界面
+    } finally {
+      setLoadingRecent(false);
+    }
+  }, []);
 
   useEffect(() => {
     equipmentApi
@@ -47,10 +120,13 @@ export const AiPipelineView: React.FC = () => {
         if (list?.length) setEquipmentId((prev) => prev || list[0].id);
       })
       .catch(() => setError('设备列表加载失败，请刷新重试'));
+
+    loadRecentTasks();
+
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, []);
+  }, [loadRecentTasks]);
 
   const isTerminal = task?.status === 'completed' || task?.status === 'failed';
 
@@ -64,12 +140,13 @@ export const AiPipelineView: React.FC = () => {
         if (res.task.status === 'completed' || res.task.status === 'failed') {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
+          loadRecentTasks();
         }
       } catch {
         /* 单次轮询失败忽略，下一轮重试 */
       }
     }, 2000);
-  }, []);
+  }, [loadRecentTasks]);
 
   const handleStart = async () => {
     if (!equipmentId || problem.trim().length < 2) {
@@ -84,10 +161,36 @@ export const AiPipelineView: React.FC = () => {
       const initial = await aiPipelineApi.getById(res.taskId);
       setTask(initial.task);
       startPolling(res.taskId);
+      loadRecentTasks();
+      setTimeout(() => {
+        taskSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
     } catch (e: any) {
       setError(e?.data?.message || e?.message || '启动协同任务失败，请稍后重试');
     } finally {
       setStarting(false);
+    }
+  };
+
+  const handleSelectRecentTask = async (taskId: string) => {
+    setLoadingTaskId(taskId);
+    setError(null);
+    try {
+      const res = await aiPipelineApi.getById(taskId);
+      setTask(res.task);
+      if (res.task.status === 'running' || res.task.status === 'pending') {
+        startPolling(res.task.id);
+      } else if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      setTimeout(() => {
+        taskSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    } catch (e: any) {
+      setError(e?.message || '加载任务详情失败');
+    } finally {
+      setLoadingTaskId(null);
     }
   };
 
@@ -193,9 +296,9 @@ export const AiPipelineView: React.FC = () => {
   const report = task?.result?.report;
 
   return (
-    <div className="p-4 md:p-6 max-w-[1100px] mx-auto">
+    <div className="p-4 md:p-6 max-w-[1100px] mx-auto space-y-4">
       {/* 页头：闭环叙事 */}
-      <div className="glass-card p-5 shadow-sm mb-4">
+      <div className="glass-card p-5 shadow-sm">
         <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
           <div>
             <h1 className="text-xl font-bold text-slate-900 flex items-center">
@@ -216,8 +319,141 @@ export const AiPipelineView: React.FC = () => {
         </div>
       </div>
 
+      {/* 编排流程图区块 */}
+      <div className="glass-card p-5 shadow-sm border border-blue-100/70 bg-gradient-to-r from-blue-50/20 via-white/50 to-indigo-50/20">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-4 pb-3 border-b border-slate-100">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 rounded-lg bg-blue-100/80 text-blue-700">
+              <GitBranch className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">协同编排架构（DAG 拓扑流程）</h2>
+              <p className="text-[11px] text-slate-500">机理分析串行驱动，多维决策并行加速</p>
+            </div>
+          </div>
+          <span className="text-[11px] px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+            4 项 AI 能力 · 串行依赖 2 段 · 并行执行 2 路 · 全过程可追踪可审核
+          </span>
+        </div>
+
+        {/* 流程拓扑节点 */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+          {/* 节点 1：故障诊断 */}
+          <div className="flex-1 p-3.5 rounded-xl border border-slate-200 bg-white/90 shadow-xs">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">步骤 1 · 串行</span>
+              <Activity className="w-3.5 h-3.5 text-blue-600" />
+            </div>
+            <div className="font-bold text-xs text-slate-800">故障诊断</div>
+            <div className="text-[10px] text-slate-400 mt-1">输入：遥测数据 + 故障现象</div>
+            <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-blue-600 font-medium">
+              输出：严重度与可能原因
+            </div>
+          </div>
+
+          {/* 串行连接 1 */}
+          <div className="flex items-center justify-center text-blue-400 shrink-0">
+            <ArrowRight className="w-4 h-4 hidden lg:block" />
+            <div className="text-center py-1 lg:hidden text-blue-500 text-[11px] font-medium">
+              ↓ 串行输入诊断结论
+            </div>
+          </div>
+
+          {/* 节点 2：检修方案生成 */}
+          <div className="flex-1 p-3.5 rounded-xl border border-slate-200 bg-white/90 shadow-xs">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">步骤 2 · 串行</span>
+              <ClipboardList className="w-3.5 h-3.5 text-indigo-600" />
+            </div>
+            <div className="font-bold text-xs text-slate-800">检修方案生成</div>
+            <div className="text-[10px] text-slate-400 mt-1">输入：诊断结论 + 知识库 SOP</div>
+            <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-indigo-600 font-medium">
+              输出：作业指导书与步骤
+            </div>
+          </div>
+
+          {/* 串行到并行连接 */}
+          <div className="flex items-center justify-center text-indigo-400 shrink-0">
+            <ArrowRight className="w-4 h-4 hidden lg:block" />
+            <div className="text-center py-1 lg:hidden text-indigo-500 text-[11px] font-medium">
+              ↓ 并行分发 (Promise.all)
+            </div>
+          </div>
+
+          {/* 并行分支区 */}
+          <div className="flex-1 flex flex-col gap-2 p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-100">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-bold text-indigo-700 flex items-center">
+                <Layers className="w-3 h-3 mr-1" /> 并行分支（Promise.all）
+              </span>
+              <span className="text-[9px] text-slate-400 font-mono">2 路并发</span>
+            </div>
+
+            {/* 分支 3A */}
+            <div className="p-2.5 rounded-lg border border-slate-200 bg-white shadow-xs">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-xs text-slate-800 flex items-center">
+                  <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                  风险审核
+                </span>
+                <span className="text-[9px] px-1 rounded bg-emerald-100 text-emerald-700 font-semibold">并行路 1</span>
+              </div>
+              <p className="text-[10px] text-slate-400">JSA 风险等级评定与 LOTO 隔离建议</p>
+            </div>
+
+            {/* 分支 3B */}
+            <div className="p-2.5 rounded-lg border border-slate-200 bg-white shadow-xs">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-xs text-slate-800 flex items-center">
+                  <UserCheck className="w-3.5 h-3.5 mr-1 text-purple-600" />
+                  派单推荐
+                </span>
+                <span className="text-[9px] px-1 rounded bg-purple-100 text-purple-700 font-semibold">并行路 2</span>
+              </div>
+              <p className="text-[10px] text-slate-400">主修技师匹配、负载均衡与工时预估</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 协同能力说明（4 张能力卡） */}
+      <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {CAPABILITY_CARDS.map((cap) => {
+            const Icon = cap.icon;
+            return (
+              <div
+                key={cap.name}
+                className="glass-card p-4 shadow-xs border border-slate-200 hover:border-blue-300 transition-colors flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      {cap.stageBadge}
+                    </span>
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-800 mb-1">{cap.name}</h3>
+                  <p className="text-[11px] text-slate-500 mb-3 min-h-[32px] line-clamp-2 leading-relaxed">
+                    {cap.desc}
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">核心产物</span>
+                  <span className="font-semibold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-100">
+                    {cap.output}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 启动表单 */}
-      <div className="glass-card p-5 shadow-sm mb-4">
+      <div className="glass-card p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,280px)_1fr_auto] gap-3 items-start">
           <div>
             <label className="text-xs font-medium text-slate-600 block mb-1.5">目标设备</label>
@@ -263,7 +499,7 @@ export const AiPipelineView: React.FC = () => {
 
       {/* 步骤执行状态 */}
       {task && (
-        <div className="glass-card p-5 shadow-sm mb-4">
+        <div ref={taskSectionRef} className="glass-card p-5 shadow-sm scroll-mt-6">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h2 className="text-sm font-bold text-slate-900 flex items-center">
               <Zap className="w-4 h-4 mr-1.5 text-blue-600" />
@@ -276,7 +512,9 @@ export const AiPipelineView: React.FC = () => {
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : task.status === 'failed'
                   ? 'bg-rose-50 text-rose-700 border-rose-200'
-                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                  : task.status === 'running'
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-slate-50 text-slate-600 border-slate-200'
               }`}
             >
               {task.status === 'completed'
@@ -397,12 +635,158 @@ export const AiPipelineView: React.FC = () => {
                   推荐主修 <span className="font-bold">{report.assignee.recommended?.name || '—'}</span> · 预估{' '}
                   {report.assignee.estimatedHours ?? '—'}h
                 </p>
+                {onGoDispatch && (
+                  <button
+                    type="button"
+                    onClick={() => onGoDispatch({ equipmentId: report.equipment?.id })}
+                    className="mt-2 px-3 py-1.5 rounded-lg btn-gradient text-[11px] font-semibold text-white cursor-pointer flex items-center"
+                  >
+                    <Zap className="w-3 h-3 mr-1" />
+                    前往调度大屏就近派单
+                  </button>
+                )}
               </div>
             )}
           </div>
           <p className="mt-3 text-[10px] text-slate-400 font-mono">报告生成时间：{report.generatedAt}</p>
         </div>
       )}
+
+      {/* 最近协同任务列表 */}
+      <div className="glass-card p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-600">
+              <History className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">最近协同任务</h2>
+              <p className="text-[11px] text-slate-500">最近 5 次 AI 协同诊断记录与执行回溯</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={loadRecentTasks}
+            disabled={loadingRecent}
+            className="flex items-center space-x-1 text-xs text-slate-500 hover:text-blue-600 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingRecent ? 'animate-spin' : ''}`} />
+            <span>刷新</span>
+          </button>
+        </div>
+
+        {loadingRecent && recentTasks.length === 0 ? (
+          <div className="py-8 flex flex-col items-center justify-center text-slate-400 space-y-2">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            <p className="text-xs">加载最近任务记录…</p>
+          </div>
+        ) : recentTasks.length === 0 ? (
+          <div className="py-10 text-center rounded-xl bg-slate-50/60 border border-dashed border-slate-200">
+            <Clock className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+            <p className="text-xs font-medium text-slate-700">暂无协同诊断记录</p>
+            <p className="text-[11px] text-slate-400 mt-1">发起一次协同诊断后，任务记录会展示在这里</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 font-medium">
+                  <th className="pb-2.5 font-medium">设备名</th>
+                  <th className="pb-2.5 font-medium">问题摘要</th>
+                  <th className="pb-2.5 font-medium">状态</th>
+                  <th className="pb-2.5 font-medium">创建时间</th>
+                  <th className="pb-2.5 font-medium text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentTasks.map((item) => {
+                  const isCurrent = task?.id === item.id;
+                  const isLoadingThis = loadingTaskId === item.id;
+                  const statusBadgeClass =
+                    item.status === 'completed'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : item.status === 'failed'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : item.status === 'running'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-slate-50 text-slate-600 border-slate-200';
+
+                  const statusText =
+                    item.status === 'completed'
+                      ? '已完成'
+                      : item.status === 'failed'
+                      ? '存在失败'
+                      : item.status === 'running'
+                      ? `执行中 ${item.progress}%`
+                      : '排队中';
+
+                  const dateFormatted = item.createdAt
+                    ? new Date(item.createdAt).toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false,
+                      })
+                    : '—';
+
+                  return (
+                    <tr
+                      key={item.id}
+                      onClick={() => handleSelectRecentTask(item.id)}
+                      className={`hover:bg-blue-50/40 transition-colors cursor-pointer group ${
+                        isCurrent ? 'bg-blue-50/60' : ''
+                      }`}
+                    >
+                      <td className="py-3 pr-3 font-semibold text-slate-800 flex items-center gap-1.5">
+                        <span className="truncate max-w-[150px]">{item.equipmentName || '—'}</span>
+                        {isCurrent && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" title="当前载入" />
+                        )}
+                      </td>
+                      <td className="py-3 pr-3 text-slate-600 max-w-[320px]">
+                        <p className="truncate" title={item.problemDescription}>
+                          {item.problemDescription || '—'}
+                        </p>
+                      </td>
+                      <td className="py-3 pr-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeClass}`}>
+                          {statusText}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                        {dateFormatted}
+                      </td>
+                      <td className="py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectRecentTask(item.id);
+                          }}
+                          disabled={isLoadingThis}
+                          className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium text-[11px] space-x-1"
+                        >
+                          {isLoadingThis ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <span>查看详情</span>
+                              <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

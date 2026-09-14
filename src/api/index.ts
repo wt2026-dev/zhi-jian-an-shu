@@ -953,6 +953,16 @@ export interface AiPipelineTask {
   completedAt: string | null;
 }
 
+export interface AiPipelineListItem {
+  id: string;
+  scene: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  equipmentName: string;
+  problemDescription: string;
+  createdAt: string;
+}
+
 export const aiPipelineApi = {
   /** 创建并启动协同任务（故障诊断 → 检修方案 → 风险审核 ∥ 派单推荐） */
   create: (data: { equipmentId: string; problemDescription: string; scene?: string }) =>
@@ -960,6 +970,10 @@ export const aiPipelineApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  /** 查询协同任务最近列表 */
+  list: (limit = 5) =>
+    request<{ success: boolean; tasks: AiPipelineListItem[] }>(`/ai/pipeline?limit=${limit}`),
 
   /** 查询任务与各步骤状态 */
   getById: (id: string) => request<{ success: boolean; task: AiPipelineTask }>(`/ai/pipeline/${id}`),
@@ -1046,4 +1060,105 @@ export const adminAiModelApi = {
       method: 'POST',
       body: JSON.stringify({ orderedIds }),
     }),
+};
+
+// ==================== 内部师傅距离调度 ====================
+
+export interface DutyTechnician {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  roleTitle: string;
+  department?: string;
+  skills: string[];
+  onlineStatus: 'online' | 'idle' | 'offline';
+  mapX: number;
+  mapY: number;
+  lastLocationAt: string | null;
+}
+
+export interface EquipmentPoint {
+  id: string;
+  code: string;
+  name: string;
+  workshop: string | null;
+  status: string;
+  healthScore: number;
+  mapX: number;
+  mapY: number;
+  openOrders: number;
+}
+
+export interface PendingWorkOrder {
+  id: string;
+  orderNo: string;
+  title: string;
+  equipmentId: string;
+  equipmentName: string;
+  faultType: string | null;
+  priority: string;
+}
+
+export interface DispatchRecommendationItem {
+  technician: {
+    id: string;
+    name: string;
+    roleTitle: string;
+    skills: string[];
+    mapX: number;
+    mapY: number;
+    status: string;
+    lastLocationAt: string | null;
+  };
+  distance: number;
+  distanceLabel: string;
+  status: string;
+  skillMatch: number;
+  score: number;
+  reason: string;
+}
+
+export const dispatchApi = {
+  /** 师傅位置上报（technician/inspector） */
+  reportLocation: (data: { mapX: number; mapY: number; status?: 'online' | 'idle' | 'offline' }) =>
+    request<{ success: boolean; locationId: string; mapX: number; mapY: number; status: string; reportedAt: string; message: string }>(
+      '/dispatch/location',
+      { method: 'POST', body: JSON.stringify(data) }
+    ),
+
+  /** 在岗师傅列表 */
+  listTechnicians: () =>
+    request<{ success: boolean; count: number; idleCount: number; technicians: DutyTechnician[]; timestamp: string }>(
+      '/dispatch/technicians'
+    ),
+
+  /** 调度大屏聚合（设备点位 + 待派工单） */
+  board: () =>
+    request<{ success: boolean; equipmentPoints: EquipmentPoint[]; pendingOrders: PendingWorkOrder[]; timestamp: string }>(
+      '/dispatch/board'
+    ),
+
+  /** 就近派单推荐 */
+  recommend: (workOrderId: string) =>
+    request<{
+      success: boolean;
+      workOrder: { id: string; orderNo: string; title: string; faultType: string | null; priority: string; status: string };
+      equipment: { id: string; code: string; name: string; workshop: string | null; mapX: number; mapY: number };
+      requiredKeywords: string[];
+      recommendations: DispatchRecommendationItem[];
+      meterPerUnit: number;
+      timestamp: string;
+    }>(`/dispatch/recommend?workOrderId=${encodeURIComponent(workOrderId)}`),
+
+  /** 派单确认 */
+  assign: (data: { workOrderId: string; userId: string }) =>
+    request<{ success: boolean; workOrder: any; technician: { id: string; name: string; roleTitle: string }; message: string }>(
+      '/dispatch/assign',
+      { method: 'POST', body: JSON.stringify(data) }
+    ),
+
+  /** 演示接口：模拟在岗师傅位置 */
+  mock: () =>
+    request<{ success: boolean; demo: boolean; updated: number; message: string }>('/dispatch/mock', { method: 'POST', body: JSON.stringify({}) }),
 };

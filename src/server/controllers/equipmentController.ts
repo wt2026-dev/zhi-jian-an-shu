@@ -2,6 +2,8 @@
 import QRCode from "qrcode";
 import { EquipmentRepository, TelemetryRepository } from "../../db/repositories/index.ts";
 import { addAuditLog, pushNotification } from "../services/auditService.ts";
+import { computeEquipmentCoords } from "../services/dispatchService.ts";
+import { DispatchRepository } from "../../db/repositories/dispatchRepository.ts";
 
 // 1. 获取设备台账列表
 export async function handleGetEquipments(req: any, res: any) {
@@ -162,6 +164,19 @@ export async function handleCreateEquipment(req: any, res: any) {
       refId: body.code,
     });
 
+    // 调度模块联动：新建设备自动按车间区域标定厂区平面坐标（显式传入 mapX/mapY 时以传参为准）
+    try {
+      const mapX = Number(body.mapX);
+      const mapY = Number(body.mapY);
+      const coords =
+        Number.isFinite(mapX) && Number.isFinite(mapY)
+          ? { mapX, mapY }
+          : computeEquipmentCoords(body.workshop, body.code);
+      await DispatchRepository.setEquipmentCoords(created.id, coords.mapX, coords.mapY);
+    } catch (coordErr: any) {
+      console.warn("[Equipment] 坐标标定失败（不影响创建）:", coordErr?.message || coordErr);
+    }
+    // 响应保持原格式不变，坐标仅落库供调度大屏使用
     res.status(201).json(created);
   } catch (err: any) {
     res.status(500).json({ error: "新增设备档案失败: " + err.message });

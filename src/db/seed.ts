@@ -1762,6 +1762,49 @@ export async function seedDatabase(): Promise<void> {
     },
   ];
 
+  // ============================================================================
+  // 工单时间统一：以 createdTimestamp 为唯一时间源
+  // 修复「createdAt 写死 2026/09 初、createdTimestamp 却是相对今天的偏移」的双轨时间问题：
+  // - createdAt 一律由 createdTimestamp 动态生成（zh-CN 格式），显示与排序完全一致
+  // - dispatchedAt 等流转时间按"原字符串与旧 createdAt 的相对间隔"平移到新时间轴，保留流转节奏
+  // - 缺失流转字段的工单按状态补齐标准间隔（派单+15min / 接单+30min / 完工+3h / 终审+3.5h）；
+  //   原值为 null（未经历该环节）保持 null，不虚构流转记录
+  // ============================================================================
+  const woLegacyParse = (s: string) => new Date(s.replace("/", "-").replace("/", "-")).getTime();
+  const woIsoToZh = (ts: number) => new Date(ts).toLocaleString("zh-CN", { hour12: false });
+  for (const wo of workOrders) {
+    const base: number = wo.createdTimestamp ?? Date.now();
+    const legacyCreated = typeof wo.createdAt === "string" ? woLegacyParse(wo.createdAt) : NaN;
+    const shift = (legacy: string | null | undefined, fallbackMin: number): string | null => {
+      if (legacy === null || legacy === undefined) return null;
+      if (typeof legacy === "string" && legacy.length > 0) {
+        const parsed = woLegacyParse(legacy);
+        const delta = Number.isFinite(parsed) && Number.isFinite(legacyCreated) ? parsed - legacyCreated : fallbackMin * 60000;
+        return woIsoToZh(base + delta);
+      }
+      return woIsoToZh(base + fallbackMin * 60000);
+    };
+    const st: string = wo.status;
+    wo.createdAt = woIsoToZh(base);
+    if (["dispatched", "in_progress", "pending_acceptance", "completed", "cancelled"].includes(st)) {
+      wo.dispatchedAt = shift(wo.dispatchedAt, 15);
+    } else {
+      wo.dispatchedAt = wo.dispatchedAt ?? null;
+    }
+    if (["in_progress", "pending_acceptance", "completed"].includes(st)) {
+      wo.acceptedAt = shift(wo.acceptedAt, 30);
+    } else {
+      wo.acceptedAt = wo.acceptedAt ?? null;
+    }
+    if (st === "completed") {
+      wo.completedAt = shift(wo.completedAt, 180);
+      wo.acceptedByInspectorAt = shift(wo.acceptedByInspectorAt, 210);
+    } else {
+      wo.completedAt = wo.completedAt ?? null;
+      wo.acceptedByInspectorAt = wo.acceptedByInspectorAt ?? null;
+    }
+  }
+
   for (const wo of workOrders) {
     await db.query(
       `INSERT INTO work_orders (id, order_no, title, equipment_id, equipment_name, equipment_code, workshop, fault_type, priority, status, creator, dispatcher, assignee, assignee_id, created_at, dispatched_at, accepted_at, completed_at, accepted_by_inspector_at, description, safety_requirements, photos, repair_log, acceptance, version, created_timestamp)

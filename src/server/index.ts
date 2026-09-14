@@ -37,6 +37,7 @@ import { registerSparePartsRoutes } from "./routes/spareParts.ts";
 import { registerHazardRoutes } from "./routes/hazards.ts";
 import { registerWechatRoutes } from "./routes/wechat.ts";
 import { registerWxRoutes } from "./routes/wx.ts";
+import { registerDispatchRoutes } from "./routes/dispatch.ts";
 
 // 重构说明：本文件为应用装配与启动入口，自 server.ts（原 7329 行单文件）拆出。
 // 各业务域路由/控制器/服务见同目录 routes/、controllers/、services/、middleware/、schemas/、utils/。
@@ -167,6 +168,7 @@ export async function createApp() {
   registerHazardRoutes(app); // 隐患
   registerWechatRoutes(app); // 微信 / 星云数字人
   registerWxRoutes(app); // 微信扫码报修
+  registerDispatchRoutes(app); // 内部师傅距离调度
 
   // 全局异常处理中间件 (Global Error Handling Middleware)
   app.use(globalErrorHandler);

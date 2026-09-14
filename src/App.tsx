@@ -18,6 +18,7 @@ import { CockpitDashboardView } from './components/CockpitDashboardView';
 import { AiPipelineView } from './components/AiPipelineView';
 import { AdminAiReviewsView } from './components/AdminAiReviewsView';
 import { AdminAiModelsView } from './components/AdminAiModelsView';
+import { DispatchBoardView } from './components/DispatchBoardView';
 import { SparePartsView } from './components/SparePartsView';
 import { HazardsView } from './components/HazardsView';
 import { workOrderApi, equipmentApi, authApi, safetyPermitApi, knowledgeApi, inspectionApi, notificationApi } from './api';
@@ -54,6 +55,12 @@ export default function App() {
 
   // Navigation
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  // 调度大屏预选：从检修工单「就近派单」或 AI 协同「前往调度」跳入时携带
+  const [dispatchPreset, setDispatchPreset] = useState<{ workOrderId?: string | null; equipmentId?: string | null }>({});
+  const navigateToDispatch = useCallback((preset: { workOrderId?: string | null; equipmentId?: string | null }) => {
+    setDispatchPreset(preset);
+    setActiveTab('dispatch');
+  }, []);
 
   // 数据加载状态：加载中 / 失败原因 (接口失败时展示错误提示与重试按钮，绝不使用 mock 兜底)
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
@@ -115,7 +122,7 @@ export default function App() {
         if (targetEquipmentId) {
           setMobileScanEquipmentId(targetEquipmentId);
         }
-      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models'].includes(targetView)) {
+      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch'].includes(targetView)) {
         setActiveTab(targetView === 'equipment' ? 'equipments' : targetView);
       }
     } catch (e) {
@@ -509,6 +516,7 @@ export default function App() {
       {/* Horizontal Split: Fixed Left Sidebar + Right Responsive Content */}
       <div className="flex-1 flex overflow-hidden">
         <Sidebar
+          role={currentUser?.role}
           activeTab={activeTab}
           onTabChange={(tab) => {
             setActiveTab(tab);
@@ -602,6 +610,7 @@ export default function App() {
               onCreateWorkOrder={handleAddWorkOrder}
               onUpdateWorkOrder={handleUpdateWorkOrder}
               onOpenAiDiagnose={handleOpenAiDiagnoseForEquipment}
+              onNavigateDispatch={(workOrderId) => navigateToDispatch({ workOrderId })}
               initialCreateOpen={showGlobalCreateWorkOrder}
             />
           )}
@@ -663,8 +672,15 @@ export default function App() {
               onCreateWorkOrderFromAi={handleCreateWorkOrderFromAi}
             />
           )}
-          {activeTab === 'ai_pipeline' && <AiPipelineView />}
-          {activeTab === 'ai_reviews' && <AdminAiReviewsView />}
+          {activeTab === 'ai_pipeline' && <AiPipelineView onGoDispatch={navigateToDispatch} />}
+          {activeTab === 'dispatch' && (
+            <DispatchBoardView
+              presetWorkOrderId={dispatchPreset.workOrderId}
+              presetEquipmentId={dispatchPreset.equipmentId}
+              onNavigateWorkOrders={() => setActiveTab('work_orders')}
+            />
+          )}
+          {activeTab === 'ai_reviews' && <AdminAiReviewsView onNavigate={setActiveTab} />}
           {activeTab === 'ai_models' && <AdminAiModelsView />}
 
           {activeTab === 'users' && (

@@ -473,8 +473,8 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
         isFullscreen ? 'fixed inset-0 z-50 p-6 bg-[#f8fafc] overflow-y-auto' : 'glass-card p-4 shadow-sm'
       }`}
     >
-      {/* Top Header Bar */}
-      <div className="relative border-b border-slate-200 pb-4 mb-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      {/* Top Header Bar（轻微渐变纵深） */}
+      <div className="relative border-b border-slate-200 pb-4 mb-4 flex flex-col md:flex-row items-center justify-between gap-4 bg-gradient-to-r from-blue-50/70 via-white to-cyan-50/50 rounded-xl px-4 -mx-2">
         <div className="flex items-center space-x-3">
           {/* 返回工作台 */}
           {onNavigateTab && (
@@ -567,32 +567,32 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
 
       {/* Top 6 KPI Cards Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-        {/* KPI 1: 设备总数与在线率（可下钻：设备健康异常） */}
+        {/* KPI 1: 设备总数与在线率（渐变强调卡 · 可下钻：设备健康异常） */}
         <button
           type="button"
           onClick={() => openDrill('health')}
-          className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all text-left cursor-pointer w-full"
+          className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-600 via-blue-500 to-sky-400 p-3.5 shadow-md shadow-blue-500/25 relative overflow-hidden group transition-all text-left cursor-pointer w-full hover:shadow-lg hover:shadow-blue-500/30"
         >
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
+          <div className="flex items-center justify-between text-blue-100 text-xs font-medium">
             <span>在线设备 / 总台数</span>
-            <div className="icon-tile icon-tile-sm">
-              <Box className="w-4 h-4 text-blue-600" />
-            </div>
+            <span className="p-1.5 rounded-lg bg-white/20">
+              <Box className="w-4 h-4 text-white" />
+            </span>
           </div>
           <div className="mt-2 flex items-baseline space-x-1.5">
-            <span className="data-number tracking-tight">{runningEquipments}</span>
-            <span className="text-xs text-slate-400 font-sans">/ {totalEquipments} 台</span>
+            <span className="text-3xl font-bold font-mono text-white leading-none tracking-tight">{runningEquipments}</span>
+            <span className="text-xs text-blue-100 font-sans">/ {totalEquipments} 台</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500">综合在网率</span>
-            <span className="text-emerald-600 font-mono font-bold">{onlineRate}%</span>
+            <span className="text-blue-100">综合在网率</span>
+            <span className="text-white font-mono font-bold">{onlineRate}%</span>
           </div>
           {/* 监测 → 定位 → 干预 闭环链路指示 */}
-          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-            <span className="flex items-center text-[9px] text-slate-400 font-medium tracking-tight">
+          <div className="mt-2 pt-2 border-t border-white/25 flex items-center justify-between gap-1">
+            <span className="flex items-center text-[9px] text-blue-50 font-medium tracking-tight">
               监测 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 定位 <ChevronRight className="w-2.5 h-2.5 mx-px" /> 干预
             </span>
-            <span className={`text-[9px] font-semibold truncate ${healthAbnormalCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            <span className={`text-[9px] font-semibold truncate ${healthAbnormalCount > 0 ? 'text-white' : 'text-emerald-100'}`}>
               {healthAbnormalCount > 0 ? `异常 ${healthAbnormalCount} 台 · 点击定位干预` : '全部健康 · 点击查看'}
             </span>
           </div>
@@ -611,7 +611,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-1.5">
-            <span className="data-number tracking-tight">{completedOrders}</span>
+            <span className="data-number text-2xl tracking-tight">{completedOrders}</span>
             <span className="text-xs text-slate-400 font-sans">/ {totalOrders} 笔</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
@@ -642,7 +642,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-1.5">
-            <span className="data-number text-emerald-700 tracking-tight">{inspCompletionRate}%</span>
+            <span className="data-number text-2xl text-emerald-700 tracking-tight">{inspCompletionRate}%</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">已点检</span>
@@ -668,11 +668,11 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>在控隐患闭环</span>
             <div className="icon-tile icon-tile-sm icon-tile-danger">
-              <AlertTriangle className="w-4 h-4" />
+              <AlertTriangle className="w-4 h-4 text-rose-500" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-2">
-            <span className="data-number text-amber-700 tracking-tight">{pendingHazards.length}</span>
+            <span className="data-number text-2xl text-amber-700 tracking-tight">{pendingHazards.length}</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold border border-rose-200">
               重大 {majorHazards.length}
             </span>
@@ -699,11 +699,11 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>千问推理中枢调用</span>
             <div className="icon-tile icon-tile-sm icon-tile-cyan">
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 text-cyan-600" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-1">
-            <span className="data-number text-blue-700 tracking-tight">{aiCallsCount}</span>
+            <span className="data-number text-2xl text-blue-700 tracking-tight">{aiCallsCount}</span>
             <span className="text-xs text-slate-400 font-sans">次</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
@@ -717,11 +717,11 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>SOP 作业失误率</span>
             <div className="icon-tile icon-tile-sm icon-tile-danger">
-              <ShieldAlert className="w-4 h-4" />
+              <ShieldAlert className="w-4 h-4 text-rose-500" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-1">
-            <span className="data-number text-rose-700 tracking-tight">{mistakeRate}%</span>
+            <span className="data-number text-2xl text-rose-700 tracking-tight">{mistakeRate}%</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">安全准入受控</span>
@@ -738,6 +738,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="glass-card p-4 shadow-sm flex flex-col flex-1">
             <div className="mb-2">
               <h3 className="text-xs font-bold text-slate-800 flex items-center">
+                <span className="w-1 h-3.5 rounded-full bg-blue-500 mr-2" />
                 <Activity className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
                 设备健康分布与在行状态
               </h3>
@@ -795,6 +796,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="glass-card p-4 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-bold text-slate-800 flex items-center">
+                <span className="w-1 h-3.5 rounded-full bg-amber-500 mr-2" />
                 <Box className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
                 关键备件库存预警 (低安全阈值)
               </h3>
@@ -841,7 +843,8 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="glass-card p-4 shadow-sm flex flex-col flex-1">
             <div className="mb-2">
               <h3 className="text-xs font-bold text-slate-800 flex items-center">
-                <TrendingUp className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                <span className="w-1 h-3.5 rounded-full bg-emerald-500 mr-2" />
+                <TrendingUp className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
                 14天检修工单下发与智能排查走势
               </h3>
               <span className="text-[10px] text-slate-400 mt-0.5 block">日频次波动统计</span>
@@ -891,7 +894,8 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="glass-card p-4 shadow-sm">
             <div className="mb-2">
               <h3 className="text-xs font-bold text-slate-800 flex items-center">
-                <BarChart3 className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                <span className="w-1 h-3.5 rounded-full bg-emerald-500 mr-2" />
+                <BarChart3 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
                 各生产单元设备在役与负荷分布
               </h3>
               <span className="text-[10px] text-slate-400 mt-0.5 block">单元机组对账</span>
@@ -925,7 +929,8 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           {/* Knowledge & AI Metrics */}
           <div className="glass-card p-4 shadow-sm">
             <h3 className="text-xs font-bold text-slate-800 flex items-center mb-3">
-              <Database className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+              <span className="w-1 h-3.5 rounded-full bg-violet-500 mr-2" />
+              <Database className="w-3.5 h-3.5 mr-1.5 text-violet-500" />
               知识图谱与标准沉淀
             </h3>
             <div className="space-y-2 text-xs">
@@ -948,6 +953,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           <div className="glass-card p-4 shadow-sm flex-1 flex flex-col">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-bold text-rose-700 flex items-center">
+                <span className="w-1 h-3.5 rounded-full bg-rose-500 mr-2" />
                 <AlertTriangle className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
                 重大隐患重点督办清单
               </h3>
