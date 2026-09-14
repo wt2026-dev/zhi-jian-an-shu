@@ -17,3 +17,7 @@ backups/
 
 # 归档的调试/媒体/备份文件（不入库）
 archive/
+
+# 调试临时产物（agent scratch 文件，不入库）
+scratch_shots/
+

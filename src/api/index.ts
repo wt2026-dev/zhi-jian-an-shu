@@ -1075,6 +1075,8 @@ export interface DutyTechnician {
   onlineStatus: 'online' | 'idle' | 'offline';
   mapX: number;
   mapY: number;
+  geoLng?: number | null;
+  geoLat?: number | null;
   lastLocationAt: string | null;
 }
 
@@ -1087,6 +1089,8 @@ export interface EquipmentPoint {
   healthScore: number;
   mapX: number;
   mapY: number;
+  geoLng?: number | null;
+  geoLat?: number | null;
   openOrders: number;
 }
 
@@ -1108,6 +1112,8 @@ export interface DispatchRecommendationItem {
     skills: string[];
     mapX: number;
     mapY: number;
+    geoLng: number | null;
+    geoLat: number | null;
     status: string;
     lastLocationAt: string | null;
   };
@@ -1120,9 +1126,9 @@ export interface DispatchRecommendationItem {
 }
 
 export const dispatchApi = {
-  /** 师傅位置上报（technician/inspector） */
-  reportLocation: (data: { mapX: number; mapY: number; status?: 'online' | 'idle' | 'offline' }) =>
-    request<{ success: boolean; locationId: string; mapX: number; mapY: number; status: string; reportedAt: string; message: string }>(
+  /** 师傅位置上报（technician/inspector）：支持 { lng, lat, status }（真实经纬度，优先）与 { mapX, mapY, status }（旧平面坐标兼容） */
+  reportLocation: (data: { lng?: number; lat?: number; mapX?: number; mapY?: number; status?: 'online' | 'idle' | 'offline' }) =>
+    request<{ success: boolean; locationId: string; lng: number | null; lat: number | null; mapX: number; mapY: number; status: string; reportedAt: string; message: string }>(
       '/dispatch/location',
       { method: 'POST', body: JSON.stringify(data) }
     ),
@@ -1144,7 +1150,7 @@ export const dispatchApi = {
     request<{
       success: boolean;
       workOrder: { id: string; orderNo: string; title: string; faultType: string | null; priority: string; status: string };
-      equipment: { id: string; code: string; name: string; workshop: string | null; mapX: number; mapY: number };
+      equipment: { id: string; code: string; name: string; workshop: string | null; mapX: number; mapY: number; geoLng: number | null; geoLat: number | null };
       requiredKeywords: string[];
       recommendations: DispatchRecommendationItem[];
       meterPerUnit: number;

@@ -6,15 +6,14 @@ import helmet from "helmet";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { initDatabase, getDb } from "../db/db.ts";
-import { KnowledgeRepository } from "../db/repositories/index.ts";
 import { createEmbedding } from "./services/aiClient.ts";
 import { ensureAiModelSeed } from "./services/aiModelRouter.ts";
 import { initAuthCache } from "./services/authService.ts";
 import { installAuditHook } from "./services/auditService.ts";
 import { loadSafetyPermitsIntoMemory } from "./controllers/safetyController.ts";
-import { setDbKnowledgeArticles } from "./controllers/knowledgeController.ts";
 import { requestLogger } from "./middleware/requestLogger.ts";
 import { globalLimiter, aiLimiter } from "./middleware/rateLimit.ts";
+import { globalAuthGuard } from "./middleware/auth.ts";
 import { globalErrorHandler } from "./middleware/errorHandler.ts";
 import { logger } from "../utils/logger.ts";
 import { UPLOADS_DIR } from "./utils/config.ts";
@@ -145,6 +144,11 @@ export async function createApp() {
   app.use("/api/v1/", globalLimiter);
   app.use("/api/ai/", aiLimiter);
 
+  // ==================== 全局 API 鉴权基线（默认拒绝 + 白名单放行） ====================
+  // 必须在所有业务路由注册之前：/api/* 默认要求有效 JWT，白名单外漏挂 requireAuth
+  // 的路由不再匿名可达（白名单见 middleware/auth.ts 的 PUBLIC_API_*）。
+  app.use(globalAuthGuard);
+
   // ==================== 业务域路由注册（保持原 server.ts 首次注册顺序） ====================
   registerSystemRoutes(app); // 审计日志查询 / 管理 admin 接口 / 健康详情 / swagger / 数字人状态 / 调试日志 / 源码打包
   registerDashboardRoutes(app); // 驾驶舱指标
@@ -176,23 +180,21 @@ export async function createApp() {
   return app;
 }
 
-/** 知识库启动状态：内存列表从 DB 刷新 + 为历史知识回填真实 DashScope 向量；失败不伪造向量，下一次启动会继续补齐。 */
+/** 知识库启动状态：为历史知识回填真实 DashScope 向量；失败不伪造向量，下一次启动会继续补齐。
+ *  列表/检索已统一走 KnowledgeRepository（数据库），启动时不再向内存数组灌种子。 */
 async function initKnowledgeStartupState() {
-  let articles = await KnowledgeRepository.getAll();
   try {
     const db = await getDb();
     const { rows: missingEmbeddings } = await db.query(
       "SELECT id,title,summary,content FROM knowledge_articles WHERE embedding IS NULL AND status='approved'"
     );
     for (const article of missingEmbeddings) {
-      const embedding = await createEmbedding(`${article.title}\n${article.summary || ""}\n${article.content}`);
+      const embedding = await createEmbedding(`${article.title}\n${article.summary}\n${article.content}`);
       await db.query("UPDATE knowledge_articles SET embedding=$2 WHERE id=$1", [article.id, JSON.stringify(embedding)]);
     }
-    if (missingEmbeddings.length) articles = await KnowledgeRepository.getAll();
   } catch (err: any) {
     console.warn("[Knowledge] 存量向量回填未完成，将在下次启动重试:", err.message);
   }
-  setDbKnowledgeArticles(articles);
 }
 
 export async function startServer() {

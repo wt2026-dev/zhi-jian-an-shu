@@ -185,6 +185,33 @@ export async function seedDatabase(): Promise<void> {
   }
   console.log(`[Seed] 成功插入/更新 ${users.length} 个用户`);
 
+  // 调度模块补种：技能标签与初始位置（018/019 迁移在 seed 之前执行，迁移内 UPDATE
+  // 时 users 表尚为空导致 0 行生效；此处对新库补种，保证与旧库升级行为一致）
+  await db.query(
+    `UPDATE users SET skills = '["泵类检修","轴承更换","机械密封更换","润滑保养","对中校准"]'::jsonb,
+       map_x = 140, map_y = 320, online_status = 'online',
+       geo_lng = 113.307, geo_lat = 23.121
+     WHERE username = 'tech1' AND (skills IS NULL OR skills = '[]'::jsonb OR skills = '{}'::jsonb);`
+  );
+  await db.query(
+    `UPDATE users SET skills = '["电气故障","电机检修","变频器调试","高压测试","PLC 排查"]'::jsonb,
+       map_x = 300, map_y = 160, online_status = 'online',
+       geo_lng = 113.305, geo_lat = 23.123
+     WHERE username = 'tech2' AND (skills IS NULL OR skills = '[]'::jsonb OR skills = '{}'::jsonb);`
+  );
+  await db.query(
+    `UPDATE users SET skills = '["设备点检","隐患排除","振动监测"]'::jsonb,
+       map_x = 480, map_y = 300, online_status = 'idle',
+       geo_lng = 113.310, geo_lat = 23.120
+     WHERE username = 'inspector' AND (skills IS NULL OR skills = '[]'::jsonb OR skills = '{}'::jsonb);`
+  );
+  await db.query(
+    `UPDATE users SET skills = '["巡检管理","状态监测","温度测振"]'::jsonb,
+       map_x = 520, map_y = 680, online_status = 'idle',
+       geo_lng = 113.311, geo_lat = 23.117
+     WHERE username = 'inspector2' AND (skills IS NULL OR skills = '[]'::jsonb OR skills = '{}'::jsonb);`
+  );
+
   // ============================================================================
   // 2. 设备台账 (16 台：泵类 / 压缩机 / 传动减速机 / 大型电机 / 数控机床 / 工业机器人 / 换热容器)
   // ============================================================================

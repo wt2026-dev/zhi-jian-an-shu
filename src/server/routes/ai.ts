@@ -30,7 +30,7 @@ import {
 import { handleVisionDefectDetect, makeVisionCompatHandler, handleSpeechToText, handleVideoAnalysis } from "../controllers/aiVisionController.ts";
 import { handleGenerateWorkOrder, handleRootCauseAnalysis, handleGenerateMaintenancePlan } from "../controllers/aiGenerationController.ts";
 import { handleHealthForecast, handleGenerateReport, handleSafetyRiskAssessment } from "../controllers/aiForecastController.ts";
-import { handleCreatePipeline, handleGetPipeline, handlePipelineEvents } from "../controllers/aiPipelineController.ts";
+import { handleCreatePipeline, handleGetPipeline, handlePipelineEvents, handleListPipeline } from "../controllers/aiPipelineController.ts";
 
 // ==================== AI 统计与 v1 功能路由（自 server.ts 拆出，保持原相对顺序） ====================
 export function registerAiRoutes(app: express.Express) {
@@ -97,6 +97,9 @@ export function registerAiRoutes(app: express.Express) {
 
   // 创建并启动协同任务（立即返回任务 ID，编排异步执行）
   app.post("/api/v1/ai/pipeline", requireAuth, validateBody(pipelineCreateSchema), handleCreatePipeline);
+
+  // 查询协同任务最近列表
+  app.get("/api/v1/ai/pipeline", requireAuth, handleListPipeline);
 
   // 查询任务与各步骤状态
   app.get("/api/v1/ai/pipeline/:id", requireAuth, handleGetPipeline);

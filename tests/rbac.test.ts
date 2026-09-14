@@ -25,8 +25,8 @@ beforeAll(async () => {
 
 describe("2. 基于角色的访问控制 (RBAC) 权限测试", () => {
   it("越权拦截：普通操作员 (operator) 删除高危作业票应被拒绝返回 403", async () => {
-    // 1. 获取现有作业票
-    const permitsRes = await request(app).get("/api/v1/safety-permits");
+    // 1. 获取现有作业票（全局鉴权基线：读操作也需登录）
+    const permitsRes = await request(app).get("/api/v1/safety-permits").set("Authorization", `Bearer ${operatorToken}`);
     expect(permitsRes.status).toBe(200);
     expect(permitsRes.body.length).toBeGreaterThan(0);
     const permitId = permitsRes.body[0].id;

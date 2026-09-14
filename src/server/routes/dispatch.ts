@@ -13,8 +13,10 @@ import {
 } from "../controllers/dispatchController.ts";
 
 const locationReportSchema = z.object({
-  mapX: z.number().min(0).max(1000),
-  mapY: z.number().min(0).max(1000),
+  lng: z.number().min(-180).max(180).optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  mapX: z.number().min(0).max(1000).optional(),
+  mapY: z.number().min(0).max(1000).optional(),
   status: z.enum(["online", "idle", "offline"]).optional(),
 });
 

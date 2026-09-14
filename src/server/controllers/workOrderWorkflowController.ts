@@ -9,7 +9,7 @@ import {
 import { pushNotification } from "../services/auditService.ts";
 import { callDashScopeJson } from "../services/aiClient.ts";
 import { aiCacheInvalidateEquipment } from "../../utils/aiCache.ts";
-import { STATUS_LABELS, dbWorkOrderLogs, ALLOWED_TRANSITIONS, DUPLICATE_WINDOW_MS } from "./workOrderController.ts";
+import { STATUS_LABELS, pushWorkOrderLog, ALLOWED_TRANSITIONS, DUPLICATE_WINDOW_MS } from "./workOrderController.ts";
 
 // 6. 创建工单
 export async function handleCreateWorkOrder(req: any, res: any) {
@@ -107,7 +107,7 @@ export async function handleCreateWorkOrder(req: any, res: any) {
       await EquipmentRepository.updateStatus(eq.id, "fault");
     }
 
-    dbWorkOrderLogs.unshift({
+    pushWorkOrderLog({
       id: `log-${Date.now()}`,
       workOrderId: id,
       action: "CREATE",
@@ -169,7 +169,7 @@ export async function handleDispatchWorkOrder(req: any, res: any) {
       dispatchedAt: nowStr,
     });
 
-    dbWorkOrderLogs.unshift({
+    pushWorkOrderLog({
       id: `log-${Date.now()}`,
       workOrderId: id,
       action: "DISPATCH",
@@ -229,7 +229,7 @@ export async function handleClaimWorkOrder(req: any, res: any) {
       acceptedAt: nowStr,
     });
 
-    dbWorkOrderLogs.unshift({
+    pushWorkOrderLog({
       id: `log-${Date.now()}`,
       workOrderId: id,
       action: "CLAIM",

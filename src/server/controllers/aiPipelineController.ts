@@ -25,6 +25,17 @@ export const handleCreatePipeline = async (req: any, res: any) => {
   }
 };
 
+// ==================== 查询协同任务最近列表 ====================
+export const handleListPipeline = async (req: any, res: any) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 5;
+    const tasks = await AiTaskRepository.list(limit);
+    res.json({ success: true, tasks });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: "获取协同任务列表失败", message: err.message });
+  }
+};
+
 // ==================== 查询任务与各步骤状态 ====================
 export const handleGetPipeline = async (req: any, res: any) => {
   try {

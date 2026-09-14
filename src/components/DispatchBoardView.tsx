@@ -21,11 +21,12 @@ import {
   DispatchRecommendationItem,
   DutyTechnician,
 } from '../api';
+import { AmapDispatchMap } from './AmapDispatchMap';
 
 /**
  * 内部师傅距离调度大屏：
- * 厂区平面 SVG（0~1000 归一化坐标，非经纬度）+ 在岗师傅绿点 + 故障设备红点 + 就近派单推荐。
- * 距离换算：1 坐标单位 ≈ 2 米（与后端 dispatchService.METERS_PER_UNIT 一致）。
+ * 默认渲染高德真实地图（真实经纬度 + Haversine 球面距离）；无 Key / 离线时自动降级为
+ * 厂区平面 SVG 示意图（0~1000 归一化坐标），不白屏。在岗师傅绿点 + 故障设备红点 + 就近派单推荐。
  */
 
 interface DispatchBoardViewProps {
@@ -68,6 +69,10 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+  /** 高德地图加载失败（无 Key / 离线 / Key 无效）→ 降级为平面 SVG 示意图 */
+  const [amapFailed, setAmapFailed] = useState(false);
+  /** 是否具备高德 Key（VITE_AMAP_KEY），用于地图模式/降级模式标题与角标切换 */
+  const hasAmapKey = Boolean((import.meta.env.VITE_AMAP_KEY as string) || '');
   const [hoverTech, setHoverTech] = useState<DutyTechnician | null>(null);
   const [hoverEq, setHoverEq] = useState<EquipmentPoint | null>(null);
   const [mocking, setMocking] = useState(false);
@@ -223,11 +228,11 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
             <button
               onClick={handleMock}
               disabled={mocking}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-600 hover:text-blue-600 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
-              title="演示环境：随机扰动在岗师傅位置"
+              className="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
+              title="演示环境：在厂区真实经纬度范围内随机扰动在岗师傅位置（无真实定位设备时演示用）"
             >
               {mocking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crosshair className="w-3.5 h-3.5" />}
-              <span>模拟位置刷新</span>
+              <span>演示定位</span>
             </button>
             <button
               onClick={fetchBoard}
@@ -288,8 +293,10 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h2 className="text-sm font-bold text-slate-900 flex items-center">
                 <MapPin className="w-4 h-4 mr-1.5 text-blue-600" />
-                厂区平面调度图
-                <span className="ml-2 text-[10px] text-slate-400 font-mono">0~1000 归一化坐标 · 1 单位 ≈ 2m</span>
+                {hasAmapKey && !amapFailed ? '厂区地图调度' : '厂区平面调度图'}
+                <span className="ml-2 text-[10px] text-slate-400 font-mono">
+                  {hasAmapKey && !amapFailed ? '高德地图 · 真实经纬度 · 球面距离' : '0~1000 归一化坐标 · 降级示意图'}
+                </span>
               </h2>
               <div className="flex items-center gap-3 text-[10px] text-slate-500">
                 <span className="flex items-center"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 mr-1 animate-pulse" />故障设备</span>
@@ -303,8 +310,23 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500 mr-2" />
                 加载厂区数据…
               </div>
+            ) : hasAmapKey && !amapFailed ? (
+              <AmapDispatchMap
+                equipmentPoints={equipmentPoints}
+                technicians={technicians}
+                selectedEqPoint={selectedEqPoint}
+                recommendations={recommendations}
+                onFail={() => setAmapFailed(true)}
+                onHoverTech={setHoverTech}
+                onHoverEq={setHoverEq}
+              />
             ) : (
               <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-[#f1f5f9]">
+                {hasAmapKey && amapFailed && (
+                  <div className="absolute top-2 left-2 z-10 px-2 py-1 rounded-md bg-amber-50 border border-amber-200 text-[10px] text-amber-700">
+                    地图加载失败（离线或无权限），已回退平面示意图
+                  </div>
+                )}
                 <svg viewBox="0 0 1000 1000" className="w-full h-[420px] md:h-[480px]" style={{ transform: 'scaleY(1)' }}>
                   {/* 网格底纹 */}
                   <defs>
@@ -405,7 +427,7 @@ export const DispatchBoardView: React.FC<DispatchBoardViewProps> = ({
                 {hoverTech && (
                   <div className="absolute top-3 left-3 glass-card p-3 text-xs shadow-lg max-w-[240px] pointer-events-none">
                     <p className="font-bold text-slate-800">{hoverTech.name} · {hoverTech.roleTitle}</p>
-                    <p className="text-[11px] text-slate-500 mt-1">位置：({Math.round(hoverTech.mapX)}, {Math.round(hoverTech.mapY)}) · {hoverTech.onlineStatus === 'idle' ? '空闲' : '在岗'}</p>
+                    <p className="text-[11px] text-slate-500 mt-1">位置：{hoverTech.geoLng != null && hoverTech.geoLat != null ? `(${hoverTech.geoLng.toFixed(5)}, ${hoverTech.geoLat.toFixed(5)})` : `(${Math.round(hoverTech.mapX)}, ${Math.round(hoverTech.mapY)})`} · {hoverTech.onlineStatus === 'idle' ? '空闲' : '在岗'}</p>
                     <p className="text-[11px] text-slate-500">最近上报：{hoverTech.lastLocationAt || '无记录'}</p>
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {(hoverTech.skills || []).map((s) => (

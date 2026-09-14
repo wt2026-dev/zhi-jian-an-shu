@@ -1,6 +1,6 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
 import { Request, Response } from "express";
-import { STATUS_LABELS, dbWorkOrderLogs } from "./workOrderController.ts";
+import { STATUS_LABELS, pushWorkOrderLog } from "./workOrderController.ts";
 import { pushNotification } from "../services/auditService.ts";
 import { EquipmentRepository, WorkOrderRepository } from "../../db/repositories/index.ts";
 
@@ -15,6 +15,12 @@ export async function handleWxRepairCreate(req: Request, res: Response) {
     // 1. 简单频率限制：同 openid / 设备 / IP 10 分钟内限 5 单
     const nowTime = Date.now();
     const tenMinutesAgo = nowTime - 10 * 60 * 1000;
+    // 内存防护：限流 Map 按 key 累积（扫码来源不可枚举），规模超阈值时清扫全部过期 key，防止长期运行内存无限增长
+    if (wxRepairRateLimitMap.size > 5000) {
+      for (const [key, stamps] of wxRepairRateLimitMap) {
+        if (!stamps.some((t) => t >= tenMinutesAgo)) wxRepairRateLimitMap.delete(key);
+      }
+    }
     const historyTimestamps = (wxRepairRateLimitMap.get(rateLimitKey) || []).filter((t) => t >= tenMinutesAgo);
     if (historyTimestamps.length >= 5) {
       return res.status(429).json({
@@ -115,7 +121,7 @@ export async function handleWxRepairCreate(req: Request, res: Response) {
     }
 
     // 写入流转审计日志
-    dbWorkOrderLogs.unshift({
+    pushWorkOrderLog({
       id: `log-${Date.now()}`,
       workOrderId: id,
       action: "CREATE",

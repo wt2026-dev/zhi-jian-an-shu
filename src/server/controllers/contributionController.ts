@@ -2,7 +2,6 @@
 import { createEmbedding } from "../services/aiClient.ts";
 import { getDb } from "../../db/db.ts";
 import { KnowledgeRepository } from "../../db/repositories/index.ts";
-import { setDbKnowledgeArticles } from "./knowledgeController.ts";
 import { addAuditLog } from "../services/auditService.ts";
 
 // POST /api/v1/ai/feedback
@@ -28,7 +27,7 @@ export const handleAdoptAiFeedback = async (req: any, res: any) => {
   const f = rows[0], article = { id: `kb-feedback-${Date.now()}`, title: `AI 纠错沉淀：${f.chat_id}`, category: "AI纠错知识", targetEquipment: f.device_id || "通用设备", tags: ["AI纠错", "人工确认"], summary: String(f.user_correction).slice(0, 150), content: f.corrected_content, author: req.currentUser.name, updatedAt: new Date().toLocaleDateString("zh-CN"), fileType: "feedback", chunksCount: 1, status: "pending" };
   try { (article as any).embedding = await createEmbedding(`${article.title}\n${article.content}`); } catch (err: any) { return res.status(502).json({ error: "修正知识向量生成失败，未采纳", message: err.message }); }
   await KnowledgeRepository.create(article); await db.query("UPDATE ai_feedback SET status='adopted' WHERE id=$1", [f.id]);
-  setDbKnowledgeArticles(await KnowledgeRepository.getAll()); res.json({ success: true, article });
+  res.json({ success: true, article });
 };
 
 // ==================== 16.2 知识自进化贡献管理 (Knowledge Contributions) ====================
@@ -119,8 +118,6 @@ export const handleAdoptContribution = async (req: any, res: any) => {
 
     await KnowledgeRepository.create(article);
     await db.query("UPDATE ai_knowledge_contributions SET status = 'adopted' WHERE id = $1", [c.id]);
-    setDbKnowledgeArticles(await KnowledgeRepository.getAll());
-
     return res.json({ success: true, article });
   } catch (err: any) {
     console.error("Adopt contribution error:", err);
