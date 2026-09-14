@@ -1,8 +1,17 @@
 /**
- * PGlite → PostgreSQL 数据迁移工具
+ * PGlite → PostgreSQL 数据迁移工具（全量 29 张业务表）
  * 用法: DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD 配置好目标库后执行
  *       npx tsx scripts/migrate-pglite-to-postgres.ts
- * 流程: 读取 PGlite 全量表数据 → 目标库执行迁移 SQL → 批量写入 → 记录数校验
+ * 流程: 读取 PGlite 全量表数据 → 目标库执行迁移 SQL → 按外键依赖顺序批量写入 → 记录数校验
+ *
+ * 覆盖表清单（29/29）：
+ *   users, equipments, knowledge_articles, audit_logs, upload_files,
+ *   maintenance_procedures, ai_feedback, ai_generation_reviews, ai_model_configs,
+ *   ai_tasks, spare_parts, ai_knowledge_contributions, ai_analysis_log,
+ *   work_orders, work_order_logs, safety_permits, inspections, equipment_telemetry,
+ *   notifications, loto_locks, knowledge_graph_nodes, compliance_checks,
+ *   procedure_videos, ai_task_steps, spare_parts_movements, technician_locations,
+ *   hazards, knowledge_graph_edges, knowledge_embeddings
  */
 import fs from "fs";
 import path from "path";
@@ -10,10 +19,40 @@ import pg from "pg";
 import { PGlite } from "@electric-sql/pglite";
 
 var PG_PATH = path.join(process.cwd(), "data", "industrial_ops_pg");
+// 全量 29 张业务表，按外键依赖顺序排列（被引用表在前）
 var TABLES = [
-  "users", "equipments", "work_orders", "work_order_logs", "safety_permits",
-  "audit_logs", "knowledge_articles", "inspections", "equipment_telemetry",
-  "notifications", "loto_locks", "upload_files",
+  // ---- 无外键依赖的基础表 ----
+  "users",
+  "equipments",
+  "knowledge_articles",
+  "audit_logs",
+  "upload_files",
+  "maintenance_procedures",
+  "ai_feedback",
+  "ai_generation_reviews",
+  "ai_model_configs",
+  "ai_tasks",
+  "spare_parts",
+  "ai_knowledge_contributions",
+  "ai_analysis_log",
+  // ---- 依赖基础表的二级表 ----
+  "work_orders",           // FK → equipments
+  "work_order_logs",       // FK → work_orders
+  "safety_permits",        // FK → equipments
+  "inspections",           // FK → equipments
+  "equipment_telemetry",   // FK → equipments
+  "notifications",         // FK → users
+  "loto_locks",            // FK → safety_permits
+  "knowledge_graph_nodes", // FK → knowledge_articles
+  "compliance_checks",     // FK → work_orders
+  "procedure_videos",      // FK → maintenance_procedures
+  "ai_task_steps",         // FK → ai_tasks
+  "spare_parts_movements", // FK → spare_parts
+  "technician_locations",  // FK → users
+  "hazards",               // FK → equipments
+  // ---- 依赖二级表的三级表 ----
+  "knowledge_graph_edges", // FK → knowledge_graph_nodes + knowledge_articles
+  "knowledge_embeddings",  // FK → knowledge_articles
 ];
 
 async function main() {

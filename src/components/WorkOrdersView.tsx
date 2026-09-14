@@ -106,6 +106,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
 
   // 生产级：防重复报单与状态互斥提示状态
   const [duplicateAlert, setDuplicateAlert] = useState<{ message: string; existingOrder?: any } | null>(null);
+  const [createFormError, setCreateFormError] = useState<string | null>(null);
   const [mutexErrorToast, setMutexErrorToast] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -462,9 +463,21 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const missing: string[] = [];
+    if (!newOrderForm.equipmentId) missing.push('请选择报修设备');
+    if (!newOrderForm.description?.trim()) missing.push('请填写故障描述');
+    if (missing.length > 0) {
+      setCreateFormError(missing.join('；'));
+      return;
+    }
     const targetEq = equipments.find((e) => e.id === newOrderForm.equipmentId) || equipments[0];
+    if (!targetEq) {
+      setCreateFormError('请选择报修设备');
+      return;
+    }
     setIsSubmitting(true);
     setDuplicateAlert(null);
+    setCreateFormError(null);
 
     try {
       const created = await workOrderApi.create({
@@ -1501,6 +1514,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                       }}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     >
+                      <option value="">请选择设备</option>
                       {equipments.map((eq) => (
                         <option key={eq.id} value={eq.id}>
                           {eq.name} ({eq.code}) · {eq.workshop}
@@ -1897,7 +1911,13 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             </div>
 
             {/* Modal Footer with Step Navigation */}
-            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/60">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-2">
+              {createFormError && (
+                <p role="alert" className="text-xs text-rose-600 font-medium">
+                  {createFormError}
+                </p>
+              )}
+              <div className="flex items-center justify-between">
               <div>
                 {createStep > 1 && (
                   <button
@@ -1958,6 +1978,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     )}
                   </button>
                 )}
+              </div>
               </div>
             </div>
           </form>
