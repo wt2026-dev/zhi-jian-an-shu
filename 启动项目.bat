@@ -64,6 +64,6 @@ echo [3/3] 打开管理端页面...
 start http://localhost:3000/
 echo.
 echo ✅ 启动完成！浏览器已打开管理端
-echo    账号: admin  密码: password123
+echo    账号: admin  密码: Admin@2026#Demo（各角色独立强密码见 README）
 echo.
 pause

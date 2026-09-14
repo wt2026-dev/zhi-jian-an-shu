@@ -66,7 +66,7 @@ const DIAGNOSIS_SAMPLES = [
 console.log("\n=== A. 设备故障诊断降级（规则引擎 + 知识库检索） ===");
 for (const s of DIAGNOSIS_SAMPLES) {
   const c: EvalCase = { id: s.id, category: "故障诊断", name: `${s.equipmentName} 降级诊断` , run: async () => ({ pass: false, detail: "" }) };
-  const res = await request(app).post("/api/ai/diagnose").set(auth).send({
+  const res = await request(app).post("/api/v1/ai/diagnose").set(auth).send({
     equipmentName: s.equipmentName,
     category: "旋转设备",
     symptoms: s.symptoms,
@@ -173,7 +173,7 @@ console.log("\n=== D. 健康预测降级统计（真实遥测特征，非编造�
 console.log("\n=== E. 对话降级（专家知识兜底） ===");
 {
   const c: EvalCase = { id: "C1", category: "对话降级", name: "无 Key 对话兜底回复", run: async () => ({ pass: false, detail: "" }) };
-  const res = await request(app).post("/api/ai/chat").set(auth).send({ message: "离心泵轴承发热应该怎么排查？" });
+  const res = await request(app).post("/api/v1/ai/chat").set(auth).send({ message: "离心泵轴承发热应该怎么排查？" });
   const body = res.body || {};
   const checks = [
     res.status === 200,

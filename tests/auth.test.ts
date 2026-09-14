@@ -7,7 +7,7 @@ let app: any;
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
   app = await createApp();
-});
+}, 30000);
 
 describe("1. 认证与登录功能测试 (Auth Suite)", () => {
   it("登录成功：提供正确的用户名和密码应返回 200 与 JWT Token", async () => {

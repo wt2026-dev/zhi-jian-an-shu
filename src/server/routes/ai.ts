@@ -1,9 +1,14 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
 import express from "express";
-import { requireAuth } from "../middleware/auth.ts";
+import { requireAuth, requireRole } from "../middleware/auth.ts";
 import { validateBody } from "../middleware/validate.ts";
+import { getBudgetUsage } from "../services/aiClient.ts";
 import {
   aiChatSchema,
+  aiDiagnoseSchema,
+  suggestContributionSchema,
+  multimodalSearchSchema,
+  aiRagSearchSchema,
   visionDefectDetectSchema,
   speechToTextSchema,
   generateWorkOrderAiSchema,
@@ -26,9 +31,17 @@ import {
   handleEquipmentSummary,
   handleRecommendAssignee,
   handleAlarmCorrelation,
+  handleAiRagSearch,
 } from "../controllers/aiAssistantController.ts";
 import { handleVisionDefectDetect, makeVisionCompatHandler, handleSpeechToText, handleVideoAnalysis } from "../controllers/aiVisionController.ts";
-import { handleGenerateWorkOrder, handleRootCauseAnalysis, handleGenerateMaintenancePlan } from "../controllers/aiGenerationController.ts";
+import {
+  handleGenerateWorkOrder,
+  handleRootCauseAnalysis,
+  handleGenerateMaintenancePlan,
+  handleAiDiagnose,
+} from "../controllers/aiGenerationController.ts";
+import { handleAiSuggestContribution } from "../controllers/contributionController.ts";
+import { handleAiMultimodalSearch } from "../controllers/aiMultimodalController.ts";
 import { handleHealthForecast, handleGenerateReport, handleSafetyRiskAssessment } from "../controllers/aiForecastController.ts";
 import { handleCreatePipeline, handleGetPipeline, handlePipelineEvents, handleListPipeline } from "../controllers/aiPipelineController.ts";
 
@@ -37,13 +50,31 @@ export function registerAiRoutes(app: express.Express) {
   // AI 统计
   app.get("/api/v1/ai-stats", requireAuth, handleGetAiStats);
   app.get("/api/v1/admin/ai-stats", requireAuth, handleGetAiStats);
+
+  // ---------- AI 每日预算状态（仅 admin 可见） ----------
+  app.get("/api/v1/ai/budget", requireAuth, requireRole(["admin"], "查看 AI 预算"), (_req: any, res: any) => {
+    res.json(getBudgetUsage());
+  });
+
   // AI 对话
   app.post("/api/v1/ai/chat", requireAuth, validateBody(aiChatSchema), handleAiChat);
+
+  // AI 智能故障诊断向导 (Fault Diagnosis Wizard)
+  app.post("/api/v1/ai/diagnose", requireAuth, validateBody(aiDiagnoseSchema), handleAiDiagnose);
+
+  // AI 知识贡献识别（对话后判断是否沉淀为知识案例）
+  app.post("/api/v1/ai/suggest-contribution", requireAuth, validateBody(suggestContributionSchema), handleAiSuggestContribution);
 
   // 阿里云 DashScope / 通义千问 Qwen-VL 工业视觉缺陷深度识别链路
   app.post("/api/v1/ai/vision-defect-detect", validateBody(visionDefectDetectSchema), handleVisionDefectDetect);
   // 兼容旧接口
   app.post("/api/v1/ai/vision", validateBody(visionDefectDetectSchema), makeVisionCompatHandler(app));
+
+  // AI 多模态检索（看图找相似案例）
+  app.post("/api/v1/ai/multimodal-search", requireAuth, validateBody(multimodalSearchSchema), handleAiMultimodalSearch);
+
+  // AI 知识库 RAG 语义检索 (RAG Semantic Search)
+  app.post("/api/v1/ai/rag-search", requireAuth, validateBody(aiRagSearchSchema), handleAiRagSearch);
 
   // 语音识别转写链路 (ASR)
   // 支持 MediaRecorder 音频 Base64 输入，转换为工业现场故障与维保问答文本

@@ -26,6 +26,7 @@
    - [7.2 魔珐星云 3D 数字人（XINGYUN_APP_ID / XINGYUN_APP_SECRET）](#72-魔珐星云-3d-数字人)
    - [7.3 微信小程序（WECHAT_APP_ID / WECHAT_APP_SECRET）](#73-微信小程序)
 8. [常见故障排查与运维诊断 (FAQ)](#八常见故障排查与运维诊断-faq)
+9. [PostgreSQL 生产部署已验证](#九postgresql-生产部署已验证)
 
 ---
 
@@ -321,3 +322,42 @@ server {
 
 ### Q5: 服务启动时抛出"环境变量 JWT_SECRET 未配置，拒绝启动"？
 - **回答**：这是刻意的 fail-fast 安全设计。按 2.2 节生成强随机密钥写入 `.env` 后重启即可。
+
+---
+
+## 九、PostgreSQL 生产部署已验证
+
+> 本系统已于 2026-09-14 在真实 PostgreSQL 16.15 实例上完成全链路验证，详见 `docs/生产模式验证报告.md`。
+
+### 验证结论
+
+- **23 个迁移文件**在真 PG 上全部执行成功，零兼容性问题
+- **种子数据**11 类（用户/设备/工单/作业票/通知/审计日志/知识库/巡检/遥测/工单日志/LOTO 锁具）全部写入
+- **29 张业务表**结构完整
+- **核心测试 15/15 全部通过**：工单状态机 (6) + RBAC 权限 (2) + 并发乐观锁 (7)
+- **PGlite 回归 179/179 全部通过**，双模式互不影响
+
+### 一键切换到 PostgreSQL 生产模式
+
+```bash
+# .env 中修改两行即可切换
+DATABASE_URL="postgresql://postgres:your_password@localhost:5432/industrial_maintenance"
+DB_TYPE=postgres
+```
+
+### 快速复现验证
+
+```bash
+# 1. 启动 PG 16 容器
+docker run -d --name pg16 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=industrial_maintenance -p 5432:5432 postgres:16-alpine
+
+# 2. 配置 .env（见上）
+
+# 3. 迁移 + 种子 + 测试
+npm run db:migrate && npm run db:seed
+npx vitest run tests/work-order-state-machine.test.ts tests/rbac.test.ts tests/optimistic-lock-and-concurrency.test.ts
+```
+
+### 双模式兼容性说明
+
+系统使用标准 PostgreSQL 语法编写所有迁移 SQL，PGlite 0.5.x（嵌入式 PG）与独立 PostgreSQL 16 均原生支持。`vectorStore.ts` 自动探测 pgvector 扩展：真 PG 安装 pgvector 后启用 HNSW 向量索引，PGlite 无 pgvector 时自动降级为 JSONB 余弦相似度（功能完整，性能对参赛规模足够）。

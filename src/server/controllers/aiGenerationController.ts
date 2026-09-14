@@ -9,7 +9,7 @@ import { validateBody } from "../middleware/validate.ts";
 import { generateWorkOrderAiSchema, rootCauseAnalysisSchema, generateMaintenancePlanSchema } from "../schemas/ai.ts";
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { EquipmentRepository, WorkOrderRepository } from "../../db/repositories/index.ts";
-import { runMaintenancePlanCore } from "../services/aiCapabilityService.ts";
+import { runMaintenancePlanCore, runFaultDiagnosisCore } from "../services/aiCapabilityService.ts";
 import { createPendingAiReview } from "../services/aiReviewService.ts";
 
 // ---------- 功能 1：智能工单生成 ----------
@@ -235,5 +235,24 @@ export const handleGenerateMaintenancePlan = async (req: any, res: any) => {
     return res.status(200).json(result.body);
   } catch (err: any) {
     return handleAiRouteError(res, err, "AI_GENERATE_MAINTENANCE_PLAN", req);
+  }
+};
+
+// ---------- 功能：智能故障诊断向导 (Fault Diagnosis Wizard, /api/v1/ai/diagnose) ----------
+export const handleAiDiagnose = async (req: any, res: any) => {
+  try {
+    const { equipmentName, equipmentCode, category, symptoms, telemetry, errorCodes } = req.body;
+    const result = await runFaultDiagnosisCore({ equipmentName, equipmentCode, category, symptoms, telemetry, errorCodes });
+    addAuditLog(req, {
+      actionType: "AI_DIAGNOSE",
+      module: "ai",
+      detail: `AI 故障诊断完成 (${equipmentName || equipmentCode || "未指定设备"})，结论: ${result.body?.diagnosis?.summary || "无"}`,
+      status: result.body?.success ? "SUCCESS" : "FAILED",
+      metadata: { equipmentName, equipmentCode, outcome: result.outcome },
+    });
+    return res.json(result.body);
+  } catch (error: any) {
+    console.error("Diagnose error:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };

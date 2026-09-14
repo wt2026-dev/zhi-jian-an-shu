@@ -254,7 +254,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
     setAiAnalyzing(true);
     setAiAnalysisResult(null);
     try {
-      const res = await fetch('/api/ai/diagnose', {
+      const res = await fetch('/api/v1/ai/diagnose', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

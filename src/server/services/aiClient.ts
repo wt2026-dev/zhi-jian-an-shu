@@ -1,7 +1,77 @@
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
-import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
+import { DASHSCOPE_CHAT_MODEL, isAiBudgetEnabled, getAiDailyBudget } from "../utils/config.ts";
 import { addAuditLog } from "./auditService.ts";
 import { resolveCandidates, clientFor, markHealth, isFailoverEligible } from "./aiModelRouter.ts";
+
+// ==================== AI 每日预算记账（最小化实现，不改动各 controller） ====================
+// 在 lazyModelRouter 唯一出口拦截：成功返回后累计 usage，超限抛 AiUnavailableError。
+// 每日 00:00 自动重置；AI_BUDGET_ENABLED=false 时完全不生效（零性能损耗）。
+
+interface BudgetState {
+  date: string;       // YYYY-MM-DD
+  usedTokens: number; // 当日已消耗 tokens
+}
+
+const budgetState: BudgetState = { date: todayStr(), usedTokens: 0 };
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function ensureToday() {
+  const now = todayStr();
+  if (budgetState.date !== now) {
+    budgetState.date = now;
+    budgetState.usedTokens = 0;
+  }
+}
+
+/** 记录 token 消耗（prompt + completion） */
+export function trackBudgetUsage(usage: { prompt_tokens?: number; completion_tokens?: number } | undefined) {
+  if (!isAiBudgetEnabled() || !usage) return;
+  ensureToday();
+  const delta = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0);
+  budgetState.usedTokens += delta;
+}
+
+/** 检查预算是否已超限（超限时写审计日志并返回 true） */
+export function checkBudgetExceeded(req?: any): boolean {
+  if (!isAiBudgetEnabled()) return false;
+  ensureToday();
+  const budget = getAiDailyBudget();
+  if (budgetState.usedTokens >= budget) {
+    if (req) {
+      addAuditLog(req, {
+        actionType: "BUDGET_EXCEEDED",
+        module: "ai",
+        detail: `今日 AI 预算已用尽 (${budgetState.usedTokens}/${budget} tokens)`,
+        status: "BLOCKED",
+        metadata: { used: budgetState.usedTokens, budget },
+      });
+    }
+    return true;
+  }
+  return false;
+}
+
+/** 获取当前预算状态（供 GET /api/v1/ai/budget 接口使用） */
+/** 测试辅助：重置预算计数器（供测试隔离使用，不影响任何运行时行为） */
+export function __resetBudgetStateForTests(): void {
+  budgetState.date = todayStr();
+  budgetState.usedTokens = 0;
+}
+
+export function getBudgetUsage(): { enabled: boolean; used: number; budget: number; resetAt: string } {
+  ensureToday();
+  const tomorrow = new Date();
+  tomorrow.setUTCHours(24, 0, 0, 0);
+  return {
+    enabled: isAiBudgetEnabled(),
+    used: budgetState.usedTokens,
+    budget: getAiDailyBudget(),
+    resetAt: tomorrow.toISOString(),
+  };
+}
 
 // ==================== 阿里云百炼 (DashScope) 大模型客户端与统一调用辅助 ====================
 // 原 server.ts 模块级 AI 辅助函数模块化；审计日志通过 addAuditLog 直接依赖（无循环依赖）
@@ -26,6 +96,11 @@ function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRoute
     chat: {
       completions: {
         create: async (params: any) => {
+          if (checkBudgetExceeded()) {
+            throw new AiUnavailableError(
+              "今日 AI 预算已用尽，请联系管理员调整 AI_DAILY_BUDGET 预算上限，或等待次日自动重置。"
+            );
+          }
           const resolved = await resolveCandidates();
           if (!resolved.length) {
             throw new AiUnavailableError(
@@ -55,6 +130,7 @@ function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRoute
               const client = clientFor(cand);
               const response = await client.chat.completions.create(attemptParams);
               void markHealth(cand.configId, "healthy");
+              trackBudgetUsage(response?.usage);
               return response;
             } catch (err: any) {
               lastError = err;

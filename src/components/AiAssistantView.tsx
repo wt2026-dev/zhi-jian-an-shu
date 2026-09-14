@@ -540,7 +540,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
     const targetEq = equipments.find((e) => e.id === diagEqId) || equipments[0];
 
     try {
-      const res = await fetch('/api/ai/diagnose', {
+      const res = await fetch('/api/v1/ai/diagnose', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

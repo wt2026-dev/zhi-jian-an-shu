@@ -374,3 +374,78 @@ ${alarmsCtx}
     handleAiRouteError(res, err, "AI_ALARM_CORRELATION", req);
   }
 };
+
+// AI 知识库 RAG 语义检索 (RAG Semantic Search, /api/v1/ai/rag-search)
+export async function handleAiRagSearch(req: any, res: any) {
+  try {
+    const { query, knowledgeList = [] } = req.body;
+    const ai = getAiClient();
+
+    if (ai && query) {
+      try {
+        const contextCorpus = knowledgeList
+          .slice(0, 8)
+          .map(
+            (k: any) =>
+              `【标题】${k.title}\n【类别】${k.category}\n【摘要】${k.summary}\n【核心规程】${k.content.slice(0, 400)}`
+          )
+          .join("\n\n---\n\n");
+
+        const prompt = `用户正在检索工业检修知识库：
+用户查询问题: "${query}"
+
+知识库参考文档:
+${contextCorpus}
+
+请基于上述知识库资料，给出精准的RAG语义综合解答：
+1. 直接回答用户的问题并给出核心结论。
+2. 列出相关的标准作业程序(SOP)关键步骤或排查要点。
+3. 标注参考的规程来源文档。`;
+
+        const response = await ai.chat.completions.create({
+          model: DASHSCOPE_CHAT_MODEL,
+          messages: [
+            {
+              role: "system",
+              content: `你是一位拥有20年工业重型设备（离心泵、压缩机、减速机、大型变频电机、数控机床、工业机器人）检修经验的知识工程师，运行于企业设备检修知识库之上。你的回答必须遵循以下规则：
+1. 优先基于提供的知识库文档作答，结论后用【来源：《文档标题》】标注引用；未提供文档支撑的结论一律标注【通用经验，未经企业规程验证】。
+2. 如果知识库中没有直接相关内容，不要编造规程号，必须明确说明"当前知识库未收录该场景"，并在回答末尾追加一句："该问题尚未沉淀为知识，建议由现场维修员在【AI纠错反馈】中提交补充，或由知识管理员在知识中心沉淀为案例。"
+3. 回答中如果引用了"现场经验类"资料（区别于标准 SOP），必须额外标注【来源类型：现场经验】。
+4. 涉及危险作业（高压、高温、易燃易爆、机械卷入、受限空间）时，必须附【安全警示】并给出对应的防护与 LOTO 要点。
+5. 回答使用结构化分点输出，关键参数用编号，保持专业严谨，不闲聊。`,
+            },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.4,
+        });
+
+        const summary = response.choices?.[0]?.message?.content;
+        if (summary) {
+          return res.json({
+            success: true,
+            summary,
+            matchedDocCount: knowledgeList.length,
+            model: DASHSCOPE_CHAT_MODEL,
+          });
+        }
+      } catch (ragErr) {
+        console.error("RAG DashScope error:", ragErr);
+      }
+    }
+
+    return res.json({
+      success: true,
+      degraded: true,
+      summary: "AI 知识增强服务暂不可用，请稍后重试；以下为知识库原文片段，仅供参考。",
+      matchedDocCount: knowledgeList.length,
+      rawHits: knowledgeList.slice(0, 3).map((k: any) => ({
+        title: k.title,
+        category: k.category,
+        excerpt: k.summary || (k.content ? k.content.slice(0, 150) : ""),
+      })),
+    });
+  } catch (error: any) {
+    console.error("RAG error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}

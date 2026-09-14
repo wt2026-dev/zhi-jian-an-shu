@@ -93,4 +93,49 @@ describe("明文密码兼容与安全升级加固 (Password Hardening)", () => {
     expect(resAgain.status).toBe(200);
     expect(resAgain.body.token).toBeTruthy();
   });
+
+  it("④ 各角色账号均能通过其独立强密码登录成功 (Admin@2026#Demo / Manager@2026#Safe / Tech1@2026#Work 等)", async () => {
+    const roles = [
+      { username: "admin", password: "Admin@2026#Demo", role: "admin" },
+      { username: "manager", password: "Manager@2026#Safe", role: "manager" },
+      { username: "tech1", password: "Tech1@2026#Work", role: "technician" },
+      { username: "inspector", password: "Inspect@2026#Check", role: "inspector" },
+      { username: "operator", password: "Operator@2026#Line", role: "operator" },
+      { username: "tech2", password: "Tech2@2026#Elec", role: "technician" },
+      { username: "inspector2", password: "Inspect2@2026#Site", role: "inspector" },
+      { username: "operator2", password: "Operator2@2026#Lift", role: "user" },
+      { username: "archivist", password: "Archive@2026#Doc", role: "archivist" },
+    ];
+
+    for (const r of roles) {
+      const res = await request(app)
+        .post("/api/v1/auth/login")
+        .send({ username: r.username, password: r.password });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+      expect(res.body.user.role).toBe(r.role);
+    }
+  });
+
+  it("⑤ DEMO_FORCE_PASSWORD_CHANGE=true 时，登录响应返回 forcePasswordChange: true 标记", async () => {
+    process.env.DEMO_FORCE_PASSWORD_CHANGE = "true";
+    try {
+      const res = await request(app)
+        .post("/api/v1/auth/login")
+        .send({ username: "admin", password: "Admin@2026#Demo" });
+      expect(res.status).toBe(200);
+      expect(res.body.forcePasswordChange).toBe(true);
+    } finally {
+      delete process.env.DEMO_FORCE_PASSWORD_CHANGE;
+    }
+  });
+
+  it("⑥ 默认环境未启用改密开关时，登录响应不含 forcePasswordChange 标记", async () => {
+    delete process.env.DEMO_FORCE_PASSWORD_CHANGE;
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ username: "admin", password: "Admin@2026#Demo" });
+    expect(res.status).toBe(200);
+    expect(res.body.forcePasswordChange).toBeUndefined();
+  });
 });
