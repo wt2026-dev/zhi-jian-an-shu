@@ -1,0 +1,81 @@
+<view wx:if="{{loading}}" class="empty">加载中...</view>
+<view wx:elif="{{loadError}}" class="empty">
+  <view>{{loadError}}</view>
+  <button class="btn btn-ghost" style="margin:30rpx auto;width:300rpx" bindtap="loadGraph">重试</button>
+</view>
+<block wx:else>
+  <view class="graph-page">
+    <view class="page-title">知识图谱</view>
+
+    <!-- 操作栏 -->
+    <view class="action-bar">
+      <view class="muted">共 {{nodes.length}} 个节点 · {{edges.length}} 条关系</view>
+      <view class="extract-btn {{extracting ? 'disabled' : ''}}" bindtap="extractGraph">
+        {{extracting ? '抽取中...' : '🤖 AI 抽取'}}
+      </view>
+    </view>
+    <view wx:if="{{extractMessage}}" class="extract-msg">{{extractMessage}}</view>
+
+    <!-- 图谱内容 - 分组卡片列表 -->
+    <view wx:if="{{nodes.length === 0}}" class="empty">暂无知识图谱数据，请先执行 AI 抽取</view>
+
+    <block wx:else>
+      <view class="type-section" wx:for="{{groupedNodes}}" wx:for-index="typeName" wx:key="typeName">
+        <view class="type-header">
+          <view class="type-dot" style="background:{{typeName === '设备' ? '#3b82f6' : typeName === '故障' ? '#EF4444' : typeName === '方法' ? '#10b981' : typeName === '备件' ? '#F59E0B' : typeName === '部件' ? '#8B5CF6' : '#94A3B8'}}"></view>
+          <text class="type-name">{{typeName}}</text>
+          <text class="type-count">{{item.length}} 个</text>
+        </view>
+        <view class="node-list">
+          <view class="node-card" wx:for="{{item}}" wx:for-item="node" wx:key="id" bindtap="selectNode" data-id="{{node.id}}">
+            <view class="node-name">{{node.name || node.label || node.id}}</view>
+            <view class="node-desc muted" wx:if="{{node.description || node.summary}}">{{node.description || node.summary}}</view>
+            <view class="node-tags" wx:if="{{node.equipmentType || node.source}}">
+              <text class="node-tag" wx:if="{{node.equipmentType}}">{{node.equipmentType}}</text>
+              <text class="node-tag" wx:if="{{node.source}}">{{node.source}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <!-- 节点详情抽屉 -->
+    <view class="drawer-mask" wx:if="{{selectedNode}}" bindtap="closeDetail"></view>
+    <view class="drawer {{selectedNode ? 'drawer-show' : ''}}">
+      <view class="drawer-header">
+        <text class="drawer-title">{{selectedNode.name || selectedNode.label}}</text>
+        <view class="drawer-close" bindtap="closeDetail">✕</view>
+      </view>
+      <view class="drawer-body">
+        <view class="detail-row" wx:if="{{selectedNode.type}}">
+          <text class="detail-label">类型</text>
+          <text class="detail-value">{{selectedNode.type}}</text>
+        </view>
+        <view class="detail-row" wx:if="{{selectedNode.description || selectedNode.summary}}">
+          <text class="detail-label">描述</text>
+          <text class="detail-value">{{selectedNode.description || selectedNode.summary}}</text>
+        </view>
+        <view class="detail-row" wx:if="{{selectedNode.equipmentType}}">
+          <text class="detail-label">关联设备</text>
+          <text class="detail-value">{{selectedNode.equipmentType}}</text>
+        </view>
+        <view class="detail-row" wx:if="{{selectedNode.source}}">
+          <text class="detail-label">来源</text>
+          <text class="detail-value">{{selectedNode.source}}</text>
+        </view>
+        <!-- 关联关系 -->
+        <view class="related-section" wx:if="{{edges.length > 0}}">
+          <text class="detail-label">关联关系</text>
+          <view class="related-list">
+            <view class="related-item" wx:for="{{edges}}" wx:for-item="edge" wx:key="id"
+              wx:if="{{edge.source === selectedNode.id || edge.target === selectedNode.id}}">
+              <text>{{edge.source === selectedNode.id ? edge.target : edge.source}}</text>
+              <text class="edge-label muted">{{edge.label || edge.relation || "关联"}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+  <view class="safe-bottom"></view>
+</block>

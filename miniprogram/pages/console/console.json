@@ -1,0 +1,9 @@
+{
+  "usingComponents": {},
+  "navigationBarTitleText": "工业智能终端控制台",
+  "navigationBarBackgroundColor": "#0a0a0a",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#0a0a0a",
+  "backgroundTextStyle": "light",
+  "enablePullDownRefresh": false
+}

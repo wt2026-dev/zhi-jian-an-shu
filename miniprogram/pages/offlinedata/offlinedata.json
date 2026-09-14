@@ -1,0 +1,9 @@
+{
+  "usingComponents": {},
+  "navigationBarTitleText": "离线数据与缓存管理",
+  "navigationBarBackgroundColor": "#1d2024",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#111418",
+  "backgroundTextStyle": "light",
+  "enablePullDownRefresh": false
+}

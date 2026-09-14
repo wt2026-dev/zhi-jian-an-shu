@@ -1,0 +1,148 @@
+@import "../../common.wxss";
+
+.page-workorder {
+  min-height: 100vh;
+  background-color: var(--surface);
+}
+
+/* Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background-color: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(12rpx);
+  -webkit-backdrop-filter: blur(12rpx);
+  border-bottom: 1rpx solid var(--industrial-border);
+}
+
+/* Main body */
+.main-body {
+  max-width: 512rpx;
+  margin-left: auto;
+  margin-right: auto;
+  padding-bottom: 280rpx;
+}
+
+/* Back arrow */
+.back-arrow {
+  font-size: 36rpx;
+  color: var(--on-surface);
+}
+
+/* Status indicator dots */
+.dot-green {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background-color: var(--status-green);
+}
+
+.dot-green-sm {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background-color: var(--status-green);
+}
+
+/* Lock bar */
+.lock-bar {
+  background-color: var(--surface-container-lowest);
+}
+
+/* Gas progress bar */
+.gas-progress {
+  width: 100%;
+  height: 4rpx;
+  background: var(--surface-container-highest);
+  border-radius: 2rpx;
+  margin: 16rpx 0;
+}
+
+/* Sign area */
+.sign-area {
+  cursor: pointer;
+}
+
+/* Bottom bar */
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface-container-lowest);
+  border-top: 1rpx solid var(--industrial-border);
+  padding: 24rpx;
+  z-index: 40;
+}
+
+/* Button styles */
+.btn-reject {
+  background: var(--surface-container-high);
+  border: 1rpx solid var(--industrial-border);
+}
+
+.btn-approve {
+  background: var(--primary-container);
+}
+
+.btn-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Modal */
+.modal-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 24rpx;
+  padding-bottom: env(safe-area-inset-bottom, 24rpx);
+}
+
+.modal-content {
+  background: var(--surface-container-high);
+  border: 1rpx solid var(--industrial-border);
+  border-radius: 24rpx;
+  padding: 32rpx;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* Safe areas */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 20rpx);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* Animations */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 头部行 */
+.header-row { border-bottom: 1rpx solid var(--industrial-border); }

@@ -1,0 +1,16 @@
+<view class="bar">
+  <view class="muted">共 {{list.length}} 条 · 未读 {{unread}} 条</view>
+  <view class="markall" bindtap="markAll">全部已读</view>
+</view>
+<view wx:if="{{loading}}" class="empty">加载中...</view>
+<view wx:elif="{{list.length === 0}}" class="empty">暂无通知</view>
+<view class="card {{item.read ? 'read' : ''}}" wx:for="{{list}}" wx:key="id" bindtap="tapItem" data-idx="{{index}}">
+  <view class="row">
+    <view class="badge-dot" style="background:{{item.dotColor}}" wx:if="{{!item.read}}"></view>
+    <view class="title">{{item.title}}</view>
+    <view class="sp"></view>
+    <view class="muted">{{item.time}}</view>
+  </view>
+  <view class="muted" style="margin-top:10rpx;line-height:1.6">{{item.content}}</view>
+</view>
+<view class="safe-bottom"></view>

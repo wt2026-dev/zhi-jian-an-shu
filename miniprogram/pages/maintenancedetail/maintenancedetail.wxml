@@ -1,0 +1,341 @@
+<!-- 顶部状态栏 -->
+<view class="status-bar">
+  <view class="status-bar-inner">
+    <view class="status-left">
+      <view class="status-indicator">
+        <view class="status-dot-blue"></view>
+        <text class="status-text-blue">5G·IND-RTK</text>
+      </view>
+      <text class="status-sep">|</text>
+      <text class="status-text-muted">LATENCY: <text class="status-text-green">3.8ms</text></text>
+    </view>
+    <view class="status-right">
+      <view class="signal-info">
+        <text class="text-18px">📡</text>
+        <text class="status-text-green">-64dBm</text>
+      </view>
+      <text class="status-sep">|</text>
+      <text class="status-text-time">23:48:15 UTC+8</text>
+    </view>
+  </view>
+  <!-- 导航栏 -->
+  <view class="nav-bar">
+    <view class="nav-left">
+      <view class="nav-back-btn" bindtap="onBack">
+        <text class="text-18px">←</text>
+      </view>
+      <view class="nav-info">
+        <view class="nav-title-row">
+          <view class="nav-tag">工程运维</view>
+          <text class="nav-title">检修消缺执行</text>
+        </view>
+        <text class="nav-subtitle">精密液压系统消缺工单</text>
+      </view>
+    </view>
+    <view class="nav-right">
+      <view class="nav-version-row">
+        <view class="version-tag">版本 3.2</view>
+        <text class="text-18px">🎙️</text>
+      </view>
+      <text class="work-order-id">WO-20241018-0042</text>
+    </view>
+  </view>
+</view>
+
+<!-- 主内容区 -->
+<scroll-view scroll-y class="main-content" enhanced show-scrollbar="{{false}}">
+  <!-- 状态与优先级指示器面板 -->
+  <view class="card status-card">
+    <view class="card-bg-highlight"></view>
+    <view class="status-top">
+      <view class="status-left-col">
+        <view class="status-label-row">
+          <text>作业状态指示</text>
+          <view class="dot-gray"></view>
+          <text class="status-label-amber">现场实时执行</text>
+        </view>
+        <view class="status-main-row">
+          <view class="amber-pulse">
+            <view class="amber-dot"></view>
+            <view class="amber-ring"></view>
+          </view>
+          <text class="status-main-text">正在维修消缺 <text class="status-badge-amber">[执行中]</text></text>
+        </view>
+      </view>
+      <view class="status-right-col">
+        <view class="emergency-tag">
+          <view class="red-dot"></view>
+          <text>紧急一级 // 2小时内干预</text>
+        </view>
+        <view class="elapsed-row">
+          <text class="timer-icon">⏱</text>
+          <text>已耗时: </text>
+          <text class="elapsed-value">01小时 32分 44秒</text>
+        </view>
+      </view>
+    </view>
+    <view class="status-divider"></view>
+    <view class="status-bottom">
+      <view class="bottom-item">
+        <text class="bottom-label">消缺目标:</text>
+        <text class="bottom-value-blue">连铸液压密封总成更换</text>
+      </view>
+      <view class="bottom-item">
+        <text class="bottom-label">风险级别:</text>
+        <text class="bottom-value-amber">高压危险源</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 故障设备核心档案 -->
+  <view class="card device-card">
+    <view class="card-header">
+      <view class="card-header-left">
+        <text class="header-icon">⚙️</text>
+        <text class="header-title">设备档案 // 设备台账与故障定性</text>
+      </view>
+      <view class="iso-tag">ISO 14224 甲类重点设备</view>
+    </view>
+    <view class="device-params">
+      <view class="param-row">
+        <text class="param-label">报修设备</text>
+        <text class="param-value">3#连铸机液压伺服油缸</text>
+      </view>
+      <view class="param-row">
+        <text class="param-label">设备位号</text>
+        <view class="param-tag">HYD-CC-03-CYL</view>
+      </view>
+      <view class="param-row">
+        <text class="param-label">安装区域</text>
+        <text class="param-text-muted">热轧二车间 · 核心精轧A区 (标段03)</text>
+      </view>
+
+      <!-- 压力实测诊断 -->
+      <view class="pressure-section">
+        <view class="pressure-header">
+          <text>缺陷存证 // 现场原位实录 (2张)</text>
+          <text>防伪时间戳已核验</text>
+        </view>
+        <view class="pressure-bar">
+          <view class="pressure-labels">
+            <text>实测压力: <text class="pressure-crit">8.2 MPa</text></text>
+            <text>标称基准: <text class="pressure-green">16.0 MPa</text> (-48.7%)</text>
+          </view>
+          <view class="progress-bar">
+            <view class="progress-fill-red" style="width: 51.25%;"></view>
+            <view class="progress-fill-gray" style="width: 48.75%;"></view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 故障现象 -->
+      <view class="fault-section">
+        <view class="fault-header" bindtap="toggleDesc">
+          <text>缺陷存证 // 现场原位实录 (2张)</text>
+          <view class="fault-toggle">
+            <text class="fault-toggle-text">{{descExpanded ? '收起' : '展开'}}</text>
+            <text class="fault-toggle-icon">{{descExpanded ? '▲' : '▼'}}</text>
+          </view>
+        </view>
+        <view class="fault-content" wx:if="{{descExpanded}}">
+          <text class="fault-desc">现场巡检发现伺服油缸换向迟缓（延迟约1.8s），主油温升至 <text class="temp-highlight">68.4℃</text>，伴随高频啸叫。油样光阻法颗粒度超标，初步判定为柱塞端盖密封组件老化内泄。</text>
+        </view>
+      </view>
+
+      <!-- 现场缺陷实拍 -->
+      <view class="photo-section">
+        <view class="photo-header">
+          <text>缺陷存证 // 现场原位实录 (2张)</text>
+          <text>防伪时间戳已核验</text>
+        </view>
+        <view class="photo-grid">
+          <view class="photo-item">
+            <image class="photo-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBnUmEOpAUQ3ONAbUvktDJHQSBq4aiFF_zBhq0YE7Lnc-kGEym46J3MyQt28-EdhxeKWyf7Ie8qagtIZwnY-o8uQ7tU7jgh3EfbnsD0xkS_675dyAE9-OXKUJ2tzz5A9Gsx8jowEd09fa4bnrfO7dcBTzQSLJ4_bUkpBgQ8-gXgLMPkhGuKes3LN5bTelwGbrUK0z5uvyMs9F6_eco18BrxaGJrb3Gn_Ip-7FP7suDvZPxQHaThlgfwVQ" mode="aspectFill"></image>
+            <view class="photo-crosshair">
+              <view class="crosshair-circle">
+                <view class="crosshair-dot"></view>
+              </view>
+            </view>
+            <view class="photo-label-top">镜头01 · 渗漏点</view>
+            <view class="photo-label-bottom">缸头泄漏点 [标识#01]</view>
+          </view>
+          <view class="photo-item">
+            <image class="photo-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBstMObCtHQF8nppinL6om6yYqf_-c_PLz36Jd6TagO57pJi49Fv1yQTnECe1fj-2a0N9-EmSFcINGGhx0LKGWW6DPxFH39YniUfSAQDz4spr5ced7wd4gQl0alKku0B5KbzBijMHahSvh5G4opkQqXw0IZ2mjJqt06QbttJjuE5Uw3ELHK3avwC37dAR9AmZWIIB4zJStYvdhOb_fnq0ME79suQ0O0Rtqun9Mu96Q7ywUdL2s3iaqCXA" mode="aspectFill"></image>
+            <view class="photo-label-top">镜头02 · 压力监测阀</view>
+            <view class="photo-label-bottom">阀组泄漏点 [标识#02]</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 机械工程时间轴 -->
+  <view class="card timeline-card">
+    <view class="card-header timeline-header">
+      <view class="card-header-left">
+        <text class="header-icon amber">📈</text>
+        <text class="header-title">全生命周期 // 检修流转控制链</text>
+      </view>
+      <view class="verified-tag">
+        <text class="verified-icon">✓</text>
+        <text>不可篡改工业存证</text>
+      </view>
+    </view>
+    <view class="timeline">
+      <view class="timeline-line"></view>
+
+      <!-- 节点 1 -->
+      <view class="timeline-node">
+        <view class="node-dot green"></view>
+        <view class="node-content">
+          <view class="node-top">
+            <view class="node-title-row">
+              <text class="node-title">系统自动派单</text>
+              <view class="node-badge-green">已闭环</view>
+            </view>
+            <text class="node-time">09:15:22</text>
+          </view>
+          <text class="node-desc">SCADA 巡检异动阈值自动转派至【二热轧车间机修一班】</text>
+        </view>
+      </view>
+
+      <!-- 节点 2 -->
+      <view class="timeline-node">
+        <view class="node-dot green"></view>
+        <view class="node-content">
+          <view class="node-top">
+            <view class="node-title-row">
+              <text class="node-title">班组审核与安全指派</text>
+              <text class="node-sub-badge">李振华(班长) 批准</text>
+            </view>
+            <text class="node-time">09:22:08</text>
+          </view>
+          <text class="node-desc">已确认危险源评定，指派张建国主修组进行受限空间与高压作业</text>
+        </view>
+      </view>
+
+      <!-- 节点 3 -->
+      <view class="timeline-node">
+        <view class="node-dot blue"></view>
+        <view class="node-content">
+          <view class="node-top">
+            <text class="node-title">现场接单与安全隔离 (LOTO)</text>
+            <text class="node-time">09:30:14</text>
+          </view>
+          <view class="node-detail-row">
+            <text>张建国（主修）领用</text>
+            <view class="loto-tag">挂牌上锁: LOTO-8821</view>
+            <text class="node-sub-text">双人机械硬联锁闭锁已生效</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 节点 4: 当前进行中 -->
+      <view class="timeline-node current">
+        <view class="node-dot-amber">
+          <view class="node-dot-inner"></view>
+        </view>
+        <view class="current-card">
+          <view class="current-top">
+            <view class="current-label-row">
+              <view class="current-badge">当前执行阶段</view>
+              <text class="current-title">正在维修消缺中</text>
+            </view>
+            <text class="current-time">09:45:30</text>
+          </view>
+          <text class="current-desc">已完成液压管路三级泄压排空，挂高压警示牌。正在拆解主缸柱塞端盖，准备更换主密封环与导向耐磨带。</text>
+          <view class="current-footer">
+            <text>主修技师: 张建国 / 王东</text>
+            <text class="current-footer-amber">机械安全锁已咬合</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 节点 5: 待发生 -->
+      <view class="timeline-node pending">
+        <view class="node-dot gray"></view>
+        <view class="node-content">
+          <view class="node-top">
+            <text class="node-title dim">完工验收与消缺闭环</text>
+            <text class="node-time">待验收</text>
+          </view>
+          <text class="node-desc dim">待主修技师提交完工报告与消缺测试 · 待质检工程师现场联合验签</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 领用备件与工具防遗留核对表 -->
+  <view class="card spare-card">
+    <view class="card-header">
+      <view class="card-header-left">
+        <text class="header-icon">📦</text>
+        <text class="header-title">备件与工器具 // 现场防遗留管控</text>
+      </view>
+      <text class="rfid-status">RFID 扫码枪在线</text>
+    </view>
+    <view class="spare-list">
+      <!-- 备件 1 -->
+      <view class="spare-item">
+        <view class="spare-info">
+          <view class="spare-name-row">
+            <text class="spare-name">耐高温氟胶O型圈 (FKM)</text>
+            <view class="rfid-tag">RFID-883</view>
+          </view>
+          <text class="spare-spec">SPEC: Φ120 × 5.7 mm (耐温 220℃ / 35MPa)</text>
+        </view>
+        <view class="spare-right">
+          <text class="spare-qty">x 2 套</text>
+          <view class="spare-status">已出库核验</view>
+        </view>
+      </view>
+
+      <!-- 备件 2 -->
+      <view class="spare-item">
+        <view class="spare-info">
+          <view class="spare-name-row">
+            <text class="spare-name">液压油清洁精密滤芯</text>
+            <view class="rfid-tag">RFID-884</view>
+          </view>
+          <text class="spare-spec">MODEL: FLT-HYD-044-B (过滤精度 3μm)</text>
+        </view>
+        <view class="spare-right">
+          <text class="spare-qty">x 1 只</text>
+          <view class="spare-status">已出库核验</view>
+        </view>
+      </view>
+
+      <!-- 工具核验 -->
+      <view class="tool-check">
+        <view class="tool-check-left">
+          <text class="tool-icon">🔒</text>
+          <text class="tool-label">工器具核验:</text>
+          <text class="tool-status">6/6 全部归位锁定</text>
+        </view>
+        <text class="tool-sub">工具箱重力与位移传感匹配完毕</text>
+      </view>
+    </view>
+  </view>
+  <view class="bottom-spacer"></view>
+</scroll-view>
+
+<!-- 底部操作栏 -->
+<view class="bottom-bar">
+  <view class="bottom-bar-inner">
+    <view class="btn-secondary" bindtap="onAddSpare">
+      <text class="btn-icon">📦</text>
+      <text>追加备件/外协</text>
+    </view>
+    <view class="btn-primary" bindtap="onSubmit">
+      <text class="btn-icon-primary" wx:if="{{!submitting}}">🛡️</text>
+      <view class="btn-primary-text" wx:if="{{!submitting}}">
+        <text>提交完工验收 &amp; 质检验签</text>
+        <text class="btn-primary-sub">提交审核并流转质检 -&gt;</text>
+      </view>
+      <view class="btn-loading" wx:if="{{submitting}}">
+        <text class="btn-icon-primary spinning">⏳</text>
+        <text class="btn-loading-text">COMMITTING // 存证中...</text>
+      </view>
+    </view>
+  </view>
+</view>

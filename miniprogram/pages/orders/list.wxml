@@ -1,0 +1,68 @@
+<!-- 检修工单列表 -->
+<view class="page-container">
+  <!-- 顶部标签栏 -->
+  <scroll-view class="tabs-bar" scroll-x>
+    <view class="tab-item {{cur === item.k ? 'tab-active' : ''}}" 
+          wx:for="{{tabs}}" wx:key="k" 
+          bindtap="onTab" data-k="{{item.k}}">
+      <text>{{item.t}}</text>
+      <view class="tab-indicator" wx:if="{{cur === item.k}}"></view>
+    </view>
+  </scroll-view>
+
+  <!-- 加载中 -->
+  <view class="loading-state" wx:if="{{loading}}">
+    <text class="loading-icon">⏳</text>
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 加载失败 -->
+  <view class="error-state" wx:elif="{{loadError}}">
+    <text class="error-icon">⚠️</text>
+    <text class="error-text">{{loadError}}</text>
+    <view class="retry-btn" bindtap="loadData">重试</view>
+  </view>
+
+  <!-- 正常列表 -->
+  <scroll-view class="order-list" scroll-y wx:else>
+    <view class="order-card" wx:for="{{list}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="order-header">
+        <view class="order-no-box">
+          <text class="order-no">{{item.orderNo}}</text>
+        </view>
+        <view class="order-badges">
+          <view class="priority-badge" style="{{item.pStyle}}">{{item.pText}}</view>
+          <view class="status-badge" style="{{item.sStyle}}">{{item.sText}}</view>
+        </view>
+      </view>
+      <view class="order-title">{{item.title}}</view>
+      <view class="order-info">
+        <text class="order-info-icon">🔧</text>
+        <text>{{item.equipmentName}} · {{item.workshop}}</text>
+      </view>
+      <view class="order-footer">
+        <view class="order-footer-left">
+          <text class="order-time-icon">📅</text>
+          <text class="order-time">{{item.createdAt}}</text>
+        </view>
+        <view class="order-assignee">
+          <text class="order-assignee-icon">👤</text>
+          <text>{{item.assignee}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="empty-state" wx:if="{{list.length === 0}}">
+      <text class="empty-icon">📋</text>
+      <text class="empty-text">该状态下暂无工单</text>
+    </view>
+
+    <view class="bottom-spacer"></view>
+  </scroll-view>
+
+  <!-- 浮动按钮 -->
+  <view class="fab-btn" bindtap="goCreate">
+    <text class="fab-icon">+</text>
+    <text class="fab-text">报修</text>
+  </view>
+</view>

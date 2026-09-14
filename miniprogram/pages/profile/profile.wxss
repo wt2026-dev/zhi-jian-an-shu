@@ -1,0 +1,513 @@
+/* profile.wxss - 用户个人资料 */
+@import '../../common.wxss';
+
+page {
+  background: #F5F7FA;
+  min-height: 100vh;
+}
+
+.profile-page {
+  padding: 24rpx;
+  padding-bottom: 120rpx;
+}
+
+/* 用户信息卡片 */
+.profile-card {
+  background: #FFFFFF;
+  border: 1rpx solid #E2E8F0;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+}
+
+.profile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 20rpx;
+}
+
+.profile-avatar {
+  position: relative;
+  width: 100rpx;
+  height: 100rpx;
+  background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatar-text {
+  font-size: 44rpx;
+  font-weight: 800;
+  color: #1E293B;
+}
+
+/* 已上传头像 */
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 20rpx;
+}
+
+/* 头像右下角"更换"角标 */
+.avatar-edit {
+  position: absolute;
+  bottom: -6rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18rpx;
+  color: #F5F7FA;
+  background: #22d3ee;
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+  font-weight: 700;
+}
+
+.online-dot {
+  position: absolute;
+  bottom: -4rpx;
+  right: -4rpx;
+  width: 28rpx;
+  height: 28rpx;
+  background: #22c55e;
+  border-radius: 50%;
+  border: 4rpx solid #FFFFFF;
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 6rpx;
+}
+
+.profile-name {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #1E293B;
+}
+
+.profile-badge {
+  font-size: 18rpx;
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.15);
+  padding: 4rpx 12rpx;
+  border-radius: 6rpx;
+  font-family: "DIN Alternate", monospace;
+}
+
+.profile-dept {
+  font-size: 24rpx;
+  color: #94a3b8;
+  margin-bottom: 8rpx;
+}
+
+.profile-status {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.status-dot {
+  width: 16rpx;
+  height: 16rpx;
+  background: #22c55e;
+  border-radius: 50%;
+}
+
+.status-text {
+  font-size: 22rpx;
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.terminal-badge {
+  font-size: 20rpx;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.2);
+  padding: 6rpx 14rpx;
+  border-radius: 8rpx;
+  font-family: "DIN Alternate", monospace;
+}
+
+/* 值班状*/
+.duty-bar {
+  margin-top: 24rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #E2E8F0;
+}
+
+.duty-btns {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.duty-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  padding: 16rpx;
+  background: #E2E8F0;
+  border: 1rpx solid #E2E8F0;
+  border-radius: 12rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+
+.duty-btn-active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #22d3ee;
+}
+
+.duty-dot {
+  width: 12rpx;
+  height: 12rpx;
+  background: #475569;
+  border-radius: 50%;
+}
+
+.dot-active {
+  background: #22d3ee;
+}
+
+.duty-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 20rpx;
+  color: #64748b;
+}
+
+/* 通用区块 */
+.section {
+  background: #FFFFFF;
+  border: 1rpx solid #E2E8F0;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.section-dot {
+  width: 8rpx;
+  height: 8rpx;
+  background: #22d3ee;
+  border-radius: 50%;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.section-subtitle {
+  font-size: 20rpx;
+  color: #64748b;
+}
+
+/* 资质证书网格 */
+.cert-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+}
+
+.cert-card {
+  background: #E2E8F0;
+  border: 1rpx solid #E2E8F0;
+  border-radius: 12rpx;
+  padding: 16rpx;
+}
+
+.cert-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.cert-icon {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 10rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+}
+
+.cert-icon-blue { background: rgba(56, 189, 248, 0.15); }
+.cert-icon-orange { background: rgba(249, 115, 22, 0.15); }
+.cert-icon-amber { background: rgba(251, 191, 36, 0.15); }
+
+.cert-badge {
+  font-size: 16rpx;
+  padding: 4rpx 10rpx;
+  border-radius: 6rpx;
+  font-weight: 600;
+}
+
+.cert-valid {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.cert-review {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.cert-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.cert-label {
+  font-size: 22rpx;
+  color: #1E293B;
+  font-weight: 600;
+}
+
+.cert-expiry {
+  font-size: 18rpx;
+  color: #64748b;
+}
+
+.text-amber { color: #fbbf24; }
+.text-dim { color: #64748b; font-size: 18rpx; }
+.empty-cert { text-align: center; padding: 24rpx; font-size: 24rpx; }
+
+/* 执行效能 */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+}
+
+.metric-card {
+  background: #E2E8F0;
+  border: 1rpx solid #E2E8F0;
+  border-radius: 12rpx;
+  padding: 16rpx;
+  text-align: center;
+}
+
+.metric-label {
+  font-size: 18rpx;
+  color: #64748b;
+  margin-bottom: 8rpx;
+}
+
+.metric-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4rpx;
+  margin-bottom: 8rpx;
+}
+
+.metric-value {
+  font-size: 40rpx;
+  font-weight: 800;
+  color: #1E293B;
+  font-family: "DIN Alternate", monospace;
+}
+
+.text-blue { color: #22d3ee; }
+
+.metric-total {
+  font-size: 18rpx;
+  color: #64748b;
+}
+
+.metric-badge {
+  font-size: 16rpx;
+  padding: 4rpx 10rpx;
+  border-radius: 6rpx;
+  font-weight: 600;
+}
+
+.badge-green {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.badge-blue {
+  background: rgba(56, 189, 248, 0.15);
+  color: #22d3ee;
+}
+
+/* 外设状*/
+.online-count {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: 20rpx;
+  color: #22c55e;
+}
+
+.count-dot {
+  width: 10rpx;
+  height: 10rpx;
+  background: #22c55e;
+  border-radius: 50%;
+}
+
+.device-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.device-card {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  background: #E2E8F0;
+  border: 1rpx solid #E2E8F0;
+  border-radius: 12rpx;
+  padding: 16rpx;
+}
+
+.device-icon {
+  width: 56rpx;
+  height: 56rpx;
+  background: rgba(56, 189, 248, 0.1);
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+}
+
+.device-info {
+  flex: 1;
+}
+
+.device-name {
+  font-size: 24rpx;
+  color: #1E293B;
+  font-weight: 600;
+}
+
+.device-detail {
+  font-size: 20rpx;
+  color: #64748b;
+}
+
+.device-status {
+  display: flex;
+  align-items: center;
+}
+
+.status-dot-green {
+  width: 12rpx;
+  height: 12rpx;
+  background: #22c55e;
+  border-radius: 50%;
+}
+
+/* 操作按钮 */
+.action-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-bottom: 24rpx;
+}
+
+.action-card {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  background: #FFFFFF;
+  border: 1rpx solid #E2E8F0;
+  border-radius: 16rpx;
+  padding: 24rpx;
+}
+
+.action-card:active {
+  background: #E2E8F0;
+}
+
+.action-icon {
+  font-size: 28rpx;
+}
+
+.action-text {
+  flex: 1;
+  font-size: 26rpx;
+  color: #1E293B;
+}
+
+.action-badge {
+  font-size: 18rpx;
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.15);
+  padding: 4rpx 12rpx;
+  border-radius: 6rpx;
+  font-weight: 600;
+}
+
+.action-arrow {
+  font-size: 32rpx;
+  color: #475569;
+}
+
+/* 退出按*/
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  background: #FFFFFF;
+  border: 1rpx solid #E2E8F0;
+  border-radius: 16rpx;
+  padding: 24rpx;
+}
+
+.logout-btn:active {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.logout-icon {
+  font-size: 28rpx;
+}
+
+.logout-text {
+  font-size: 28rpx;
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.bottom-spacer {
+  height: 40rpx;
+}
+
+/* 值班状态文字 */
+.duty-latency { color: #22d3ee; font-weight: 600; }
+.duty-battery { color: #64748b; }

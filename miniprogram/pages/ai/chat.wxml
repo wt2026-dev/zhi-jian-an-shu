@@ -1,0 +1,155 @@
+<view class="chat-page">
+  <!-- 品牌区 -->
+  <view class="brand-card">
+    <view class="brand-robot">
+      <!-- 机器人主题图标（纯 CSS 绘制，不依赖图片资源） -->
+      <view class="robot-antenna"></view>
+      <view class="robot-head">
+        <view class="robot-eye"></view>
+        <view class="robot-eye"></view>
+        <view class="robot-mouth"></view>
+      </view>
+      <view class="robot-body">
+        <view class="robot-wrench">🔧</view>
+      </view>
+    </view>
+    <view class="brand-info">
+      <text class="brand-name">{{brandName}}</text>
+      <text class="brand-desc">{{brandDesc}}</text>
+      <view class="brand-tags">
+        <text class="brand-tag">qwen-plus</text>
+        <text class="brand-tag">qwen-vl-max</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 消息列表 -->
+  <scroll-view class="message-list" scroll-y scroll-into-view="{{lastId}}" scroll-with-animation>
+    <view class="message {{item.role === 'user' ? 'message-user' : 'message-ai'}}" wx:for="{{messages}}" wx:key="id" id="m{{index}}">
+      <!-- 头像：AI 在左，用户在右 -->
+      <view class="msg-avatar {{item.role === 'user' ? 'avatar-user' : 'avatar-ai'}}">
+        <block wx:if="{{item.role === 'user'}}">
+          <image wx:if="{{userAvatar}}" class="msg-avatar-img" src="{{userAvatar}}" mode="aspectFill" />
+          <text wx:else class="msg-avatar-text">我</text>
+        </block>
+        <block wx:else>
+          <view class="msg-robot">
+            <view class="msg-robot-eye"></view>
+            <view class="msg-robot-eye"></view>
+          </view>
+        </block>
+      </view>
+
+      <view class="msg-main">
+        <view class="bubble {{item.role === 'user' ? 'bubble-user' : 'bubble-ai'}}">
+          <image wx:if="{{item.img}}" class="msg-image" src="{{item.img}}" mode="widthFix" />
+          <block wx:if="{{item.role === 'assistant'}}">
+            <rich-text class="msg-rich-text" nodes="{{item.html || item.text}}" user-select />
+          </block>
+          <block wx:else>
+            <text class="msg-text" user-select>{{item.text}}</text>
+          </block>
+          <!-- 流式生成光标 -->
+          <view wx:if="{{item.streaming}}" class="stream-cursor"></view>
+        </view>
+        <view class="msg-time">{{item.time}}</view>
+      </view>
+    </view>
+
+    <!-- 正在输入动画 -->
+    <view wx:if="{{typing}}" class="typing-row">
+      <view class="msg-avatar avatar-ai">
+        <view class="msg-robot">
+          <view class="msg-robot-eye"></view>
+          <view class="msg-robot-eye"></view>
+        </view>
+      </view>
+      <view class="bubble bubble-ai typing-bubble">
+        <text class="typing-label">正在输入</text>
+        <view class="typing-dots">
+          <view class="typing-dot"></view>
+          <view class="typing-dot"></view>
+          <view class="typing-dot"></view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 推荐追问 -->
+    <view wx:if="{{followups.length > 0 && !typing}}" class="followup-section">
+      <view class="followup-title">相关问题</view>
+      <view class="followup-item" wx:for="{{followups}}" wx:key="*this" bindtap="askFup" data-q="{{item}}">
+        <text class="followup-icon">💡</text>
+        <text class="followup-text">{{item}}</text>
+      </view>
+    </view>
+
+    
+    <!-- AI 知识沉淀推荐卡片 (与网页端 AiAssistantView 一致) -->
+    <view wx:if="{{contributionSuggestion && !streaming && !typing}}" class="card contrib-card">
+      <view class="contrib-header">
+        <view class="contrib-badge-row">
+          <text class="contrib-icon">💡</text>
+          <text class="contrib-badge">发现可沉淀的现场案例</text>
+        </view>
+        <view class="contrib-close" bindtap="dismissContribution">✕</view>
+      </view>
+      <view class="contrib-title">{{contributionSuggestion.title}}</view>
+      <view class="contrib-row" wx:if="{{contributionSuggestion.equipment}}">
+        <text class="contrib-label">关联设备：</text>
+        <text class="contrib-val">{{contributionSuggestion.equipment}}</text>
+      </view>
+      <view class="contrib-row" wx:if="{{contributionSuggestion.summary}}">
+        <text class="contrib-label">故障现象：</text>
+        <text class="contrib-val">{{contributionSuggestion.summary}}</text>
+      </view>
+      <view class="contrib-row" wx:if="{{contributionSuggestion.solution}}">
+        <text class="contrib-label">处置建议：</text>
+        <text class="contrib-val">{{contributionSuggestion.solution}}</text>
+      </view>
+      <view class="contrib-actions">
+        <view wx:if="{{contributionNotice}}" class="contrib-notice">{{contributionNotice}}</view>
+        <block wx:else>
+          <button class="contrib-btn-ignore" bindtap="dismissContribution">忽略</button>
+          <button class="contrib-btn-submit" loading="{{submittingContribution}}" bindtap="submitContribution">提交为知识案例</button>
+        </block>
+      </view>
+    </view>
+
+    <view class="bottom-spacer"></view>
+  </scroll-view>
+
+  <!-- 快捷指令区 -->
+  <scroll-view wx:if="{{messages.length <= 1}}" class="chip-bar" scroll-x enable-flex>
+    <view class="chip-item" wx:for="{{quickChips}}" wx:key="*this" bindtap="askChip" data-q="{{item}}">
+      {{item}}
+    </view>
+  </scroll-view>
+
+  <!-- 待发送图片预览 -->
+  <view wx:if="{{pendingImage}}" class="pending-row">
+    <image class="pending-img" src="{{pendingImage}}" mode="aspectFill" />
+    <view class="pending-remove" bindtap="removePendingImage">移除</view>
+  </view>
+
+  <!-- 输入区 -->
+  <view class="input-area">
+    <view class="add-btn" bindtap="chooseImage" title="上传照片">+</view>
+    <view class="add-btn video-btn" bindtap="chooseVideo" title="视频分析" style="margin-left:8rpx">🎥</view>
+    <textarea
+      class="chat-input"
+      value="{{input}}"
+      bindinput="onInput"
+      confirm-type="send"
+      bindconfirm="send"
+      disabled="{{streaming || imageSending}}"
+      maxlength="500"
+      auto-height
+      adjust-position="{{true}}"
+      cursor-spacing="16"
+      placeholder="{{streaming ? 'AI 正在生成回复...' : '描述故障，或点 + 传照片，点 🎥 传视频分析'}}"
+    />
+    <view wx:if="{{streaming}}" class="send-btn btn-stop" bindtap="stopGen">■</view>
+    <view wx:else class="send-btn {{input.trim() || pendingImage ? 'send-active' : 'send-disabled'}}" bindtap="send">↑</view>
+  </view>
+  <view class="input-hint">AI 内容由模型生成，请结合现场实际核实</view>
+</view>

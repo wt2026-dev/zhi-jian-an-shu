@@ -1,0 +1,202 @@
+<view wx:if="{{loading}}" class="empty">
+  <view class="loading-spinner"></view>
+  <view style="margin-top: 16rpx;">同步全厂运维态势中...</view>
+</view>
+<view wx:elif="{{loadError}}" class="empty">
+  <view style="color: #EF4444; margin-bottom: 12rpx;">⚠️ {{loadError}}</view>
+  <button class="btn btn-ghost retry" bindtap="reload">点击重试</button>
+</view>
+<block wx:else>
+  <!-- 一、用户信息卡（顶部）: 白卡片圆角轻阴影，顶部细渐变蓝青线 -->
+  <view class="card role-banner">
+    <view class="banner-top-accent"></view>
+    <view class="role-header">
+      <view class="role-avatar-box">
+        <image class="role-avatar" src="{{userAvatar}}" mode="aspectFill" />
+        <view class="role-online-dot"></view>
+      </view>
+      <view class="role-user-info">
+        <view class="role-name-row">
+          <text class="role-user-name">{{userName}}</text>
+          <view class="role-badge">{{roleTag}}</view>
+        </view>
+        <view class="role-meta-row">
+          <text class="role-dept">{{userDept}}</text>
+          <text class="role-dot-sep">·</text>
+          <text class="role-empid">{{userEmpId}}</text>
+        </view>
+        <view class="role-tip-text">{{roleTip}}</view>
+      </view>
+      <!-- 右侧描边胶囊按钮（细边框 + 青蓝色文字 + 箭头） -->
+      <button class="role-action-btn" bindtap="goRoleAction">
+        <text>{{roleActionText}}</text>
+        <text class="role-action-arrow">›</text>
+      </button>
+    </view>
+
+    <!-- 二、三个功能模块（待审核 / 态势感知 / 安全合规）: 等宽三列卡片 -->
+    <view class="role-cards-grid">
+      <view class="role-card-item" wx:for="{{roleCards}}" wx:key="title" bindtap="goRoleCard" data-url="{{item.url}}">
+        <view class="role-card-icon-base" style="background: {{item.badgeColor}}1f; color: {{item.badgeColor}};">
+          <text class="role-card-icon">{{item.icon || '📌'}}</text>
+        </view>
+        <view class="role-card-title">{{item.title}}</view>
+        <view class="role-card-count" style="color: {{item.badgeColor}};">{{item.count}}</view>
+        <view class="role-card-desc-line">{{item.desc1}}</view>
+        <view class="role-card-desc-line">{{item.desc2}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 三、实时紧急告警条（红色渐变底 + 白色告警图标 + 白字标题加粗 + 白字副标题） -->
+  <view wx:if="{{urgent}}" class="urgent-banner" bindtap="goOrder" data-id="{{urgent.id}}">
+    <view class="urgent-icon">🚨</view>
+    <view class="urgent-body">
+      <view class="urgent-title">{{urgent.title}}</view>
+      <view class="urgent-sub">{{urgent.equipmentName}} · {{urgent.workshop}} · SLA 在控</view>
+    </view>
+    <view class="urgent-arrow">›</view>
+  </view>
+
+  <!-- 四、四个数据统计卡（设备总数/在办检修工单/在控特种票/今日点检）: 2×2 网格 -->
+  <view class="kpi-grid">
+    <!-- 1. 设备总数 -->
+    <view class="kpi-card" bindtap="goEquip">
+      <view class="kpi-header">
+        <view class="kpi-glass-icon" style="background: rgba(59, 130, 246, 0.12); color: #3B82F6;">⚙️</view>
+        <text class="kpi-label">设备总数</text>
+      </view>
+      <view class="kpi-num">{{equipmentCount}}<text class="kpi-unit">台</text></view>
+      <view class="kpi-status-row">综合健康均分 <text class="text-blue font-bold">{{healthAvg}}分</text></view>
+    </view>
+
+    <!-- 2. 在办检修工单 -->
+    <view class="kpi-card" bindtap="goOrderList">
+      <view class="kpi-header">
+        <view class="kpi-glass-icon" style="background: rgba(245, 158, 11, 0.12); color: #F59E0B;">📋</view>
+        <text class="kpi-label">在办检修工单</text>
+      </view>
+      <view class="kpi-num">{{pendingCount}}<text class="kpi-unit">单</text></view>
+      <view class="kpi-status-row">紧急特急单 <text class="text-rose font-bold">{{urgentCount}} 单</text></view>
+    </view>
+
+    <!-- 3. 在控特种票/LOTO -->
+    <view class="kpi-card" bindtap="goSafety">
+      <view class="kpi-header">
+        <view class="kpi-glass-icon" style="background: rgba(16, 185, 129, 0.12); color: #10B981;">🔒</view>
+        <text class="kpi-label kpi-label-tight">在控特种票/LOTO</text>
+      </view>
+      <view class="kpi-num">{{activePermits}}<text class="kpi-unit">份</text></view>
+      <view class="kpi-status-row">+LOTO 挂锁 <text class="text-emerald font-bold">{{activeLotoLocks}} 组</text></view>
+    </view>
+
+    <!-- 4. 今日点检 -->
+    <view class="kpi-card" bindtap="goInspect">
+      <view class="kpi-header">
+        <view class="kpi-glass-icon" style="background: rgba(6, 182, 212, 0.12); color: #06B6D4;">🔍</view>
+        <text class="kpi-label">今日点检进度</text>
+      </view>
+      <view class="kpi-num">{{inspDone}}<text class="kpi-unit">/{{inspTotal}}</text></view>
+      <view class="kpi-status-row">异常测点 <text class="text-rose font-bold">{{inspAbnormal}} 处</text></view>
+    </view>
+  </view>
+
+  <!-- 五、系统通知中心: 白卡片，未读标记 + 列表行 -->
+  <view class="card notif-card">
+    <view class="notif-header" bindtap="goNotifications">
+      <view class="notif-header-left">
+        <view class="notif-unread-dot" wx:if="{{unread > 0}}"></view>
+        <text class="notif-title">系统通知中心</text>
+      </view>
+      <view class="notif-header-right">
+        <text wx:if="{{unread > 0}}">{{unread}} 条未读督办 ›</text>
+        <text wx:else>全部已读 ›</text>
+      </view>
+    </view>
+    <view class="notif-list" wx:if="{{recentNotifs && recentNotifs.length > 0}}">
+      <view class="notif-item" wx:for="{{recentNotifs}}" wx:key="id" bindtap="tapNotif" data-id="{{item.id}}">
+        <view class="notif-dot" style="background: {{item.read ? '#CBD5E1' : '#3B82F6'}}"></view>
+        <view class="notif-content">
+          <view class="notif-item-title">{{item.title}}</view>
+          <view class="notif-item-time">{{item.timeFormatted}}</view>
+        </view>
+        <view class="notif-badge" wx:if="{{!item.read}}">未读</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 全厂实时检修工单态势: 白卡片，工单号(蓝等宽) -> 问题描述(单行省略) -> 状态胶囊 -->
+  <view class="card order-trend-card">
+    <view class="order-trend-header">
+      <view class="order-trend-title-row">
+        <view class="order-trend-dot"></view>
+        <text class="order-trend-title">{{myTitle}}</text>
+      </view>
+      <view class="order-trend-more" bindtap="goOrderList">查看全部 ›</view>
+    </view>
+
+    <view class="order-trend-list" wx:if="{{myOrders && myOrders.length > 0}}">
+      <view class="order-row-item" wx:for="{{myOrders}}" wx:key="id" bindtap="goOrder" data-id="{{item.id}}">
+        <view class="order-info-left">
+          <text class="order-code">{{item.orderNo}}</text>
+          <text class="order-desc">{{item.title}}</text>
+        </view>
+        <view class="order-status-capsule" style="color: {{item.statusColor}}; background: {{item.statusBg}}; border: 1rpx solid {{item.statusBorder}};">
+          {{item.statusText}}
+        </view>
+      </view>
+    </view>
+    <view class="order-empty" wx:else>
+      <text>当前岗位暂无待处理工单，系统运转平稳</text>
+    </view>
+  </view>
+
+  <!-- 智能运维功能矩阵 (快捷功能九宫格) -->
+  <view class="section-title-row" style="margin-top: 28rpx;">
+    <view class="section-title-dot" style="background: #06B6D4;"></view>
+    <view class="section-title-text">智能运维功能矩阵</view>
+  </view>
+  <view class="grid-menu">
+    <view class="menu-item" bindtap="goCockpit">
+      <view class="menu-glass-icon" style="background: rgba(59, 130, 246, 0.12); color: #3B82F6;">📊</view>
+      <view class="menu-title">数据驾驶舱</view>
+    </view>
+    <view class="menu-item" bindtap="goCreate">
+      <view class="menu-glass-icon" style="background: rgba(245, 158, 11, 0.12); color: #F59E0B;">⚡</view>
+      <view class="menu-title">扫码极速报修</view>
+    </view>
+    <view class="menu-item" bindtap="goHealth">
+      <view class="menu-glass-icon" style="background: rgba(239, 68, 68, 0.12); color: #EF4444;">💓</view>
+      <view class="menu-title">设备健康预测</view>
+    </view>
+    <view class="menu-item" bindtap="goSpares">
+      <view class="menu-glass-icon" style="background: rgba(139, 92, 246, 0.12); color: #8B5CF6;">📦</view>
+      <view class="menu-title">备件库存出入</view>
+    </view>
+    <view class="menu-item" bindtap="goKnowledgeGraph">
+      <view class="menu-glass-icon" style="background: rgba(6, 182, 212, 0.12); color: #06B6D4;">🔗</view>
+      <view class="menu-title">企业知识图谱</view>
+    </view>
+    <view class="menu-item" bindtap="goProcedures">
+      <view class="menu-glass-icon" style="background: rgba(16, 185, 129, 0.12); color: #10B981;">🎬</view>
+      <view class="menu-title">SOP作业指引</view>
+    </view>
+    <view class="menu-item" bindtap="goHazards">
+      <view class="menu-glass-icon" style="background: rgba(245, 158, 11, 0.12); color: #F59E0B;">⚠️</view>
+      <view class="menu-title">现场隐患排查</view>
+    </view>
+    <view class="menu-item" bindtap="goSafety">
+      <view class="menu-glass-icon" style="background: rgba(16, 185, 129, 0.12); color: #10B981;">🛡️</view>
+      <view class="menu-title">安全与LOTO</view>
+    </view>
+    <view class="menu-item" bindtap="goKnowledge">
+      <view class="menu-glass-icon" style="background: rgba(59, 130, 246, 0.12); color: #3B82F6;">📚</view>
+      <view class="menu-title">检修知识RAG</view>
+    </view>
+    <view class="menu-item" bindtap="goEquip">
+      <view class="menu-glass-icon" style="background: rgba(6, 182, 212, 0.12); color: #06B6D4;">📑</view>
+      <view class="menu-title">设备全生命档案</view>
+    </view>
+  </view>
+  <view class="safe-bottom"></view>
+</block>

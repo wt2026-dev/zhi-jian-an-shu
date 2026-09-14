@@ -1,0 +1,9 @@
+{
+  "usingComponents": {},
+  "navigationBarTitleText": "作业票创建",
+  "navigationBarBackgroundColor": "#111418",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#111418",
+  "backgroundTextStyle": "light",
+  "enablePullDownRefresh": false
+}

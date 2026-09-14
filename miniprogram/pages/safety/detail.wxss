@@ -1,0 +1,2 @@
+.kv { display: flex; justify-content: space-between; padding: 10rpx 0; font-size: 26rpx; }
+.desc { color: #a3a3a3; font-size: 26rpx; line-height: 1.7; }

@@ -1,0 +1,175 @@
+.container {
+  padding: 24rpx;
+  background-color: #F5F7FA;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.sp {
+  flex: 1;
+}
+
+.top-bar {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.stat-box {
+  flex: 1;
+  text-align: center;
+}
+
+.stat-num {
+  font-size: 32rpx;
+  font-weight: bold;
+  display: block;
+}
+
+.stat-label {
+  font-size: 20rpx;
+  color: #94A3B8;
+  margin-top: 4rpx;
+  display: block;
+}
+
+.text-rose { color: #f43f5e; }
+.text-amber { color: #fbbf24; }
+.text-cyan { color: #22d3ee; }
+
+.report-btn {
+  background: #f43f5e;
+  color: #1E293B;
+  font-size: 24rpx;
+  font-weight: bold;
+  padding: 16rpx 24rpx;
+  border-radius: 12rpx;
+}
+
+.tab-bar {
+  white-space: nowrap;
+  margin-bottom: 20rpx;
+}
+
+.tab-item {
+  display: inline-block;
+  padding: 12rpx 28rpx;
+  font-size: 24rpx;
+  color: #a1a1aa;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 20rpx;
+  margin-right: 14rpx;
+}
+
+.tab-active {
+  background: #22d3ee;
+  color: #F8FAFC;
+  font-weight: bold;
+  border-color: #22d3ee;
+}
+
+.card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.card-major {
+  border-color: rgba(244, 63, 94, 0.5);
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.1) 0%, #FFFFFF 100%);
+}
+
+.badge {
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  font-size: 20rpx;
+  font-weight: bold;
+}
+
+.badge-major {
+  background: #f43f5e;
+  color: #1E293B;
+}
+
+.badge-general {
+  background: #E2E8F0;
+  color: #a1a1aa;
+}
+
+.badge-pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.badge-rectifying {
+  background: rgba(6, 182, 212, 0.2);
+  color: #22d3ee;
+}
+
+.badge-verifying {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+}
+
+.badge-closed {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.hazard-title {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #1E293B;
+  margin: 14rpx 0 8rpx;
+}
+
+.hazard-desc {
+  font-size: 22rpx;
+  line-height: 1.4;
+  margin-bottom: 14rpx;
+}
+
+.hazard-meta {
+  font-size: 20rpx;
+  line-height: 1.5;
+  border-top: 1px solid #E2E8F0;
+  padding-top: 12rpx;
+}
+
+.card-actions {
+  margin-top: 16rpx;
+}
+
+.btn-sm {
+  font-size: 22rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 8rpx;
+  line-height: 1.5;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #1E293B;
+}
+
+.btn-success {
+  background: #059669;
+  color: #1E293B;
+}
+
+.empty {
+  text-align: center;
+  padding: 80rpx;
+  color: #94A3B8;
+  font-size: 24rpx;
+}

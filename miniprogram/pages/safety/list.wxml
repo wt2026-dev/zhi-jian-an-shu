@@ -1,0 +1,28 @@
+<view class="card" style="border-color:#A78BFA66">
+  <view class="title" style="color:#A78BFA">🔐 LOTO 能量隔离联锁看板</view>
+  <view wx:if="{{locks.length === 0}}" class="muted">加载中或无锁具数据</view>
+  <view wx:for="{{locks}}" wx:key="id" class="lockrow">
+    <view class="lock-badge {{item.status === 'locked' ? 'lk-on' : 'lk-off'}}">{{item.status === 'locked' ? '🔒' : '🔓'}}</view>
+    <view class="col" style="flex:1">
+      <view class="mono" style="color:#A78BFA">{{item.lockNo}}</view>
+      <view class="muted">{{item.pointName}} · {{item.lockedBy}}</view>
+    </view>
+    <view class="badge" style="{{item.badgeStyle}}">{{item.statusText}}</view>
+  </view>
+</view>
+
+<view class="tabs">
+  <view class="tab {{cur === item.k ? 'on' : ''}}" wx:for="{{tabs}}" wx:key="k" bindtap="onTab" data-k="{{item.k}}">{{item.t}}</view>
+</view>
+<view wx:if="{{loading}}" class="empty">加载中...</view>
+<view wx:elif="{{list.length === 0}}" class="empty">暂无作业票</view>
+<view class="card" wx:for="{{list}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+  <view class="row">
+    <view class="mono" style="color:#A78BFA">{{item.permitNo}}</view>
+    <view class="sp"></view>
+    <view class="badge" style="{{item.sStyle}}">{{item.sText}}</view>
+  </view>
+  <view class="o-title">{{item.title}}</view>
+  <view class="muted">{{item.permitType}} · {{item.riskLevel}} · {{item.workshop}}</view>
+</view>
+<view class="safe-bottom"></view>

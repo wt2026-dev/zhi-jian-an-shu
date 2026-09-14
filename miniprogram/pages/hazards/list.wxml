@@ -1,0 +1,61 @@
+<view class="container">
+  <!-- 顶部统计与上报入口 -->
+  <view class="top-bar row">
+    <view class="stat-box">
+      <text class="stat-num text-rose">{{majorCount}}</text>
+      <text class="stat-label">重大隐患</text>
+    </view>
+    <view class="stat-box">
+      <text class="stat-num text-amber">{{pendingCount}}</text>
+      <text class="stat-label">待消缺</text>
+    </view>
+    <view class="stat-box">
+      <text class="stat-num text-cyan">{{totalCount}}</text>
+      <text class="stat-label">累计隐患</text>
+    </view>
+    <view class="report-btn" bindtap="goCreate">
+      <text>+ 拍照上报</text>
+    </view>
+  </view>
+
+  <!-- 状态筛选 -->
+  <scroll-view class="tab-bar" scroll-x enable-flex>
+    <view class="tab-item {{statusTab === 'all' ? 'tab-active' : ''}}" bindtap="setTab" data-tab="all">全部</view>
+    <view class="tab-item {{statusTab === 'pending' ? 'tab-active' : ''}}" bindtap="setTab" data-tab="pending">待整改</view>
+    <view class="tab-item {{statusTab === 'rectifying' ? 'tab-active' : ''}}" bindtap="setTab" data-tab="rectifying">整改中</view>
+    <view class="tab-item {{statusTab === 'verifying' ? 'tab-active' : ''}}" bindtap="setTab" data-tab="verifying">待复核</view>
+    <view class="tab-item {{statusTab === 'closed' ? 'tab-active' : ''}}" bindtap="setTab" data-tab="closed">已销号</view>
+  </scroll-view>
+
+  <!-- 隐患列表 -->
+  <view wx:if="{{loading}}" class="empty">加载隐患清单中...</view>
+  <view wx:elif="{{hazards.length === 0}}" class="empty">当前状态下暂无安全隐患</view>
+  <view wx:else class="list-wrap">
+    <view class="hazard-card card {{item.level === 'major' ? 'card-major' : ''}}" wx:for="{{hazards}}" wx:key="id">
+      <view class="row card-header">
+        <view wx:if="{{item.level === 'major'}}" class="badge badge-major">重大隐患 · 厂级督办</view>
+        <view wx:else class="badge badge-general">一般隐患</view>
+        <view class="sp"></view>
+        <view class="badge {{item.statusBadgeClass}}">{{item.statusText}}</view>
+      </view>
+
+      <view class="hazard-title">{{item.title}}</view>
+      <view class="hazard-desc muted">{{item.description}}</view>
+
+      <view class="hazard-meta muted">
+        <view>机组：{{item.equipment_name || "公共机房"}} · {{item.location || "厂区"}}</view>
+        <view>上报：{{item.reported_by}} · 限期：<text class="text-amber">{{item.deadline || "即刻"}}</text></view>
+      </view>
+
+      <!-- 快捷处置按钮 -->
+      <view class="card-actions row" wx:if="{{item.status === 'pending'}}">
+        <view class="sp"></view>
+        <button class="btn btn-sm btn-primary" bindtap="quickAssign" data-id="{{item.id}}" data-title="{{item.title}}">派发消缺工单</button>
+      </view>
+      <view class="card-actions row" wx:if="{{item.status === 'verifying'}}">
+        <view class="sp"></view>
+        <button class="btn btn-sm btn-success" bindtap="quickClose" data-id="{{item.id}}">复核闭环销号</button>
+      </view>
+    </view>
+  </view>
+</view>

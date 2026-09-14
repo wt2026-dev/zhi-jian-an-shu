@@ -1,0 +1,47 @@
+<view wx:if="{{loading}}" class="empty">加载中...</view>
+<block wx:if="{{task}}">
+  <view class="card">
+    <view class="title">{{task.title}}</view>
+    <view class="muted" style="margin:10rpx 0">路线：{{task.route}}</view>
+    <view class="row">
+      <view class="mono cyan">{{task.completedPoints}}/{{task.totalPoints}} 测点</view>
+      <view class="sp"></view>
+      <view wx:if="{{task.abnormalCount > 0}}" class="badge" style="{{aStyle}}">异常 {{task.abnormalCount}}</view>
+    </view>
+    <button class="btn btn-ghost" bindtap="scanCode">📷 扫设备二维码核验</button>
+    <view wx:if="{{scanResult}}" class="scan-ok">{{scanResult}}</view>
+  </view>
+
+  <view class="card" wx:for="{{items}}" wx:key="id" style="{{item.abnormal ? 'border-color:#FB7185' : ''}}">
+    <view class="row">
+      <view class="title">{{index + 1}}. {{item.checkPoint || item.checkItem}}</view>
+      <view class="sp"></view>
+      <view class="badge" style="{{item.badgeStyle}}">{{item.stateText}}</view>
+    </view>
+    <view class="muted" style="margin:8rpx 0">标准：{{item.standard}}<text wx:if="{{item.rangeText}}">　限值：{{item.rangeText}}</text></view>
+    <view class="row">
+      <input class="input" style="flex:1;margin-bottom:0" type="digit" placeholder="录入实测值"
+             value="{{item.input}}" data-idx="{{index}}" bindinput="onValue" />
+      <button class="btn btn-primary" style="width:180rpx;margin:0 0 0 16rpx" data-idx="{{index}}" bindtap="submitPoint">打卡</button>
+    </view>
+    <input class="input" style="margin-top:16rpx" placeholder="备注（可选）" value="{{item.notes}}" data-idx="{{index}}" bindinput="onNotes" />
+    <button wx:if="{{item.abnormal}}" class="btn btn-amber" data-idx="{{index}}" bindtap="toOrder">一键转报修单</button>
+    <button wx:if="{{item.abnormal}}" class="btn btn-ghost" data-idx="{{index}}" bindtap="aiDraft">✨ AI 生成工单草稿</button>
+  </view>
+
+  <view wx:if="{{aiDraftOpen}}" class="card" style="border-color:#22D3EE">
+    <view style="color:#22D3EE;font-weight:700">AI 工单草稿</view>
+    <view wx:if="{{aiLoading}}" class="empty">AI 生成中，约 10~30 秒...</view>
+    <block wx:else>
+      <view class="kv"><text class="muted">标题</text><text>{{aiDraft.title}}</text></view>
+      <view class="kv"><text class="muted">优先级</text><text>{{aiDraft.priority}}（{{aiDraft.priorityReason}}）</text></view>
+      <view class="title" style="margin:12rpx 0 6rpx">建议步骤</view>
+      <view class="desc" wx:for="{{aiDraft.suggestedSteps}}" wx:key="*this">• {{item}}</view>
+      <view class="title" style="margin:12rpx 0 6rpx">备件</view>
+      <view class="desc" wx:for="{{aiDraft.spareParts}}" wx:key="name">• {{item.name}} {{item.spec}} × {{item.qty}}</view>
+      <button class="btn btn-primary" bindtap="confirmAiOrder">确认创建真实工单</button>
+      <button class="btn btn-ghost" bindtap="closeAi">取消</button>
+    </block>
+  </view>
+  <view class="safe-bottom"></view>
+</block>
