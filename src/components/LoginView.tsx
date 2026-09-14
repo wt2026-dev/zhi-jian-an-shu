@@ -23,7 +23,7 @@ interface LoginViewProps {
   onLoginSuccess: (user: UserProfile, token: string) => void;
 }
 
-// 演示环境各角色独立强密码配置 (等保三级独立密码)
+// 演示环境各角色独立强密码配置 (参照等保三级设计的独立密码)
 const DEMO_CREDENTIALS: Record<string, string> = {
   admin: 'Admin@2026#Demo',
   manager: 'Manager@2026#Safe',
@@ -271,7 +271,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         {/* 底部合规与技术栈标注 */}
         <div className="text-center space-y-1 text-[11px] text-slate-400">
-          <p>工业互联网安全等保三级防护体系 · 生产制造安全作业许可标准 GB 30871</p>
+          <p>工业互联网安全防护体系（参照等保三级规范设计） · 生产制造安全作业许可标准 GB 30871</p>
           <p className="text-[10px] text-slate-400">FastAPI + Redis Mutex + PostgreSQL 16 + ChromaDB RAG</p>
         </div>
       </div>
@@ -286,7 +286,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
               <div>
                 <h3 className="font-bold text-sm text-slate-900">首次登录安全改密提醒</h3>
-                <p className="text-xs text-slate-500">等保三级安全基线策略 (DEMO_FORCE_PASSWORD_CHANGE=true)</p>
+                <p className="text-xs text-slate-500">参照等保三级规范设计的安全基线 (DEMO_FORCE_PASSWORD_CHANGE=true)</p>
               </div>
             </div>
 

@@ -32,7 +32,7 @@
     - 检修技师 (tech1):     Tech1@2026#Work
     - 点检监护 (inspector): Inspect@2026#Check
     - 岗位操作 (operator):  Operator@2026#Line
-  【安全声明】演示环境严格遵循等保三级规范，各角色配置独立强密码并经 Bcrypt 哈希存储；系统支持 DEMO_FORCE_PASSWORD_CHANGE 首次登录强制改密策略。
+  【安全声明】演示环境参照等保三级规范设计的安全基线，各角色配置独立强密码并经 Bcrypt 哈希存储；系统支持 DEMO_FORCE_PASSWORD_CHANGE 首次登录强制改密策略（演示环境默认关闭以保流畅，生产环境必须开启）。
 
 四、匿名自查说明
   全部文档已通过自动扫描：不含学校名称、校徽、指导教师
