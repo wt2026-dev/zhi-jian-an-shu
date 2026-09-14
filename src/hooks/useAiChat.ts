@@ -20,9 +20,14 @@ const WELCOME = `你好，我是 **工业设备检修 AI 专家**。已连接工
 - 根据轴温与电流遥测数据研判劣化趋势
 - 设备外观或破损照片的视觉损伤识别要点`;
 
+const MAX_CHAT_HISTORY = 12;
+
 /**
  * 通用 AI 对话 Hook：会话请求 / 流式解析 / 上下文管理 / 语音转写 / 语音朗读
  * 全局悬浮面板与 AI 助手页共用同一实例，从而实现"同一会话数组"。
+ * 本实现与 AiAssistantView.tsx 的内联 SSE 对话功能重叠；当前实际渲染的主用
+ * 悬浮面板实现为 AiAssistantPanel（App.tsx 全局渲染），AI 助手页主用
+ * AiAssistantView。修改 AI 对话逻辑时须两处同步，或后续版本迁移至单一实现。
  */
 export function useAiChat(userRoleTitle?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -160,7 +165,7 @@ export function useAiChat(userRoleTitle?: string) {
         body: JSON.stringify({
           message: text,
           userRole: userRoleTitle,
-          history: messages.map((m) => ({
+          history: messages.slice(-MAX_CHAT_HISTORY).map((m) => ({
             role: m.sender === 'user' ? 'user' : 'assistant',
             content: m.text,
           })),

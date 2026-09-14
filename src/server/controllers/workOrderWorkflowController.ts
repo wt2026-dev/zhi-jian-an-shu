@@ -5,6 +5,7 @@ import {
   WorkOrderLogRepository,
   SafetyPermitRepository,
   ComplianceCheckRepository,
+  VersionConflictError,
 } from "../../db/repositories/index.ts";
 import { pushNotification } from "../services/auditService.ts";
 import { callDashScopeJson } from "../services/aiClient.ts";
@@ -69,11 +70,8 @@ export async function handleCreateWorkOrder(req: any, res: any) {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
     const orderNo = `WO-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
-    const id = `wo-${Date.now()}`;
-    const createdAtStr =
-      now.toLocaleDateString("zh-CN") +
-      " " +
-      now.toLocaleTimeString("zh-CN", { hour12: false });
+    const id = `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const createdAtStr = now.toISOString();
 
     const newOrder = {
       id,
@@ -108,7 +106,7 @@ export async function handleCreateWorkOrder(req: any, res: any) {
     }
 
     pushWorkOrderLog({
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       workOrderId: id,
       action: "CREATE",
       previousStatus: null,
@@ -141,6 +139,13 @@ export async function handleDispatchWorkOrder(req: any, res: any) {
     const order = await WorkOrderRepository.getById(id);
     if (!order) return res.status(404).json({ error: "工单未找到" });
 
+    if (version !== undefined && order.version !== version) {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单数据已被其他人更新，请刷新最新状态后再试。",
+      });
+    }
+
     if (order.status !== "created") {
       return res.status(400).json({
         code: "STATE_MUTEX_ERROR",
@@ -149,17 +154,8 @@ export async function handleDispatchWorkOrder(req: any, res: any) {
       });
     }
 
-    if (version !== undefined && order.version !== version) {
-      return res.status(409).json({
-        code: "VERSION_CONFLICT",
-        message: "工单数据已被其他人更新，请刷新最新状态后再试。",
-      });
-    }
-
-    const nowStr =
-      new Date().toLocaleDateString("zh-CN") +
-      " " +
-      new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    const nowStr = new Date().toISOString();
+    const expVersion = version !== undefined ? version : order.version;
 
     const updated = await WorkOrderRepository.update(id, {
       status: "dispatched",
@@ -167,10 +163,10 @@ export async function handleDispatchWorkOrder(req: any, res: any) {
       assignee: assigneeName || "张建国 (高级技师)",
       assigneeId: assigneeId || "u-tech",
       dispatchedAt: nowStr,
-    });
+    }, expVersion);
 
     pushWorkOrderLog({
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       workOrderId: id,
       action: "DISPATCH",
       previousStatus: "created",
@@ -191,6 +187,12 @@ export async function handleDispatchWorkOrder(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单数据已被其他人更新，请刷新最新状态后再试。",
+      });
+    }
     res.status(500).json({ error: "派发工单失败: " + err.message });
   }
 }
@@ -204,6 +206,13 @@ export async function handleClaimWorkOrder(req: any, res: any) {
     const order = await WorkOrderRepository.getById(id);
     if (!order) return res.status(404).json({ error: "工单未找到" });
 
+    if (version !== undefined && order.version !== version) {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单已被其他人接单或修改，请刷新后再试。",
+      });
+    }
+
     if (order.status !== "dispatched") {
       return res.status(400).json({
         code: "STATE_MUTEX_ERROR",
@@ -212,25 +221,16 @@ export async function handleClaimWorkOrder(req: any, res: any) {
       });
     }
 
-    if (version !== undefined && order.version !== version) {
-      return res.status(409).json({
-        code: "VERSION_CONFLICT",
-        message: "工单已被其他人接单或修改，请刷新后再试。",
-      });
-    }
-
-    const nowStr =
-      new Date().toLocaleDateString("zh-CN") +
-      " " +
-      new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    const nowStr = new Date().toISOString();
+    const expVersion = version !== undefined ? version : order.version;
 
     const updated = await WorkOrderRepository.update(id, {
       status: "in_progress",
       acceptedAt: nowStr,
-    });
+    }, expVersion);
 
     pushWorkOrderLog({
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       workOrderId: id,
       action: "CLAIM",
       previousStatus: "dispatched",
@@ -250,6 +250,12 @@ export async function handleClaimWorkOrder(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "工单已被其他人接单或修改，请刷新后再试。",
+      });
+    }
     res.status(500).json({ error: "接单失败: " + err.message });
   }
 }

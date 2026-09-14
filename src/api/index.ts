@@ -334,6 +334,12 @@ export const authApi = {
       body: JSON.stringify(data),
     }),
 
+  updateUserStatus: (id: string, status: 'active' | 'disabled') =>
+    request<{ success: boolean; message: string; user: UserProfile }>(`/auth/users/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
   saveToken: (token: string) => {
     safeStorage.setItem('auth_token', token);
   },

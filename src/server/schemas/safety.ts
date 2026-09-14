@@ -27,8 +27,10 @@ export const approveSafetyPermitSchema = z.object({
   pass: z.boolean().optional(),
   comment: z.string().optional(),
   gasTestResults: z.any().optional(),
+  version: z.number().optional(),
 });
 
 export const closeSafetyPermitSchema = z.object({
   closeRemark: z.string().optional(),
+  version: z.number().optional(),
 });

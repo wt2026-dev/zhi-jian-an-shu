@@ -13,3 +13,17 @@ export function parseJson<T>(val: any, fallback: T): T {
   return fallback;
 }
 
+export class VersionConflictError extends Error {
+  code = "VERSION_CONFLICT";
+  currentVersion?: number;
+  expectedVersion?: number;
+
+  constructor(message = "数据已被其他操作修改，请刷新后重试", currentVersion?: number, expectedVersion?: number) {
+    super(message);
+    this.name = "VersionConflictError";
+    this.currentVersion = currentVersion;
+    this.expectedVersion = expectedVersion;
+    Object.setPrototypeOf(this, VersionConflictError.prototype);
+  }
+}
+

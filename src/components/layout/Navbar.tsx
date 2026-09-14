@@ -160,15 +160,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   const roleInfo = getRoleBadge(safeUser.role);
 
   return (
-    <header className="shrink-0 sticky top-0 z-40 h-14 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex items-center justify-between px-3 sm:px-4 lg:px-6">
+    <header className="shrink-0 sticky top-0 z-40 h-[60px] bg-white/95 backdrop-blur-xl border-b border-slate-200/85 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex items-center justify-between px-3.5 sm:px-5 lg:px-6">
       {/* Left: Hamburger + Logo + Title */}
-      <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+      <div className="flex items-center space-x-3 min-w-0">
         {/* Desktop Collapse Button */}
         <button
           type="button"
           onClick={onToggleSidebar}
           title={isSidebarCollapsed ? '展开侧边栏 (220px)' : '收起侧边栏 (64px)'}
-          className="hidden md:flex p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer border border-transparent hover:border-blue-100"
+          className="hidden md:flex p-1.5 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 transition-all cursor-pointer border border-transparent hover:border-blue-100 active:scale-95"
         >
           {isSidebarCollapsed ? (
             <PanelLeftOpen className="w-4 h-4" />
@@ -182,27 +182,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           type="button"
           onClick={onOpenMobileDrawer}
           title="打开系统菜单"
-          className="md:hidden p-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+          className="md:hidden p-1.5 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50/80 transition-colors cursor-pointer"
         >
           <Menu className="w-5 h-5" />
         </button>
 
         {/* Logo & Title */}
-        <div className="flex items-center space-x-2 min-w-0">
+        <div className="flex items-center space-x-2.5 min-w-0">
           <Logo size="sm" />
-          <span className="font-semibold text-sm text-slate-900 tracking-tight truncate max-w-[160px] sm:max-w-none">
+          <span className="font-bold text-sm text-slate-900 tracking-tight truncate max-w-[170px] sm:max-w-none">
             设备检修知识检索与作业系统
           </span>
-          <span className="hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-600 border border-blue-100 shrink-0">
+          <span className="hidden sm:inline-flex items-center text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200/70 shadow-2xs shrink-0">
             v2.0.0
           </span>
         </div>
 
         {/* Center Breadcrumbs */}
         <div className="hidden xl:flex items-center space-x-2 text-xs text-slate-400 pl-4 ml-2 border-l border-slate-200">
-          <span>{breadcrumb.group}</span>
+          <span className="hover:text-slate-600 transition-colors">{breadcrumb.group}</span>
           <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-          <span className="font-medium text-slate-700">{breadcrumb.label}</span>
+          <span className="font-semibold text-slate-800 bg-slate-100/70 px-2 py-0.5 rounded-md text-[11px]">{breadcrumb.label}</span>
         </div>
       </div>
 
@@ -213,7 +213,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           id="header-quick-ticket-btn"
           type="button"
           onClick={onOpenQuickWorkOrder}
-          className="hidden sm:inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-medium btn-gradient rounded-lg shadow-xs cursor-pointer transition-all"
+          className="hidden sm:inline-flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-semibold btn-gradient rounded-xl shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <Wrench className="w-3.5 h-3.5" />
           <span>快速报修</span>
@@ -225,7 +225,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           type="button"
           onClick={onOpenQrScanner}
           title="扫描设备二维码"
-          className="p-2 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200 transition-colors cursor-pointer"
+          className="p-2 rounded-xl bg-slate-50/90 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/90 hover:border-blue-200 transition-all cursor-pointer active:scale-95 shadow-2xs"
         >
           <QrCode className="w-4 h-4" />
         </button>
@@ -236,11 +236,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="header-notification-btn"
             type="button"
             onClick={() => setShowNotificationMenu(!showNotificationMenu)}
-            className="relative p-2 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200 transition-colors cursor-pointer"
+            className="relative p-2 rounded-xl bg-slate-50/90 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/90 hover:border-blue-200 transition-all cursor-pointer active:scale-95 shadow-2xs"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white animate-pulse">
                 {unreadCount}
               </span>
             )}

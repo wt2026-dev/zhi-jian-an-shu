@@ -17,6 +17,18 @@ export { JWT_SECRET };
 // ==================== Agnes AI 视频生成配置 ====================
 export const AGNES_BASE_URL = process.env.AGNES_BASE_URL || "https://apihub.agnes-ai.cn/v1";
 export const AGNES_API_KEY = process.env.AGNES_API_KEY;
+// AI 视频生成为外部付费能力，默认关闭；演示/生产按需开启
+export const AGNES_ENABLED = process.env.AGNES_ENABLED === "true";
+export function isAgnesEnabled(): boolean { return process.env.AGNES_ENABLED === "true"; }
+// 并发上限（同时在途的最大视频生成任务数）
+export const AGNES_MAX_CONCURRENT = Math.max(1, parseInt(process.env.AGNES_MAX_CONCURRENT || "2", 10) || 2);
+export function getAgnesMaxConcurrent(): number { return Math.max(1, parseInt(process.env.AGNES_MAX_CONCURRENT || "2", 10) || 2); }
+// 全局超时（分钟），超时则终止任务
+export const AGNES_TOTAL_TIMEOUT_MIN = Math.max(10, parseInt(process.env.AGNES_TOTAL_TIMEOUT_MIN || "60", 10) || 60);
+export function getAgnesTotalTimeoutMin(): number { return Math.max(10, parseInt(process.env.AGNES_TOTAL_TIMEOUT_MIN || "60", 10) || 60); }
+// 下载域名单词白名单（逗号分隔），为空则仅做协议+内网校验
+export const AGNES_DOWNLOAD_HOST_WHITELIST = (process.env.AGNES_DOWNLOAD_HOST_WHITELIST || "").split(",").map((s) => s.trim()).filter(Boolean);
+export function getAgnesDownloadHostWhitelist(): string[] { return (process.env.AGNES_DOWNLOAD_HOST_WHITELIST || "").split(",").map((s) => s.trim()).filter(Boolean); }
 
 // ==================== 魔珐星云数字人服务配置 (环境变量注入，缺失时优雅降级) ====================
 export const XINGYUN_APP_ID = process.env.XINGYUN_APP_ID || "";

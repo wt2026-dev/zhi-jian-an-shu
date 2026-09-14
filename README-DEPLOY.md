@@ -52,7 +52,7 @@ cp .env.example .env
 ### 2.1 阿里云百炼 DashScope API Key 申请
 - **配置项名称**：`DASHSCOPE_API_KEY`（可选关联项：`DASHSCOPE_BASE_URL`、`DASHSCOPE_MODEL`、`DASHSCOPE_VISION_MODEL`）
 - **关联功能**：
-  1. **qwen-plus 对话模型**：智能问答、故障诊断、检修方案生成、派单推荐、报告生成等 14 项 AI 能力（OpenAI 兼容模式调用）。
+  1. **qwen-plus 对话模型**：智能问答、故障诊断、检修方案生成、派单推荐、报告生成等 20 项 AI 能力（其中 7 项支持 SSE 流式输出，OpenAI 兼容模式调用）。
   2. **qwen-vl-max 视觉模型**：工业现场缺陷照片的多模态识别与质检（点蚀、裂纹、密封失效等）。
 - **密钥申请详细步骤**：
   1. 访问 **阿里云百炼控制台**：[https://dashscope.console.aliyun.com/](https://dashscope.console.aliyun.com/)

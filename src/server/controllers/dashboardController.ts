@@ -11,7 +11,7 @@ export async function handleGetCockpitMetrics(_req: any, res: any) {
 
     const [ordersRes, compRes, eqRes, inspRes, aiRes, hazRes, spRes] = await Promise.all([
       db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'completed')::int AS completed, COUNT(*) FILTER (WHERE priority = 'urgent' AND status != 'completed')::int AS urgent FROM work_orders;"),
-      db.query("SELECT COUNT(*)::int AS c FROM work_orders WHERE status = 'completed' AND accepted_by_inspector_at LIKE $1", [new Date().toLocaleDateString("zh-CN") + "%"]),
+      db.query("SELECT COUNT(*)::int AS c FROM work_orders WHERE status = 'completed' AND (accepted_by_inspector_at LIKE $1 OR accepted_by_inspector_at LIKE $2)", [new Date().toLocaleDateString("zh-CN") + "%", new Date().toISOString().slice(0, 10) + "%"]),
       db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'normal')::int AS normal, COUNT(*) FILTER (WHERE status IN ('fault','overhauling'))::int AS faulty, COALESCE(AVG(health_score), 0)::int AS avg_health FROM equipments;"),
       db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'completed')::int AS completed, COALESCE(SUM(total_points), 0)::int AS total_pts, COALESCE(SUM(completed_points), 0)::int AS done_pts, COALESCE(SUM(abnormal_count), 0)::int AS abnormal FROM inspections;"),
       db.query("SELECT COUNT(*)::int AS c FROM audit_logs WHERE module = 'ai' AND action_type LIKE 'AI_%';"),

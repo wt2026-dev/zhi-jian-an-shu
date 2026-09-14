@@ -238,7 +238,7 @@ export async function assignWorkOrder(params: {
   }
 
   const now = new Date();
-  const dispatchedAt = now.toLocaleString("zh-CN", { hour12: false });
+  const dispatchedAt = now.toISOString();
   await WorkOrderRepository.update(workOrder.id, {
     status: "dispatched",
     dispatcher: params.dispatcherName,

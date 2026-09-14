@@ -50,7 +50,7 @@ Page({
         })
           .then(function (res) {
             if (res && res.devMode) {
-              // 后端未配置 WX_APPID/WX_APPSECRET：开发态降级，提示使用者
+              // 后端未配置 WECHAT_APP_ID/WECHAT_APP_SECRET：开发态降级，提示使用者
               wx.showToast({ title: "开发态降级登录", icon: "none" });
             }
             that.saveAndGo(res);

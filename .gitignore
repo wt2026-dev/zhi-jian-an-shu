@@ -19,5 +19,6 @@ backups/
 archive/
 
 # 调试临时产物（agent scratch 文件，不入库）
+scratch/
 scratch_shots/
 

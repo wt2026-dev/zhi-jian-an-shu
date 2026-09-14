@@ -1,5 +1,5 @@
 // 重构说明：按业务域拆分后的 Repository 统一出口（Barrel）。
-export { parseJson } from "./shared.ts";
+export { parseJson, VersionConflictError } from "./shared.ts";
 export { UserRepository } from "./userRepository.ts";
 export { EquipmentRepository } from "./equipmentRepository.ts";
 export { WorkOrderRepository } from "./workOrderRepository.ts";

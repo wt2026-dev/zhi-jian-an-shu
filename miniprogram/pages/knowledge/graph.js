@@ -47,7 +47,7 @@ Page({
   extractGraph() {
     var that = this;
     that.setData({ extracting: true, extractMessage: "正在抽取知识图谱..." });
-    request("/api/v1/knowledge/extract-graph", { method: "POST" }).then(function(res) {
+    request("/api/v1/knowledge/graph/extract", { method: "POST" }).then(function(res) {
       that.setData({ extracting: false, extractMessage: "抽取完成！" });
       that.loadGraph();
       setTimeout(function() { that.setData({ extractMessage: "" }); }, 3000);

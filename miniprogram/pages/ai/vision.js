@@ -65,9 +65,9 @@ Page({
     var that = this;
     that.setData({ loadingCases: true });
     var kw = keyword || (that.data.result && that.data.result.defectType) || "机械";
-    request("/api/v1/knowledge/search?keyword=" + encodeURIComponent(kw), { silent: true })
+    request("/api/v1/knowledge/search", { method: "POST", data: { query: kw, limit: 4 }, silent: true })
       .then(function (res) {
-        var list = Array.isArray(res) ? res : (res && res.data) || [];
+        var list = Array.isArray(res) ? res : (res && res.results) || [];
         that.setData({
           loadingCases: false,
           casesLoaded: true,

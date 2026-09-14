@@ -45,5 +45,7 @@ export function registerAiLegacyRoutes(app: express.Express) {
   });
 
   // AI 知识库 RAG 语义检索 (RAG Semantic Search)
+  // 说明：前端 Web/小程序均未调用此端点（前端走 /api/v1/knowledge/search），保留原因：
+  // 已写入 openapi.ts 对外文档，供数字人/第三方集成方使用。2026-09-13 调用方评估结论。
   app.post("/api/ai/rag-search", requireAuth, validateBody(aiRagSearchSchema), handleAiRagSearch);
 }

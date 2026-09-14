@@ -1,12 +1,12 @@
 # 工业设备智能检修与作业协同系统
 
-以**安全合规为底线**、用 **AI 加速**的设备检修全流程数字化闭环系统：从现场报修、作业审批（高危作业票 / LOTO 能量隔离 / 双人会签）、检修执行到完工质检，每一步安全受控、可追溯、经验可沉淀；深度集成阿里云百炼大模型（故障诊断、视觉质检、RAG 知识问答、检修方案生成等），AI 全程可降级、绝不伪造结果。
+以**安全合规为底线**、用 **AI 加速**的设备检修全流程数字化闭环系统：从现场报修、作业审批（高危作业票 / LOTO 能量隔离 / 双人会签）、检修执行到完工质检，每一步安全受控、可追溯、经验可沉淀；深度集成阿里云百炼大模型（故障诊断、视觉质检、混合 RAG 知识检索、检修方案生成等），AI 全程可降级、绝不伪造结果。
 
 ## 技术栈
 
 - 前端：React 19 + TypeScript + TailwindCSS + Recharts
 - 后端：Node.js 20 + Express 4 + Zod + pino（日志文件轮转）
-- 数据：PGlite（嵌入式 PostgreSQL，23 张业务表，幂等迁移与种子）
+- 数据：PGlite（嵌入式 PostgreSQL，29 张业务表，幂等迁移与种子）
 - AI：阿里云百炼 DashScope（OpenAI 兼容模式，qwen-plus / qwen-vl-max），SSE 流式输出
 - 部署：Docker 多阶段构建 + docker compose（含每日 2:00 数据库自动备份服务）
 
@@ -25,7 +25,11 @@ docker compose up -d
 #    健康检查： http://localhost:3000/health
 
 # 演示账号：admin / password123（更多角色见 用户操作手册）
+# ⚠️【安全声明】演示环境专用密码，所有角色相同，正式部署前必须更换为独立强密码
 ```
+
+> [!WARNING]
+> **安全声明**：演示环境专用密码（`password123`），所有角色相同，正式部署前必须更换为独立强密码。
 
 开发模式：`npm install && npm run dev`（tsx 直跑，Vite 中间件热更新）
 
@@ -52,10 +56,14 @@ docker compose up -d
 - **设备健康监测**：6 维遥测 48h 时序、健康评分、AI 趋势预测（统计特征研判）
 - **巡检作业**：测点打卡自动判定、异常一键转工单、AI 工单草稿、巡检报告生成
 - **高危作业管控**：六类作业票双人会签、气体检测校验、LOTO 锁具联动、AI 风险评估（JSA）
-- **AI 智能体**：流式对话、故障诊断、视觉缺陷识别、RAG 问答、根因分析、检修方案、健康画像、智能报告、风险评估、辅助派单、报警关联分析等；全部真实数据驱动，失败时规则引擎降级（degraded 标记），不伪造结果
+- **AI 智能体（20 项 AI 能力，其中 7 项支持 SSE 流式输出）**：流式对话、故障诊断、视觉缺陷识别、**向量检索 + 关键词融合的混合 RAG**（DashScope text-embedding-v3，1024 维；pgvector HNSW 索引，PGlite 环境自动降级为 JSONB 向量 + 应用层余弦相似度；无 Key 时透明回退关键词检索）、根因分析、检修方案、健康画像、智能报告、风险评估、辅助派单、报警关联分析、语音转写、视频分析、多模态检索、AI 任务编排等；全部真实数据驱动，失败时规则引擎降级（degraded 标记），不伪造结果
 - **安全与合规**：RBAC 细粒度权限、全量操作审计、Zod 参数校验、SSE 鉴权
 
 ## 常用命令
+
+> 包管理器统一使用 **npm**（Dockerfile 与 CI 均为 `npm ci`），禁止混用 bun/pnpm/yarn，
+> 以唯一锁文件 `package-lock.json` 为准，避免依赖不一致。
+> 测试基线：**26 个测试文件 / 173 个用例全绿**（`npm test`），类型检查 `npm run lint` 零错误。
 
 ```bash
 npm run dev          # 开发模式
@@ -68,16 +76,16 @@ docker compose up -d # 容器化部署
 
 ## 数据库表
 
-迁移脚本 `src/db/migrations/` 按编号 001–019 连续唯一（按文件名字典序执行，全部幂等），共 **28 张业务表**：
+迁移脚本 `src/db/migrations/` 按编号 001–023 连续唯一（按文件名字典序执行，全部幂等），共 **29 张业务表**：
 
-| 分域 | 表 |
-|---|---|
-| 用户与权限 | `users` |
-| 设备与遥测 | `equipments`、`equipment_telemetry` |
-| 工单与日志 | `work_orders`、`work_order_logs` |
+| 分域 | 表 | 说明 |
+|---|---|---|
+| 用户与权限 | `users` | 支持 status 字段（'active' / 'disabled' 用户启用与停用管控）及 idx_users_status 状态索引 |
+| 设备与遥测 | `equipments`、`equipment_telemetry` | |
+| 工单与日志 | `work_orders`、`work_order_logs` | |
 | 安全生产 | `safety_permits`、`loto_locks`、`hazards`、`compliance_checks` |
 | 巡检 | `inspections` |
-| 知识库与 AI | `knowledge_articles`、`ai_feedback`、`ai_analysis_log`、`ai_knowledge_contributions`、`knowledge_graph_nodes`、`knowledge_graph_edges` |
+| 知识库与 AI | `knowledge_articles`、`knowledge_embeddings`（向量 RAG）、`ai_feedback`、`ai_analysis_log`、`ai_knowledge_contributions`、`knowledge_graph_nodes`、`knowledge_graph_edges` |
 | 作业指引与视频 | `maintenance_procedures`、`procedure_videos` |
 | 备件 | `spare_parts`、`spare_parts_movements` |
 | 通知 / 审计 / 文件 | `notifications`、`audit_logs`、`upload_files` |

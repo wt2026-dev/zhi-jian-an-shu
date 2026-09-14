@@ -5,11 +5,11 @@
    科技感由"线条 + 留白 + 层次 + 细微渐变 + 玻璃质感"表达，严禁粒子/流光/霓虹特效
    ========================================================================== */
 :root {
-  --primary: #3B82F6;
-  --primary-dark: #2563EB;
+  --primary: #2563EB;
+  --primary-dark: #1D4ED8;
   --primary-light: #EFF6FF;
   --cyan: #06B6D4;
-  --cyan-light: #CFFAFE;
+  --cyan-light: #ECFEFF;
 
   --success: #10B981;
   --warning: #F59E0B;
@@ -17,26 +17,28 @@
   --info: #6366F1;
 
   --bg-page: #F8FAFC;
-  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-card: #FFFFFF;
 
   --text-title: #0F172A;
-  --text-body: #475569;
-  --text-hint: #94A3B8;
+  --text-body: #334155;
+  --text-hint: #64748B;
+  --text-muted: #94A3B8;
 
-  --card-border: rgba(226, 232, 240, 0.7);
-  --card-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --card-border: rgba(226, 232, 240, 0.85);
+  --card-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 4px 16px -2px rgba(15, 23, 42, 0.05);
+  --card-shadow-hover: 0 8px 25px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
 
   /* 兼容旧变量与系统级复用 */
   --page-bg: var(--bg-page);
   --card-bg: var(--bg-card);
   --border: var(--card-border);
-  --border-subtle: rgba(241, 245, 249, 0.8);
+  --border-subtle: #F1F5F9;
   --accent-cyan: var(--cyan);
-  --soft-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
-  --radius-card: 12px;
+  --soft-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  --radius-card: 14px;
 
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
   --color-primary-light: #eff6ff;
   --color-accent: #06b6d4;
   --color-success: #10b981;
@@ -44,16 +46,16 @@
   --color-danger: #ef4444;
   --color-bg-base: #f8fafc;
   --color-bg-surface: #ffffff;
-  --color-bg-card: rgba(255, 255, 255, 0.85);
-  --color-border: rgba(226, 232, 240, 0.7);
+  --color-bg-card: #ffffff;
+  --color-border: rgba(226, 232, 240, 0.85);
 }
 
 body,
 #root {
   background-color: var(--bg-page);
   background-image:
-    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 90% 20%, rgba(6, 182, 212, 0.06) 0%, transparent 50%);
+    radial-gradient(circle at 12% 15%, rgba(37, 99, 235, 0.04) 0%, transparent 45%),
+    radial-gradient(circle at 88% 10%, rgba(6, 182, 212, 0.04) 0%, transparent 45%);
   background-attachment: fixed;
   color: var(--text-body);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
@@ -64,8 +66,8 @@ body,
 
 /* 明亮主题滚动条（纤细、低对比） */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -82,47 +84,24 @@ body,
 }
 
 /* ==========================================================================
-   浅色主题兼容层
-   历史组件大量使用深色 slate 工具类，这里统一重映射到明亮令牌，
-   避免逐文件改动，同时保证"无白字白底 / 无深色块残留"。
+   浅色主题兼容层与容器规范
    ========================================================================== */
 
-/* 1) 容器底色：深色底 → 页面底色 / 卡片白 */
+/* 1) 容器底色：深色底 → 页面底色 / 纯白实体卡片 */
 [class*="bg-slate-950"] {
   background-color: var(--page-bg) !important;
 }
 [class*="bg-slate-900"] {
-  background-color: var(--card-bg) !important;
+  background-color: #ffffff !important;
 }
 [class*="bg-slate-850"] {
-  background-color: var(--card-bg) !important;
+  background-color: #ffffff !important;
 }
 [class*="bg-slate-800"] {
-  background-color: var(--card-bg) !important;
+  background-color: #ffffff !important;
 }
 
-/* 2) 文字颜色：浅色字 → 深墨色，保证对比度 ≥ 4.5:1 */
-[class*="text-slate-100"],
-[class*="text-slate-200"] {
-  color: var(--text-title) !important;
-}
-[class*="text-slate-300"],
-[class*="text-slate-400"] {
-  color: var(--text-body) !important;
-}
-[class*="text-slate-500"] {
-  color: var(--text-hint) !important;
-}
-/* 白字仅保留在"有彩色底"的元素上，避免白字白底 */
-[class*="text-white"]:not([class*="bg-blue"]):not([class*="bg-cyan"]):not([class*="bg-rose"]):not(
-    [class*="bg-emerald"]
-  ):not([class*="bg-amber"]):not([class*="bg-red"]):not([class*="bg-green"]):not(
-    [class*="bg-purple"]
-  ):not([class*="bg-gradient"]) {
-  color: var(--text-title) !important;
-}
-
-/* 3) 边框：深色描边 → 细浅灰描边 */
+/* 2) 边框细化：统一柔和灰线 */
 [class*="border-slate-700"],
 [class*="border-slate-800"],
 [class*="border-slate-600"] {
@@ -136,7 +115,7 @@ body,
   border-color: var(--border) !important;
 }
 
-/* 4) hover 态：深色块 → 极淡底色（取消斑马纹与厚重 hover） */
+/* 3) hover 态：细致的浅底过渡 */
 [class*="hover:bg-slate-800"]:hover,
 [class*="hover:bg-slate-750"]:hover,
 [class*="hover:bg-slate-700"]:hover,
@@ -386,31 +365,40 @@ select:focus {
    全新核心通用组件类："明亮玻璃质感 × 蓝青科技线条"
    ========================================================================== */
 
-/* 三、卡片：玻璃感 + 层次 */
+/* 三、卡片：现代 SaaS 层次实体卡片 */
 .glass-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: #FFFFFF;
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow);
-  border-radius: 12px;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  border-radius: 14px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .glass-card:hover {
-  border-color: rgba(59, 130, 246, 0.35);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+  border-color: rgba(37, 99, 235, 0.25);
+  box-shadow: var(--card-shadow-hover);
 }
 
-/* 兼容 .card-industrial 并对齐玻璃质感规范 */
+.card-saas {
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 6px 16px -2px rgba(15, 23, 42, 0.04);
+  border-radius: 14px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-saas:hover {
+  border-color: rgba(37, 99, 235, 0.25);
+  box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.08), 0 4px 8px -2px rgba(15, 23, 42, 0.03);
+  transform: translateY(-1px);
+}
+
+/* 兼容 .card-industrial 并对齐现代工业 SaaS 规范 */
 .card-industrial {
   position: relative;
-  background: var(--bg-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: #FFFFFF;
   border: 1px solid var(--card-border);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: var(--card-shadow);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .card-industrial::before {
   content: "";
@@ -418,31 +406,32 @@ select:focus {
   left: 0;
   right: 0;
   top: 0;
-  height: 2px;
-  border-radius: 12px 12px 0 0;
-  background: linear-gradient(90deg, var(--primary) 0%, var(--cyan) 100%);
-  opacity: 0.85;
+  height: 3px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(90deg, #2563EB 0%, #06B6D4 100%);
+  opacity: 0.95;
   pointer-events: none;
 }
 .card-industrial:hover {
-  border-color: rgba(59, 130, 246, 0.35);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+  border-color: rgba(37, 99, 235, 0.3);
+  box-shadow: var(--card-shadow-hover);
 }
 
-/* 四、按钮：蓝青渐变 + 轻量光晕 */
+/* 四、按钮：工业科技蓝渐变 + 细腻微交互 */
 .btn-gradient {
-  background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #0EA5E9 100%);
   color: #FFFFFF !important;
   border: none;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
-  transition: all 0.2s ease;
+  border-radius: 9px;
+  box-shadow: 0 2px 8px -1px rgba(37, 99, 235, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   font-weight: 500;
 }
 .btn-gradient:hover {
-  background: linear-gradient(135deg, #2563EB 0%, #0891B2 100%);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45);
+  background: linear-gradient(135deg, #1D4ED8 0%, #0284C7 100%);
+  box-shadow: 0 6px 18px -2px rgba(37, 99, 235, 0.45);
+  transform: translateY(-0.5px);
 }
 .btn-gradient:active {
   transform: translateY(1px);

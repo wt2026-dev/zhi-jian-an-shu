@@ -32,11 +32,16 @@ export function pushWorkOrderLog(log: {
   comment?: string;
   createdAt?: string;
 }) {
-  dbWorkOrderLogs.unshift(log);
+  const fullLog = {
+    ...log,
+    id: log.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    createdAt: log.createdAt || new Date().toISOString(),
+  };
+  dbWorkOrderLogs.unshift(fullLog);
   if (dbWorkOrderLogs.length > MAX_MEMORY_WORK_ORDER_LOGS) {
     dbWorkOrderLogs.length = MAX_MEMORY_WORK_ORDER_LOGS;
   }
-  void WorkOrderLogRepository.add(log).catch((err: any) => {
+  void WorkOrderLogRepository.add(fullLog).catch((err: any) => {
     console.error("[WorkOrderLog] 落库失败（不影响主流程）:", err?.message || err);
   });
 }

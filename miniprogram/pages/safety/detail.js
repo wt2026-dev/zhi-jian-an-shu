@@ -17,7 +17,7 @@ Page({
         loading: false, p: p, sText: s.t, sStyle: ui.badge(s.c),
         precautions: Array.isArray(p.precautions) ? p.precautions : [p.precautions],
         canApprove: canApprove, step: step,
-        canClose: (p.status === "approved" || p.status === "active") && ["admin", "manager"].indexOf(role) >= 0,
+        canClose: (p.status === "approved" || p.status === "active") && ["admin", "manager", "inspector"].indexOf(role) >= 0,
       });
     }).catch(function () { that.setData({ loading: false }); });
   },

@@ -34,6 +34,14 @@ import { Markdown } from './ai/Markdown';
 import { DigitalHumanAvatar, DigitalHumanAvatarHandle } from './DigitalHumanAvatar';
 import { useAiChatContext } from '../context/AiChatContext';
 
+/**
+ * 本组件与 useAiChat.ts + AiAssistantPanel 的 AI 对话实现功能重叠；当前实际渲染的
+ * 主用页面实现为 AiAssistantView（App.tsx 在 activeTab === 'ai_assistant' 时渲染）。
+ * AiAssistantPanel 仍会全局渲染并使用 Hook 实现；修改 AI 对话逻辑时须两处同步，
+ * 或后续版本迁移至单一实现。
+ */
+const MAX_CHAT_HISTORY = 12;
+
 interface AiAssistantViewProps {
   currentUser: UserProfile;
   equipments: Equipment[];
@@ -296,7 +304,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         body: JSON.stringify({
           message: text,
           userRole: currentUser.roleTitle,
-          history: messages.map((m) => ({
+          history: messages.slice(-MAX_CHAT_HISTORY).map((m) => ({
             role: m.sender === 'user' ? 'user' : 'assistant',
             content: m.text,
           })),

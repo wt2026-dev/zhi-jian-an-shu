@@ -2,15 +2,62 @@
 // 承载 /api/v1/procedures/:id/generate-video 与 generate-video-full 中的纯视频生成逻辑
 // （不依赖 req/res，参数传入），由 procedureController 调用。
 import path from "path";
-import fs from "fs";
+import fs from "fs/promises";
 import { exec as execCb } from "child_process";
 import { promisify } from "util";
-import { AGNES_BASE_URL, AGNES_API_KEY } from "../utils/config.ts";
+import {
+  AGNES_BASE_URL,
+  AGNES_API_KEY,
+  AGNES_ENABLED,
+  AGNES_MAX_CONCURRENT,
+  AGNES_TOTAL_TIMEOUT_MIN,
+  AGNES_DOWNLOAD_HOST_WHITELIST,
+  isAgnesEnabled,
+  getAgnesMaxConcurrent,
+  getAgnesTotalTimeoutMin,
+  getAgnesDownloadHostWhitelist,
+} from "../utils/config.ts";
 import { getAiClient, callDashScopeJson } from "./aiClient.ts";
 import { ProcedureVideoRepository } from "../../db/repositories/index.ts";
 
-const sleepMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleepMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, process.env.NODE_ENV === "test" ? Math.min(ms, 10) : ms));
 const execAsync = promisify(execCb);
+
+// ==================== 并发控制 ====================
+let runningTasks = 0;
+
+// ==================== SSRF 防护 ====================
+// 内网 IP 段正则
+const PRIVATE_IP_RE = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.|0\.|localhost$|\[::1\]$|::1$)/i;
+
+/**
+ * 校验视频下载 URL 合法性（导出供单测使用）
+ * 规则：仅允许 http/https，拒绝 localhost/内网 IP，可选域名白名单
+ */
+export function validateDownloadUrl(rawUrl: string): { ok: boolean; reason?: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return { ok: false, reason: "视频下载地址格式不合法" };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, reason: `视频下载地址协议不被允许（${parsed.protocol}），仅支持 http/https` };
+  }
+  const hostname = parsed.hostname;
+  if (PRIVATE_IP_RE.test(hostname)) {
+    return { ok: false, reason: `视频下载地址指向内网地址（${hostname}），已拒绝` };
+  }
+  // IPv6 内网地址
+  if (/^\[?[0-9a-f:]+\]?$/i.test(hostname) && /:(?:0|f{1,4}|f{2,4}|f{3,4}|f{4}:f{1,4}|f{4}:f{1,4}:f{1,4}|f{4}:f{1,4}:f{1,4}:f{1,4})$/.test(hostname.replace(/^\[|\]$/g, ""))) {
+    return { ok: false, reason: `视频下载地址指向内网 IPv6 地址（${hostname}），已拒绝` };
+  }
+  const whitelist = getAgnesDownloadHostWhitelist();
+  if (whitelist.length > 0 && !whitelist.includes(hostname)) {
+    return { ok: false, reason: `视频下载地址域名（${hostname}）不在白名单内` };
+  }
+  return { ok: true };
+}
 
 // 将规程浓缩为 60-100 词的连贯英文连续画面 Prompt（自 generate-video handler 拆出）
 export async function buildEnglishVideoPrompt(proc: any): Promise<string> {
@@ -64,11 +111,43 @@ export async function buildFullSegmentPrompt(proc: any, groupSteps: any[]): Prom
   return `In a clean modern high-tech industrial workshop, a certified technician in safety helmet and goggles performs precise maintenance operations: ${stepsText}. Smooth steady continuous cinematic tracking shot, realistic industrial lighting, 4K texture. Synchronized audio with clear industrial machinery ambient sounds, tool handling noises, and a calm professional Chinese male voice narrating the maintenance steps in Mandarin with clear pronunciation.`;
 }
 
+/**
+ * 将缓冲区异步写入文件
+ */
+async function writeBufferToFile(filePath: string, data: ArrayBuffer): Promise<void> {
+  const buf = Buffer.from(data);
+  await fs.writeFile(filePath, buf);
+  return;
+}
+
 // 完整讲解视频后台异步执行：串行生成每段 → 下载 → FFmpeg 拼接（自 generate-video-full 的异步 IIFE 拆出）
 export async function runFullVideoGeneration(proc: any, taskId: string, groups: any[][], fullDir: string): Promise<void> {
+  // 防御：开关关闭直接置 failed
+  if (!isAgnesEnabled()) {
+    const errMsg = "视频生成功能未启用";
+    console.error("[AgnesVideoFull] 开关关闭，任务终止:", errMsg);
+    try { await ProcedureVideoRepository.updateStatus(taskId, { status: "failed", error: errMsg }); } catch {}
+    return;
+  }
+  // 并发控制
+  const maxConcurrent = getAgnesMaxConcurrent();
+  if (runningTasks >= maxConcurrent) {
+    const errMsg = "视频生成任务已达并发上限，请稍后重试";
+    console.error("[AgnesVideoFull] 并发超限，任务终止:", errMsg);
+    try { await ProcedureVideoRepository.updateStatus(taskId, { status: "failed", error: errMsg }); } catch {}
+    return;
+  }
+  runningTasks++;
+  const taskStartTime = Date.now();
+  const totalTimeoutMs = getAgnesTotalTimeoutMin() * 60 * 1000;
+
   try {
     const segPaths: string[] = [];
     for (let g = 0; g < groups.length; g++) {
+      // 全局超时检查
+      if (Date.now() - taskStartTime > totalTimeoutMs) {
+        throw new Error(`视频生成任务全局超时（${getAgnesTotalTimeoutMin()}分钟），已终止`);
+      }
       const groupSteps = groups[g];
       await ProcedureVideoRepository.updateStatus(taskId, {
         status: "processing",
@@ -100,9 +179,13 @@ export async function runFullVideoGeneration(proc: any, taskId: string, groups: 
       const segTaskId = createBody.video_id || createBody.task_id || createBody.id;
       if (!segTaskId) throw new Error(`第 ${g + 1} 段响应缺少 video_id`);
 
-      // 轮询该段完成（最多 10 分钟）
+      // 轮询该段完成（最多 10 分钟，且不超全局超时）
       let segUrl: string | null = null;
       for (let p = 0; p < 40; p++) {
+        // 每轮检查全局超时
+        if (Date.now() - taskStartTime > totalTimeoutMs) {
+          throw new Error(`视频生成任务全局超时（${getAgnesTotalTimeoutMin()}分钟），已终止`);
+        }
         await sleepMs(15000);
         try {
           const stRes = await fetch(`${AGNES_BASE_URL}/agnesapi?video_id=${encodeURIComponent(segTaskId)}`, {
@@ -121,20 +204,27 @@ export async function runFullVideoGeneration(proc: any, taskId: string, groups: 
           }
         } catch (err: any) {
           if (err?.message && err.message.includes("段生成失败")) throw err;
+          if (err?.message && err.message.includes("全局超时")) throw err;
           const errStr = err?.message || (typeof err === "object" ? JSON.stringify(err) : String(err));
           console.warn(`[AgnesVideoFull] 第${g + 1}段轮询异常，继续等待:`, errStr);
         }
       }
       if (!segUrl) throw new Error(`第 ${g + 1} 段生成超时（10 分钟）`);
 
-      // 下载段视频
+      // SSRF 防护：校验下载 URL
+      const urlCheck = validateDownloadUrl(segUrl);
+      if (!urlCheck.ok) {
+        throw new Error(urlCheck.reason);
+      }
+
+      // 下载段视频（异步写入）
       const segFile = path.join(fullDir, `${taskId}-seg${g + 1}.mp4`);
       const segResp = await fetch(segUrl, { signal: AbortSignal.timeout(120000) });
       if (!segResp.ok) throw new Error(`第 ${g + 1} 段视频下载失败: HTTP ${segResp.status}`);
-      const buf = Buffer.from(await segResp.arrayBuffer());
-      fs.writeFileSync(segFile, buf);
+      const arrayBuf = await segResp.arrayBuffer();
+      await writeBufferToFile(segFile, arrayBuf);
       segPaths.push(segFile);
-      console.log(`[AgnesVideoFull] 第${g + 1}/${groups.length}段下载完成: ${segFile} (${Math.round(buf.length / 1024)}KB)`);
+      console.log(`[AgnesVideoFull] 第${g + 1}/${groups.length}段下载完成: ${segFile} (${Math.round(arrayBuf.byteLength / 1024)}KB)`);
 
       // Agnes 视频生成限频约 1 次/分钟，段间等待 65 秒（最后一段无需等待）
       if (g < groups.length - 1) {
@@ -152,7 +242,8 @@ export async function runFullVideoGeneration(proc: any, taskId: string, groups: 
       error: `全部 ${groups.length} 段生成完成，正在拼接音视频...`,
     });
     const listFile = path.join(fullDir, `${taskId}.txt`);
-    fs.writeFileSync(listFile, segPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
+    const listContent = segPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n");
+    await fs.writeFile(listFile, listContent);
     const outName = `${taskId}.mp4`;
     const outPath = path.join(fullDir, outName);
     try {
@@ -162,9 +253,11 @@ export async function runFullVideoGeneration(proc: any, taskId: string, groups: 
       await execAsync(`ffmpeg -y -f concat -safe 0 -i "${listFile}" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 128k "${outPath}"`);
     }
 
-    // 清理段文件与列表
-    for (const p of segPaths) { try { fs.unlinkSync(p); } catch {} }
-    try { fs.unlinkSync(listFile); } catch {}
+    // 清理段文件与列表（异步）
+    await Promise.allSettled([
+      ...segPaths.map((p) => fs.unlink(p).catch(() => {})),
+      fs.unlink(listFile).catch(() => {}),
+    ]);
 
     const videoUrl = `/uploads/full-videos/${outName}`;
     await ProcedureVideoRepository.updateStatus(taskId, {
@@ -182,5 +275,10 @@ export async function runFullVideoGeneration(proc: any, taskId: string, groups: 
         error: errMsg || "完整视频生成失败",
       });
     } catch {}
+  } finally {
+    runningTasks--;
   }
 }
+
+// ==================== 内部状态观测口（供回归测试与运维诊断使用，业务代码勿用） ====================
+export const __runningTasks = { get count() { return runningTasks; } };

@@ -374,69 +374,83 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 
   return (
-    <div className="space-y-6 pb-12 bg-gradient-to-b from-slate-50 via-white to-slate-100 min-h-[calc(100vh-100px)]">
-      {/* L1 Hero：极浅渐变页头 + 主 KPI 大数字（设备综合健康度） */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-white to-blue-50 border border-blue-100 px-6 py-6 shadow-sm">
+    <div className="space-y-6 pb-12 bg-[#f8fafc] min-h-[calc(100vh-100px)] px-4 sm:px-6 pt-2">
+      {/* L1 Hero：工业 SaaS 现代化控制台看板页头 */}
+      <div className="card-saas p-6 border border-slate-200/80 bg-white rounded-2xl relative overflow-hidden shadow-xs">
         <div
-          className="absolute inset-0 opacity-5 pointer-events-none"
-          style={{ backgroundImage: 'radial-gradient(circle at 85% 25%, #3b82f6 0, transparent 45%)' }}
+          className="absolute -right-16 -top-16 w-80 h-80 rounded-full bg-blue-500/5 blur-3xl pointer-events-none"
         />
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div>
-            <p className="text-slate-500 text-xs font-medium tracking-wide">
-              {new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好'}，{currentUser.name} ·{' '}
-              {currentUser.roleTitle || currentUser.role}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 text-xs font-semibold tracking-wider uppercase">
+                {new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好'}，{currentUser.name}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/70">
+                {currentUser.roleTitle || currentUser.role}
+              </span>
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              检修工作台
+            </h1>
+            <p className="text-slate-500 text-xs leading-relaxed">
+              全厂动设备状态监测、智能检修任务流转与安全合规防线一屏总览
             </p>
-            <h1 className="text-xl md:text-2xl font-bold text-slate-900 mt-1 tracking-tight">检修工作台</h1>
-            <p className="text-slate-500 text-xs mt-1">全厂设备状态、检修执行与安全合规一屏总览</p>
           </div>
-          <div className="flex items-center gap-6 md:gap-8 shrink-0">
-            <div>
-              <div className="text-4xl font-bold font-mono leading-none text-blue-600">
+
+          <div className="flex items-center gap-6 md:gap-8 shrink-0 bg-slate-50/80 border border-slate-200/70 p-3.5 rounded-2xl">
+            <div className="text-left">
+              <div className="text-3xl sm:text-4xl font-bold font-mono leading-none text-blue-600 flex items-baseline">
                 {avgHealthScore}
-                <span className="text-base font-normal text-slate-500 ml-1">/100</span>
+                <span className="text-sm font-normal text-slate-400 ml-1">/100</span>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1.5">
-                设备综合健康度 · {avgHealthScore >= 85 ? '优良状态' : '需重点关注'}
+              <div className="text-xs text-slate-500 mt-1 font-medium flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${avgHealthScore >= 85 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                设备健康度 · {avgHealthScore >= 85 ? '优良状态' : '需重点关注'}
               </div>
             </div>
-            <div className="h-12 w-px bg-slate-200 hidden sm:block" />
-            <div className="hidden sm:block">
-              <div className="text-2xl font-bold font-mono leading-none text-slate-900">{pendingWorkOrders.length}</div>
-              <div className="text-[11px] text-slate-500 mt-1.5">待办检修工单</div>
+            <div className="h-10 w-px bg-slate-200 hidden sm:block" />
+            <div className="hidden sm:block text-left">
+              <div className="text-2xl sm:text-3xl font-bold font-mono leading-none text-slate-900">{pendingWorkOrders.length}</div>
+              <div className="text-xs text-slate-500 mt-1 font-medium">待办检修工单</div>
             </div>
-            <div className="hidden md:block">
-              <div className="text-2xl font-bold font-mono leading-none text-rose-600">{urgentOrders.length}</div>
-              <div className="text-[11px] text-slate-500 mt-1.5">紧急告警</div>
+            <div className="hidden md:block text-left">
+              <div className="text-2xl sm:text-3xl font-bold font-mono leading-none text-rose-600">{urgentOrders.length}</div>
+              <div className="text-xs text-slate-500 mt-1 font-medium">紧急告警工单</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 紧急告警横幅（降低视觉权重：白底 + 玫红左边条） */}
+      {/* 紧急告警横幅 */}
       {urgentOrders.length > 0 && (
-        <div className="bg-white border border-slate-200 border-l-4 border-l-rose-500 rounded-lg px-4 py-2.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-rose-100 text-rose-600 rounded-md">
+        <div className="card-saas p-4 rounded-2xl bg-gradient-to-r from-rose-50/90 via-white to-rose-50/40 border border-rose-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3.5 min-w-0">
+            <div className="relative p-2.5 bg-rose-100 text-rose-600 rounded-xl shrink-0">
               <AlertTriangle className="w-5 h-5" />
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500" />
+              </span>
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold px-2 py-0.5 rounded bg-rose-600 text-white uppercase">
-                  紧急告警 (SLA 响应中)
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2 flex-wrap">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white font-mono uppercase tracking-wider shadow-2xs">
+                  SLA 响应中
                 </span>
-                <span className="text-sm font-semibold text-rose-900">
+                <span className="text-sm font-bold text-slate-900 truncate">
                   {urgentOrders[0].title}
                 </span>
               </div>
-              <p className="text-xs text-rose-700 mt-0.5">
-                设备: {urgentOrders[0].equipmentName} ({urgentOrders[0].equipmentCode}) | 车间: {urgentOrders[0].workshop}
+              <p className="text-xs text-slate-600 mt-1 truncate">
+                受损设备: <span className="font-semibold text-slate-800">{urgentOrders[0].equipmentName}</span> ({urgentOrders[0].equipmentCode}) · 所属车间: {urgentOrders[0].workshop}
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={() => onSelectWorkOrder(urgentOrders[0])}
-            className="px-3.5 py-1.5 text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors flex items-center space-x-1 cursor-pointer shrink-0 shadow-xs"
+            className="px-4 py-2 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-all flex items-center space-x-1 cursor-pointer shrink-0 shadow-sm hover:shadow-md active:scale-95"
           >
             <span>立即处置抢修</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -444,85 +458,85 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* L2 KPI 核心态势网格：5 列对称工业玻璃态卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      {/* L2 KPI 核心态势网格：5 列高质感工业 SaaS 指标卡 */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* KPI 1: 设备总数与台账 */}
         <div
           onClick={() => onNavigate('equipment')}
-          className="glass-card data-card p-4 relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
+          className="card-saas p-4 sm:p-5 border border-slate-200/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">设备总数</span>
-            <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:scale-105 transition-transform">
+            <span className="text-xs font-semibold text-slate-500">设备总数</span>
+            <span className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100/80">
               <Activity className="w-4 h-4" />
             </span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{totalEquipments}</span>
-            <span className="text-[11px] text-emerald-600 flex items-center font-medium">
+          <div className="my-2.5 flex items-baseline justify-between">
+            <span className="text-3xl font-bold font-mono text-slate-900 tracking-tight leading-none">{totalEquipments}</span>
+            <span className="text-xs text-emerald-600 flex items-center font-medium bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
               <TrendingUp className="w-3 h-3 mr-0.5" /> 100% 台账
             </span>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-            <span className="text-emerald-600">运行 {runningEquipments}</span>
-            <span className="text-amber-600">预警 {warningEquipments}</span>
-            <span className="text-rose-600">故障 {faultEquipments}</span>
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-medium gap-1 flex-wrap">
+            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono text-[11px]">运行 {runningEquipments}</span>
+            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono text-[11px]">预警 {warningEquipments}</span>
+            <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-mono text-[11px]">故障 {faultEquipments}</span>
           </div>
         </div>
 
         {/* KPI 2: 待办检修工单 */}
         <div
           onClick={() => onNavigate('work_orders')}
-          className="glass-card data-card p-4 relative overflow-hidden group hover:border-amber-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
+          className="card-saas p-4 sm:p-5 border border-slate-200/80 hover:border-amber-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">待办检修工单</span>
-            <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform">
+            <span className="text-xs font-semibold text-slate-500">待办检修工单</span>
+            <span className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-100/80">
               <Wrench className="w-4 h-4" />
             </span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{pendingWorkOrders.length}</span>
+          <div className="my-2.5 flex items-baseline justify-between">
+            <span className="text-3xl font-bold font-mono text-slate-900 tracking-tight leading-none">{pendingWorkOrders.length}</span>
             {urgentOrders.length > 0 ? (
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-semibold animate-pulse">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-semibold animate-pulse">
                 紧急 {urgentOrders.length}
               </span>
             ) : (
-              <span className="text-[11px] text-slate-400">无紧急</span>
+              <span className="text-xs text-slate-400 font-medium">无紧急</span>
             )}
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>检修中: {workOrders.filter((w) => w.status === 'in_progress').length}</span>
-            <span>待验收: {workOrders.filter((w) => w.status === 'pending_acceptance').length}</span>
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
+            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px]">检修中: {workOrders.filter((w) => w.status === 'in_progress').length}</span>
+            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px]">待验收: {workOrders.filter((w) => w.status === 'pending_acceptance').length}</span>
           </div>
         </div>
 
         {/* KPI 3: 今日巡检进度 */}
         <div
           onClick={() => onNavigate('inspections')}
-          className="glass-card data-card p-4 relative overflow-hidden group hover:border-cyan-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
+          className="card-saas p-4 sm:p-5 border border-slate-200/80 hover:border-cyan-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">今日巡检进度</span>
-            <span className="p-1.5 rounded-lg bg-cyan-50 text-cyan-600 group-hover:scale-105 transition-transform">
+            <span className="text-xs font-semibold text-slate-500">今日巡检进度</span>
+            <span className="p-2 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100/80">
               <CheckCircle2 className="w-4 h-4" />
             </span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">
+          <div className="my-2.5 flex items-baseline justify-between">
+            <span className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 tracking-tight leading-none">
               {inspections.reduce((s, i) => s + i.completedPoints, 0)}
               <span className="text-xs font-normal text-slate-400 ml-1">
                 /{inspections.reduce((s, i) => s + i.totalPoints, 0)}点
               </span>
             </span>
-            <span className={`text-[11px] font-medium ${inspections.reduce((s, i) => s + i.abnormalCount, 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${inspections.reduce((s, i) => s + i.abnormalCount, 0) > 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
               异常: {inspections.reduce((s, i) => s + i.abnormalCount, 0)}
             </span>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100">
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+          <div className="pt-2.5 border-t border-slate-100">
+            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
               <div
-                className="h-full bg-cyan-500 rounded-full transition-all duration-500"
+                className="h-full bg-cyan-500 rounded-full transition-all duration-500 shadow-2xs"
                 style={{
                   width: `${Math.round(
                     (inspections.reduce((s, i) => s + i.completedPoints, 0) /
@@ -538,35 +552,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* KPI 4: 在控安全作业票 */}
         <div
           onClick={() => onNavigate('safety')}
-          className="glass-card data-card p-4 relative overflow-hidden group hover:border-purple-400 hover:shadow-md transition-all cursor-pointer shadow-sm"
+          className="card-saas p-4 sm:p-5 border border-slate-200/80 hover:border-purple-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">在控安全作业票</span>
-            <span className="p-1.5 rounded-lg bg-purple-50 text-purple-600 group-hover:scale-105 transition-transform">
+            <span className="text-xs font-semibold text-slate-500">在控安全作业票</span>
+            <span className="p-2 rounded-xl bg-purple-50 text-purple-600 border border-purple-100/80">
               <ShieldCheck className="w-4 h-4" />
             </span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900 leading-none">{activeSafetyPermits.length}</span>
+          <div className="my-2.5 flex items-baseline justify-between">
+            <span className="text-3xl font-bold font-mono text-slate-900 tracking-tight leading-none">{activeSafetyPermits.length}</span>
             {pendingSafetyApprovals.length > 0 ? (
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
                 {pendingSafetyApprovals.length} 待审批
               </span>
             ) : (
-              <span className="text-[11px] text-emerald-600 font-medium">受控闭环</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">全受控</span>
             )}
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100 text-[10px] text-slate-500 flex justify-between">
-            <span>LOTO: {lotoPermitCount}</span>
-            <span>动火: {hotWorkPermitCount}</span>
-            <span>高处: {heightWorkPermitCount}</span>
+          <div className="pt-2.5 border-t border-slate-100 text-xs text-slate-500 flex justify-between font-medium">
+            <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 text-[11px]">LOTO: {lotoPermitCount}</span>
+            <span className="px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 text-[11px]">动火: {hotWorkPermitCount}</span>
+            <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px]">高处: {heightWorkPermitCount}</span>
           </div>
         </div>
 
         {/* KPI 5: AI 检修大脑 */}
         <div
           onClick={() => onNavigate('ai_pipeline')}
-          className="glass-card data-card p-4 relative overflow-hidden cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group shadow-sm bg-gradient-to-br from-blue-50/50 via-white to-indigo-50/30"
+          className="card-saas p-4 sm:p-5 border border-blue-200/80 hover:border-blue-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between bg-gradient-to-br from-blue-50/40 via-white to-indigo-50/30"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-blue-900 flex items-center">
@@ -574,92 +588,92 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
             <ArrowUpRight className="w-4 h-4 text-blue-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
-          <div className="mt-2">
-            <div className="text-xs font-semibold text-slate-800">4 步机理并发诊断</div>
-            <p className="text-[10px] text-slate-500 mt-0.5">串行方案 · 风险与派单并行协同</p>
+          <div className="my-2">
+            <div className="text-sm font-bold text-slate-900">4 步机理并发诊断</div>
+            <p className="text-xs text-slate-500 mt-1">串行方案 · 风险与派单并行求解</p>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-            <span className="text-slate-400">通义千问</span>
-            <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono font-semibold">
+          <div className="pt-2.5 border-t border-blue-100/80 flex items-center justify-between text-xs">
+            <span className="text-slate-400 font-mono">Qwen-Plus</span>
+            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-bold text-[11px] border border-blue-200/60">
               DAG Pipeline
             </span>
           </div>
         </div>
       </div>
 
-      {/* 紧凑型监控警报胶囊条：备件库存告急 + 现场隐患闭环 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {/* 低库存告警卡片（紧凑横幅） */}
+      {/* 监控警报横幅：备件库存告急 + 现场隐患闭环 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 低库存告警卡片 */}
         <div
           onClick={() => onNavigate('spare_parts')}
-          className={`p-3 rounded-xl border transition-all cursor-pointer group shadow-sm flex items-center justify-between ${
+          className={`card-saas p-4 border transition-all duration-200 cursor-pointer group shadow-2xs hover:shadow-xs flex items-center justify-between ${
             lowStockParts.length > 0
-              ? 'bg-rose-50/60 border-rose-200 hover:border-rose-300'
-              : 'bg-white border-slate-200 hover:border-blue-300'
+              ? 'bg-rose-50/50 border-rose-200/80 hover:border-rose-300'
+              : 'bg-white border-slate-200/80 hover:border-blue-300'
           }`}
         >
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className={`p-2 rounded-lg shrink-0 ${lowStockParts.length > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>
+          <div className="flex items-center space-x-3.5 min-w-0">
+            <div className={`p-2.5 rounded-xl shrink-0 ${lowStockParts.length > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>
               <Box className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-slate-800">工业备件安全库存</span>
+                <span className="text-xs font-bold text-slate-900">工业备件安全库存</span>
                 {lowStockParts.length > 0 ? (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
+                  <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
                     {lowStockParts.length} 项告急
                   </span>
                 ) : (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                    充足
+                  <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                    充盈充足
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+              <p className="text-xs text-slate-500 truncate mt-1">
                 {lowStockParts.length > 0
-                  ? `包括 ${lowStockParts.slice(0, 2).map((p) => p.name).join('、')} 等低于安全阈值`
-                  : '全厂 22+ 项备件在库充盈，满足维保周转'}
+                  ? `包括 ${lowStockParts.slice(0, 2).map((p) => p.name).join('、')} 等已低于安全阈值`
+                  : '全厂 22+ 项备件在库充盈，满足日常与大修备库周转'}
               </p>
             </div>
           </div>
-          <span className="text-xs text-blue-600 font-medium group-hover:translate-x-1 transition-transform flex items-center shrink-0 ml-2">
+          <span className="text-xs text-blue-600 font-semibold group-hover:translate-x-1 transition-transform flex items-center shrink-0 ml-2">
             备件库 <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
           </span>
         </div>
 
-        {/* 现场隐患闭环卡片（紧凑横幅） */}
+        {/* 现场隐患闭环卡片 */}
         <div
           onClick={() => onNavigate('hazards')}
-          className={`p-3 rounded-xl border transition-all cursor-pointer group shadow-sm flex items-center justify-between ${
+          className={`card-saas p-4 border transition-all duration-200 cursor-pointer group shadow-2xs hover:shadow-xs flex items-center justify-between ${
             pendingHazardsList.length > 0
-              ? 'bg-amber-50/60 border-amber-200 hover:border-amber-300'
-              : 'bg-white border-slate-200 hover:border-blue-300'
+              ? 'bg-amber-50/50 border-amber-200/80 hover:border-amber-300'
+              : 'bg-white border-slate-200/80 hover:border-blue-300'
           }`}
         >
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className={`p-2 rounded-lg shrink-0 ${pendingHazardsList.length > 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+          <div className="flex items-center space-x-3.5 min-w-0">
+            <div className={`p-2.5 rounded-xl shrink-0 ${pendingHazardsList.length > 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
               <AlertTriangle className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-slate-800">安全隐患治理闭环</span>
+                <span className="text-xs font-bold text-slate-900">安全隐患治理闭环</span>
                 {pendingHazardsList.filter((h) => h.level === 'major').length > 0 && (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
-                    {pendingHazardsList.filter((h) => h.level === 'major').length} 重大
+                  <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
+                    {pendingHazardsList.filter((h) => h.level === 'major').length} 项重大
                   </span>
                 )}
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold">
-                  {pendingHazardsList.length} 在控
+                <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold">
+                  {pendingHazardsList.length} 项在控
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+              <p className="text-xs text-slate-500 truncate mt-1">
                 {pendingHazardsList.length > 0
-                  ? `最新: ${pendingHazardsList[0]?.title.slice(0, 24)}...`
-                  : '厂区无未消缺隐患，处于安全平稳期'}
+                  ? `最新隐患: ${pendingHazardsList[0]?.title}`
+                  : '厂区无未消缺隐患，处于本质安全受控状态'}
               </p>
             </div>
           </div>
-          <span className="text-xs text-blue-600 font-medium group-hover:translate-x-1 transition-transform flex items-center shrink-0 ml-2">
+          <span className="text-xs text-blue-600 font-semibold group-hover:translate-x-1 transition-transform flex items-center shrink-0 ml-2">
             治理台 <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
           </span>
         </div>
@@ -675,116 +689,133 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 -mt-2">
         {/* Left 2 Cols: Main Operations Hub */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Quick Actions：彩色 icon 瓷砖矩阵（44px 圆角瓷砖 + hover 上浮） */}
-          <div className="glass-card p-4 shadow-sm relative">
-            <div className="flex items-center justify-between mb-4">
+          {/* Quick Actions：现代化彩色瓷砖矩阵 */}
+          <div className="card-saas p-5 border border-slate-200/80 shadow-xs relative">
+            <div className="flex items-center justify-between mb-3.5">
               <h3 className="text-xs font-bold text-slate-900 flex items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2" />
                 快捷作业通道（{currentUser.roleTitle}）
               </h3>
+              <span className="text-[11px] text-slate-400 font-medium">高频作业一键发起</span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {/* 工单 = blue */}
               <button
                 id="btn-quick-create-wo"
+                type="button"
                 onClick={onOpenCreateWorkOrder}
-                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-300 cursor-pointer group"
+                className="flex flex-col items-center justify-between p-3.5 rounded-2xl bg-slate-50/60 hover:bg-white border border-slate-200/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group shadow-2xs"
               >
-                <span className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500 group-hover:scale-105 transition-transform">
+                <span className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100/80 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform shadow-2xs">
                   <Wrench className="w-5 h-5" />
                 </span>
-                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">创建报修工单</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">突发故障一键派单</span>
+                <div className="text-center mt-2.5">
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors block">创建报修工单</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">突发故障一键派单</span>
+                </div>
               </button>
 
               {/* 安全作业票 = amber (LOTO) */}
               <button
                 id="btn-quick-safety"
+                type="button"
                 onClick={onOpenCreateSafetyPermit}
-                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-amber-300 cursor-pointer group"
+                className="flex flex-col items-center justify-between p-3.5 rounded-2xl bg-slate-50/60 hover:bg-white border border-slate-200/80 hover:border-amber-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group shadow-2xs"
               >
-                <span className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 group-hover:scale-105 transition-transform">
+                <span className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100/80 flex items-center justify-center text-amber-600 group-hover:scale-105 transition-transform shadow-2xs">
                   <ShieldCheck className="w-5 h-5" />
                 </span>
-                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-amber-600 transition-colors">申请安全作业票</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">动火/高处/LOTO</span>
+                <div className="text-center mt-2.5">
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-amber-600 transition-colors block">申请安全作业票</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">动火/高处/LOTO</span>
+                </div>
               </button>
 
               {/* AI 诊断 = sky */}
               <button
                 id="btn-quick-ai-diag"
+                type="button"
                 onClick={() => onNavigate('ai_assistant')}
-                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-sky-300 cursor-pointer group"
+                className="flex flex-col items-center justify-between p-3.5 rounded-2xl bg-slate-50/60 hover:bg-white border border-slate-200/80 hover:border-sky-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group shadow-2xs"
               >
-                <span className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-500 group-hover:scale-105 transition-transform">
+                <span className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100/80 flex items-center justify-center text-sky-600 group-hover:scale-105 transition-transform shadow-2xs">
                   <Sparkles className="w-5 h-5" />
                 </span>
-                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-sky-600 transition-colors">AI故障诊断向导</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">输入症状秒出SOP</span>
+                <div className="text-center mt-2.5">
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-sky-600 transition-colors block">AI故障诊断向导</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">输入症状秒出SOP</span>
+                </div>
               </button>
 
               {/* 知识库 = purple */}
               <button
                 id="btn-quick-knowledge"
+                type="button"
                 onClick={() => onNavigate('knowledge')}
-                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-purple-300 cursor-pointer group"
+                className="flex flex-col items-center justify-between p-3.5 rounded-2xl bg-slate-50/60 hover:bg-white border border-slate-200/80 hover:border-purple-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group shadow-2xs"
               >
-                <span className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-500 group-hover:scale-105 transition-transform">
+                <span className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100/80 flex items-center justify-center text-purple-600 group-hover:scale-105 transition-transform shadow-2xs">
                   <Search className="w-5 h-5" />
                 </span>
-                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-purple-600 transition-colors">检索检修规程</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">SOP/事故案例/图谱</span>
+                <div className="text-center mt-2.5">
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-purple-600 transition-colors block">检索检修规程</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">SOP/事故图谱</span>
+                </div>
               </button>
 
               {/* AI 报告 = violet */}
               <button
                 id="btn-quick-ai-report"
+                type="button"
                 onClick={() => setReportModalOpen(true)}
-                className="flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-violet-300 cursor-pointer group"
+                className="flex flex-col items-center justify-between p-3.5 rounded-2xl bg-slate-50/60 hover:bg-white border border-slate-200/80 hover:border-violet-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group shadow-2xs"
               >
-                <span className="w-11 h-11 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-500 group-hover:scale-105 transition-transform">
+                <span className="w-12 h-12 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 group-hover:scale-105 transition-transform shadow-2xs">
                   <CalendarDays className="w-5 h-5" />
                 </span>
-                <span className="text-[11px] font-semibold text-slate-700 group-hover:text-violet-600 transition-colors">AI 智能报告</span>
-                <span className="text-[9px] text-slate-400 -mt-1.5">巡检/检修/月度</span>
+                <div className="text-center mt-2.5">
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-violet-600 transition-colors block">AI 智能报告</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">巡检/检修/月报</span>
+                </div>
               </button>
             </div>
           </div>
 
           {/* Active Work Orders Table / Queue */}
-          <div className="glass-card p-4 shadow-sm relative">
-            <div className="flex items-center justify-between mb-4">
+          <div className="card-saas p-6 border border-slate-200/80 shadow-xs relative space-y-3.5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 flex items-center">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center">
                   <Wrench className="w-4 h-4 mr-2 text-blue-600" />
                   {currentUser.role === 'technician'
                     ? `待我处置的检修工单 (${dashboardWorkOrders.length})`
                     : `紧急检修工单 (活动态 ${activeWorkOrders.length} 条 / 紧急 ${urgentOrders.length} 条)`}
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  按优先级排序: 待派单 → 待接单 → 检修处理 → 待验收
+                <p className="text-xs text-slate-400 mt-0.5">
+                  按优先级智能排期: 待派单 → 待接单 → 检修处理 → 待验收
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => onNavigate('work_orders')}
-                className="text-xs text-blue-600 hover:text-blue-700 flex items-center font-medium cursor-pointer"
+                className="text-xs text-blue-600 hover:text-blue-700 flex items-center font-semibold cursor-pointer px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors"
               >
                 查看全部工单 ({workOrders.length})
                 <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
               </button>
             </div>
 
-            <div className="max-h-[480px] overflow-y-auto pr-1 space-y-2.5">
+            <div className="max-h-[480px] overflow-y-auto pr-1 space-y-3">
               {dashboardWorkOrders.map((wo) => {
                 const isUrgent = wo.priority === 'urgent';
                 const isHigh = wo.priority === 'high';
 
                 const statusMap: Record<string, { label: string; color: string }> = {
-                  created: { label: '待派单', color: 'bg-orange-50 text-orange-700 border-orange-200' },
-                  dispatched: { label: '待接单', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                  in_progress: { label: '检修中', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                  pending_acceptance: { label: '待验收', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-                  completed: { label: '已归档', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                  created: { label: '待派单', color: 'bg-orange-50 text-orange-700 border-orange-200/80' },
+                  dispatched: { label: '待接单', color: 'bg-blue-50 text-blue-700 border-blue-200/80' },
+                  in_progress: { label: '检修中', color: 'bg-blue-50 text-blue-700 border-blue-200/80' },
+                  pending_acceptance: { label: '待验收', color: 'bg-purple-50 text-purple-700 border-purple-200/80' },
+                  completed: { label: '已归档', color: 'bg-emerald-50 text-emerald-700 border-emerald-200/80' },
                 };
 
                 const currentStatus = statusMap[wo.status] || { label: wo.status, color: 'bg-slate-100 text-slate-600 border-slate-200' };
@@ -793,24 +824,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div
                     key={wo.id}
                     onClick={() => onSelectWorkOrder(wo)}
-                    className="p-3 bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-blue-300 rounded-lg transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 group shadow-xs"
+                    className="p-4 bg-slate-50/50 hover:bg-white border border-slate-200/70 hover:border-blue-300 rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group shadow-2xs hover:shadow-xs"
                   >
-                    <div className="flex items-start space-x-3">
+                    <div className="flex items-start space-x-3.5 min-w-0">
                       <div
-                        className={`p-2 rounded-md mt-0.5 ${isUrgent
-                            ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                        className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${isUrgent
+                            ? 'bg-rose-100 text-rose-600 border border-rose-200'
                             : isHigh
-                              ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                              ? 'bg-amber-100 text-amber-600 border border-amber-200'
                               : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}
                       >
                         <Wrench className="w-4 h-4" />
                       </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs text-slate-500">{wo.orderNo}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2 flex-wrap">
+                          <span className="font-mono text-xs text-slate-400 font-semibold">{wo.orderNo}</span>
                           <span
-                            className={`text-[10px] px-1.5 py-0.2 rounded border font-semibold ${isUrgent
+                            className={`text-xs px-2 py-0.5 rounded-full border font-bold ${isUrgent
                                 ? 'bg-rose-50 text-rose-700 border-rose-200'
                                 : isHigh
                                   ? 'bg-amber-50 text-amber-700 border-amber-200'
@@ -819,27 +850,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           >
                             {wo.priority === 'urgent' ? '紧急' : wo.priority === 'high' ? '高' : '一般'}
                           </span>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded border font-medium ${currentStatus.color}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${currentStatus.color}`}>
                             {currentStatus.label}
                           </span>
                         </div>
-                        <h4 className="text-xs font-semibold text-slate-900 group-hover:text-blue-600 transition-colors mt-0.5">
+                        <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors mt-1 truncate">
                           {wo.title}
                         </h4>
-                        <div className="text-[11px] text-slate-500 mt-0.5 flex items-center space-x-3">
-                          <span>设备: {wo.equipmentName}</span>
+                        <div className="text-xs text-slate-500 mt-1 flex items-center space-x-3 flex-wrap">
+                          <span>设备: <strong className="text-slate-700 font-medium">{wo.equipmentName}</strong></span>
                           <span>车间: {wo.workshop}</span>
-                          <span>主修: {wo.assignee || '待分配'}</span>
+                          <span>主修: <strong className="text-slate-700 font-medium">{wo.assignee || '待分配'}</strong></span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end space-x-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                      <span className="text-[10px] font-mono text-slate-400 flex items-center">
-                        <Clock className="w-3 h-3 mr-1 text-slate-400" />
+                    <div className="flex items-center justify-between sm:justify-end space-x-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                      <span className="text-xs font-mono text-slate-400 flex items-center">
+                        <Clock className="w-3.5 h-3.5 mr-1 text-slate-400" />
                         {wo.createdAt.split(' ')[1] || wo.createdAt}
                       </span>
-                      <button className="px-2.5 py-1 text-xs bg-slate-100 group-hover:bg-blue-600 text-slate-700 group-hover:text-white rounded-md transition-colors flex items-center font-medium shadow-xs">
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 text-xs bg-slate-100 group-hover:bg-blue-600 text-slate-700 group-hover:text-white rounded-xl transition-all flex items-center font-semibold shadow-2xs"
+                      >
                         <span>详情/处理</span>
                         <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
                       </button>
@@ -849,10 +883,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               })}
 
               {dashboardWorkOrders.length === 0 && (
-                <div className="p-8 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center text-center">
+                <div className="p-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center text-center">
                   <CheckCircle2 className="w-8 h-8 text-slate-400 mb-2" />
                   <p className="text-xs font-semibold text-slate-700">暂无进行中工单</p>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     当前没有待派单 / 待接单 / 检修中 / 待验收的活动工单，可点击上方「创建报修工单」发起。
                   </p>
                 </div>
@@ -864,17 +898,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Right 1 Col: Equipment Health & Inspection Widget */}
         <div className="space-y-6">
           {/* Real-time Focus Equipment Health List */}
-          <div className="glass-card p-4 shadow-sm relative">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center">
+          <div className="card-saas p-5 border border-slate-200/80 shadow-xs relative space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center">
                 <Activity className="w-4 h-4 mr-2 text-emerald-600" />
                 设备健康实时雷达
               </h3>
               <button
+                type="button"
                 onClick={() => onNavigate('health')}
-                className="text-xs text-blue-600 hover:underline cursor-pointer font-medium"
+                className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
               >
-                遥测大屏
+                遥测大屏 →
               </button>
             </div>
 
@@ -886,14 +921,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div
                     key={eq.id}
                     onClick={() => onSelectEquipment(eq)}
-                    className="p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer group"
+                    className="p-3 rounded-xl bg-slate-50/70 hover:bg-white border border-slate-200/70 hover:border-blue-400 transition-all cursor-pointer group shadow-2xs hover:shadow-xs"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-900 group-hover:text-blue-600 truncate">
+                      <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 truncate">
                         {eq.name}
                       </span>
                       <span
-                        className={`text-xs font-bold font-mono px-1.5 py-0.2 rounded ${isAlarm
+                        className={`text-xs font-bold font-mono px-2 py-0.5 rounded-md ${isAlarm
                             ? 'bg-rose-50 text-rose-700 border border-rose-200'
                             : isWarn
                               ? 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -903,7 +938,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {eq.healthScore}分
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5 font-medium">
+                    <div className="flex items-center justify-between text-xs text-slate-500 mt-2 font-medium">
                       <span>温度: <strong className={eq.telemetry.temperature > 75 ? 'text-rose-600 font-mono' : 'text-slate-800 font-mono'}>{eq.telemetry.temperature}°C</strong></span>
                       <span>振动: <strong className={eq.telemetry.vibration > 4.5 ? 'text-rose-600 font-mono' : 'text-slate-800 font-mono'}>{eq.telemetry.vibration}mm/s</strong></span>
                       <span>负荷: <strong className="text-slate-800 font-mono">{eq.telemetry.loadRate}%</strong></span>
@@ -915,41 +950,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Today's Inspection Progress Widget */}
-          <div className="glass-card p-4 shadow-sm relative">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center">
+          <div className="card-saas p-5 border border-slate-200/80 shadow-xs relative space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center">
                 <CheckCircle2 className="w-4 h-4 mr-2 text-blue-600" />
                 巡检路线打卡与状态
               </h3>
               <button
+                type="button"
                 onClick={() => onNavigate('inspections')}
-                className="text-xs text-blue-600 hover:underline cursor-pointer font-medium"
+                className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
               >
-                进入巡检终端
+                巡检终端 →
               </button>
             </div>
 
-            <div className="max-h-64 overflow-y-auto pr-1 space-y-2">
+            <div className="max-h-64 overflow-y-auto pr-1 space-y-2.5">
               {inspections.map((task) => (
-                <div key={task.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                <div key={task.id} className="p-3 rounded-xl bg-slate-50/70 border border-slate-200/70 space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-800 truncate">{task.title}</span>
+                    <span className="text-xs font-bold text-slate-800 truncate">{task.title}</span>
                     <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${task.status === 'in_progress'
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      className={`text-xs px-2 py-0.5 rounded-md font-semibold ${task.status === 'in_progress'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200/80'
                           : 'bg-slate-100 text-slate-600 border border-slate-200'
                         }`}
                     >
                       {task.status === 'in_progress' ? '进行中' : '未开始'}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-1 truncate">
+                  <div className="text-xs text-slate-500 truncate">
                     路线: {task.route}
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
                     <span>已完成: <strong className="text-slate-800 font-mono">{task.completedPoints}/{task.totalPoints}</strong> 测点</span>
                     {task.abnormalCount > 0 && (
-                      <span className="text-rose-600 font-medium">发现 {task.abnormalCount} 处异常</span>
+                      <span className="text-rose-600 font-semibold">发现 {task.abnormalCount} 处异常</span>
                     )}
                   </div>
                 </div>
@@ -958,38 +994,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* LOTO Safety Interlock Quick Status */}
-          <div className="glass-card p-4 shadow-sm relative">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center">
+          <div className="card-saas p-5 border border-slate-200/80 shadow-xs relative space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center">
                 <Lock className="w-4 h-4 mr-2 text-purple-600" />
                 LOTO 停电挂牌生命锁状态
               </h3>
               <button
+                type="button"
                 onClick={() => onNavigate('safety')}
-                className="text-xs text-blue-600 hover:underline cursor-pointer font-medium"
+                className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
               >
-                安全管理
+                安全管理 →
               </button>
             </div>
-            <div className="max-h-56 overflow-y-auto pr-1 space-y-2">
+            <div className="max-h-56 overflow-y-auto pr-1 space-y-2.5">
               {activeLotoLocks.map((lock) => (
                 <div
                   key={lock.id}
-                  className="p-2.5 rounded-lg bg-purple-50 border border-purple-200 text-xs text-purple-900 space-y-1"
+                  className="p-3 rounded-xl bg-purple-50/60 border border-purple-200/80 text-xs text-purple-900 space-y-1"
                 >
-                  <div className="flex items-center justify-between font-semibold">
+                  <div className="flex items-center justify-between font-bold">
                     <span className="truncate">{lock.pointName || lock.permitTitle || '能量隔离点已锁定'}</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-600 text-white font-mono shrink-0 ml-2">
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-purple-600 text-white font-mono shrink-0 ml-2">
                       {lock.lockNo}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600">
+                  <p className="text-xs text-slate-600">
                     隔离动力源: {lock.energySource || '—'} | 锁闭人: {lock.lockedBy || '—'}
                   </p>
                 </div>
               ))}
               {activeLotoLocks.length === 0 && (
-                <div className="p-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center text-[11px] text-slate-400">
+                <div className="p-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-center text-xs text-slate-400">
                   当前无挂锁执行中的 LOTO 能量隔离作业
                 </div>
               )}
@@ -1005,7 +1042,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         title="安全合规"
         hint="AI 实时作业审计 · 岗位专属待办与督办"
       />
-      <div className="glass-card p-5 shadow-sm relative overflow-hidden bg-white border border-slate-200/80 rounded-xl -mt-2">
+      <div className="card-saas p-6 border border-slate-200/80 rounded-2xl shadow-xs relative overflow-hidden bg-white -mt-2">
         {/* 细渐变顶线 */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 via-cyan-400 to-blue-500" />
 

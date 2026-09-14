@@ -2,12 +2,15 @@
 # 工业设备智能检修与作业协同系统 - Docker Compose 编排（Node.js 主服务）
 #
 # 说明：
-#   1. 本项目实际主服务为根目录 Node.js server.ts（Express + React + PGlite）。
-#   2. backend/ 目录下的 Python FastAPI 为历史遗留/备选实现，已隔离，不参与本编排。
-#   3. 默认使用嵌入式持久化 PostgreSQL（PGlite），数据保存在命名卷 appdata，重启不丢失。
-#   4. 如需接入独立 PostgreSQL：取消下方 db 服务注释，并将 .env 中
-#      DATABASE_URL 改为 postgres://postgres:postgres123@db:5432/maintenance_db
-#   5. 必填环境变量 JWT_SECRET 请在 .env 中配置（应用已做 fail-fast，缺失将拒绝启动）。
+#   1. 本项目主服务为根目录 Node.js server.ts（Express + React + PGlite）。
+#   2. 默认（`docker compose up -d`）使用嵌入式持久化 PostgreSQL（PGlite），
+#      数据保存在命名卷 appdata，重启不丢失；app 不依赖任何数据库容器。
+#   3. 如需接入独立 PostgreSQL（DB_TYPE=postgres）：
+#        docker compose --profile postgres up -d
+#      并在 .env 中配置 DB_USER / DB_PASSWORD / DB_NAME（无默认弱口令，
+#      未配置 DB_PASSWORD 时 postgres 服务将拒绝启动并提示）。
+#      注意：postgres 服务位于 postgres profile 下，默认配置不会创建或映射 5432 端口。
+#   4. 必填环境变量 JWT_SECRET 请在 .env 中配置（应用已做 fail-fast，缺失将拒绝启动）。
 # ============================================================
 
 name: industrial-maintenance
@@ -28,9 +31,9 @@ services:
       - "3000:3000"
     env_file:
       - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # 依赖说明：默认 pglite 模式无需任何数据库容器，故不依赖 postgres 服务；
+    # postgres 模式请使用 `docker compose --profile postgres up -d`，
+    # 应用对 PostgreSQL 连接失败有平滑降级与重试逻辑（见 src/db/db.ts）。
     environment:
       NODE_ENV: production
       # 数据库类型切换（pglite / postgres），从 .env 读取
@@ -39,7 +42,8 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-industrial_maintenance}
       DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
+      # 无默认弱口令：仅 DB_TYPE=postgres 时使用，务必在 .env 中配置强密码
+      DB_PASSWORD: ${DB_PASSWORD:-}
       # 阿里云百炼 (DashScope) 大模型配置，从 .env 读取
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL}
@@ -61,11 +65,13 @@ services:
       start_period: 20s
       retries: 3
 
-  # ---------- PostgreSQL 服务（生产环境：DB_TYPE=postgres 时启用） ----------
+  # ---------- PostgreSQL 服务（可选，仅 `--profile postgres` 时启用） ----------
   postgres:
     image: postgres:16-alpine
     container_name: industrial-maintenance-postgres
     restart: unless-stopped
+    profiles:
+      - postgres
     # 数据库优先保障：CPU≤70%、内存≤4G、禁swap
     cpus: "0.7"
     mem_limit: 4g
@@ -73,12 +79,14 @@ services:
     cpu_shares: 1024
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      # 无默认弱口令：未在 .env 配置 DB_PASSWORD 时为空值，postgres 官方镜像将拒绝初始化并报错
+      # （仅在激活 postgres profile 时才会触发，默认 pglite 模式不受影响）
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-}
       POSTGRES_DB: ${DB_NAME:-industrial_maintenance}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5432:5432"   # 仅 postgres profile 启用时才创建该映射
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-industrial_maintenance}"]
       interval: 5s
@@ -105,26 +113,7 @@ services:
     command: |
       "echo '0 2 * * * sh /scripts/backup.sh' > /etc/crontabs/root && crond -f -l 8"
 
-  # ---------- 可选：独立 PostgreSQL（生产环境建议启用） ----------
-  # db:
-  #   image: postgres:16-alpine
-  #   container_name: industrial-maintenance-postgres
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: postgres123
-  #     POSTGRES_DB: maintenance_db
-  #   volumes:
-  #     - pgdata:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U postgres -d maintenance_db"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
-
 volumes:
   appdata:
   uploads:
   postgres_data:
-  # pgdata:
-

@@ -12,6 +12,7 @@ import {
   handleGetAuthUsers,
   handleSwitchUser,
   handleWxLogin,
+  handleUpdateUserStatus,
 } from "../controllers/authController.ts";
 
 export function registerAuthRoutes(app: express.Express) {
@@ -27,6 +28,14 @@ export function registerAuthRoutes(app: express.Express) {
 
   // 用户列表含全员手机号/邮箱等敏感字段：必须登录后才能读取
   app.get("/api/v1/auth/users", requireAuth, handleGetAuthUsers);
+
+  // 管理员专用：修改用户账号状态 (active | disabled)
+  app.patch(
+    "/api/v1/auth/users/:id/status",
+    requireAuth,
+    requireRole(["admin"], "修改用户状态"),
+    handleUpdateUserStatus
+  );
 
   // 快速身份切换 API（高危：可无密码签发任意用户 JWT）。
   // 双重收紧：生产环境直接 404 下线；非生产环境仅 admin 可用（防止普通账号横向提权）。

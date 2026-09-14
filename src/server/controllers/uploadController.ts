@@ -30,6 +30,45 @@ export const handleUploadVideo = async (req: any, res: any) => {
 
     const cleanBase64 = videoBase64.replace(/^data:video\/\w+;base64,/, "");
     const buffer = Buffer.from(cleanBase64, "base64");
+
+    // 视频文件头魔数校验（与图片上传的文件头签名校验标准对齐）：
+    // 仅凭 MIME 声明与扩展名可被伪造，实际内容可能是任意文件甚至恶意载荷。
+    const VIDEO_MAGIC: Record<string, { desc: string; test: (b: Buffer) => boolean }> = {
+      ".mp4": {
+        desc: "ISO BMFF 容器头 (ftyp box)",
+        test: (b) => b.length > 11 && b.subarray(4, 8).toString("binary") === "ftyp",
+      },
+      ".mov": {
+        desc: "QuickTime 容器头 (ftyp/moov/mdat 等 atom)",
+        test: (b) => {
+          if (b.length < 12) return false;
+          const brand = b.subarray(4, 8).toString("binary");
+          const head4 = b.subarray(0, 4).toString("binary");
+          return (
+            brand === "ftyp" ||
+            ["moov", "mdat", "wide", "skip", "free"].includes(head4)
+          );
+        },
+      },
+      ".webm": {
+        desc: "EBML 头 (1A 45 DF A3)",
+        test: (b) => b.length > 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3,
+      },
+      ".avi": {
+        desc: "RIFF 容器头 + AVI 标识",
+        test: (b) =>
+          b.length > 12 &&
+          b.subarray(0, 4).toString("binary") === "RIFF" &&
+          b.subarray(8, 12).toString("binary") === "AVI ",
+      },
+    };
+    const magic = VIDEO_MAGIC[detectedExt];
+    if (magic && !magic.test(buffer)) {
+      return res.status(400).json({
+        error: `视频文件内容与声明的 ${detectedExt} 格式不符（缺少文件头签名：${magic.desc}），疑似伪造扩展名或损坏文件`,
+        code: "INVALID_FILE_SIGNATURE",
+      });
+    }
     const MAX_SIZE = 80 * 1024 * 1024; // 80MB
     if (buffer.length > MAX_SIZE) {
       return res.status(413).json({ error: `视频文件大小不能超过 80MB (实测: ${(buffer.length / (1024 * 1024)).toFixed(2)} MB)`, code: "PAYLOAD_TOO_LARGE" });
@@ -196,23 +235,25 @@ export const handleVideoAnalyze = async (req: any, res: any) => {
     }
 
     if (!analysisResult || !analysisResult.device_part) {
+      // 降级（规则推断）：未对任何视频帧做图像分析，不编造"检测到"类现象与精确测量数值，
+      // confidence 置空（前端显示 0%），仅给出基于设备类型的排查方向；字段结构保持不变。
       const isPump = deviceModel.includes("泵");
       const isMotor = deviceModel.includes("电机");
       const isFan = deviceModel.includes("风机");
       analysisResult = {
-        device_part: isPump ? "离心泵轴封/机械密封冲洗管路" : isMotor ? "电机驱动端深沟球轴承" : isFan ? "离心风机叶轮动平衡配重块" : "传动机构核心旋转部件",
-        phenomenon: `${deviceModel}运行多帧视频画面中检测到局部反光异常与微米级径向跳动伪影，疑似存在油液轻微渗出及动平衡失调。`,
+        device_part: isPump ? "离心泵轴封/机械密封（规则推断排查方向）" : isMotor ? "电机驱动端滚动轴承（规则推断排查方向）" : isFan ? "离心风机叶轮与动平衡（规则推断排查方向）" : "传动机构旋转部件（规则推断排查方向）",
+        phenomenon: `AI 视频分析暂不可用，未对视频帧进行图像实测，未检测到任何异常现象。以上部件方向为基于设备类型（${deviceModel}）关键词的规则推断（非图像实测），请以现场测振/测温复核为准。`,
         causes: [
-          "滚动体长期处于交变载荷工况下产生轻微疲劳点蚀",
-          "机械密封密封面由于杂质冲刷造成微细划痕与微渗漏",
-          "联轴器在长期热态运行后同轴度出现角向偏差导致周期性振颤"
+          "规则推断（非本机实测）：旋转部件常见失效模式包括交变载荷下的疲劳点蚀，需现场解体确认",
+          "规则推断（非本机实测）：密封面杂质冲刷导致的微渗漏在同类设备中较常见，需拆检验证",
+          "规则推断（非本机实测）：联轴器同轴度偏差需激光对中仪现场测量后才能判定",
         ],
         suggestions: [
-          "使用便携式三轴测振仪在轴承座水平和垂直方向复测振动烈度值",
+          "使用便携式三轴测振仪在轴承座水平和垂直方向实测振动烈度值",
           "停机排查密封冲洗管路排气孔，测量机械密封弹簧压缩预紧量",
-          "按规程补加规定牌号的高温极压复合润滑脂，紧固底座地脚螺栓"
+          "按规程补加规定牌号的高温极压复合润滑脂，紧固底座地脚螺栓",
         ],
-        confidence: 0.89,
+        confidence: null,
       };
     }
 
@@ -226,6 +267,8 @@ export const handleVideoAnalyze = async (req: any, res: any) => {
 
     res.json({
       success: true,
+      degraded: true,
+      analysisSource: "rule-inference",
       analysis: analysisResult,
       logId: logEntry.id,
       videoId,

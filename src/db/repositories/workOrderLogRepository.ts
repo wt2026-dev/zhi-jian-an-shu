@@ -11,8 +11,8 @@ export const WorkOrderLogRepository = {
     comment?: string;
     createdAt?: string;
   }) {
-    const id = log.id || `log-${Date.now()}`;
-    const createdAt = log.createdAt || new Date().toLocaleString("zh-CN");
+    const id = log.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const createdAt = log.createdAt || new Date().toISOString();
     const db = await getDb();
     try {
       await db.query(

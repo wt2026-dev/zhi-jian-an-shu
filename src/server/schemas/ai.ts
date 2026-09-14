@@ -3,7 +3,15 @@ import { z } from "zod";
 
 export const aiChatSchema = z.object({
   message: z.string().min(1, { message: "消息内容必填" }),
-  history: z.array(z.any()).optional(),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().max(2000, { message: "单条对话内容不能超过 2000 个字符" }),
+      })
+    )
+    .max(12, { message: "对话历史过长，请刷新后重试" })
+    .optional(),
   contextData: z.record(z.string(), z.any()).optional(),
 });
 

@@ -15,8 +15,8 @@ export const AuditLogRepository = {
     status: "SUCCESS" | "FAILED" | "BLOCKED";
     metadata?: any;
   }) {
-    const id = entry.id || `audit-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
-    const timestamp = entry.timestamp || new Date().toLocaleString("zh-CN");
+    const id = entry.id || `audit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const timestamp = entry.timestamp || new Date().toISOString();
     const db = await getDb();
 
     try {

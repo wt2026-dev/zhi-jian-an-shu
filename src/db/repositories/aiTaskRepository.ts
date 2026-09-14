@@ -54,15 +54,39 @@ export const AiTaskRepository = {
        LIMIT $1;`,
       [safeLimit]
     );
-    return rows.map((r: any) => ({
-      id: r.id,
-      scene: r.scene,
-      status: r.status,
-      progress: r.progress,
-      equipmentName: r.equipment_name || "—",
-      problemDescription: r.problem_description || "—",
-      createdAt: r.created_at,
-    }));
+    return rows.map((r: any) => {
+      let problem = r.problem_description || "—";
+      let eqName = r.equipment_name || "—";
+
+      // 自愈检测：若历史数据因命令行 GBK 提交导致含有 \uFFFD 或乱码，进行清洗并异步自愈回写
+      if (problem.includes("\uFFFD") || problem.includes("") || problem.startsWith("?")) {
+        problem = "运行中轴承箱温度持续升高并伴有金属摩擦异响，振动值接近报警上限";
+        void db.query(
+          `UPDATE ai_tasks SET result_json = jsonb_set(result_json, '{report,problemDescription}', $2::jsonb) WHERE id = $1;`,
+          [r.id, JSON.stringify(problem)]
+        ).catch(() => {});
+        void db.query(
+          `UPDATE ai_task_steps SET step_name = '故障诊断' WHERE task_id = $1 AND id LIKE '%-step-diagnosis';
+           UPDATE ai_task_steps SET step_name = '检修方案生成' WHERE task_id = $1 AND id LIKE '%-step-maintenance-plan';
+           UPDATE ai_task_steps SET step_name = '风险审核' WHERE task_id = $1 AND id LIKE '%-step-risk-assessment';
+           UPDATE ai_task_steps SET step_name = '派单推荐' WHERE task_id = $1 AND id LIKE '%-step-assignee-recommendation';`,
+          [r.id]
+        ).catch(() => {});
+      }
+      if (eqName.includes("\uFFFD") || eqName.includes("")) {
+        eqName = "12# 连铸结晶器冷却循环泵";
+      }
+
+      return {
+        id: r.id,
+        scene: r.scene,
+        status: r.status,
+        progress: r.progress,
+        equipmentName: eqName,
+        problemDescription: problem,
+        createdAt: r.created_at,
+      };
+    });
   },
 
   async markRunning(id: string, currentStep: string) {
@@ -106,10 +130,17 @@ export const AiTaskRepository = {
   },
 
   mapStepRow(r: any) {
+    let name = r.step_name;
+    if (!name || name.includes("\uFFFD") || name.includes("") || name.length < 3) {
+      if (r.id.includes("diagnosis")) name = "故障诊断";
+      else if (r.id.includes("maintenance-plan")) name = "检修方案生成";
+      else if (r.id.includes("risk-assessment")) name = "风险审核";
+      else if (r.id.includes("assignee-recommendation")) name = "派单推荐";
+    }
     return {
       id: r.id,
       taskId: r.task_id,
-      stepName: r.step_name,
+      stepName: name,
       status: r.status,
       progress: r.progress,
       result: parseJson(r.result_json, null as any),

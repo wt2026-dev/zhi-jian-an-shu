@@ -2,6 +2,7 @@
 import {
   SafetyPermitRepository,
   LotoLockRepository,
+  VersionConflictError,
 } from "../../db/repositories/index.ts";
 import { authenticateBearer } from "../services/authService.ts";
 import { addAuditLog, pushNotification } from "../services/auditService.ts";
@@ -39,7 +40,7 @@ export const handleCreateSafetyPermit = async (req: any, res: any) => {
   const permitNo = `SP-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}-${Math.floor(1000 + Math.random() * 9000)}`;
 
   const newPermit = {
-    id: `sp-${Date.now()}`,
+    id: `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     permitNo,
     permitType: req.body.permitType || "动火作业票",
     riskLevel: req.body.riskLevel || "较大风险 (Level 2)",
@@ -50,7 +51,7 @@ export const handleCreateSafetyPermit = async (req: any, res: any) => {
     location: req.body.location,
     applicant: `${user?.name || "未知"} (${user?.roleTitle || user?.role || "访客"})`,
     applicantDept: user?.department || "未指定",
-    appliedAt: now.toLocaleString("zh-CN"),
+    appliedAt: now.toISOString(),
     validUntil: req.body.validUntil || "当日20:00前",
     status: "pending_approval",
     precautions: req.body.precautions || [],
@@ -60,40 +61,49 @@ export const handleCreateSafetyPermit = async (req: any, res: any) => {
     gasTestResults: null,
     guardianApproval: null,
     supervisorApproval: null,
+    version: 1,
   };
 
   // 真实落库：同时写入 safety_permits 表，保证重启不丢失
-  await SafetyPermitRepository.create(newPermit);
-  dbSafetyPermits.unshift(newPermit);
+  const created = await SafetyPermitRepository.create(newPermit);
+  const resultPermit = created || newPermit;
+  dbSafetyPermits.unshift(resultPermit);
   addAuditLog(req, {
     actionType: "PERMIT_CREATE",
     module: "安全作业票",
-    detail: `创建高危安全作业票 [${newPermit.permitNo}]: ${newPermit.title} (${newPermit.riskLevel})`,
+    detail: `创建高危安全作业票 [${resultPermit.permitNo}]: ${resultPermit.title} (${resultPermit.riskLevel})`,
     status: "SUCCESS",
-    metadata: { permitNo: newPermit.permitNo, permitType: newPermit.permitType },
+    metadata: { permitNo: resultPermit.permitNo, permitType: resultPermit.permitType },
   });
   pushNotification({
-    title: `【高危作业票】${newPermit.permitNo} 提交待审批`,
-    content: `${newPermit.permitType}「${newPermit.title}」已提交，风险等级 ${newPermit.riskLevel}，等待安全监护人/主管双人会签。`,
+    title: `【高危作业票】${resultPermit.permitNo} 提交待审批`,
+    content: `${resultPermit.permitType}「${resultPermit.title}」已提交，风险等级 ${resultPermit.riskLevel}，等待安全监护人/主管双人会签。`,
     type: "warning",
     refType: "safety_permit",
-    refId: newPermit.permitNo,
+    refId: resultPermit.permitNo,
   });
-  res.status(201).json(newPermit);
+  res.status(201).json(resultPermit);
 };
 
 // POST /api/v1/safety-permits/:id/approve —— 双人审批业务流转
 export const handleApproveSafetyPermit = async (req: any, res: any) => {
   const { id } = req.params;
-  const { step, pass = true, comment = "", gasTestResults } = req.body;
+  const { step, pass = true, comment = "", gasTestResults, version } = req.body;
   const user = authenticateBearer(req);
 
   if (!user) {
     return res.status(401).json({ error: "未登录或凭据失效", code: "UNAUTHORIZED" });
   }
 
-  const permit = dbSafetyPermits.find((p) => p.id === id);
+  const permit = (await SafetyPermitRepository.getById(id)) || dbSafetyPermits.find((p) => p.id === id);
   if (!permit) return res.status(404).json({ error: "作业票未找到" });
+
+  if (version !== undefined && permit.version !== version) {
+    return res.status(409).json({
+      code: "VERSION_CONFLICT",
+      message: "安全作业票已被其他人审批或修改，请刷新后重试。",
+    });
+  }
 
   // RBAC: 主管终审仅限 admin 或 manager
   if (step === "supervisor" && !["admin", "manager"].includes(user.role)) {
@@ -108,7 +118,7 @@ export const handleApproveSafetyPermit = async (req: any, res: any) => {
     return res.status(403).json({ error: errorMsg, code: "RBAC_SUPERVISOR_REQUIRED" });
   }
 
-  const nowStr = new Date().toLocaleString("zh-CN");
+  const nowStr = new Date().toISOString();
 
   if (!pass) {
     permit.status = "rejected";
@@ -131,6 +141,19 @@ export const handleApproveSafetyPermit = async (req: any, res: any) => {
       refType: "safety_permit",
       refId: permit.permitNo,
     });
+    try {
+      const expVersion = version !== undefined ? version : permit.version;
+      const updated = await SafetyPermitRepository.update(id, permit, expVersion);
+      if (updated) Object.assign(permit, updated);
+    } catch (err: any) {
+      if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
+        return res.status(409).json({
+          code: "VERSION_CONFLICT",
+          message: "安全作业票已被其他人审批或修改，请刷新后重试。",
+        });
+      }
+      return res.status(500).json({ error: "更新作业票失败: " + err.message });
+    }
     return res.json(permit);
   }
 
@@ -175,8 +198,24 @@ export const handleApproveSafetyPermit = async (req: any, res: any) => {
     metadata: { permitNo: permit.permitNo, step, finalStatus: permit.status },
   });
 
-  // 真实落库：同步审批结果到数据库
-  await SafetyPermitRepository.update(id, permit);
+  // 真实落库：同步审批结果到数据库（带乐观锁版本校验）
+  try {
+    const expVersion = version !== undefined ? version : permit.version;
+    const updated = await SafetyPermitRepository.update(id, permit, expVersion);
+    if (updated) {
+      Object.assign(permit, updated);
+      const idx = dbSafetyPermits.findIndex((p) => p.id === id);
+      if (idx >= 0) dbSafetyPermits[idx] = permit;
+    }
+  } catch (err: any) {
+    if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "安全作业票已被其他人审批或修改，请刷新后重试。",
+      });
+    }
+    return res.status(500).json({ error: "审批作业票失败: " + err.message });
+  }
 
   pushNotification({
     title: permit.status === "approved" ? `【作业票批准】${permit.permitNo} 双人会签通过` : `【会签进度】${permit.permitNo} ${step === "guardian" ? "现场监护" : "主管终审"}节点已签署`,
@@ -195,18 +234,25 @@ export const handleApproveSafetyPermit = async (req: any, res: any) => {
 // POST /api/v1/safety-permits/:id/close
 export const handleCloseSafetyPermit = async (req: any, res: any) => {
   const { id } = req.params;
-  const { closeRemark } = req.body;
+  const { closeRemark, version } = req.body || {};
   const user = authenticateBearer(req);
 
   if (!user) {
     return res.status(401).json({ error: "未登录或凭据失效", code: "UNAUTHORIZED" });
   }
 
-  const permit = dbSafetyPermits.find((p) => p.id === id);
+  const permit = (await SafetyPermitRepository.getById(id)) || dbSafetyPermits.find((p) => p.id === id);
   if (!permit) return res.status(404).json({ error: "作业票未找到" });
 
+  if (version !== undefined && permit.version !== version) {
+    return res.status(409).json({
+      code: "VERSION_CONFLICT",
+      message: "安全作业票已被其他人注销或修改，请刷新后重试。",
+    });
+  }
+
   permit.status = "closed";
-  permit.closedAt = new Date().toLocaleString("zh-CN");
+  permit.closedAt = new Date().toISOString();
   permit.closedBy = `${user.name} (${user.roleTitle})`;
   permit.closeRemark = closeRemark || "现场作业完毕，工完料净场地清，LOTO安全锁具已解锁释放。";
 
@@ -218,8 +264,24 @@ export const handleCloseSafetyPermit = async (req: any, res: any) => {
     metadata: { permitNo: permit.permitNo },
   });
 
-  // 真实落库：同步注销闭环状态到数据库
-  await SafetyPermitRepository.update(id, permit);
+  // 真实落库：同步注销闭环状态到数据库（带乐观锁版本校验）
+  try {
+    const expVersion = version !== undefined ? version : permit.version;
+    const updated = await SafetyPermitRepository.update(id, permit, expVersion);
+    if (updated) {
+      Object.assign(permit, updated);
+      const idx = dbSafetyPermits.findIndex((p) => p.id === id);
+      if (idx >= 0) dbSafetyPermits[idx] = permit;
+    }
+  } catch (err: any) {
+    if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
+      return res.status(409).json({
+        code: "VERSION_CONFLICT",
+        message: "安全作业票已被其他人注销或修改，请刷新后重试。",
+      });
+    }
+    return res.status(500).json({ error: "注销作业票失败: " + err.message });
+  }
 
   pushNotification({
     title: `【作业票闭环】${permit.permitNo} 已注销归档`,
