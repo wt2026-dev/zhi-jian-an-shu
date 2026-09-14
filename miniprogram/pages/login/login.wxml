@@ -14,7 +14,7 @@
       {{wxLoading ? '微信登录中...' : '微信一键登录'}}
     </button>
   </view>
-  <view class="rt">演示账号（密码 password123）</view>
+  <view class="rt">演示账号（各角色独立强密码）</view>
   <view class="chips">
     <view class="chip" bindtap="fill" data-u="admin">admin</view>
     <view class="chip" bindtap="fill" data-u="manager">manager</view>

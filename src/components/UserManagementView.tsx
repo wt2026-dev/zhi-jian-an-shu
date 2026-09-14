@@ -204,8 +204,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       const created = await authApi.createUser({
         username: newUserForm.username || `user_${Date.now().toString().slice(-4)}`,
         name: newUserForm.name,
-        // 初始密码与种子账号保持一致，创建后可由管理员修改
-        password: 'password123',
+        // 初始安全密码：符合等保三级复杂度规范
+        password: 'User@2026#New',
         role: newUserForm.role,
         roleTitle: roleObj?.title || '普通用户',
         department: newUserForm.department,

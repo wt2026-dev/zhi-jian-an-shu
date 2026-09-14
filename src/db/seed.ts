@@ -37,7 +37,21 @@ export async function seedDatabase(): Promise<void> {
   const db = await getDb();
   console.log("[Seed] 开始插入初始数据库种子数据...");
 
-  const defaultPasswordHash = bcrypt.hashSync("password123", 10);
+  /**
+   * 演示环境各角色独立强密码配置 (等保 2.0 三级规范：大写+小写+数字+特殊字符，长度>=15)
+   * 各角色独立配置，杜绝通用弱口令。
+   */
+  const DEMO_PASSWORDS: Record<string, string> = {
+    admin: "Admin@2026#Demo",          // 管理员 / 总工
+    manager: "Manager@2026#Safe",      // 车间主管 / 安全总监
+    tech1: "Tech1@2026#Work",          // 机电检修高级技师
+    inspector: "Inspect@2026#Check",    // 点检工程师 / 安全监护员
+    operator: "Operator@2026#Line",    // 现场生产岗位操作工
+    tech2: "Tech2@2026#Elec",          // 电气专工 / 高压试验负责人
+    inspector2: "Inspect2@2026#Site",  // 巡检主管 / 设备状态点检长
+    operator2: "Operator2@2026#Lift",  // 吊装司机 / 起重机械操作岗
+    archivist: "Archive@2026#Doc",      // 档案管理员 / 知识库专员
+  };
 
   // 确保 users 表有 certifications 列，notifications 表有 user_id 列
   try {
@@ -47,13 +61,13 @@ export async function seedDatabase(): Promise<void> {
   } catch (_) { /* 列已存在则忽略 */ }
 
   // ============================================================================
-  // 1. 用户数据 (9 人：管理员 / 车间主管 / 机电技师×2 / 巡检点检×2 / 操作岗×2 / 档案管理员)
+  // 1. 用户数据 (9 人：各角色配置独立强密码并以 Bcrypt 加盐哈希入库)
   // ============================================================================
   const users = [
     {
       id: "u-admin",
       username: "admin",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["admin"], 10),
       name: "陈建平",
       role: "admin",
       roleTitle: "总工 / 机电部长",
@@ -70,7 +84,7 @@ export async function seedDatabase(): Promise<void> {
     {
       id: "u-manager",
       username: "manager",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["manager"], 10),
       name: "陈主管",
       role: "manager",
       roleTitle: "车间安全总监 / 维保主管",
@@ -82,7 +96,7 @@ export async function seedDatabase(): Promise<void> {
     {
       id: "u-tech1",
       username: "tech1",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["tech1"], 10),
       name: "张建国",
       role: "technician",
       roleTitle: "机电检修高级技师",
@@ -94,7 +108,7 @@ export async function seedDatabase(): Promise<void> {
     {
       id: "u-inspector",
       username: "inspector",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["inspector"], 10),
       name: "赵安全",
       role: "inspector",
       roleTitle: "点检工程师 / 专职安全监护员",
@@ -106,7 +120,7 @@ export async function seedDatabase(): Promise<void> {
     {
       id: "u-operator",
       username: "operator",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["operator"], 10),
       name: "王操作",
       role: "operator",
       roleTitle: "现场生产岗位操作工",
@@ -118,7 +132,7 @@ export async function seedDatabase(): Promise<void> {
     {
       id: "u-tech2",
       username: "tech2",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["tech2"], 10),
       name: "李志强",
       role: "technician",
       roleTitle: "电气专工 / 高压试验负责人",
@@ -130,7 +144,7 @@ export async function seedDatabase(): Promise<void> {
     {
       id: "u-inspector2",
       username: "inspector2",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["inspector2"], 10),
       name: "刘德胜",
       role: "inspector",
       roleTitle: "巡检主管 / 设备状态点检长",
@@ -142,7 +156,7 @@ export async function seedDatabase(): Promise<void> {
     {
       id: "u-operator2",
       username: "operator2",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["operator2"], 10),
       name: "周大伟",
       role: "user",
       roleTitle: "吊装司机 / 起重机械操作岗",
@@ -154,7 +168,7 @@ export async function seedDatabase(): Promise<void> {
     {
       id: "u-archivist",
       username: "archivist",
-      password: defaultPasswordHash,
+      password: bcrypt.hashSync(DEMO_PASSWORDS["archivist"], 10),
       name: "吴晓芳",
       role: "archivist",
       roleTitle: "档案管理员 / 检修知识库专员",

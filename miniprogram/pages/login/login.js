@@ -1,6 +1,12 @@
 var { request } = require("../../utils/request.js");
-// 演示环境快捷登录口令（仅本地开发用，上线前请移除 fill 方法与 DEMO_PASSWORD）
-var DEMO_PASSWORD = "password123";
+// 演示环境各角色独立强密码对照表
+var DEMO_PASSWORDS = {
+  admin: "Admin@2026#Demo",
+  manager: "Manager@2026#Safe",
+  tech1: "Tech1@2026#Work",
+  inspector: "Inspect@2026#Check",
+  operator: "Operator@2026#Line",
+};
 var app = getApp();
 
 Page({
@@ -13,9 +19,10 @@ Page({
   onUser(e) { this.setData({ username: e.detail.value, errorMsg: "" }); },
   onPwd(e) { this.setData({ password: e.detail.value, errorMsg: "" }); },
 
-  // 快捷登录（演示环境）：点击账号芯片自动填充，上线前请删除
+  // 快捷登录（演示环境）：点击账号芯片自动填充对应独立强密码
   fill(e) {
-    this.setData({ username: e.currentTarget.dataset.u, password: DEMO_PASSWORD, errorMsg: "" });
+    var u = e.currentTarget.dataset.u;
+    this.setData({ username: u, password: DEMO_PASSWORDS[u] || "Admin@2026#Demo", errorMsg: "" });
   },
 
   // 登录成功后统一保存登录态并进入首页
