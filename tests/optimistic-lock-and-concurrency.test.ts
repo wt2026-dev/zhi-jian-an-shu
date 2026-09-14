@@ -1,6 +1,18 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../server.ts";
+
+// 离线确定性：mock DashScope JSON 调用为"有 Key 但调用失败"（普通 Error，非 AiUnavailableError），
+// 使 health-forecast 走规则引擎降级分支（statistics 6 维），不发起任何真实网络请求
+vi.mock("../src/server/services/aiClient.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/server/services/aiClient.ts")>();
+  return {
+    ...actual,
+    callDashScopeJson: async () => {
+      throw new Error("offline mock: AI service unavailable in tests");
+    },
+  };
+});
 import {
   WorkOrderRepository,
   SafetyPermitRepository,

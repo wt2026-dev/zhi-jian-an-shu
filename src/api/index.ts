@@ -291,6 +291,7 @@ export const authApi = {
       token: string;
       tokenType: string;
       expiresIn: number;
+      forcePasswordChange?: boolean;
       user: {
         id: string;
         username: string;

@@ -7,6 +7,9 @@ let token: string;
 
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
+  // 离线测试：注入伪造 Key 仅用于触发启动种子与掩码断言（ensureAiModelSeed 依赖非空 Key，
+  // 种子过程不发起任何外部调用；vitest test.env 已将真实 Key 置空）
+  process.env.DASHSCOPE_API_KEY = "offline-test-key-for-seed";
   app = await createApp();
 
   const loginRes = await request(app)
