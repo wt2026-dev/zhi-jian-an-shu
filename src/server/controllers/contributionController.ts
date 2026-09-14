@@ -1,8 +1,8 @@
-// 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
-import { createEmbedding } from "../services/aiClient.ts";
+import { createEmbedding, getAiClient, extractAiJson } from "../services/aiClient.ts";
 import { getDb } from "../../db/db.ts";
 import { KnowledgeRepository } from "../../db/repositories/index.ts";
 import { addAuditLog } from "../services/auditService.ts";
+import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
 
 // POST /api/v1/ai/feedback
 export const handleCreateAiFeedback = async (req: any, res: any) => {
@@ -215,3 +215,108 @@ export const handleRejectAiReview = async (req: any, res: any) => {
     res.status(500).json({ error: "审核驳回操作失败", message: err.message });
   }
 };
+
+// AI 知识贡献识别（对话后判断是否沉淀为知识案例, /api/v1/ai/suggest-contribution）
+export async function handleAiSuggestContribution(req: any, res: any) {
+  try {
+    const { lastUserMessage, lastAiReply, equipment } = req.body;
+    const ai = getAiClient();
+
+    const systemPrompt = `你是一位拥有20年工业重型设备检修经验的知识管理员。判断下面这段工程师与AI的对话是否包含一个"完整、可复用、现场验证过"的故障处理案例。
+判定标准（全部满足才算）：①有明确设备（名称/位号）②有具体故障现象 ③有可操作的根因或解决方案 ④不是纯闲聊或纯理论。
+严格输出 JSON（禁止输出 JSON 以外的任何文字）：
+{"worthContributing":true/false,"title":"建议的案例标题","type":"故障案例|点检异常|检修技巧|安全规程","equipment":"设备名称","summary":"一句话摘要","solution":"核心解决方案要点"}
+worthContributing=false 时其他字段全部为空字符串。`;
+
+    const userPrompt = `【工程师与AI的对话内容】
+【用户输入/提问】:
+${lastUserMessage}
+
+【AI回复内容】:
+${lastAiReply}
+${equipment ? `\n【现场关联设备】: ${equipment}` : ""}`;
+
+    let suggestion: any = {
+      worthContributing: false,
+      title: "",
+      type: "",
+      equipment: "",
+      summary: "",
+      solution: "",
+    };
+
+    if (ai) {
+      try {
+        const response = await ai.chat.completions.create({
+          model: DASHSCOPE_CHAT_MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.2,
+        });
+
+        const rawText = response.choices?.[0]?.message?.content?.trim() || "";
+        const parsed = extractAiJson(rawText);
+        if (parsed && typeof parsed.worthContributing === "boolean") {
+          suggestion = {
+            worthContributing: Boolean(parsed.worthContributing),
+            title: String(parsed.title || "").trim(),
+            type: String(parsed.type || "故障案例").trim(),
+            equipment: String(parsed.equipment || equipment || "").trim(),
+            summary: String(parsed.summary || "").trim(),
+            solution: String(parsed.solution || "").trim(),
+          };
+        }
+      } catch (aiErr: any) {
+        console.error("Suggest contribution AI error:", aiErr?.message || aiErr);
+      }
+    }
+
+    // 在 suggest-contribution 返回 worthContributing=true 时，把建议落库一行（status=pending）
+    if (suggestion.worthContributing) {
+      try {
+        const db = await getDb();
+        const id = `kc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const chatId = `chat-${Date.now()}`;
+        const contributor = req.currentUser?.name || "AI智能问答自进化";
+        await db.query(
+          `INSERT INTO ai_knowledge_contributions (id, chat_id, title, type, equipment, summary, solution, contributor, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')`,
+          [
+            id,
+            chatId,
+            suggestion.title || "工业检修排查案例",
+            suggestion.type || "故障案例",
+            suggestion.equipment || equipment || "通用设备",
+            suggestion.summary || "",
+            suggestion.solution || "",
+            contributor,
+          ]
+        );
+        suggestion.id = id;
+        suggestion.chatId = chatId;
+      } catch (dbErr: any) {
+        console.error("Save suggestion to DB error:", dbErr?.message || dbErr);
+      }
+    }
+
+    return res.json({
+      success: true,
+      suggestion,
+    });
+  } catch (err: any) {
+    console.error("Suggest contribution handler error:", err);
+    return res.json({
+      success: true,
+      suggestion: {
+        worthContributing: false,
+        title: "",
+        type: "",
+        equipment: "",
+        summary: "",
+        solution: "",
+      },
+    });
+  }
+}

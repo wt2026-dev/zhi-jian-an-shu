@@ -58,21 +58,12 @@ export function registerKnowledgeRoutes(app: express.Express) {
   // ==================== 16.2 知识自进化贡献管理 (Knowledge Contributions) ====================
   // 用户提交沉淀案例（需登录态）
   app.post("/api/v1/ai/contributions", requireAuth, validateBody(submitContributionSchema), handleCreateContribution);
-  app.post("/api/ai/contributions", requireAuth, validateBody(submitContributionSchema), (req: any, res: any) => {
-    return (app as any)._router.handle({ ...req, url: "/api/v1/ai/contributions" }, res);
-  });
 
   // 管理端查看知识贡献列表 (列 pending)
   app.get("/api/v1/ai/contributions", requireAuth, requireRole(["admin"], "查看知识贡献审核列表"), handleListContributions);
-  app.get("/api/ai/contributions", requireAuth, requireRole(["admin"], "查看知识贡献审核列表"), (req: any, res: any) => {
-    return (app as any)._router.handle({ ...req, url: "/api/v1/ai/contributions" }, res);
-  });
 
   // 管理端采纳知识贡献 (采纳→写入 knowledge_articles 表，字段对齐)
   app.post("/api/v1/ai/contributions/:id/adopt", requireAuth, requireRole(["admin"], "采纳知识贡献"), handleAdoptContribution);
-  app.post("/api/ai/contributions/:id/adopt", requireAuth, requireRole(["admin"], "采纳知识贡献"), (req: any, res: any) => {
-    return (app as any)._router.handle({ ...req, url: `/api/v1/ai/contributions/${req.params.id}/adopt` }, res);
-  });
 
   // ==================== AI 生成内容审核台（管理端，仅管理员） ====================
   app.get("/api/v1/admin/ai-reviews", requireAuth, requireRole(["admin"], "查看 AI 生成内容审核列表"), handleListAiReviews);

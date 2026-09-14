@@ -79,7 +79,7 @@ docker compose up -d
 
 > 包管理器统一使用 **npm**（Dockerfile 与 CI 均为 `npm ci`），禁止混用 bun/pnpm/yarn，
 > 以唯一锁文件 `package-lock.json` 为准，避免依赖不一致。
-> 测试基线：**26 个测试文件 / 173 个用例全绿**（`npm test`），类型检查 `npm run lint` 零错误。
+> 测试基线：**29 个测试文件 / 193 个用例全绿**（`npm test`），类型检查 `npm run lint` 零错误。
 
 ```bash
 npm run dev          # 开发模式
@@ -125,4 +125,4 @@ src/utils/logger.ts     # pino 日志（控制台 + 文件轮转）
 scripts/                # 备份/恢复脚本
 ```
 
-> 说明：`backend/`（早期 Python 原型，已由 Node.js 实现替代，2026-09 移除）。
+> 说明：`backend/`（早期 Python 原型，已由 Node.js 实现替代，2026-09 移除）；历史兼容层 `/api/ai/*` 已全部迁移至版本化 `/api/v1/ai/*` 命名空间，相关遗留文件正式下线退役。

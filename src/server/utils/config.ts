@@ -39,6 +39,10 @@ export const XINGYUN_BASE_URL = process.env.XINGYUN_BASE_URL || "https://api.xin
 export const WECHAT_APP_ID = process.env.WECHAT_APP_ID || "";
 export const WECHAT_APP_SECRET = process.env.WECHAT_APP_SECRET || "";
 
+// ==================== AI 预算控制 ====================
+export function isAiBudgetEnabled(): boolean { return process.env.AI_BUDGET_ENABLED === "true"; }
+export function getAiDailyBudget(): number { return Math.max(1, parseInt(process.env.AI_DAILY_BUDGET || "100000", 10) || 100000); }
+
 // ==================== 阿里云百炼 (DashScope) 大模型客户端 (OpenAI 兼容模式) ====================
 export const DASHSCOPE_CHAT_MODEL = process.env.DASHSCOPE_MODEL || "qwen-plus";
 export const DASHSCOPE_VISION_MODEL = process.env.DASHSCOPE_VISION_MODEL || "qwen-vl-max";

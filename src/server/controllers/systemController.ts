@@ -144,6 +144,134 @@ export async function handleAdminMetrics(_req: any, res: any) {
   });
 }
 
+// ==================== 运营指标（5 类核心指标，从已有表聚合） ====================
+export async function handleAdminOperationalMetrics(_req: any, res: any) {
+  try {
+    const db = await getDb();
+
+    // 逐个查询（PGlite 不支持并发查询，但服务端环境下逐个查询可行）
+    const aiLogs = await db.query<{ id: string; created_at: string }>(
+      `SELECT id, created_at FROM ai_analysis_log ORDER BY created_at`
+    );
+    const woRes = await db.query<{
+      created_at: string; dispatched_at: string | null;
+      completed_at: string | null; accepted_by_inspector_at: string | null;
+    }>(
+      `SELECT created_at, dispatched_at, completed_at, accepted_by_inspector_at
+       FROM work_orders WHERE created_at IS NOT NULL`
+    );
+    const kcRes = await db.query<{ id: string }>(`SELECT id FROM ai_knowledge_contributions`);
+    const permits = await db.query<{
+      id: string; valid_until: string | null; closed_at: string | null;
+      precautions: any; hazards: any; safety_checklist: any;
+      guardian_approval: any; supervisor_approval: any;
+    }>(
+      `SELECT id, valid_until, closed_at,
+              precautions, hazards, safety_checklist,
+              guardian_approval, "supervisorApproval" as supervisor_approval
+       FROM safety_permits`
+    );
+    const feedback = await db.query<{ status: string }>(`SELECT status FROM ai_feedback`);
+    const reviews = await db.query<{ status: string }>(`SELECT status FROM ai_generation_reviews`);
+    const audit = await db.query<{ status: string; action_type: string }>(
+      `SELECT status, action_type FROM audit_logs`
+    );
+
+    // ===== A. AI 采纳率 =====
+    const totalAiCalls = aiLogs.rows.length;
+    const allWO = woRes.rows;
+    const totalContributions = kcRes.rows.length;
+    const aiWithWO = aiLogs.rows.filter((log) => {
+      const t = new Date(log.created_at).getTime();
+      return allWO.some((wo) => {
+        const wt = new Date(wo.created_at).getTime();
+        return wt >= t && wt <= t + 7 * 24 * 3600 * 1000;
+      });
+    }).length;
+
+    // ===== B. 工单效率 =====
+    const seg1: number[] = [], seg2: number[] = [], seg3: number[] = [];
+    for (const wo of allWO) {
+      if (wo.dispatched_at) {
+        const h = (new Date(wo.dispatched_at).getTime() - new Date(wo.created_at).getTime()) / 3600000;
+        if (h >= 0) seg1.push(h);
+      }
+      if (wo.completed_at && wo.dispatched_at) {
+        const h = (new Date(wo.completed_at).getTime() - new Date(wo.dispatched_at).getTime()) / 3600000;
+        if (h >= 0) seg2.push(h);
+      }
+      if (wo.accepted_by_inspector_at && wo.completed_at) {
+        const h = (new Date(wo.accepted_by_inspector_at).getTime() - new Date(wo.completed_at).getTime()) / 3600000;
+        if (h >= 0) seg3.push(h);
+      }
+    }
+    seg1.sort((a, b) => a - b); seg2.sort((a, b) => a - b); seg3.sort((a, b) => a - b);
+    const pctl = (s: number[], p: number) => {
+      if (!s.length) return 0;
+      return s[Math.min(s.length - 1, Math.floor(s.length * p / 100))];
+    };
+
+    // ===== C. 安全合规 =====
+    let fc = 0, od = 0, ds = 0;
+    const now = new Date();
+    for (const p of permits.rows) {
+      if ((Array.isArray(p.precautions) && p.precautions.length > 0) &&
+          (Array.isArray(p.hazards) && p.hazards.length > 0) &&
+          (Array.isArray(p.safety_checklist) && p.safety_checklist.length > 0)) fc++;
+      if (p.valid_until && !p.closed_at && now > new Date(p.valid_until)) od++;
+      const ga = p.guardian_approval as any, sa = p.supervisor_approval as any;
+      if (ga?.signed === true && sa?.signed === true) ds++;
+    }
+
+    // ===== D. AI 质量 =====
+    const fbAdopted = feedback.rows.filter((r) => r.status === "adopted").length;
+    const rvRejected = reviews.rows.filter((r) => r.status === "rejected").length;
+
+    // ===== E. 系统可靠性 =====
+    const totalAudit = audit.rows.length;
+    const failed = audit.rows.filter((r) => r.status === "FAILED").length;
+    const blocked = audit.rows.filter((r) => r.status === "BLOCKED").length;
+    const rl = audit.rows.filter((r) => r.action_type.includes("RATE_LIMIT") || r.action_type === "RBAC_ACCESS_DENIED").length;
+
+    const pct = (a: number, b: number) => b > 0 ? +((a / b) * 100).toFixed(1) : 0;
+
+    res.json({
+      generated_at: new Date().toISOString(),
+      ai_adoption: {
+        total_ai_calls: totalAiCalls,
+        ai_with_work_order: aiWithWO,
+        total_contributions: totalContributions,
+        adoption_rate_pct: pct(aiWithWO + totalContributions, totalAiCalls),
+      },
+      wo_efficiency: {
+        created_to_dispatched: { p50: +pctl(seg1, 50).toFixed(1), p90: +pctl(seg1, 90).toFixed(1), count: seg1.length },
+        dispatched_to_completed: { p50: +pctl(seg2, 50).toFixed(1), p90: +pctl(seg2, 90).toFixed(1), count: seg2.length },
+        completed_to_accepted: { p50: +pctl(seg3, 50).toFixed(1), p90: +pctl(seg3, 90).toFixed(1), count: seg3.length },
+      },
+      safety: {
+        total_permits: permits.rows.length, field_complete: fc, overdue: od, dual_signoff: ds,
+        field_completeness_rate: pct(fc, permits.rows.length || 1),
+        overdue_rate: pct(od, permits.rows.length || 1),
+        dual_signoff_rate: pct(ds, permits.rows.length || 1),
+      },
+      ai_quality: {
+        total_feedback: feedback.rows.length, adopted: fbAdopted,
+        total_reviews: reviews.rows.length, rejected: rvRejected,
+        approval_rate: pct(fbAdopted, feedback.rows.length),
+        rejection_rate: pct(rvRejected, reviews.rows.length),
+      },
+      system: {
+        total_audit: totalAudit, failed, blocked, rate_limited: rl,
+        error_rate: pct(failed, totalAudit),
+        blocked_rate: pct(blocked, totalAudit),
+      },
+    });
+  } catch (err) {
+    console.error("[Metrics] 运营指标查询失败:", err);
+    res.status(500).json({ error: "运营指标查询失败" });
+  }
+}
+
 // API 文档（Swagger UI）
 export function handleApiDocsJson(_req: any, res: any) {
   res.json(buildOpenApiSpec());

@@ -12,8 +12,11 @@ import {
   ShieldCheck,
   Sparkles,
   XCircle,
+  Database,
+  History,
+  AlertTriangle,
 } from 'lucide-react';
-import { adminAiReviewApi, AiGenerationReview } from '../api';
+import { adminAiReviewApi, AiGenerationReview, AiAnalysisTraceLog } from '../api';
 
 const SOURCE_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   maintenance_plan: { label: '检修方案', icon: WrenchIcon },
@@ -175,6 +178,7 @@ function renderContent(value: any, depth = 0): React.ReactNode {
 }
 
 export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNavigate }) => {
+  const [mainTab, setMainTab] = useState<'reviews' | 'traceability'>('reviews');
   const [reviews, setReviews] = useState<AiGenerationReview[]>([]);
   const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
   const [counts, setCounts] = useState({
@@ -189,6 +193,24 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
   const [rejectNote, setRejectNote] = useState('');
   const [acting, setActing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 版本追溯日志相关状态
+  const [traceLogs, setTraceLogs] = useState<AiAnalysisTraceLog[]>([]);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [modelFilter, setModelFilter] = useState<string>('all');
+  const [traceDetail, setTraceDetail] = useState<AiAnalysisTraceLog | null>(null);
+
+  const fetchTraceLogs = async (model?: string) => {
+    setTraceLoading(true);
+    try {
+      const logs = await adminAiReviewApi.listTraceLogs(model && model !== 'all' ? model : undefined);
+      setTraceLogs(logs || []);
+    } catch (e: any) {
+      setError(e?.data?.message || e?.message || '获取追溯日志失败');
+    } finally {
+      setTraceLoading(false);
+    }
+  };
 
   const fetchCounts = async () => {
     try {
@@ -223,9 +245,13 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
   }, []);
 
   useEffect(() => {
-    fetchList();
+    if (mainTab === 'reviews') {
+      fetchList();
+    } else {
+      fetchTraceLogs(modelFilter);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+  }, [statusFilter, mainTab, modelFilter]);
 
   const handleApprove = async (id: string) => {
     setActing(true);
@@ -268,112 +294,187 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
           <div>
             <h1 className="text-xl font-bold text-slate-900 flex items-center">
               <ScanSearch className="w-5 h-5 mr-2 text-blue-600" />
-              AI 生成内容审核台
+              AI 生成内容审核与追溯台
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              AI 生成的检修方案 / 风险评估 / 报告在正式使用前需管理员审核；支持知识库溯源
+              AI 检修方案/风险评估审核准入 · 全链路模型版本、提示词版本与输入摘要追溯
             </p>
           </div>
-          <div className="flex items-center space-x-1.5">
-            {(['pending', 'approved', 'rejected', 'all'] as const).map((s) => (
+          <div className="flex items-center space-x-2">
+            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                  statusFilter === s
-                    ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold'
-                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+                onClick={() => setMainTab('reviews')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                  mainTab === 'reviews'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {s === 'pending' ? '待审核' : s === 'approved' ? '已通过' : s === 'rejected' ? '已驳回' : '全部'}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 4 个统计卡（可点切换筛选） */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        {STAT_CARDS.map((card) => {
-          const Icon = card.icon;
-          const isSelected = statusFilter === card.key;
-          const count = counts[card.key];
-          return (
-            <div
-              key={card.key}
-              onClick={() => setStatusFilter(card.key)}
-              className={`glass-card p-4 shadow-xs border transition-all cursor-pointer select-none relative overflow-hidden ${
-                isSelected
-                  ? card.activeCls
-                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className={`p-2 rounded-lg ${card.iconBg}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${card.badgeCls}`}>
-                  {count} 条
-                </span>
-              </div>
-              <div className="mt-1">
-                <span className="text-xs font-bold text-slate-700">{card.label}</span>
-                <div className={`text-2xl font-extrabold font-mono tracking-tight mt-0.5 ${card.countCls}`}>
-                  {count}
-                </div>
-              </div>
-              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-                <span>{card.desc}</span>
-                {isSelected && (
-                  <span className="font-semibold text-blue-600">当前筛选</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>生成审核准入</span>
+                {counts.pending > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px]">
+                    {counts.pending}
+                  </span>
                 )}
-              </div>
+              </button>
+              <button
+                onClick={() => setMainTab('traceability')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                  mainTab === 'traceability'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Database className="w-3.5 h-3.5 text-indigo-600" />
+                <span>版本与输入追溯日志</span>
+              </button>
             </div>
-          );
-        })}
+
+            {mainTab === 'reviews' && (
+              <div className="flex items-center space-x-1.5 border-l border-slate-200 pl-2">
+                {(['pending', 'approved', 'rejected', 'all'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                      statusFilter === s
+                        ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold'
+                        : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {s === 'pending' ? '待审核' : s === 'approved' ? '已通过' : s === 'rejected' ? '已驳回' : '全部'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* 审核流程说明条 */}
-      <div className="glass-card p-4 shadow-sm mb-4 border border-blue-100/70 bg-gradient-to-r from-blue-50/20 via-white/50 to-indigo-50/20">
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 flex-wrap gap-2">
-          <div className="flex items-center space-x-2">
-            <div className="p-1 rounded-md bg-blue-100 text-blue-700">
-              <GitBranch className="w-3.5 h-3.5" />
-            </div>
-            <h2 className="text-xs font-bold text-slate-800">AI 生成内容全生命周期审核流程</h2>
-          </div>
-          <span className="text-[10px] text-slate-500 font-medium">人机协同 · 双重核验 · 知识库溯源</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 relative">
-          {REVIEW_PROCESS_STEPS.map((step, idx) => {
-            const Icon = step.icon;
-            return (
-              <div
-                key={step.step}
-                className="p-3 rounded-xl border border-slate-200 bg-white/90 relative flex flex-col justify-between shadow-xs"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
-                      步骤 {step.step}
+      {mainTab === 'reviews' ? (
+        <>
+          {/* 4 个统计卡（可点切换筛选） */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            {STAT_CARDS.map((card) => {
+              const Icon = card.icon;
+              const isSelected = statusFilter === card.key;
+              const count = counts[card.key];
+              return (
+                <div
+                  key={card.key}
+                  onClick={() => setStatusFilter(card.key)}
+                  className={`glass-card p-4 shadow-xs border transition-all cursor-pointer select-none relative overflow-hidden ${
+                    isSelected
+                      ? card.activeCls
+                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`p-2 rounded-lg ${card.iconBg}`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${card.badgeCls}`}>
+                      {count} 条
                     </span>
-                    <div className={`p-1 rounded-md ${step.bg}`}>
-                      <Icon className={`w-3.5 h-3.5 ${step.color}`} />
+                  </div>
+                  <div className="mt-1">
+                    <span className="text-xs font-bold text-slate-700">{card.label}</span>
+                    <div className={`text-2xl font-extrabold font-mono tracking-tight mt-0.5 ${card.countCls}`}>
+                      {count}
                     </div>
                   </div>
-                  <div className="font-bold text-xs text-slate-800">{step.title}</div>
-                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{step.desc}</p>
-                </div>
-                {idx < REVIEW_PROCESS_STEPS.length - 1 && (
-                  <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-5 h-5 rounded-full bg-white border border-slate-200 shadow-xs items-center justify-center text-slate-400">
-                    <ArrowRight className="w-2.5 h-2.5" />
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                    <span>{card.desc}</span>
+                    {isSelected && (
+                      <span className="font-semibold text-blue-600">当前筛选</span>
+                    )}
                   </div>
-                )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 审核流程说明条 */}
+          <div className="glass-card p-4 shadow-sm mb-4 border border-blue-100/70 bg-gradient-to-r from-blue-50/20 via-white/50 to-indigo-50/20">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 flex-wrap gap-2">
+              <div className="flex items-center space-x-2">
+                <div className="p-1 rounded-md bg-blue-100 text-blue-700">
+                  <GitBranch className="w-3.5 h-3.5" />
+                </div>
+                <h2 className="text-xs font-bold text-slate-800">AI 生成内容全生命周期审核流程</h2>
               </div>
-            );
-          })}
+              <span className="text-[10px] text-slate-500 font-medium">人机协同 · 双重核验 · 知识库溯源</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 relative">
+              {REVIEW_PROCESS_STEPS.map((step, idx) => {
+                const Icon = step.icon;
+                return (
+                  <div
+                    key={step.step}
+                    className="p-3 rounded-xl border border-slate-200 bg-white/90 relative flex flex-col justify-between shadow-xs"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
+                          步骤 {step.step}
+                        </span>
+                        <div className={`p-1 rounded-md ${step.bg}`}>
+                          <Icon className={`w-3.5 h-3.5 ${step.color}`} />
+                        </div>
+                      </div>
+                      <div className="font-bold text-xs text-slate-800">{step.title}</div>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{step.desc}</p>
+                    </div>
+                    {idx < REVIEW_PROCESS_STEPS.length - 1 && (
+                      <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-5 h-5 rounded-full bg-white border border-slate-200 shadow-xs items-center justify-center text-slate-400">
+                        <ArrowRight className="w-2.5 h-2.5" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ) : (
+        /* 版本与输入追溯控制栏 */
+        <div className="glass-card p-4 shadow-sm mb-4 border border-indigo-100 bg-gradient-to-r from-indigo-50/20 via-white/50 to-purple-50/20">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
+                <History className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-800">全链路 AI 调用追溯审计 (ai_analysis_log)</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  精确定位每次调用所用的模型名称、提示词版本 (PROMPT_VERSIONS)、输入摘要及审核流转状态
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-slate-500 font-medium">模型过滤:</span>
+              <select
+                value={modelFilter}
+                onChange={(e) => setModelFilter(e.target.value)}
+                className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="all">全部模型 / 降级</option>
+                <option value="qwen-plus">qwen-plus</option>
+                <option value="qwen-turbo">qwen-turbo</option>
+                <option value="qwen-vl-plus">qwen-vl-plus</option>
+                <option value="legacy">legacy (历史记录)</option>
+              </select>
+              <button
+                onClick={() => fetchTraceLogs(modelFilter)}
+                className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold rounded-lg cursor-pointer transition-colors"
+              >
+                刷新日志
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {error && (
         <p className="mb-3 text-xs text-rose-600 flex items-center">
@@ -382,8 +483,9 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
         </p>
       )}
 
-      {/* 审核列表 */}
-      <div className="glass-card p-4 shadow-sm">
+      {mainTab === 'reviews' ? (
+        /* 审核列表 */
+        <div className="glass-card p-4 shadow-sm">
         {loading ? (
           <div className="py-12 flex flex-col items-center text-slate-400 text-xs">
             <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-2" />
@@ -569,6 +671,168 @@ export const AdminAiReviewsView: React.FC<AdminAiReviewsViewProps> = ({ onNaviga
           </div>
         )}
       </div>
+      ) : (
+        /* 追溯审计日志列表 */
+        <div className="glass-card p-4 shadow-sm">
+          {traceLoading ? (
+            <div className="py-12 flex flex-col items-center text-slate-400 text-xs">
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-500 mb-2" />
+              加载追溯审计记录…
+            </div>
+          ) : traceLogs.length === 0 ? (
+            <div className="py-10 px-4 text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+                <Database className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 mb-1">暂无追溯审计日志</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                当调用故障诊断向导、检修方案或作业票风险评估时，系统会自动在此沉淀包含模型版本、提示词版本与输入摘要的追溯日志。
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pb-1">
+                <span>共记录 {traceLogs.length} 次 AI 调用</span>
+                <span>包含提示词版本与入参摘要</span>
+              </div>
+              {traceLogs.map((log) => (
+                <div
+                  key={log.id}
+                  onClick={() => setTraceDetail(log)}
+                  className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-mono font-bold">
+                          {log.model || 'legacy'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-mono font-bold">
+                          Prompt: {log.promptVersion || 'legacy'}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-mono">
+                          审核: {log.reviewStatus || 'legacy'}
+                        </span>
+                        {log.safetyNotice?.required && (
+                          <span className="px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-bold flex items-center">
+                            <AlertTriangle className="w-3 h-3 mr-1 text-rose-500" />
+                            高危复核要求
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-slate-800 font-medium">
+                        <span className="text-slate-400 mr-1.5 font-normal">输入摘要:</span>
+                        {log.inputDigest || log.question || '无输入摘要'}
+                      </div>
+
+                      <div className="text-[10px] text-slate-400 font-mono flex items-center gap-3">
+                        <span>设备/对象: {log.deviceModel || '未指定'}</span>
+                        <span>{new Date(log.createdAt).toLocaleString('zh-CN')}</span>
+                        <span>ID: {log.id}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="px-2.5 py-1 text-[11px] text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg shrink-0 font-medium cursor-pointer"
+                    >
+                      查看明细
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 追溯日志详情抽屉 */}
+      {traceDetail && (
+        <div
+          className="fixed inset-0 z-[90] flex justify-end bg-slate-900/40 backdrop-blur-sm"
+          onClick={() => setTraceDetail(null)}
+        >
+          <aside
+            className="h-full w-full max-w-lg bg-white shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center">
+                  <Database className="w-4 h-4 mr-1.5 text-indigo-600" />
+                  AI 调用追溯明细
+                </h3>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5">{traceDetail.id}</p>
+              </div>
+              <button
+                onClick={() => setTraceDetail(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* 四要素卡片 */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-medium">调用模型 (model)</span>
+                  <span className="font-bold text-slate-800 font-mono mt-0.5 block">{traceDetail.model}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-medium">提示词版本 (promptVersion)</span>
+                  <span className="font-bold text-purple-700 font-mono mt-0.5 block">{traceDetail.promptVersion}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-medium">审核状态 (reviewStatus)</span>
+                  <span className="font-bold text-indigo-700 font-mono mt-0.5 block">{traceDetail.reviewStatus}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-medium">调用时间 (createdAt)</span>
+                  <span className="font-mono text-slate-700 text-[11px] mt-0.5 block">
+                    {new Date(traceDetail.createdAt).toLocaleString('zh-CN')}
+                  </span>
+                </div>
+              </div>
+
+              {/* 高危安全边界 */}
+              {traceDetail.safetyNotice?.required && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs space-y-1">
+                  <div className="flex items-center text-rose-700 font-bold">
+                    <AlertTriangle className="w-4 h-4 mr-1 text-rose-600" />
+                    <span>工业安全警示 (safetyNotice)</span>
+                  </div>
+                  <p className="text-rose-700 leading-relaxed">{traceDetail.safetyNotice.reason}</p>
+                  <p className="text-[10px] text-rose-500">
+                    要求强制确认: {traceDetail.safetyNotice.requiresConfirmation ? '是 (需持证复核并勾选承诺)' : '否'}
+                  </p>
+                </div>
+              )}
+
+              {/* 输入摘要 */}
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                  输入摘要 (inputDigest)
+                </p>
+                <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-800 leading-relaxed">
+                  {traceDetail.inputDigest || traceDetail.question || '无'}
+                </div>
+              </div>
+
+              {/* 原始结果快照 */}
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                  返回结果与元数据 (result)
+                </p>
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70">
+                  {renderContent(traceDetail.result)}
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* 详情抽屉 */}
       {detail && (

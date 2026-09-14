@@ -8,9 +8,10 @@ import { requireAuth } from "../middleware/auth.ts";
 import { validateBody } from "../middleware/validate.ts";
 import { generateWorkOrderAiSchema, rootCauseAnalysisSchema, generateMaintenancePlanSchema } from "../schemas/ai.ts";
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
-import { EquipmentRepository, WorkOrderRepository } from "../../db/repositories/index.ts";
-import { runMaintenancePlanCore } from "../services/aiCapabilityService.ts";
+import { EquipmentRepository, WorkOrderRepository, AiAnalysisLogRepository } from "../../db/repositories/index.ts";
+import { runMaintenancePlanCore, runFaultDiagnosisCore } from "../services/aiCapabilityService.ts";
 import { createPendingAiReview } from "../services/aiReviewService.ts";
+import { detectSafetyNotice, getPromptVersion, createInputDigest, TraceabilityInfo } from "../services/promptVersion.ts";
 
 // ---------- 功能 1：智能工单生成 ----------
 export const handleGenerateWorkOrder = async (req: any, res: any) => {
@@ -194,9 +195,42 @@ export const handleGenerateMaintenancePlan = async (req: any, res: any) => {
     }
     // 核心逻辑抽取至 services/aiCapabilityService.runMaintenancePlanCore，此处保留缓存命中外的审计与 HTTP 语义
     const result = await runMaintenancePlanCore({ equipmentId, faultDescription, workOrderId });
+    const isDegraded = result.outcome === "degraded" || result.outcome === "unavailable" || !!result.body?.degraded;
+    const safetyNotice = detectSafetyNotice({
+      input: req.body,
+      output: result.body?.plan,
+      degraded: isDegraded,
+    });
+    const promptVersion = getPromptVersion("maintenance_plan");
+    const inputDigest = createInputDigest({
+      equipmentId,
+      equipmentName: eq.name,
+      equipmentCode: eq.code,
+      faultDescription,
+    });
+    const traceability: TraceabilityInfo = {
+      model: result.body?.model || DASHSCOPE_CHAT_MODEL,
+      promptVersion,
+      inputDigest,
+      reviewStatus: result.outcome === "success" ? "pending" : "not_required",
+    };
+
     if (result.outcome === "cache") {
-      return res.json(result.body);
+      return res.json({ ...result.body, safetyNotice, traceability });
     }
+
+    // 记录到 ai_analysis_log 追溯审计表
+    AiAnalysisLogRepository.recordAiCall({
+      endpoint: "/api/v1/ai/generate-maintenance-plan",
+      model: traceability.model,
+      promptVersion: traceability.promptVersion,
+      inputDigest: traceability.inputDigest,
+      deviceModel: eq.name,
+      reviewStatus: traceability.reviewStatus,
+      safetyNotice,
+      body: result.body,
+    }).catch((e) => console.warn("AiAnalysisLog record error:", e));
+
     if (result.outcome === "success") {
       addAuditLog(req, {
         actionType: "AI_GENERATE_MAINTENANCE_PLAN",
@@ -212,7 +246,7 @@ export const handleGenerateMaintenancePlan = async (req: any, res: any) => {
         content: result.body.plan,
         knowledgeSources: result.knowledgeSources,
       });
-      return res.json({ ...result.body, reviewId });
+      return res.json({ ...result.body, reviewId, safetyNotice, traceability });
     }
     if (result.outcome === "unavailable") {
       addAuditLog(req, {
@@ -222,7 +256,7 @@ export const handleGenerateMaintenancePlan = async (req: any, res: any) => {
         status: "FAILED",
         metadata: { degraded: true },
       });
-      return res.status(200).json(result.body);
+      return res.status(200).json({ ...result.body, safetyNotice, traceability });
     }
     // degraded：规则引擎降级结果
     addAuditLog(req, {
@@ -232,8 +266,55 @@ export const handleGenerateMaintenancePlan = async (req: any, res: any) => {
       status: "FAILED",
       metadata: { error: String(result.errorMessage).slice(0, 200) },
     });
-    return res.status(200).json(result.body);
+    return res.status(200).json({ ...result.body, safetyNotice, traceability });
   } catch (err: any) {
     return handleAiRouteError(res, err, "AI_GENERATE_MAINTENANCE_PLAN", req);
+  }
+};
+
+// ---------- 功能：智能故障诊断向导 (Fault Diagnosis Wizard, /api/v1/ai/diagnose) ----------
+export const handleAiDiagnose = async (req: any, res: any) => {
+  try {
+    const { equipmentName, equipmentCode, category, symptoms, telemetry, errorCodes } = req.body;
+    const result = await runFaultDiagnosisCore({ equipmentName, equipmentCode, category, symptoms, telemetry, errorCodes });
+
+    const isDegraded = result.outcome === "degraded" || result.outcome === "unavailable" || !!result.body?.degraded;
+    const safetyNotice = detectSafetyNotice({
+      input: req.body,
+      output: result.body?.diagnosis,
+      degraded: isDegraded,
+    });
+    const promptVersion = getPromptVersion("diagnose");
+    const inputDigest = createInputDigest(req.body);
+    const traceability: TraceabilityInfo = {
+      model: result.body?.model || DASHSCOPE_CHAT_MODEL,
+      promptVersion,
+      inputDigest,
+      reviewStatus: "not_required",
+    };
+
+    // 记录到 ai_analysis_log 追溯表
+    AiAnalysisLogRepository.recordAiCall({
+      endpoint: "/api/v1/ai/diagnose",
+      model: traceability.model,
+      promptVersion: traceability.promptVersion,
+      inputDigest: traceability.inputDigest,
+      deviceModel: equipmentName || equipmentCode || "工业设备",
+      reviewStatus: traceability.reviewStatus,
+      safetyNotice,
+      body: result.body,
+    }).catch((e) => console.warn("AiAnalysisLog record error:", e));
+
+    addAuditLog(req, {
+      actionType: "AI_DIAGNOSE",
+      module: "ai",
+      detail: `AI 故障诊断完成 (${equipmentName || equipmentCode || "未指定设备"})，结论: ${result.body?.diagnosis?.summary || "无"}`,
+      status: result.body?.success ? "SUCCESS" : "FAILED",
+      metadata: { equipmentName, equipmentCode, outcome: result.outcome },
+    });
+    return res.json({ ...result.body, safetyNotice, traceability });
+  } catch (error: any) {
+    console.error("Diagnose error:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };

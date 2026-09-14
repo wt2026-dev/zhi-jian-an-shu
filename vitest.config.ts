@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
+    // 后端 API 用例保持 node；*.test.tsx 通过文件头 `// @vitest-environment jsdom` 启用 DOM。
+    // 全局不可改为 jsdom，否则 PGlite/Express 套件会被浏览器全局污染。
     environment: "node",
     testTimeout: 30000,
     hookTimeout: 30000,

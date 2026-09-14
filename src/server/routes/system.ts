@@ -11,6 +11,7 @@ import {
   handleAdminAiCacheClear,
   handleHealthDetail,
   handleAdminMetrics,
+  handleAdminOperationalMetrics,
   handleApiDocsJson,
   handleApiHealth,
   handleDigitalHumanStatus,
@@ -36,6 +37,9 @@ export function registerSystemRoutes(app: express.Express) {
   app.get("/health/detail", handleHealthDetail);
 
   app.get("/api/v1/admin/metrics", requireRole(["admin"], "查询性能与业务指标"), handleAdminMetrics);
+
+  // 运营指标（AI 采纳率、工单效率、安全合规、AI 质量、系统可靠性）
+  app.get("/api/v1/admin/metrics/operational", requireRole(["admin"], "查询运营指标"), handleAdminOperationalMetrics);
 
   // ==================== API 文档（Swagger UI） ====================
   app.get("/api-docs.json", handleApiDocsJson);

@@ -45,7 +45,7 @@ export async function handleLogin(req: any, res: any) {
   if (user && user.password) {
     if (user.password.startsWith("$2a$") || user.password.startsWith("$2b$") || user.password.startsWith("$2y$")) {
       isPasswordValid = await bcrypt.compare(password, user.password);
-      // 测试环境向后兼容：当 NODE_ENV===test 时若既有测试用例使用旧默认密码 password123 则平滑放行，确保既有 173 个用例 0 回归
+      // 测试环境向后兼容：当 NODE_ENV===test 时若既有测试用例使用旧默认密码 password123 则平滑放行，确保既有全量测试用例 0 回归
       if (!isPasswordValid && process.env.NODE_ENV === "test" && password === "password123") {
         isPasswordValid = true;
       }

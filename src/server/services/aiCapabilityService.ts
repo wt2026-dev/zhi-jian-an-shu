@@ -31,7 +31,7 @@ function failedBody(err: any) {
   };
 }
 
-// ==================== 能力 1：智能故障诊断（原 /api/ai/diagnose 核心逻辑） ====================
+// ==================== 能力 1：智能故障诊断（/api/v1/ai/diagnose 核心逻辑） ====================
 
 export async function runFaultDiagnosisCore(input: {
   equipmentName?: string;

@@ -65,7 +65,7 @@ describe("AI 降级路径契约验证（故障诊断）", () => {
   for (const sample of FAULT_SAMPLES) {
     it(`[诊断] ${sample.name}：降级响应字段完整、无编造实证措辞`, async () => {
       const res = await request(app)
-        .post("/api/ai/diagnose")
+        .post("/api/v1/ai/diagnose")
         .set("Authorization", `Bearer ${adminToken}`)
         .send({
           equipmentName: sample.equipmentName,

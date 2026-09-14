@@ -65,6 +65,8 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
   const [historyData, setHistoryData] = useState<TelemetrySample[]>([]);
   const [loadingTelemetry, setLoadingTelemetry] = useState<boolean>(false);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiSafetyNotice, setAiSafetyNotice] = useState<any | null>(null);
+  const [aiDiagTraceability, setAiDiagTraceability] = useState<any | null>(null);
 
   // AI 健康趋势预测状态 (功能 4)
   const [forecastState, setForecastState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; data?: AiHealthForecast | null }>({ open: false, loading: false, error: null });
@@ -253,8 +255,10 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
   const runAiAnalysis = async () => {
     setAiAnalyzing(true);
     setAiAnalysisResult(null);
+    setAiSafetyNotice(null);
+    setAiDiagTraceability(null);
     try {
-      const res = await fetch('/api/ai/diagnose', {
+      const res = await fetch('/api/v1/ai/diagnose', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -270,6 +274,8 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
       });
       const data = await res.json();
       if (data.success && data.diagnosis) {
+        setAiSafetyNotice(data.safetyNotice || null);
+        setAiDiagTraceability(data.traceability || null);
         setAiAnalysisResult(
           `【AI 研判结论】${data.diagnosis.summary}\n【紧急程度】${data.diagnosis.severity} (风险分值 ${data.diagnosis.urgencyScore})\n【首要原因】${data.diagnosis.probableCauses?.[0]?.cause || '轴承与对中磨损'}\n【建议措施】${data.diagnosis.recommendedActions?.[0]?.action || '停机检查'}`
         );
@@ -517,14 +523,52 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
         <div className="lg:col-span-3 space-y-6">
           {/* AI Live Insight Banner */}
           {aiAnalysisResult && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-900 space-y-1 animate-in fade-in duration-200 shadow-xs">
-              <div className="flex items-center space-x-1.5 font-bold text-blue-700">
-                <Sparkles className="w-4 h-4 text-blue-600" />
-                <span>DashScope 通义千问工业诊断引擎即时分析报告</span>
+            <div className="space-y-2 animate-in fade-in duration-200">
+              {/* 元数据 Badge */}
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] text-slate-600">
+                <div className="flex items-center space-x-2">
+                  <span className="font-semibold text-slate-700">来源模型:</span>
+                  <span className="font-mono text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                    {aiDiagTraceability?.model || 'DashScope qwen-plus'}
+                  </span>
+                  <span className="font-semibold text-slate-700">Prompt:</span>
+                  <span className="font-mono text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                    {aiDiagTraceability?.promptVersion || 'v2.1.0'}
+                  </span>
+                </div>
+                <div>
+                  {aiSafetyNotice?.degraded ? (
+                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 font-bold">
+                      规则引擎降级兜底
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                      大模型正常输出
+                    </span>
+                  )}
+                </div>
               </div>
-              <pre className="whitespace-pre-wrap font-sans text-xs text-slate-700 leading-relaxed mt-1">
-                {aiAnalysisResult}
-              </pre>
+
+              {/* 红色安全警示条 */}
+              {aiSafetyNotice?.required && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-xs text-rose-900 space-y-1">
+                  <div className="flex items-center space-x-1.5 font-bold text-rose-800">
+                    <AlertTriangle className="w-4 h-4 text-rose-600" />
+                    <span>【工业高危安全警示】</span>
+                  </div>
+                  <p className="text-rose-700 leading-relaxed font-medium">{aiSafetyNotice.reason}</p>
+                </div>
+              )}
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-900 space-y-1 shadow-xs">
+                <div className="flex items-center space-x-1.5 font-bold text-blue-700">
+                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  <span>DashScope 通义千问工业诊断引擎即时分析报告</span>
+                </div>
+                <pre className="whitespace-pre-wrap font-sans text-xs text-slate-700 leading-relaxed mt-1">
+                  {aiAnalysisResult}
+                </pre>
+              </div>
             </div>
           )}
 

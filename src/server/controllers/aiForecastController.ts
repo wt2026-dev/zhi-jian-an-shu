@@ -8,9 +8,10 @@ import { requireAuth } from "../middleware/auth.ts";
 import { validateBody } from "../middleware/validate.ts";
 import { healthForecastSchema, generateReportSchema, safetyRiskAssessmentSchema } from "../schemas/ai.ts";
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
-import { EquipmentRepository, WorkOrderRepository, TelemetryRepository, InspectionRepository, SafetyPermitRepository } from "../../db/repositories/index.ts";
+import { EquipmentRepository, WorkOrderRepository, TelemetryRepository, InspectionRepository, SafetyPermitRepository, AiAnalysisLogRepository } from "../../db/repositories/index.ts";
 import { runSafetyRiskAssessmentCore } from "../services/aiCapabilityService.ts";
 import { createPendingAiReview } from "../services/aiReviewService.ts";
+import { detectSafetyNotice, getPromptVersion, createInputDigest, TraceabilityInfo } from "../services/promptVersion.ts";
 
 // ---------- 功能 4：设备健康趋势预测 ----------
 export const handleHealthForecast = async (req: any, res: any) => {
@@ -304,9 +305,43 @@ export const handleSafetyRiskAssessment = async (req: any, res: any) => {
     const { permitType, equipmentId, workDescription, location, hazards } = req.body;
     // 核心逻辑抽取至 services/aiCapabilityService.runSafetyRiskAssessmentCore，此处保留审计与 HTTP 语义
     const result = await runSafetyRiskAssessmentCore({ permitType, equipmentId, workDescription, location, hazards });
+    const isDegraded = result.outcome === "unavailable" || result.outcome === "failed" || !!result.body?.degraded;
+    const safetyNotice = detectSafetyNotice({
+      input: req.body,
+      output: result.body?.assessment,
+      degraded: isDegraded,
+    });
+    const promptVersion = getPromptVersion("safety_risk");
+    const inputDigest = createInputDigest({
+      permitType,
+      equipmentId,
+      workDescription,
+      location,
+      hazards,
+    });
+    const traceability: TraceabilityInfo = {
+      model: result.body?.model || DASHSCOPE_CHAT_MODEL,
+      promptVersion,
+      inputDigest,
+      reviewStatus: result.outcome === "success" ? "pending" : "not_required",
+    };
+
     if (result.outcome === "cache") {
-      return res.json(result.body);
+      return res.json({ ...result.body, safetyNotice, traceability });
     }
+
+    // 记录到 ai_analysis_log 追溯表
+    AiAnalysisLogRepository.recordAiCall({
+      endpoint: "/api/v1/ai/safety-risk-assessment",
+      model: traceability.model,
+      promptVersion: traceability.promptVersion,
+      inputDigest: traceability.inputDigest,
+      deviceModel: permitType || "高危作业",
+      reviewStatus: traceability.reviewStatus,
+      safetyNotice,
+      body: result.body,
+    }).catch((e) => console.warn("AiAnalysisLog record error:", e));
+
     if (result.outcome === "success") {
       addAuditLog(req, {
         actionType: "AI_SAFETY_RISK_ASSESSMENT",
@@ -322,7 +357,7 @@ export const handleSafetyRiskAssessment = async (req: any, res: any) => {
         content: result.body.assessment,
         knowledgeSources: result.knowledgeSources,
       });
-      return res.json({ ...result.body, reviewId });
+      return res.json({ ...result.body, reviewId, safetyNotice, traceability });
     }
     if (result.outcome === "unavailable") {
       addAuditLog(req, {
@@ -332,7 +367,7 @@ export const handleSafetyRiskAssessment = async (req: any, res: any) => {
         status: "FAILED",
         metadata: { degraded: true },
       });
-      return res.status(200).json(result.body);
+      return res.status(200).json({ ...result.body, safetyNotice, traceability });
     }
     // failed：无规则降级，返回统一失败响应
     addAuditLog(req, {
@@ -342,7 +377,7 @@ export const handleSafetyRiskAssessment = async (req: any, res: any) => {
       status: "FAILED",
       metadata: { error: String(result.errorMessage).slice(0, 200) },
     });
-    return res.status(200).json(result.body);
+    return res.status(200).json({ ...result.body, safetyNotice, traceability });
   } catch (err: any) {
     handleAiRouteError(res, err, "AI_SAFETY_RISK_ASSESSMENT", req);
   }
