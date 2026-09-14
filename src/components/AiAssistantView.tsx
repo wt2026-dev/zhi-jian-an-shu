@@ -199,6 +199,9 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   const [diagSymptoms, setDiagSymptoms] = useState('机组带载运行时轴承座伴随规律性低频轰鸣与剧烈振动');
   const [diagCategory, setDiagCategory] = useState('泵类设备');
   const [diagResult, setDiagResult] = useState<any | null>(null);
+  const [diagSafetyNotice, setDiagSafetyNotice] = useState<any | null>(null);
+  const [diagTraceability, setDiagTraceability] = useState<any | null>(null);
+  const [diagSafetyConfirmed, setDiagSafetyConfirmed] = useState(false);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagError, setDiagError] = useState<string | null>(null);
 
@@ -535,6 +538,9 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   const handleRunDiagnosis = async () => {
     setIsDiagnosing(true);
     setDiagResult(null);
+    setDiagSafetyNotice(null);
+    setDiagTraceability(null);
+    setDiagSafetyConfirmed(false);
     setDiagError(null);
 
     const targetEq = equipments.find((e) => e.id === diagEqId) || equipments[0];
@@ -558,6 +564,9 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
       const data = await res.json();
       if (data.success && data.diagnosis) {
         setDiagResult(data.diagnosis);
+        setDiagSafetyNotice(data.safetyNotice || null);
+        setDiagTraceability(data.traceability || null);
+        setDiagSafetyConfirmed(false);
       } else {
         throw new Error(data?.error || 'AI 诊断服务未返回有效结论');
       }
@@ -1244,6 +1253,65 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
             )}
             {diagResult ? (
               <div className="card-industrial bg-white border border-slate-200 rounded-lg p-6 space-y-5 shadow-sm animate-in fade-in duration-200 relative">
+                {/* 来源模型 + 版本 + 是否降级元数据栏 */}
+                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] text-slate-600 flex-wrap gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-semibold text-slate-700">来源模型:</span>
+                    <span className="font-mono text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                      {diagTraceability?.model || 'DashScope qwen-plus'}
+                    </span>
+                    <span className="font-semibold text-slate-700">Prompt:</span>
+                    <span className="font-mono text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                      {diagTraceability?.promptVersion || 'v2.1.0'}
+                    </span>
+                  </div>
+                  <div>
+                    {diagSafetyNotice?.degraded ? (
+                      <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 font-bold">
+                        规则引擎降级兜底
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                        大模型正常输出
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 工业高风险/降级安全红线警示条 + 强制勾选确认 */}
+                {diagSafetyNotice?.required && (
+                  <div className="p-4 rounded-xl bg-rose-50 border-2 border-rose-300 space-y-2.5 animate-in fade-in">
+                    <div className="flex items-start space-x-2">
+                      <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-bold text-rose-800 flex items-center">
+                          <span>【工业作业安全警示 · 需持证人员复核】</span>
+                          {diagSafetyNotice.riskTypes?.length > 0 && (
+                            <span className="ml-2 text-[10px] bg-rose-200/80 text-rose-900 px-1.5 py-0.2 rounded font-mono">
+                              {diagSafetyNotice.riskTypes.join(' · ')}
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-xs text-rose-700 mt-1 leading-relaxed font-medium">
+                          {diagSafetyNotice.reason}
+                        </p>
+                      </div>
+                    </div>
+
+                    {diagSafetyNotice.requiresConfirmation && (
+                      <label className="flex items-center space-x-2 pt-2 border-t border-rose-200 text-xs text-rose-900 cursor-pointer font-medium select-none">
+                        <input
+                          type="checkbox"
+                          checked={diagSafetyConfirmed}
+                          onChange={(e) => setDiagSafetyConfirmed(e.target.checked)}
+                          className="w-4 h-4 text-rose-600 border-rose-300 rounded focus:ring-rose-500 cursor-pointer"
+                        />
+                        <span>我已知悉此建议涉及高危作业，承诺在持证人员复核前绝不直接施工作业</span>
+                      </label>
+                    )}
+                  </div>
+                )}
+
                 {/* Result Title & Urgency */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
                   <div>
@@ -1306,6 +1374,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                   </span>
 
                   <button
+                    disabled={diagSafetyNotice?.required && diagSafetyNotice?.requiresConfirmation && !diagSafetyConfirmed}
                     onClick={() => {
                       onCreateWorkOrderFromAi(
                         `【AI诊断派单】${diagResult.equipmentName} 异常处置`,
@@ -1313,7 +1382,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                         `${diagResult.summary}\n建议措施: ${diagResult.recommendedActions?.[0]?.action}`
                       );
                     }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Wrench className="w-4 h-4" />
                     <span>采纳诊断结论直接发起工单</span>

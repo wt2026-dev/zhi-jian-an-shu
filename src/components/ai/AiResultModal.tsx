@@ -113,6 +113,22 @@ interface AiResultModalProps {
   /** AI 生成内容待管理员审核角标 */
   pendingReview?: boolean;
   data?: any;
+  /** 工业安全警示 */
+  safetyNotice?: {
+    required?: boolean;
+    level?: string;
+    reason?: string;
+    requiresConfirmation?: boolean;
+    riskTypes?: string[];
+    degraded?: boolean;
+  } | null;
+  /** 版本与模型追溯信息 */
+  traceability?: {
+    model?: string;
+    promptVersion?: string;
+    inputDigest?: string;
+    reviewStatus?: string;
+  } | null;
   onClose: () => void;
   footer?: React.ReactNode;
   /** 可选：空闲态 (未发起 AI 调用前) 展示的参数配置表单 */
@@ -127,11 +143,20 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
   degraded,
   pendingReview,
   data,
+  safetyNotice: propSafetyNotice,
+  traceability: propTraceability,
   onClose,
   footer,
   configForm,
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const [safetyConfirmed, setSafetyConfirmed] = React.useState(false);
+
+  // 自动从 data 中提取 safetyNotice 和 traceability（若未显式传入）
+  const effectiveSafetyNotice = propSafetyNotice || data?.safetyNotice || null;
+  const effectiveTraceability = propTraceability || data?.traceability || null;
+  const isDegraded = degraded || effectiveSafetyNotice?.degraded || data?.degraded;
+
   if (!open) return null;
 
   const handleCopy = async () => {
@@ -147,14 +172,14 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
       <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl shadow-cyan-950/40">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 shrink-0">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
             <div className="p-1.5 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-500">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <h3 className="text-sm font-bold text-slate-100">{title}</h3>
-            {degraded && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                AI 未配置 · 降级提示
+            {isDegraded && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold">
+                规则引擎兜底
               </span>
             )}
             {pendingReview && (
@@ -162,9 +187,9 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
                 待管理员审核
               </span>
             )}
-            {pendingReview && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold animate-pulse">
-                待管理员审核
+            {effectiveTraceability && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-mono">
+                {effectiveTraceability.model || 'model'} · {effectiveTraceability.promptVersion || 'v2.1.0'}
               </span>
             )}
           </div>
@@ -207,7 +232,45 @@ export const AiResultModal: React.FC<AiResultModalProps> = ({
           )}
 
           {!loading && !error && data && (
-            <div className="space-y-3">{renderAiObjectEntries(data, 0)}</div>
+            <div className="space-y-4">
+              {/* 高风险/规则兜底工业安全红线警示条 */}
+              {effectiveSafetyNotice?.required && (
+                <div className="p-4 rounded-xl bg-rose-950/60 border-2 border-rose-500/80 space-y-2.5 animate-in fade-in">
+                  <div className="flex items-start space-x-2.5">
+                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-bold text-rose-200">
+                          【工业安全警示 · 需持证人员复核】
+                        </span>
+                        {effectiveSafetyNotice.riskTypes?.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-900/80 border border-rose-700 text-rose-300 font-mono">
+                            {effectiveSafetyNotice.riskTypes.join(' · ')}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-rose-300 mt-1 leading-relaxed font-medium">
+                        {effectiveSafetyNotice.reason}
+                      </p>
+                    </div>
+                  </div>
+
+                  {effectiveSafetyNotice.requiresConfirmation && (
+                    <label className="flex items-center space-x-2 pt-2 border-t border-rose-800/80 text-xs text-rose-200 cursor-pointer select-none font-medium">
+                      <input
+                        type="checkbox"
+                        checked={safetyConfirmed}
+                        onChange={(e) => setSafetyConfirmed(e.target.checked)}
+                        className="w-4 h-4 text-rose-500 border-rose-400 rounded focus:ring-rose-400 bg-slate-900 cursor-pointer"
+                      />
+                      <span>我已知悉此建议涉及高危作业，承诺在持证人员复核前绝不直接施工作业</span>
+                    </label>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-3">{renderAiObjectEntries(data, 0)}</div>
+            </div>
           )}
 
           {!loading && !error && !data && configForm}

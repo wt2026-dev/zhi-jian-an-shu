@@ -1003,6 +1003,28 @@ export interface AiGenerationReview {
   reviewedAt: string | null;
 }
 
+export interface AiAnalysisTraceLog {
+  id: string;
+  videoId?: string | null;
+  framesCount?: number;
+  question: string;
+  deviceModel: string;
+  model: string;
+  promptVersion: string;
+  inputDigest: string;
+  reviewStatus: string;
+  safetyNotice?: {
+    required: boolean;
+    level: string;
+    reason: string;
+    requiresConfirmation: boolean;
+    riskTypes: string[];
+    degraded: boolean;
+  };
+  result: any;
+  createdAt: string;
+}
+
 export const adminAiReviewApi = {
   list: (status?: 'pending' | 'approved' | 'rejected') =>
     request<AiGenerationReview[]>(`/admin/ai-reviews${status ? `?status=${status}` : ''}`),
@@ -1018,7 +1040,11 @@ export const adminAiReviewApi = {
       method: 'POST',
       body: JSON.stringify({ review_note: reviewNote }),
     }),
+
+  listTraceLogs: (model?: string) =>
+    request<AiAnalysisTraceLog[]>(`/admin/ai-analysis-logs${model ? `?model=${encodeURIComponent(model)}` : ''}`),
 };
+
 
 // ==================== AI 模型路由（管理端） ====================
 

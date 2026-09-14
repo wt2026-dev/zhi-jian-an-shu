@@ -137,4 +137,18 @@ export function registerAiRoutes(app: express.Express) {
 
   // SSE 实时推送步骤进度（沿用现有 SSE 鉴权方式：requireAuth + Bearer Token）
   app.get("/api/v1/ai/pipeline/:id/events", requireAuth, handlePipelineEvents);
+
+  // ---------- AI 追溯与版本分析审计日志（仅 admin 可见） ----------
+  app.get("/api/v1/admin/ai-analysis-logs", requireAuth, requireRole(["admin"], "查看 AI 追溯日志"), async (req: any, res: any) => {
+    try {
+      const { AiAnalysisLogRepository } = await import("../../db/repositories/index.ts");
+      const model = req.query.model ? String(req.query.model) : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : 50;
+      const logs = await AiAnalysisLogRepository.listTraceLogs({ model, limit });
+      res.json(logs);
+    } catch (err: any) {
+      res.status(500).json({ error: "获取 AI 追溯日志失败", message: err.message });
+    }
+  });
 }
+
