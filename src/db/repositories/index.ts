@@ -1,0 +1,19 @@
+// 重构说明：按业务域拆分后的 Repository 统一出口（Barrel）。
+export { parseJson } from "./shared.ts";
+export { UserRepository } from "./userRepository.ts";
+export { EquipmentRepository } from "./equipmentRepository.ts";
+export { WorkOrderRepository } from "./workOrderRepository.ts";
+export { SafetyPermitRepository } from "./safetyPermitRepository.ts";
+export { AuditLogRepository } from "./auditLogRepository.ts";
+export { KnowledgeRepository } from "./knowledgeRepository.ts";
+export { WorkOrderLogRepository } from "./workOrderLogRepository.ts";
+export { InspectionRepository } from "./inspectionRepository.ts";
+export { TelemetryRepository } from "./telemetryRepository.ts";
+export { NotificationRepository } from "./notificationRepository.ts";
+export { LotoLockRepository } from "./lotoLockRepository.ts";
+export { ProcedureRepository } from "./procedureRepository.ts";
+export { ComplianceCheckRepository } from "./complianceCheckRepository.ts";
+export { AiAnalysisLogRepository } from "./aiAnalysisLogRepository.ts";
+export { SparePartsRepository } from "./sparePartsRepository.ts";
+export { HazardsRepository } from "./hazardsRepository.ts";
+export { ProcedureVideoRepository } from "./procedureVideoRepository.ts";

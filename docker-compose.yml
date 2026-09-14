@@ -1,0 +1,130 @@
+# ============================================================
+# 工业设备智能检修与作业协同系统 - Docker Compose 编排（Node.js 主服务）
+#
+# 说明：
+#   1. 本项目实际主服务为根目录 Node.js server.ts（Express + React + PGlite）。
+#   2. backend/ 目录下的 Python FastAPI 为历史遗留/备选实现，已隔离，不参与本编排。
+#   3. 默认使用嵌入式持久化 PostgreSQL（PGlite），数据保存在命名卷 appdata，重启不丢失。
+#   4. 如需接入独立 PostgreSQL：取消下方 db 服务注释，并将 .env 中
+#      DATABASE_URL 改为 postgres://postgres:postgres123@db:5432/maintenance_db
+#   5. 必填环境变量 JWT_SECRET 请在 .env 中配置（应用已做 fail-fast，缺失将拒绝启动）。
+# ============================================================
+
+name: industrial-maintenance
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: industrial-maintenance-app
+    restart: unless-stopped
+    # 本地低负载演示场景资源限制：CPU≤70%、内存≤4G、禁swap防OOM
+    cpus: "0.7"
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpu_shares: 1024
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # 数据库类型切换（pglite / postgres），从 .env 读取
+      DB_TYPE: ${DB_TYPE:-pglite}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-industrial_maintenance}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
+      # 阿里云百炼 (DashScope) 大模型配置，从 .env 读取
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL}
+      DASHSCOPE_MODEL: ${DASHSCOPE_MODEL}
+      DASHSCOPE_VISION_MODEL: ${DASHSCOPE_VISION_MODEL}
+      # Agnes AI 视频生成配置，从 .env 读取
+      AGNES_API_KEY: ${AGNES_API_KEY}
+      AGNES_BASE_URL: ${AGNES_BASE_URL:-https://apihub.agnes-ai.cn/v1}
+      # 魔珐星云 3D 数字人配置 (运行期注入，严禁打包进前端 bundle)
+      XINGYUN_APP_ID: ${XINGYUN_APP_ID}
+      XINGYUN_APP_SECRET: ${XINGYUN_APP_SECRET}
+    volumes:
+      - appdata:/app/data           # PGlite 数据库持久化
+      - uploads:/app/public/uploads # 缺陷图片上传持久化
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  # ---------- PostgreSQL 服务（生产环境：DB_TYPE=postgres 时启用） ----------
+  postgres:
+    image: postgres:16-alpine
+    container_name: industrial-maintenance-postgres
+    restart: unless-stopped
+    # 数据库优先保障：CPU≤70%、内存≤4G、禁swap
+    cpus: "0.7"
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpu_shares: 1024
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_DB: ${DB_NAME:-industrial_maintenance}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-industrial_maintenance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------- 数据库每日定时备份（凌晨 2 点，保留最近 7 天） ----------
+  backup:
+    image: alpine:3.20
+    container_name: industrial-maintenance-backup
+    restart: unless-stopped
+    # 备份容器低占用：CPU≤50%、内存≤512M
+    cpus: "0.5"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpu_shares: 256
+    depends_on:
+      - app
+    volumes:
+      - appdata:/data:ro
+      - ./backups:/backups
+      - ./scripts/backup.sh:/scripts/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "echo '0 2 * * * sh /scripts/backup.sh' > /etc/crontabs/root && crond -f -l 8"
+
+  # ---------- 可选：独立 PostgreSQL（生产环境建议启用） ----------
+  # db:
+  #   image: postgres:16-alpine
+  #   container_name: industrial-maintenance-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres123
+  #     POSTGRES_DB: maintenance_db
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres -d maintenance_db"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  appdata:
+  uploads:
+  postgres_data:
+  # pgdata:
+
