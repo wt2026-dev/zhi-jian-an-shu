@@ -85,16 +85,38 @@ function freshAnimState(): AnimState {
 
 // ─── Constants ────────────────────────────────────────────────────
 
-// VRM 模型原点在脚底（y=0），相机对准上半身（头部 + 胸部 + 手势区）
-const CAM_POS = new THREE.Vector3(0, 1.32, 1.85);
-const CAM_TARGET = new THREE.Vector3(0, 1.3, 0);
+// VRM 模型原点在脚底（y=0），相机对准上半身——完整展现自然下垂的手臂与面部
+const CAM_POS = new THREE.Vector3(0, 1.25, 2.05);
+const CAM_TARGET = new THREE.Vector3(0, 1.18, 0);
 const FOV = 40;
 
-// Arm rest / speaking rotations (radians)
-const ARM_REST_Z = 0.12;
-const ARM_REST_X = -0.06;
-const ARM_SPEAK_Z = 0.42;
-const ARM_SPEAK_X = -0.22;
+// VRM 绑定姿势是 T-pose（手臂水平平伸，rot.z = 0）。
+// 自然站姿下垂：大臂下垂至体侧（约 72° / 1.26 rad），避免穿模；手肘微曲，双手自然垂于身侧。
+// 说话状态：双手小幅前抬微动（约 62° / 1.08 rad），动作自然得体，绝不高举双臂。
+const LEFT_ARM_REST_Z = 1.26;    // 左大臂待机：自然下垂（体侧微外展）
+const RIGHT_ARM_REST_Z = -1.26;  // 右大臂待机：对称下垂
+const ARM_REST_X = 0.08;         // 大臂自然微前倾
+
+const LEFT_ARM_SPEAK_Z = 1.08;   // 说话时：左大臂微抬约 10°
+const RIGHT_ARM_SPEAK_Z = -1.08; // 说话时：右大臂微抬
+const ARM_SPEAK_X = 0.18;        // 说话时：大臂前探
+
+function applyNaturalPose(vrm: VRM): void {
+  const hum = vrm.humanoid;
+  if (!hum) return;
+  const lUpper = hum.getNormalizedBoneNode(VRMHumanBoneName.LeftUpperArm);
+  const rUpper = hum.getNormalizedBoneNode(VRMHumanBoneName.RightUpperArm);
+  const lLower = hum.getNormalizedBoneNode(VRMHumanBoneName.LeftLowerArm);
+  const rLower = hum.getNormalizedBoneNode(VRMHumanBoneName.RightLowerArm);
+  const lHand = hum.getNormalizedBoneNode(VRMHumanBoneName.LeftHand);
+  const rHand = hum.getNormalizedBoneNode(VRMHumanBoneName.RightHand);
+  if (lUpper) lUpper.rotation.set(ARM_REST_X, 0, LEFT_ARM_REST_Z);
+  if (rUpper) rUpper.rotation.set(ARM_REST_X, 0, RIGHT_ARM_REST_Z);
+  if (lLower) lLower.rotation.set(-0.16, 0, 0.12);  // 手肘微弯放松向前
+  if (rLower) rLower.rotation.set(-0.16, 0, -0.12);
+  if (lHand) lHand.rotation.set(0, 0, 0);  // 手掌放松下垂
+  if (rHand) rHand.rotation.set(0, 0, 0);
+}
 
 // ─── BlendShape helper (compatible with VRM 0.x & 1.0) ─────────────
 
@@ -165,6 +187,29 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
             VRMUtils.deepDispose(ctx.vrm.scene);
           }
           ctx.scene.add(vrm.scene);
+
+          // VRM 0.x 模型默认面向 -Z（背对镜头），转 180° 面向 +Z
+          if (vrm.meta?.metaVersion === '0') {
+            VRMUtils.rotateVRM0(vrm);
+          }
+          // T-pose 绑定姿势 → 自然站姿（手臂下垂，不再平伸）
+          applyNaturalPose(vrm);
+
+          // 自动对齐：无论模型原点在脚底还是重心，都把脚底归到 y=0，
+          // 避免模型悬空（"飞起来"）。x/z 方向居中。
+          const box = new THREE.Box3().setFromObject(vrm.scene);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          if (Number.isFinite(size.y) && size.y > 0.01) {
+            vrm.scene.position.y -= box.min.y;
+          }
+          if (Number.isFinite(center.x) && Math.abs(center.x) < 5) {
+            vrm.scene.position.x -= center.x;
+          }
+          if (Number.isFinite(center.z) && Math.abs(center.z) < 5) {
+            vrm.scene.position.z -= center.z;
+          }
+
           ctx.vrm = vrm;
           ctx.anim = freshAnimState();
           resolve();
@@ -335,20 +380,41 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
           }
         }
 
-        // ── B. Speaking: Arm gesture (Humanoid upper arms) ──
-        const armTargetZ = a.speaking ? ARM_SPEAK_Z : ARM_REST_Z;
-        const armTargetX = a.speaking ? ARM_SPEAK_X : ARM_REST_X;
-        const lerpSpeed = 0.06;
+        // ── B. Speaking / Idle: Arm gesture（正弦微摆 + 平滑插值，双手始终有自然动感）──
+        const swingT = t / 1000;
+        // 待机微摆：缓慢晃动（约 0.35 Hz，幅度 ~4°），手臂不僵硬
+        const idleSwingZ = 0.07 * Math.sin(swingT * 2.2);
+        const idleSwingX = 0.05 * Math.sin(swingT * 1.6 + 1.2);
+        // 说话摆动：较快节奏（约 1 Hz，幅度 ~8°），配合口型节奏
+        const speakSwingZ = a.speaking ? 0.14 * Math.sin(swingT * 6.0) : 0;
+        const speakSwingX = a.speaking ? 0.1 * Math.sin(swingT * 4.6) : 0;
+
+        const targetArmZ_L = (a.speaking ? LEFT_ARM_SPEAK_Z : LEFT_ARM_REST_Z) + idleSwingZ + speakSwingZ;
+        const targetArmZ_R = (a.speaking ? RIGHT_ARM_SPEAK_Z : RIGHT_ARM_REST_Z) - idleSwingZ - speakSwingZ;
+        const targetArmX = (a.speaking ? ARM_SPEAK_X : ARM_REST_X) + idleSwingX + speakSwingX;
+        const targetElbowX = a.speaking ? -0.26 : -0.16;
+        const lerpSpeed = 0.08;
 
         const leftArm = vrm.humanoid?.getNormalizedBoneNode(VRMHumanBoneName.LeftUpperArm);
         const rightArm = vrm.humanoid?.getNormalizedBoneNode(VRMHumanBoneName.RightUpperArm);
+        const leftLower = vrm.humanoid?.getNormalizedBoneNode(VRMHumanBoneName.LeftLowerArm);
+        const rightLower = vrm.humanoid?.getNormalizedBoneNode(VRMHumanBoneName.RightLowerArm);
+
         if (leftArm) {
-          leftArm.rotation.z += (armTargetZ - leftArm.rotation.z) * lerpSpeed;
-          leftArm.rotation.x += (armTargetX - leftArm.rotation.x) * lerpSpeed;
+          leftArm.rotation.z += (targetArmZ_L - leftArm.rotation.z) * lerpSpeed;
+          leftArm.rotation.x += (targetArmX - leftArm.rotation.x) * lerpSpeed;
         }
         if (rightArm) {
-          rightArm.rotation.z += (-armTargetZ - rightArm.rotation.z) * lerpSpeed;
-          rightArm.rotation.x += (armTargetX - rightArm.rotation.x) * lerpSpeed;
+          rightArm.rotation.z += (targetArmZ_R - rightArm.rotation.z) * lerpSpeed;
+          rightArm.rotation.x += (targetArmX - rightArm.rotation.x) * lerpSpeed;
+        }
+        if (leftLower) {
+          leftLower.rotation.x += (targetElbowX - leftLower.rotation.x) * lerpSpeed;
+          leftLower.rotation.z += (0.12 - leftLower.rotation.z) * lerpSpeed;
+        }
+        if (rightLower) {
+          rightLower.rotation.x += (targetElbowX - rightLower.rotation.x) * lerpSpeed;
+          rightLower.rotation.z += (-0.12 - rightLower.rotation.z) * lerpSpeed;
         }
 
         // ── Render ──
