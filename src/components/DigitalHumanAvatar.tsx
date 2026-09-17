@@ -1,6 +1,52 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Sparkles, Volume2, VolumeX, Activity, Check, Loader2, Cuboid, RotateCcw, Monitor } from 'lucide-react';
+import { Sparkles, Volume2, VolumeX, Activity, Check, Loader2, Cuboid, RotateCcw, Monitor, AlertTriangle, FileText, Settings2, Radio } from 'lucide-react';
 import { DigitalHumanPersona } from '../types';
+import { DigitalHumanVRM, type DigitalHumanVRMHandle } from './digital-human/DigitalHumanVRM';
+
+/**
+ * 金色 / 天青动态声波仪（Dynamic Audio Waveform HUD）
+ * 纯 CSS 驱动：波形柱由 .wave-bar-1..5 提供「香槟金 → 晨曦金 → 天青」渐变与弹性律动，
+ * 静默时回落为低矮灰柱，保证"说话 / 拾音 / 待命"三态一目了然。
+ */
+const WaveformHUD = ({
+  active,
+  bars = 18,
+  className = '',
+  barWidth = 3,
+}: {
+  active: boolean;
+  bars?: number;
+  className?: string;
+  barWidth?: number;
+}) => (
+  <div
+    className={`flex items-end justify-center gap-[3px] ${className}`}
+    data-testid="waveform-hud"
+    data-active={active ? '1' : '0'}
+    data-bars={bars}
+    aria-hidden="true"
+  >
+    {Array.from({ length: bars }).map((_, i) => (
+      <span
+        key={i}
+        className={`rounded-full transition-all ${active ? `wave-bar-${(i % 5) + 1}` : ''}`}
+        style={
+          active
+            ? { width: `${barWidth}px` }
+            : { width: `${barWidth}px`, height: `${4 + ((i * 7) % 10)}px`, backgroundColor: '#CBD5E1' }
+        }
+      />
+    ))}
+  </div>
+);
+
+/** 现场检修快捷问答指令（游戏化金色胶囊芯片） */
+const QUICK_DIRECTIVES: { text: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+  { text: '今日待办工单与紧急告警', Icon: AlertTriangle },
+  { text: '设备健康度最差的3台设备及诊断', Icon: Activity },
+  { text: '生成本周设备巡检总结报告', Icon: FileText },
+  { text: '螺杆空压机二级保养核心步骤', Icon: Settings2 },
+];
 
 // 魔珐星云 3D 数字人配置（所有密钥仅在服务端 process.env 中流转，前端零凭证暴露）
 const XINGYUN_CDN = 'https://media.xingyun3d.com/xingyun3d/general/litesdk/xmovAvatar@latest.js';
@@ -105,6 +151,8 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
   const sdkRef = useRef<any>(null);
   const sdkStatusRef = useRef<'idle' | 'loading' | 'ready' | 'error'>('idle');
   sdkStatusRef.current = sdkStatus;
+
+  const human3dRef = useRef<DigitalHumanVRMHandle>(null);
 
   // 1. 魔珐星云 Lite SDK 生命周期管理与加载超时保护（10秒超时自动降级）
   useEffect(() => {
@@ -331,55 +379,71 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
   const isSpeakingActive = isSpeaking || sdkSpeaking;
   const isListeningActive = isListening || sdkListening;
 
-  // 3. 对外暴露 speak 与 stop 句柄：AI 问答文本 → 驱动 3D 数字人语音合成与口型
+  // 3. 对外暴露 speak 与 stop 句柄：AI 问答文本 → 驱动数字人语音合成与口型
   useImperativeHandle(ref, () => ({
     is3D: () => is3DReady,
     speak: async (text: string) => {
-      const sdk = sdkRef.current;
-      if (!sdk || !text || !speechEnabled || !is3DReady) return false;
-      try {
-        // 清除 markdown 语法标记得到纯朗读文本
-        const cleanText = text
-          .replace(/[#*`_~>[\]()!-]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        if (!cleanText) return false;
-        const excerpt = cleanText.length > 280 ? cleanText.slice(0, 280) : cleanText;
+      // ── 星云 3D 分支（保持原逻辑不变） ──
+      if (is3DReady) {
+        const sdk = sdkRef.current;
+        if (!sdk || !text || !speechEnabled) return false;
+        try {
+          const cleanText = text
+            .replace(/[#*`_~>[\]()!-]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (!cleanText) return false;
+          const excerpt = cleanText.length > 280 ? cleanText.slice(0, 280) : cleanText;
 
-        if (typeof sdk.speak === 'function') {
-          // 官方签名 speak(text, is_start, is_end)：非流式整句朗读
-          console.log('[XingYun 3D] speak 触发:', cleanText.slice(0, 40));
-          await sdk.speak(excerpt, true, true);
-          console.log('[XingYun 3D] speak 完成');
-          return true;
-        } else if (typeof sdk.chat === 'function') {
-          await sdk.chat(excerpt);
-          return true;
-        } else if (typeof sdk.sendMessage === 'function') {
-          await sdk.sendMessage(excerpt);
-          return true;
-        } else if (typeof sdk.sendText === 'function') {
-          await sdk.sendText(excerpt);
-          return true;
-        } else {
-          console.warn('[XingYun 3D] SDK 无可用对话/说话方法');
+          if (typeof sdk.speak === 'function') {
+            console.log('[XingYun 3D] speak 触发:', cleanText.slice(0, 40));
+            await sdk.speak(excerpt, true, true);
+            console.log('[XingYun 3D] speak 完成');
+            return true;
+          } else if (typeof sdk.chat === 'function') {
+            await sdk.chat(excerpt);
+            return true;
+          } else if (typeof sdk.sendMessage === 'function') {
+            await sdk.sendMessage(excerpt);
+            return true;
+          } else if (typeof sdk.sendText === 'function') {
+            await sdk.sendText(excerpt);
+            return true;
+          } else {
+            console.warn('[XingYun 3D] SDK 无可用对话/说话方法');
+            return false;
+          }
+        } catch (e) {
+          console.warn('[XingYun 3D] 数字人发声异常:', e);
           return false;
         }
-      } catch (e) {
-        console.warn('[XingYun 3D] 数字人发声异常:', e);
-        return false;
       }
+
+      // ── 本地 3D 分支：speechSynthesis 朗读 + 口型驱动 ──
+      if (!text || !speechEnabled) return false;
+      const h3d = human3dRef.current;
+      if (h3d) {
+        return h3d.speak(text);
+      }
+      return false;
     },
     stop: () => {
+      // 星云 SDK stop
       const sdk = sdkRef.current;
-      if (!sdk) return;
-      try {
-        if (typeof sdk.interrupt === 'function') {
-          sdk.interrupt('user_stop');
-        } else if (typeof sdk.stop === 'function') {
-          sdk.stop();
-        }
-      } catch {}
+      if (sdk) {
+        try {
+          if (typeof sdk.interrupt === 'function') {
+            sdk.interrupt('user_stop');
+          } else if (typeof sdk.stop === 'function') {
+            sdk.stop();
+          }
+        } catch {}
+      }
+      // 本地 3D stop
+      const h3d = human3dRef.current;
+      if (h3d) {
+        h3d.stop();
+      }
     },
   }));
 
@@ -394,8 +458,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
 
   return (
     <div
-      className={`glass-card p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-[0_4px_16px_rgba(15,23,42,0.06)] relative overflow-hidden transition-all ${className}`}
-      style={{ borderTop: '1px solid rgba(59, 130, 246, 0.4)' }}
+      className={`hud-card fx-shimmer p-4 sm:p-5 relative transition-all ${className}`}
       onClick={() => {
         // 用户手势内唤醒 SDK 音频上下文（规避浏览器自动播放策略）
         try {
@@ -406,20 +469,20 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
       }}
     >
       {/* Top Header: Title & Persona Switcher */}
-      <div className="flex items-center justify-between gap-2 relative z-10 pb-2.5 border-b border-slate-200/60">
+      <div className="flex items-center justify-between gap-2 relative z-10 pb-2.5 border-b border-amber-100/80">
         <div className="flex items-center space-x-2 min-w-0">
-          <div className="icon-tile icon-tile-sm icon-tile-cyan shrink-0">
-            {is3DReady ? <Cuboid className="w-4 h-4 text-cyan-600" /> : <Sparkles className="w-4 h-4 text-blue-600" />}
+          <div className="icon-tile icon-tile-sm icon-tile-gold shrink-0">
+            {is3DReady ? <Cuboid className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
           </div>
           <div className="min-w-0">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center space-x-1.5 truncate">
-              <span>{is3DReady ? '3D数字人专家' : '工业2D数字人专家'}</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border shrink-0 ${
+              <span>{is3DReady ? '3D数字人专家' : '自研3D数字人・本地渲染'}</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full border shrink-0 ${
                 is3DReady
                   ? 'bg-cyan-50 text-cyan-600 border-cyan-200'
-                  : 'bg-blue-50 text-blue-600 border-blue-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}>
-                {is3DReady ? '3D · LIVE' : '2D · LIVE'}
+                {is3DReady ? '3D · LIVE' : '本地3D · LIVE'}
               </span>
             </h3>
             <p className="text-[10px] text-slate-500 mt-0.5 truncate">
@@ -497,25 +560,19 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
                 </div>
               </div>
 
-              {/* 3D 容器下方：说话蓝青动态声波条 + 状态指示器 */}
-              <div className="mt-2.5 w-[280px] sm:w-[300px] max-w-full px-3 py-1.5 rounded-lg bg-white/95 border border-slate-200/80 shadow-xs flex items-center justify-between">
+              {/* 3D 容器下方：金色/天青动态声波仪 + 状态指示器 */}
+              <div className="hud-bar mt-2.5 w-[280px] sm:w-[300px] max-w-full px-3 py-1.5 flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 min-w-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${
-                    isSpeakingActive ? 'bg-cyan-500 animate-ping' : isListeningActive ? 'bg-emerald-500' : 'bg-slate-400'
+                    isSpeakingActive ? 'bg-amber-400 animate-ping' : isListeningActive ? 'bg-emerald-500' : 'bg-slate-400'
                   }`} />
                   <span className="text-[11px] font-medium text-slate-700 truncate">
                     {isSpeakingActive ? '3D语音实时输出中' : isListeningActive ? '正在现场拾音' : '3D数字人 · 在线待命'}
                   </span>
                 </div>
 
-                {/* 5 根动态蓝青渐变音频声波条 */}
-                <div className="flex items-end space-x-1 h-5 shrink-0 pl-2">
-                  <span className={`w-1 rounded-full transition-all ${isSpeakingActive ? 'bg-gradient-to-t from-blue-500 to-cyan-400 wave-bar-1' : 'bg-slate-300 h-1.5'}`} />
-                  <span className={`w-1 rounded-full transition-all ${isSpeakingActive ? 'bg-gradient-to-t from-blue-500 to-cyan-400 wave-bar-2' : 'bg-slate-300 h-2'}`} />
-                  <span className={`w-1 rounded-full transition-all ${isSpeakingActive ? 'bg-gradient-to-t from-blue-500 to-cyan-400 wave-bar-3' : 'bg-slate-300 h-1.5'}`} />
-                  <span className={`w-1 rounded-full transition-all ${isSpeakingActive ? 'bg-gradient-to-t from-blue-500 to-cyan-400 wave-bar-4' : 'bg-slate-300 h-2.5'}`} />
-                  <span className={`w-1 rounded-full transition-all ${isSpeakingActive ? 'bg-gradient-to-t from-blue-500 to-cyan-400 wave-bar-5' : 'bg-slate-300 h-1.5'}`} />
-                </div>
+                {/* 金色 → 天青动态声波仪 */}
+                <WaveformHUD active={isSpeakingActive} bars={9} className="h-5 shrink-0 pl-2" />
               </div>
             </div>
 
@@ -556,7 +613,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
                 onClick={() => setForce2D(true)}
                 className="text-[10px] text-slate-500 hover:text-blue-600 hover:underline cursor-pointer"
               >
-                跳过加载直接使用 2D →
+                跳过加载直接使用本地3D →
               </button>
             </div>
 
@@ -568,145 +625,90 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
                   ⚠ 3D 数字人暂不可用：{getSanitizedFallbackReason(fallbackReason)}（已自动降级 2D 形象）
                 </div>
               )}
-              <div
-                className={`w-36 h-36 sm:w-40 sm:h-40 rounded-full bg-slate-50 border-2 relative overflow-hidden flex items-center justify-center shadow-sm transition-transform ${
-                  isSpeakingActive
-                    ? 'border-blue-500 scale-105'
-                    : isListeningActive
-                    ? 'border-emerald-500 scale-105'
-                    : 'border-slate-200'
-                }`}
-                style={{
-                  animation: isSpeakingActive ? 'digital-human-breath 1.8s ease-in-out infinite' : 'digital-human-breath 3.5s ease-in-out infinite',
-                }}
-              >
-                {/* SVG Persona 1: 张工 (资深机电总工) */}
-                {activePersona.avatarSvgType === 'zhang' && (
-                  <svg className="w-full h-full" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="60" cy="60" r="58" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                    <path d="M0 105 C30 95, 90 95, 120 105 L120 120 L0 120 Z" fill="#e2e8f0" />
-                    <ellipse cx="60" cy="36" rx="34" ry="18" fill="#f59e0b" />
-                    <path d="M26 38 C26 22, 94 22, 94 38 Z" fill="#d97706" />
-                    <rect x="52" y="24" width="16" height="5" rx="2" fill="#ef4444" />
-                    <path d="M22 38 C35 34, 85 34, 98 38 L100 42 C70 41, 50 41, 20 42 Z" fill="#b45309" />
-                    <rect x="38" y="38" width="44" height="42" rx="14" fill="#fcd34d" />
-                    <circle cx="44" cy="58" r="4" fill="#f87171" opacity={isSpeakingActive ? 0.6 : 0.3} />
-                    <circle cx="76" cy="58" r="4" fill="#f87171" opacity={isSpeakingActive ? 0.6 : 0.3} />
-                    <g className="avatar-eyes">
-                      <ellipse cx="48" cy="52" rx="4" ry="5" fill="#0f172a" />
-                      <circle cx="49" cy="50" r="1.5" fill="#ffffff" />
-                      <ellipse cx="72" cy="52" rx="4" ry="5" fill="#0f172a" />
-                      <circle cx="73" cy="50" r="1.5" fill="#ffffff" />
-                    </g>
-                    <path d="M43 45 Q48 43 53 45" stroke="#78350f" strokeWidth="2.5" strokeLinecap="round" />
-                    <path d="M67 45 Q72 43 77 45" stroke="#78350f" strokeWidth="2.5" strokeLinecap="round" />
-                    <rect x="42" y="46" width="13" height="12" rx="3" stroke="#38bdf8" strokeWidth="1.5" fill="none" opacity="0.8" />
-                    <rect x="65" y="46" width="13" height="12" rx="3" stroke="#38bdf8" strokeWidth="1.5" fill="none" opacity="0.8" />
-                    <line x1="55" y1="52" x2="65" y2="52" stroke="#38bdf8" strokeWidth="1.5" />
-                    <path d="M60 52 L59 60 L63 60" stroke="#b45309" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    {isSpeakingActive ? (
-                      <ellipse cx="60" cy="68" rx="6" ry="5" fill="#b91c1c" className="animate-pulse">
-                        <rect x="57" y="65" width="6" height="2" fill="#ffffff" />
-                      </ellipse>
-                    ) : (
-                      <path d="M54 67 Q60 71 66 67" stroke="#92400e" strokeWidth="2" strokeLinecap="round" fill="none" />
-                    )}
-                    <path d="M26 84 C38 78, 82 78, 94 84 L102 120 L18 120 Z" fill="#1e3a8a" />
-                    <path d="M48 80 L60 92 L72 80" fill="#3b82f6" />
-                    <path d="M22 96 L98 96" stroke="#22c55e" strokeWidth="4" />
-                    <path d="M20 102 L100 102" stroke="#e2e8f0" strokeWidth="2" />
-                    <rect x="30" y="86" width="8" height="14" rx="2" fill="#334155" />
-                    <line x1="32" y1="86" x2="32" y2="80" stroke="#64748b" strokeWidth="1.5" />
-                  </svg>
-                )}
+              {/* ── 次世代立绘剧场：全景舞台 + 环境光晕 + 全息底网 + 呼吸脉冲 + 立绘融入 + 全息底座 ── */}
+              <div className="relative w-full h-[286px] sm:h-[322px] rounded-2xl overflow-hidden border border-amber-100/70 bg-gradient-to-b from-white/70 via-amber-50/25 to-cyan-50/25">
 
-                {/* SVG Persona 2: 李工 (电气自动化工程师) */}
-                {activePersona.avatarSvgType === 'li' && (
-                  <svg className="w-full h-full" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="60" cy="60" r="58" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                    <path d="M30 46 C25 80, 28 98, 36 108 L84 108 C92 98, 95 80, 90 46 Z" fill="#1e1b4b" />
-                    <rect x="39" y="38" width="42" height="40" rx="14" fill="#fed7aa" />
-                    <circle cx="45" cy="56" r="4.5" fill="#fb7185" opacity={isSpeakingActive ? 0.7 : 0.4} />
-                    <circle cx="75" cy="56" r="4.5" fill="#fb7185" opacity={isSpeakingActive ? 0.7 : 0.4} />
-                    <path d="M36 40 C45 28, 75 28, 84 40 C75 34, 45 34, 36 40 Z" fill="#312e81" />
-                    <path d="M36 40 C34 55, 38 65, 42 70 C38 62, 38 50, 40 42 Z" fill="#312e81" />
-                    <path d="M84 40 C86 55, 82 65, 78 70 C82 62, 82 50, 80 42 Z" fill="#312e81" />
-                    <ellipse cx="48" cy="50" rx="3.5" ry="4.5" fill="#0f172a" />
-                    <circle cx="49" cy="48" r="1.5" fill="#ffffff" />
-                    <ellipse cx="72" cy="50" rx="3.5" ry="4.5" fill="#0f172a" />
-                    <circle cx="73" cy="48" r="1.5" fill="#ffffff" />
-                    <path d="M44 46 L46 48 M52 46 L50 48" stroke="#1e1b4b" strokeWidth="1.2" />
-                    <path d="M68 46 L70 48 M76 46 L74 48" stroke="#1e1b4b" strokeWidth="1.2" />
-                    <rect x="42" y="44" width="13" height="11" rx="3" stroke="#10b981" strokeWidth="1.5" fill="none" opacity="0.85" />
-                    <rect x="65" y="44" width="13" height="11" rx="3" stroke="#10b981" strokeWidth="1.5" fill="none" opacity="0.85" />
-                    <line x1="55" y1="50" x2="65" y2="50" stroke="#10b981" strokeWidth="1.5" />
-                    <path d="M60 51 L59 58 L62 58" stroke="#ea580c" strokeWidth="1.5" strokeLinecap="round" />
-                    {isSpeakingActive ? (
-                      <ellipse cx="60" cy="65" rx="5" ry="4.5" fill="#e11d48">
-                        <rect x="58" y="63" width="4" height="1.5" fill="#ffffff" />
-                      </ellipse>
-                    ) : (
-                      <path d="M55 64 Q60 68 65 64" stroke="#e11d48" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-                    )}
-                    <path d="M28 82 C40 76, 80 76, 92 82 L100 120 L20 120 Z" fill="#0f766e" />
-                    <path d="M50 80 L60 90 L70 80" fill="#14b8a6" />
-                    <rect x="68" y="88" width="12" height="18" rx="2" fill="#e2e8f0" />
-                    <rect x="70" y="90" width="8" height="6" fill="#0284c7" />
-                    <line x1="70" y1="99" x2="78" y2="99" stroke="#64748b" strokeWidth="1.5" />
-                  </svg>
-                )}
+                {/* ① 环境景深漫反射光晕（晨曦金 / 天青 / 靛紫） */}
+                <div className="absolute inset-0 overflow-hidden rounded-2xl">
+                  <div className="fx-bloom" />
+                </div>
 
-                {/* SVG Persona 3: 小智 (极客AI巡检专家) */}
-                {activePersona.avatarSvgType === 'zhi' && (
-                  <svg className="w-full h-full" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="60" cy="60" r="58" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                    <path d="M22 55 C22 28, 98 28, 98 55" stroke="#38bdf8" strokeWidth="4" fill="none" />
-                    <rect x="18" y="48" width="8" height="18" rx="4" fill="#0284c7" />
-                    <circle cx="22" cy="57" r="2" fill="#38bdf8" />
-                    <rect x="94" y="48" width="8" height="18" rx="4" fill="#0284c7" />
-                    <circle cx="98" cy="57" r="2" fill="#38bdf8" />
-                    <path d="M24 64 L36 74 L46 74" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                    <circle cx="46" cy="74" r="3" fill="#22c55e" />
-                    <ellipse cx="60" cy="38" rx="33" ry="17" fill="#0284c7" />
-                    <path d="M27 38 C27 24, 93 24, 93 38 Z" fill="#0369a1" />
-                    <rect x="36" y="32" width="48" height="6" rx="2" fill="#0c4a6e" />
-                    <line x1="40" y1="35" x2="76" y2="35" stroke="#38bdf8" strokeWidth="2" strokeDasharray="3 2" />
-                    <rect x="38" y="40" width="44" height="38" rx="13" fill="#fed7aa" />
-                    <rect x="42" y="46" width="36" height="12" rx="4" fill="#0f172a" stroke="#0ea5e9" strokeWidth="1.5" />
-                    <circle cx="50" cy="52" r="3" fill="#38bdf8" />
-                    <circle cx="70" cy="52" r="3" fill="#38bdf8" />
-                    <line x1="56" y1="52" x2="64" y2="52" stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="2 2" />
-                    {isSpeakingActive ? (
-                      <ellipse cx="60" cy="67" rx="5" ry="4" fill="#0369a1">
-                        <line x1="56" y1="67" x2="64" y2="67" stroke="#38bdf8" strokeWidth="2" />
-                      </ellipse>
-                    ) : (
-                      <path d="M55 66 Q60 69 65 66" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" fill="none" />
-                    )}
-                    <path d="M28 82 C40 76, 80 76, 92 82 L100 120 L20 120 Z" fill="#0369a1" />
-                    <path d="M52 82 L60 92 L68 82" fill="#38bdf8" />
-                    <circle cx="60" cy="100" r="5" fill="#0284c7" />
-                  </svg>
-                )}
+                {/* ② 微晶六边形全息透光底网 */}
+                <div className="fx-hex absolute inset-0 rounded-2xl" />
 
-                {/* 2D 状态浮标 */}
-                <div className="absolute bottom-1 px-2.5 py-0.5 rounded-full bg-white/95 backdrop-blur-xs border border-slate-200 text-[10px] font-mono text-slate-700 flex items-center space-x-1.5 shadow-xs">
-                  {isSpeakingActive ? (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping" />
-                      <span className="text-blue-600 font-bold">2D语音合成输出中</span>
-                    </>
-                  ) : isListeningActive ? (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <span className="text-emerald-600 font-bold">正在现场拾音</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                      <span>2D仿真 · 在线待命</span>
-                    </>
-                  )}
+                {/* ③ 晨曦微光粒子 */}
+                <div className="fx-particles rounded-2xl" />
+
+                {/* ④ 同心圆呼吸脉冲地标（说话金 / 拾音绿 / 待命青） */}
+                <div className="absolute left-1/2 bottom-10 -translate-x-1/2 w-[224px] h-[224px] pointer-events-none">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className={`absolute inset-0 rounded-full border pulse-ring ${i === 1 ? 'pulse-ring-2' : i === 2 ? 'pulse-ring-3' : ''}`}
+                      style={{
+                        borderColor: isSpeakingActive
+                          ? 'rgba(232, 163, 61, 0.55)'
+                          : isListeningActive
+                          ? 'rgba(16, 185, 129, 0.45)'
+                          : 'rgba(14, 165, 233, 0.32)',
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* ⑤ 全息科技光环 */}
+                <div
+                  className="hud-halo"
+                  style={{ opacity: isSpeakingActive ? 0.95 : isListeningActive ? 0.8 : 0.55 }}
+                />
+
+                {/* ⑥ 大立绘：半身融入（底部渐隐，与全息底座自然衔接） */}
+                <div className="absolute inset-x-0 bottom-4 flex justify-center z-10">
+                  <div
+                    className="w-[228px] h-[228px] sm:w-[262px] sm:h-[262px] flex items-center justify-center"
+                    style={{
+                      animation: isSpeakingActive
+                        ? 'digital-human-breath 1.8s ease-in-out infinite'
+                        : 'digital-human-breath 3.5s ease-in-out infinite',
+                      maskImage: 'linear-gradient(180deg, #000 64%, rgba(0,0,0,0.40) 87%, transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(180deg, #000 64%, rgba(0,0,0,0.40) 87%, transparent 100%)',
+                    }}
+                  >
+                {/* 自研 VRM 动漫 3D 数字人（替代原 SVG 简笔画 / 程序化模型） */}
+                <DigitalHumanVRM
+                  ref={human3dRef}
+                  personaId={selectedPersonaId}
+                  isSpeaking={isSpeakingActive}
+                  className="w-full h-full"
+                />
+
+                  </div>
+                </div>
+
+                {/* ⑦ 全息底座 */}
+                <div className="hud-pedestal absolute bottom-3 left-1/2 -translate-x-1/2 w-[248px] sm:w-[284px] h-4 rounded-[50%]" />
+
+                {/* ⑧ 金色/天青声波仪表盘 + 状态浮标 */}
+                <div className="absolute inset-x-4 bottom-3 z-20 flex flex-col items-center gap-1.5">
+                  <WaveformHUD active={isSpeakingActive || isListeningActive} bars={24} className="h-6 w-full" />
+                  <div className="px-2.5 py-0.5 rounded-full bg-white/90 backdrop-blur-xs border border-amber-200/70 text-[10px] font-mono text-slate-700 flex items-center space-x-1.5 shadow-sm">
+                    {isSpeakingActive ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                        <span className="text-amber-700 font-bold">2D语音合成输出中</span>
+                      </>
+                    ) : isListeningActive ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span className="text-emerald-600 font-bold">正在现场拾音</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        <span>2D仿真 · 在线待命</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -729,11 +731,11 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
           
           {/* 3D 形象展示 或 2D 形象详情 */}
           {is3DReady ? (
-            <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50/70 via-cyan-50/40 to-white border border-blue-100 space-y-1.5">
+            <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50/60 via-cyan-50/35 to-white border border-amber-100/80 space-y-1.5">
               <div className="flex items-center space-x-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                 <span className="text-sm font-bold text-slate-900">魔珐星云 · 工业3D机电总工</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-100/60 text-cyan-800 border border-cyan-200">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100/70 text-amber-800 border border-amber-200">
                   超写实轻量端渲染
                 </span>
               </div>
@@ -763,7 +765,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
           {/* 2D 模式下的三形象切换器（3D模式只有一个形象时隐藏并展示当前形象名） */}
           {(!is3DReady || force2D) && (
             <div>
-              <span className="text-[11px] text-slate-500 font-medium block mb-1.5">切换 2D 专家风格：</span>
+              <span className="text-[11px] text-slate-500 font-medium block mb-1.5">切换专家形象：</span>
               <div className="grid grid-cols-3 gap-2">
                 {DIGITAL_PERSONAS.map((p) => {
                   const isSelected = p.id === activePersona.id;
@@ -772,14 +774,10 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
                       key={p.id}
                       type="button"
                       onClick={() => handleSelectPersona(p.id)}
-                      className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-xs'
-                          : 'bg-slate-50/80 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'
-                      }`}
+                      className={`justify-center text-xs font-semibold ${isSelected ? 'chip-gold' : 'chip-cyan'}`}
                     >
                       <span>{p.name}</span>
-                      {isSelected && <Check className="w-3 h-3 text-blue-600 ml-1" />}
+                      {isSelected && <Check className="w-3 h-3 ml-0.5" />}
                     </button>
                   );
                 })}
@@ -789,25 +787,21 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
 
           {/* Quick Directive Hotkeys */}
           {onSelectPrompt && (
-            <div className="pt-2 border-t border-slate-100">
+            <div className="pt-2 border-t border-amber-100/70">
               <div className="text-[11px] text-slate-500 mb-1.5 flex items-center font-medium">
-                <Activity className="w-3 h-3 mr-1 text-cyan-500" />
+                <Radio className="w-3 h-3 mr-1 text-amber-500" />
                 <span>现场检修快捷问答指令：</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {[
-                  '今日待办工单与紧急告警',
-                  '设备健康度最差的3台设备及诊断',
-                  '生成本周设备巡检总结报告',
-                  '螺杆空压机二级保养核心步骤',
-                ].map((cmd, idx) => (
+                {QUICK_DIRECTIVES.map(({ text, Icon }) => (
                   <button
-                    key={idx}
+                    key={text}
                     type="button"
-                    onClick={() => onSelectPrompt(cmd)}
-                    className="text-[11px] px-2.5 py-1 rounded-md bg-white hover:bg-cyan-50/70 text-slate-700 hover:text-cyan-700 border border-slate-200/80 hover:border-cyan-200 transition-colors cursor-pointer shadow-2xs"
+                    onClick={() => onSelectPrompt(text)}
+                    className="chip-gold fx-shimmer"
                   >
-                    {cmd}
+                    <Icon className="w-3 h-3 shrink-0 opacity-80" />
+                    <span>{text}</span>
                   </button>
                 ))}
               </div>

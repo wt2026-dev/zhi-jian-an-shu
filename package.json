@@ -12,10 +12,13 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "test": "vitest run",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "metrics:check": "node scripts/check-metrics.mjs",
+    "metrics:fix": "node scripts/check-metrics.mjs --fix"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@pixiv/three-vrm": "^3.5.5",
     "@sentry/react": "^10.73.0",
     "@tanstack/react-virtual": "^3.14.10",
     "archiver": "^8.0.0",
@@ -41,6 +44,7 @@
     "recharts": "^3.10.1",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
+    "three": "^0.186.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
@@ -61,6 +65,7 @@
     "@types/react-dom": "^19.2.7",
     "@types/supertest": "^7.2.1",
     "@types/swagger-ui-express": "^4.1.8",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
