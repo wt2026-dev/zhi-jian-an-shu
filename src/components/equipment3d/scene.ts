@@ -280,6 +280,9 @@ export class EquipmentScene {
   private composer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
   private composerQuality: QualityKey | null = null;
+  /* 护栏③探测态：phase=direct 时强制直渲采基线帧时，phase=bloom 走 composer。 */
+  private bloomProbe: { phase: 'direct' | 'bloom'; direct: number[]; bloom: number[] } | null = null;
+  private bloomStrengthCut = false;
 
   /* ---- 选中设备 emissive 高亮 ----
    * 设备主体材质跨台共享（instanceColor 管颜色），直接改 emissive 会点亮全场；
@@ -1532,6 +1535,7 @@ export class EquipmentScene {
     this.bloomPass = bloom;
     this.composerQuality = this.params.quality;
     this.syncComposerSize();
+    this.startBloomProbe();
   }
 
   private syncComposerSize(): void {
@@ -1548,11 +1552,50 @@ export class EquipmentScene {
     }
   }
 
+  /** 每次新建 bloom 链都跑一轮两阶段探测（各 30 帧），量化 bloom 的相对开销。 */
+  private startBloomProbe(): void {
+    this.bloomProbe = { phase: 'direct', direct: [], bloom: [] };
+  }
+
+  /**
+   * 性能护栏③：比较两阶段的平均"渲染调用耗时"。composer 期超过直渲期 1/0.7 倍
+   * （即 FPS 掉 30% 以上）→ 第一步 bloom 强度减半 + threshold 上调一档并复测；
+   * 复测仍超标 → 拆掉整链回直渲。"不允许好看但卡"。
+   */
+  private sampleBloomProbe(renderMs: number): void {
+    const p = this.bloomProbe;
+    if (!p) return;
+    if (!this.composer || !this.bloomPass) {
+      this.bloomProbe = null;
+      return;
+    }
+    if (p.phase === 'direct') {
+      p.direct.push(renderMs);
+      if (p.direct.length >= 30) p.phase = 'bloom';
+      return;
+    }
+    p.bloom.push(renderMs);
+    if (p.bloom.length < 30) return;
+    this.bloomProbe = null;
+    const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+    const tDirect = Math.max(0.5, avg(p.direct));
+    if (avg(p.bloom) <= tDirect / 0.7) return;
+    if (!this.bloomStrengthCut) {
+      this.bloomStrengthCut = true;
+      this.bloomPass.strength *= 0.5;
+      this.bloomPass.threshold += 0.4;
+      this.startBloomProbe();
+    } else {
+      this.disposeComposer();
+    }
+  }
+
   private disposeComposer(): void {
     this.composer?.dispose();
     this.composer = null;
     this.bloomPass = null;
     this.composerQuality = null;
+    this.bloomProbe = null;
   }
 
   /* ========================= 构建管线 ========================= */
@@ -2774,9 +2817,13 @@ export class EquipmentScene {
         this.miniTimer = 0;
         this.drawMinimap();
       }
-      // 后处理链存在时走 composer（RenderPass→Bloom→OutputPass），否则直渲
-      if (this.composer) this.composer.render();
+      // 后处理链存在时走 composer（RenderPass→Bloom→OutputPass），否则直渲；
+      // 护栏③的 direct 基线期强制直渲，故按渲染调用单独计时（不含 update）
+      const tRender0 = performance.now();
+      const useComposer = this.composer !== null && (!this.bloomProbe || this.bloomProbe.phase === 'bloom');
+      if (useComposer) this.composer!.render();
       else this.renderer.render(this.scene, this.camera);
+      this.sampleBloomProbe(performance.now() - tRender0);
       this.trackFps(dt);
     };
     this.rafId = requestAnimationFrame(loop);
