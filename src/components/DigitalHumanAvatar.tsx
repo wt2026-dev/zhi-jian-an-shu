@@ -4,7 +4,6 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { DigitalHumanPersona } from '../types';
-import { DigitalHumanVRM, type DigitalHumanVRMHandle } from './digital-human/DigitalHumanVRM';
 import { DigitalHumanGLB, type DigitalHumanGLBHandle } from './digital-human/DigitalHumanGLB';
 import { DigitalHuman3D, type DigitalHuman3DHandle } from './digital-human/DigitalHuman3D';
 import { speakChinese, cancelSpeech, primeSpeech, voiceGenderFor } from './digital-human/speech';
@@ -105,11 +104,10 @@ export interface DigitalHumanAvatarHandle {
   is3D?: () => boolean;
 }
 
-/** 渲染后端标识：VRM（三人设差异化）→ GLB（写实工程师）→ 自研程序化 3D */
-type RenderBackend = 'vrm' | 'glb' | 'procedural';
+/** 渲染后端标识：GLB（写实工程师）→ 自研程序化 3D（逐级降级） */
+type RenderBackend = 'glb' | 'procedural';
 
 const BACKEND_TITLE: Record<RenderBackend, string> = {
-  vrm: '工业 3D 数字人・本地渲染',
   glb: '写实工程师 3D 数字人・本地渲染',
   procedural: '自研3D数字人・本地渲染',
 };
@@ -134,13 +132,12 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
     }
   });
 
-  // 渲染后端逐级降级状态：VRM → GLB → 自研 3D
-  // 默认渲染后端：写实工业工程师 GLB（用户明确不要动漫；VRM 仅作可选降级保留）
+  // 渲染后端逐级降级状态：GLB（写实工程师）→ 自研程序化 3D
+  // 默认渲染后端：写实工业工程师 GLB（动漫 VRM 已按用户要求移除）
   const [backend, setBackend] = useState<RenderBackend>('glb');
   /** 本地发声状态：与父级 isSpeaking 取并集，保证"真实在发声"时一定亮起 */
   const [localSpeaking, setLocalSpeaking] = useState(false);
 
-  const vrmRef = useRef<DigitalHumanVRMHandle>(null);
   const glbRef = useRef<DigitalHumanGLBHandle>(null);
   const human3dRef = useRef<DigitalHuman3DHandle>(null);
 
@@ -158,7 +155,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
   /**
    * 唯一的发声降级链：当前挂载的 3D 后端 → Web Speech 兜底。
    *
-   * 注意：同一时刻只挂载一个 3D 后端（VRM / GLB / 程序化 3D），
+   * 注意：同一时刻只挂载一个 3D 后端（GLB / 程序化 3D），
    * 所以这里只需要"当前后端失败就落到纯语音"，不必逐个遍历 ref。
    * 关键点是**绝不在某条路径返回 false 时静默结束** —— 那正是
    * "口型在动但完全没声音"的成因。
@@ -168,7 +165,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
       if (!text) return false;
       lastSpokenRef.current = text;
 
-      const backend = vrmRef.current || glbRef.current || human3dRef.current;
+      const backend = glbRef.current || human3dRef.current;
       if (backend) {
         try {
           if ((await backend.speak(text)) === true) return true;
@@ -192,7 +189,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
   useEffect(() => {
     if (!speechEnabled) {
       cancelSpeech();
-      try { vrmRef.current?.stop(); } catch {}
+      try { glbRef.current?.stop(); } catch {}
       try { glbRef.current?.stop(); } catch {}
       try { human3dRef.current?.stop(); } catch {}
       setLocalSpeaking(false);
@@ -212,7 +209,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
 
   // 对外暴露句柄：is3D() / speak() / stop()
   useImperativeHandle(ref, () => ({
-    is3D: () => !!(vrmRef.current || glbRef.current || human3dRef.current),
+    is3D: () => !!(glbRef.current || human3dRef.current),
 
     /**
      * 统一发声入口。
@@ -226,7 +223,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
 
     stop: () => {
       cancelSpeech();
-      try { vrmRef.current?.stop(); } catch {}
+      try { glbRef.current?.stop(); } catch {}
       try { glbRef.current?.stop(); } catch {}
       try { human3dRef.current?.stop(); } catch {}
       setLocalSpeaking(false);
@@ -249,7 +246,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
     primeSpeech();
     // 先打断当前朗读（避免新语音被 Chrome 排队），再走同一条降级链
     cancelSpeech();
-    try { vrmRef.current?.stop(); } catch {}
+    try { glbRef.current?.stop(); } catch {}
     try { glbRef.current?.stop(); } catch {}
     try { human3dRef.current?.stop(); } catch {}
     void runSpeakChain(text);
@@ -346,22 +343,9 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
               style={{ opacity: speakingActive ? 0.95 : isListening ? 0.8 : 0.55 }}
             />
 
-            {/* ⑥ 3D 渲染舞台（VRM 三人设 → 写实 GLB → 自研 3D，逐级平滑降级） */}
+            {/* ⑥ 3D 渲染舞台（写实 GLB → 自研程序化 3D，逐级平滑降级） */}
             <div className="absolute inset-0 flex items-center justify-center z-10">
               <div className="w-full h-full flex items-center justify-center">
-                {backend === 'vrm' && (
-                  <DigitalHumanVRM
-                    ref={vrmRef}
-                    personaId={selectedPersonaId}
-                    isSpeaking={isSpeaking}
-                    onSpeakingChange={handleSpeakingChange}
-                    onError={(err) => {
-                      console.warn('[DigitalHumanAvatar] VRM 模型加载异常，降级至写实 GLB 工程师模型:', err);
-                      setBackend('glb');
-                    }}
-                    className="w-full h-full"
-                  />
-                )}
                 {backend === 'glb' && (
                   <DigitalHumanGLB
                     ref={glbRef}
