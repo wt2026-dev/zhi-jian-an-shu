@@ -81,6 +81,8 @@ interface AnimState {
   phaseR: number;
   /* speak action weight */
   speakWeight: number;
+  /* procedural mouth-open envelope (0..1) */
+  mouthOpen: number;
 }
 
 function freshAnimState(): AnimState {
@@ -91,7 +93,94 @@ function freshAnimState(): AnimState {
     phaseL: Math.random() * Math.PI * 2,
     phaseR: Math.random() * Math.PI * 2,
     speakWeight: 0,
+    mouthOpen: 0,
   };
+}
+
+// ─── 程序化嘴部（口型）绑定 ─────────────────────────────────────────
+// 模型无 Jaw 骨骼 / 无 morph targets（GLB 检查确认），说话动画只驱动
+// 头部 + 手势。这里在运行时对头部网格嘴部条带顶点做程序化开合变形，
+// 让"说话"有真实口型效果：
+//  - 嘴部条带（Head 骨骼局部坐标）：y ∈ (0.030, 0.086)（嘴缝→下巴）、
+//    z > 0.052（前脸）、Head 权重 > 0.3，约 1000 个顶点；
+//  - 渐变权重：嘴缝处 1.0 平滑衰减到下巴处 0.35，避免撕裂；
+//  - 说话时顶点沿 -y（张口）与 +z（下唇前突）位移，峰值约 20mm。
+
+interface MouthRig {
+  mesh: THREE.SkinnedMesh;
+  idx: number[];
+  w: number[];
+  base: Float32Array;
+}
+
+/** 口型参数（Head 局部米制坐标，模型已归一化） */
+const MOUTH = {
+  yMin: 0.03,
+  yMax: 0.086,
+  zMin: 0.052,
+  headWeightMin: 0.3,
+  openPeak: 0.032, // 最大张口位移（米）：半身构图下 20mm 屏幕仅 2-3px，放大到 32mm 肉眼可见
+} as const;
+
+function setupMouthAnimation(root: THREE.Group): MouthRig | null {
+  const headBone = root.getObjectByName(BONE.head);
+  if (!headBone) return null;
+
+  // 找嘴部条带：对每个蒙皮网格，统计"Head 局部 y∈[0.03,0.086] 且 z>0.052 且
+  // Head 权重>0.3"的顶点数，取最多者（脸网格约 1000+ 个，其他网格极少/为 0）。
+  // 注意：GLTFLoader 解析本 GLB 时会把"默认对象"（20802 顶点）的 JOINTS 全部
+  // 输出为 Head 索引，仅按"Head 权重顶点数"选择会误选它；直接以嘴部条带候选
+  // 数为准，天然区分脸网格与其他网格。
+  root.updateMatrixWorld(true);
+  const invHead = headBone.matrixWorld.clone().invert();
+
+  let bestMesh: THREE.SkinnedMesh | null = null;
+  let bestIdx: number[] = [];
+  let bestW: number[] = [];
+  let bestBase: Float32Array | null = null;
+
+  root.traverse((o) => {
+    if (!(o instanceof THREE.SkinnedMesh) || !o.skeleton) return;
+    const skeleton = o.skeleton;
+    const headIdx = skeleton.bones.findIndex((b) => b.name === BONE.head);
+    if (headIdx < 0) return;
+    const geo = o.geometry;
+    const wAttr = geo.attributes.skinWeight;
+    const jAttr = geo.attributes.skinIndex;
+    const posAttr = geo.attributes.position;
+    if (!wAttr || !jAttr || !posAttr) return;
+
+    const idx: number[] = [];
+    const w: number[] = [];
+    const v = new THREE.Vector3();
+    for (let i = 0; i < posAttr.count; i++) {
+      let wHead = 0;
+      const js = [jAttr.getX(i), jAttr.getY(i), jAttr.getZ(i), jAttr.getW(i)];
+      const ws = [wAttr.getX(i), wAttr.getY(i), wAttr.getZ(i), wAttr.getW(i)];
+      for (let k = 0; k < 4; k++) {
+        if (Math.round(js[k]) === headIdx) wHead = Math.max(wHead, ws[k]);
+      }
+      if (wHead > MOUTH.headWeightMin) {
+        v.fromBufferAttribute(posAttr, i).applyMatrix4(invHead);
+        if (v.y > MOUTH.yMin && v.y < MOUTH.yMax && v.z > MOUTH.zMin) {
+          const u = (v.y - MOUTH.yMin) / (MOUTH.yMax - MOUTH.yMin); // 0 下巴 .. 1 嘴缝
+          idx.push(i);
+          w.push(0.35 + 0.65 * u * u);
+        }
+      }
+    }
+    if (idx.length > bestIdx.length) {
+      bestIdx = idx;
+      bestW = w;
+      bestMesh = o;
+      bestBase = new Float32Array(posAttr.array);
+    }
+  });
+
+  if (!bestMesh || bestIdx.length < 100) return null;
+
+  const base = bestBase as Float32Array;
+  return { mesh: bestMesh, idx: bestIdx, w: bestW, base };
 }
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -157,6 +246,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       root: THREE.Group | null;
       mixer: THREE.AnimationMixer | null;
       speakAction: THREE.AnimationAction | null;
+      mouth: MouthRig | null;
       grid: THREE.GridHelper;
       animId: number;
       anim: AnimState;
@@ -231,6 +321,14 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           }
           ctx.mixer = mixer;
           ctx.speakAction = speakAction;
+
+          // 程序化口型绑定（模型无 Jaw/morph，说话时驱动嘴部条带顶点开合）
+          try {
+            ctx.mouth = setupMouthAnimation(root);
+          } catch (e) {
+            console.warn('[DigitalHumanGLB] 口型绑定失败:', e);
+            ctx.mouth = null;
+          }
 
           // 角色专属胸前发光标识（挂 Spine2 骨骼，相当于胸口）
           const personaConf = PERSONA_CONFIGS[ctx.personaId] || PERSONA_CONFIGS.zhang;
@@ -315,6 +413,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
         root: null as THREE.Group | null,
         mixer: null as THREE.AnimationMixer | null,
         speakAction: null as THREE.AnimationAction | null,
+        mouth: null as MouthRig | null,
         grid,
         animId: 0,
         anim,
@@ -411,6 +510,39 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
             head.rotation.x = 0;
           } else {
             head.rotation.x = a.nodDir * 0.05 * Math.sin(a.nodProgress * Math.PI);
+          }
+        }
+
+        // ── 说话：程序化口型（嘴部条带顶点开合）──
+        const mouth = ctx.mouth;
+        if (mouth) {
+          const target = a.speaking ? 1 : 0;
+          a.mouthOpen += (target - a.mouthOpen) * 0.08;
+          const posAttr = mouth.mesh.geometry.attributes.position;
+          const arr = posAttr.array as Float32Array;
+          if (a.mouthOpen > 0.002) {
+            // 2.9Hz + 4.9Hz 双正弦叠加（口型节奏），峰值 ~20mm
+            const sec = t / 1000;
+            const open =
+              MOUTH.openPeak *
+              a.mouthOpen *
+              (0.5 + 0.3 * Math.sin(sec * 18.2) + 0.2 * Math.sin(sec * 31.4 + 1.3));
+            for (let i = 0; i < mouth.idx.length; i++) {
+              const vi = mouth.idx[i] * 3;
+              const w = mouth.w[i];
+              arr[vi + 1] = mouth.base[vi + 1] - open * w;
+              arr[vi + 2] = mouth.base[vi + 2] + open * 0.4 * w;
+            }
+            posAttr.needsUpdate = true;
+          } else if (a.mouthOpen !== 0) {
+            // 完全闭合时恢复原始顶点
+            for (let i = 0; i < mouth.idx.length; i++) {
+              const vi = mouth.idx[i] * 3;
+              arr[vi + 1] = mouth.base[vi + 1];
+              arr[vi + 2] = mouth.base[vi + 2];
+            }
+            posAttr.needsUpdate = true;
+            a.mouthOpen = 0;
           }
         }
 
@@ -514,8 +646,25 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
 
           const excerpt = clean.length > 280 ? clean.slice(0, 280) : clean;
 
+          // 视觉播报时长（口型/手势）：至少 2.5s，按文本长度最多 9s。
+          // 即使系统 TTS 无语音（onerror 立即触发 / speechSynthesis 不可用），
+          // 也保持说话状态到估算时长，保证"嘴巴在动"的视觉完整。
+          const startT = Date.now();
+          const estMs = Math.min(Math.max(excerpt.length * 150, 2500), 9000);
+
           ctx.anim.speaking = true;
           triggerNod(1);
+
+          const release = (ok: boolean, resolve: (v: boolean) => void) => {
+            const remain = estMs - (Date.now() - startT);
+            window.setTimeout(() => {
+              if (ctx && !ctx.disposed) {
+                ctx.anim.speaking = false;
+                triggerNod(-1);
+              }
+              resolve(ok);
+            }, Math.max(0, remain));
+          };
 
           if (typeof window !== 'undefined' && window.speechSynthesis) {
             return new Promise<boolean>((resolve) => {
@@ -524,32 +673,25 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
               utterance.rate = 1.0;
               utterance.pitch = 1.0;
 
-              utterance.onend = () => {
-                if (ctx && !ctx.disposed) {
-                  ctx.anim.speaking = false;
-                  triggerNod(-1);
-                }
-                resolve(true);
+              let settled = false;
+              const finish = (ok: boolean) => {
+                if (settled) return;
+                settled = true;
+                release(ok, resolve);
               };
-              utterance.onerror = () => {
-                if (ctx && !ctx.disposed) {
-                  ctx.anim.speaking = false;
-                }
-                resolve(false);
-              };
-              window.speechSynthesis.speak(utterance);
+              utterance.onend = () => finish(true);
+              utterance.onerror = () => finish(false);
+              try {
+                window.speechSynthesis.speak(utterance);
+              } catch {
+                finish(false);
+              }
+              // 硬兜底：TTS 卡死（onend/onerror 都不触发）时也按时长结束
+              window.setTimeout(() => finish(false), estMs + 3000);
             });
           }
 
-          return new Promise<boolean>((resolve) => {
-            setTimeout(() => {
-              if (ctx && !ctx.disposed) {
-                ctx.anim.speaking = false;
-                triggerNod(-1);
-              }
-              resolve(true);
-            }, Math.min(excerpt.length * 120, 8000));
-          });
+          return new Promise<boolean>((resolve) => release(true, resolve));
         },
 
         stop: () => {
