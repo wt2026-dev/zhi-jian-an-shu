@@ -60,17 +60,154 @@ export interface Anchor3D {
   id: string;
   worldPos: [number, number, number];
   label: string;
+  /** 沙盘选中态：锚点外圈显示青色描边环（仅影响孪生页锚点，不动主场景） */
+  selected?: boolean;
 }
+
+/** 厂房顶部悬浮数据立牌（名称 / 设备数 / 健康分来自真实台账，缺测显示 "—"） */
+export interface TwinDataSign {
+  name: string;
+  deviceCount: number | null;
+  healthScore: number | null;
+}
+
+/* ─── 加法细节：Canvas 贴图工具（SSR / 单测无 document 时返回 null，调用方跳过） ─── */
+
+function makeDotTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const S = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = S;
+  canvas.height = S;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const g = ctx.createRadialGradient(S / 2, S / 2, 2, S / 2, S / 2, S / 2);
+  g.addColorStop(0, 'rgba(34,211,238,1)');
+  g.addColorStop(0.45, 'rgba(34,211,238,0.9)');
+  g.addColorStop(0.7, 'rgba(34,211,238,0.25)');
+  g.addColorStop(1, 'rgba(34,211,238,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeRingTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const S = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = S;
+  canvas.height = S;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.strokeStyle = 'rgba(34,211,238,0.95)';
+  ctx.lineWidth = 5;
+  ctx.shadowColor = 'rgba(34,211,238,0.8)';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.arc(S / 2, S / 2, S / 2 - 8, 0, Math.PI * 2);
+  ctx.stroke();
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 车道线贴花：透明底 + 白色虚线中线 + 两侧细边线（沿 U 重复）。 */
+function makeLaneTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const W = 128;
+  const H = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(100,116,139,0.30)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillRect(0, 2, W, 3);
+  ctx.fillRect(0, H - 5, W, 3);
+  ctx.fillStyle = 'rgba(226,232,240,0.95)';
+  for (let i = 0; i < 2; i++) ctx.fillRect(i * 64 + 12, H / 2 - 2, 40, 4);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+/** 厂区出入口标识（浅色卡片风格，与明亮沙盘同语言）。 */
+function makeGateTexture(text: string): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const W = 128;
+  const H = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.fillStyle = 'rgba(2,132,199,0.85)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(3, 3, W - 6, H - 6);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 28px "Microsoft YaHei", "PingFang SC", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, W / 2, H / 2 + 2);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 数据立牌：厂房名 + 设备数 + 健康分（缺测显示 "—"，绝不编数据）。 */
+function makeSignTexture(name: string, deviceCount: number | null, healthScore: number | null): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const W = 256;
+  const H = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(2,132,199,0.8)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, W - 4, H - 4);
+  const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '700 26px "Microsoft YaHei", "PingFang SC", sans-serif';
+  ctx.fillText(clip(name, 8), W / 2, 40);
+  ctx.fillStyle = '#0284c7';
+  ctx.font = '600 22px "Microsoft YaHei", sans-serif';
+  ctx.fillText(`设备 ${deviceCount ?? '—'} 台`, W / 2, 76);
+  ctx.fillStyle = '#475569';
+  ctx.fillText(`健康分 ${healthScore ?? '—'}`, W / 2, 106);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 立牌落位：取既有 BUILDINGS 中体量最大的三栋（0# 主厂房 / 2# 大跨 / 3# 高炉车间），纯加法不改布局 */
+const SIGN_BUILDING_IDX = [0, 2, 3];
 
 interface TwinScene3DProps {
   anchors?: Anchor3D[];
   onAnchorProject?: (screen: { x: number; y: number; visible: boolean }[]) => void;
+  /** 厂房顶部数据立牌（≤3 块，落位在既有主厂房上，不移动任何现有建筑） */
+  dataSigns?: TwinDataSign[];
   className?: string;
 }
 
 const EMPTY_ANCHORS: Anchor3D[] = [];
+const EMPTY_SIGNS: TwinDataSign[] = [];
 
-export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHORS, onAnchorProject, className }) => {
+export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHORS, onAnchorProject, dataSigns = EMPTY_SIGNS, className }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number>(0);
@@ -92,6 +229,13 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
     targetDistance: number;
     autoRotate: boolean;
     lastInteract: number;
+    /* 加法细节：锚点描边环 / 数据立牌 / 悬停拾取 */
+    anchorRings: Map<string, THREE.Sprite>;
+    dataSignSprites: THREE.Sprite[];
+    raycaster: THREE.Raycaster;
+    pointer: THREE.Vector2;
+    dotTex: THREE.CanvasTexture | null;
+    ringTex: THREE.CanvasTexture | null;
   } | null>(null);
 
   /* ─── 初始化场景 ─── */
@@ -178,6 +322,41 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
 
+    // 加法细节：车道线贴花 + 出入口标识（铺在既有网格之上，不动网格与建筑）
+    const laneTexBase = makeLaneTexture();
+    if (laneTexBase) {
+      const lanes: Array<{ x: number; z: number; len: number; rotY: number }> = [
+        { x: 0, z: 7.2, len: 26, rotY: 0 },
+        { x: 11.5, z: 0, len: 22, rotY: Math.PI / 2 },
+        { x: -1, z: -9, len: 22, rotY: 0 },
+      ];
+      for (const ln of lanes) {
+        const tex = laneTexBase.clone();
+        tex.needsUpdate = true;
+        tex.repeat.set(Math.max(4, Math.round(ln.len / 3)), 1);
+        const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.8 });
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ln.len, 1.5), mat);
+        mesh.rotation.order = 'YXZ';
+        mesh.rotation.y = ln.rotY;
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(ln.x, 0.02, ln.z);
+        scene.add(mesh);
+      }
+      laneTexBase.dispose();
+    }
+    for (const gate of [
+      { text: '入口', x: -12.2, z: 7.2 },
+      { text: '出口', x: 11.5, z: 10.4 },
+    ]) {
+      const tex = makeGateTexture(gate.text);
+      if (!tex) continue;
+      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.9 });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(gate.x, 0.03, gate.z);
+      scene.add(mesh);
+    }
+
     // Buildings
     const buildingMat = new THREE.MeshStandardMaterial({ color: C.building, roughness: 0.7, metalness: 0.2 });
     const buildingMat2 = new THREE.MeshStandardMaterial({ color: C.buildingLight, roughness: 0.6, metalness: 0.3 });
@@ -209,6 +388,27 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
         const win = new THREE.Mesh(winGeo, windowMat);
         win.position.set(b.x - b.w / 2 + 0.8 + i * 1.2, b.h * 0.6, b.z + b.d / 2 + 0.03);
         scene.add(win);
+      }
+
+      // 加法细节：较高厂房补第二排灯窗（同一 windowMat，仅增数量/位置）
+      if (b.h >= 2.6) {
+        for (let i = 0; i < winCount; i++) {
+          const winGeo = new THREE.BoxGeometry(0.4, 0.3, 0.05);
+          const win = new THREE.Mesh(winGeo, windowMat);
+          win.position.set(b.x - b.w / 2 + 0.8 + i * 1.2, b.h * 0.3, b.z + b.d / 2 + 0.03);
+          scene.add(win);
+        }
+      }
+
+      // 加法细节：坡屋顶上的采光天窗格
+      if (b.roof) {
+        const skyCount = Math.max(1, Math.floor(b.w / 2.2));
+        const skyGeo = new THREE.BoxGeometry(0.55, 0.08, 0.55);
+        for (let i = 0; i < skyCount; i++) {
+          const sky = new THREE.Mesh(skyGeo, windowMat);
+          sky.position.set(b.x - b.w / 2 + ((i + 0.5) * b.w) / skyCount, b.h + 0.19, b.z);
+          scene.add(sky);
+        }
       }
 
       // Chimney
@@ -346,6 +546,12 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
       targetRotY: Math.PI / 4, targetRotX: 0.5,
       distance: 25, targetDistance: 25,
       autoRotate: true, lastInteract: 0,
+      anchorRings: new Map(),
+      dataSignSprites: [],
+      raycaster: new THREE.Raycaster(),
+      pointer: new THREE.Vector2(99, 99),
+      dotTex: makeDotTexture(),
+      ringTex: makeRingTexture(),
     };
   }, []);
 
@@ -391,12 +597,30 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
       posAttr.needsUpdate = true;
     });
 
-    // Animate anchor sprites (pulse)
+    // Animate anchor sprites (pulse) —— 加法：悬停锚点放大 1.6 倍
+    if (s.anchorSprites.length) {
+      s.raycaster.setFromCamera(s.pointer, s.camera);
+      const hit = s.raycaster.intersectObjects(s.anchorSprites, false)[0]?.object ?? null;
+      for (const sp of s.anchorSprites) sp.userData.hover = sp === hit;
+    }
     s.anchorSprites.forEach((sprite) => {
-      const scale = 0.3 + Math.sin(elapsed * 2 + sprite.position.x) * 0.1;
+      const scale = (0.3 + Math.sin(elapsed * 2 + sprite.position.x) * 0.1) * (sprite.userData.hover ? 1.6 : 1);
       sprite.scale.set(scale, scale, scale);
       (sprite.material as THREE.SpriteMaterial).opacity = 0.6 + Math.sin(elapsed * 3) * 0.3;
     });
+
+    // 加法细节：选中描边环微脉冲 + 数据立牌按相机距离淡入淡出
+    s.anchorRings.forEach((ring) => {
+      if (!ring.visible) return;
+      const rs = 0.62 + Math.sin(elapsed * 2.4) * 0.05;
+      ring.scale.set(rs, rs, 1);
+    });
+    for (const sp of s.dataSignSprites) {
+      const d = s.camera.position.distanceTo(sp.position);
+      const op = Math.max(0.12, Math.min(0.95, (48 - d) / 16));
+      (sp.material as THREE.SpriteMaterial).opacity = op;
+      sp.visible = op > 0.05;
+    }
 
     // Animate equipment markers
     s.scene.children.forEach((child) => {
@@ -441,7 +665,14 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
 
     const onPointerMove = (e: PointerEvent) => {
       const s = stateRef.current;
-      if (!s || !s.mouseDown) return;
+      if (!s) return;
+      // 加法细节：非拖拽时也跟踪指针，供锚点悬停放大拾取
+      const rect = container.getBoundingClientRect();
+      s.pointer.set(
+        ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1,
+        -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1
+      );
+      if (!s.mouseDown) return;
       const dx = e.clientX - s.mouse.x;
       const dy = e.clientY - s.mouse.y;
       s.targetRotY -= dx * 0.005;
@@ -539,24 +770,84 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
       if (sprite) {
         previous.delete(anchor.id);
       } else {
+        // 锚点样式统一为主场景语言：青色发光圆点（0x22d3ee，仅改孪生页锚点材质）
         sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-          color: C.emissive,
+          map: s.dotTex ?? undefined,
+          color: s.dotTex ? 0xffffff : 0x22d3ee,
           transparent: true,
-          opacity: 0.9,
-          blending: THREE.AdditiveBlending,
+          opacity: 0.85,
+          blending: THREE.NormalBlending,
+          depthWrite: false,
+          toneMapped: false,
         }));
         sprite.scale.set(0.4, 0.4, 0.4);
-        sprite.userData = { anchorId: anchor.id };
+        sprite.userData = { anchorId: anchor.id, hover: false };
         s.scene.add(sprite);
       }
       sprite.position.set(...anchor.worldPos);
+      // 选中描边环：与主场景 selectionRing 同色系
+      let ring = s.anchorRings.get(anchor.id);
+      if (anchor.selected && s.ringTex) {
+        if (!ring) {
+          ring = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: s.ringTex,
+            transparent: true,
+            depthWrite: false,
+            toneMapped: false,
+          }));
+          ring.scale.set(0.62, 0.62, 1);
+          s.scene.add(ring);
+          s.anchorRings.set(anchor.id, ring);
+        }
+        ring.visible = true;
+        ring.position.set(...anchor.worldPos);
+      } else if (ring) {
+        ring.visible = false;
+      }
       return sprite;
     });
     previous.forEach((sprite) => {
       s.scene.remove(sprite);
       sprite.material.dispose();
     });
+    // 已消失锚点：连带清理描边环
+    for (const [id, ring] of s.anchorRings) {
+      if (!anchors.some((a) => a.id === id)) {
+        s.scene.remove(ring);
+        ring.material.dispose();
+        s.anchorRings.delete(id);
+      }
+    }
   }, [anchors]);
+
+  /* ─── 数据立牌（加法层）：台账变化时重建厂房顶部悬浮 Sprite ─── */
+  useEffect(() => {
+    const s = stateRef.current;
+    if (!s) return;
+    for (const sp of s.dataSignSprites) {
+      s.scene.remove(sp);
+      sp.material.map?.dispose();
+      sp.material.dispose();
+    }
+    s.dataSignSprites = dataSigns
+      .slice(0, SIGN_BUILDING_IDX.length)
+      .map((d, i) => {
+        const tex = makeSignTexture(d.name, d.deviceCount, d.healthScore);
+        if (!tex) return null;
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: tex,
+          transparent: true,
+          depthWrite: false,
+          toneMapped: false,
+        }));
+        sp.scale.set(3.4, 1.7, 1);
+        const b = BUILDINGS[SIGN_BUILDING_IDX[i]];
+        sp.position.set(b.x, b.h + 2.6 + i * 0.15, b.z);
+        s.scene.add(sp);
+        return sp;
+      })
+      .filter((x): x is THREE.Sprite => x !== null);
+  }, [dataSigns]);
 
   return (
     <div
