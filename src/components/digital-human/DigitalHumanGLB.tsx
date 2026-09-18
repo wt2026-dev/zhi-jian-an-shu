@@ -119,7 +119,7 @@ const MOUTH = {
   yMax: 0.086,
   zMin: 0.052,
   headWeightMin: 0.3,
-  openPeak: 0.032, // 最大张口位移（米）：半身构图下 20mm 屏幕仅 2-3px，放大到 32mm 肉眼可见
+  openPeak: 0.06, // 最大张口位移（米）：0.032 在半身构图下肉眼仍难辨，放大到 60mm 保证可见
 } as const;
 
 function setupMouthAnimation(root: THREE.Group): MouthRig | null {
