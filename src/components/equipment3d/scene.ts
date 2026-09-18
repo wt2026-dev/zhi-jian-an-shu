@@ -38,6 +38,7 @@ import { FluidFlowSystem } from './fluidFlow';
 import { telemetryToStatus } from './statusMapping';
 import type { PartTelemetry } from './partEvidence';
 import { ProductionLine, type DeviceAnchor, type ProductionLineOptions } from './productionLine';
+import { WorkshopDetails, type DetailDeviceAnchor } from './workshopDetails';
 import {
   FactoryOverview,
   defaultBuildingSpecs,
@@ -135,6 +136,8 @@ export class EquipmentScene {
   // ---- 三级层级（厂区 / 车间 / 单设备）----
   factory: FactoryOverview | null = null;
   productionLine: ProductionLine | null = null;
+  /** 车间环境细节层（贴花/仪表/灯柱/工具柜等，纯加法，与产线同生命周期） */
+  workshopDetails: WorkshopDetails | null = null;
   faultLocator: FaultLocator;
   level: SceneLevel = 'workshop';
   /** 当前下钻的厂房 id（null = 未选择） */
@@ -2267,12 +2270,64 @@ export class EquipmentScene {
     this.productionLine = line;
     this.lineGroup.add(line.group);
     this.lineGroup.visible = this.level !== 'factory' && this.lineEnabled;
+    this.buildWorkshopDetails();
     this.bindStationsToDevices();
     this.refreshFaultFloats();
   }
 
+  /** 构建（或重建）车间环境细节层：贴花 / 地脚螺栓 / 仪表 / 灯柱 / 铭牌 / 工具柜 / AGV / 直梯。 */
+  private buildWorkshopDetails(): void {
+    this.disposeWorkshopDetails();
+    const q = QUALITY[this.params.quality];
+    const hall = this.hall;
+    this.workshopDetails = new WorkshopDetails({
+      seed: this.params.seed,
+      halfX: hall?.bounds.halfX ?? 27,
+      halfZ: hall?.bounds.halfZ ?? 20,
+      shadows: q.shadows,
+      detail: q.detail,
+    });
+    this.lineGroup.add(this.workshopDetails.group);
+  }
+
+  private disposeWorkshopDetails(): void {
+    if (!this.workshopDetails) return;
+    this.lineGroup.remove(this.workshopDetails.group);
+    this.workshopDetails.dispose();
+    this.workshopDetails = null;
+  }
+
+  /** 用真实台账刷新设备级细节（坐标/尺寸/状态/遥测快照全部来自 slots / boxById / slotStatus）。 */
+  private refreshWorkshopDetails(): void {
+    const det = this.workshopDetails;
+    const eq = this.equipment;
+    if (!det || !eq) return;
+    const preset = SCENE_PRESETS[this.params.presetId] ?? SCENE_PRESETS.standard;
+    const scale = preset.morphology.equipmentScale;
+    const anchors: DetailDeviceAnchor[] = [];
+    for (let i = 0; i < this.slots.length && i < this.devices.length; i++) {
+      const s = this.slots[i];
+      const d = this.devices[i];
+      const box = eq.boxById.get(d.id);
+      anchors.push({
+        id: d.id,
+        name: d.name ?? d.id,
+        code: d.code,
+        x: s.x,
+        z: s.z,
+        topY: (box?.h ?? 3.2) * scale + 0.5,
+        w: (box?.w ?? 2) * scale,
+        d: (box?.d ?? 2) * scale,
+        status: this.slotStatus[i] ?? 'nodata',
+        telemetry: d.telemetry ?? null,
+      });
+    }
+    det.setDevices(anchors);
+  }
+
   private disposeProductionLine(): void {
     if (!this.productionLine) return;
+    this.disposeWorkshopDetails();
     this.lineGroup.remove(this.productionLine.group);
     this.productionLine.dispose();
     this.productionLine = null;
@@ -2315,6 +2370,7 @@ export class EquipmentScene {
       });
     }
     line.setDeviceAnchors(anchors);
+    this.refreshWorkshopDetails();
   }
 
   /** 把机械臂工作站绑定到台账中的工业机器人（点击工作站即可选中该设备）。 */
@@ -2334,6 +2390,7 @@ export class EquipmentScene {
   setLayerAnimationsPaused(paused: boolean): void {
     this.particlesPaused = paused;
     this.productionLine?.setPaused(paused);
+    this.workshopDetails?.setPaused(paused);
     this.factory?.setPaused(paused);
     this.faultLocator.setPaused(paused);
   }
@@ -2522,6 +2579,7 @@ export class EquipmentScene {
   setDeviceTelemetry(deviceId: string, data: PartTelemetry & { status: string; current?: number; rpm?: number }): void {
     this.equipment?.updateTelemetry(deviceId, data);
     this.fluidFlow?.setDeviceTelemetry(deviceId, data);
+    this.workshopDetails?.setTelemetry(deviceId, data);
   }
 
   /* ========================= 拆解视图 ========================= */
@@ -2808,6 +2866,8 @@ export class EquipmentScene {
       this.fluidFlow?.update(dt, this.animTime);
       // 三级层级各自的动画：产线（机械臂/传送带/物料箱/浮标）、厂区扫描环、故障定位标
       this.productionLine?.update(dt, this.animTime);
+      // 环境细节层：灯柱呼吸 / 指针微摆 / 铭牌远景裁剪（同一暂停开关控制）
+      this.workshopDetails?.update(dt, this.animTime, this.camera.position);
       this.factory?.update(dt, this.animTime);
       this.faultLocator.update(dt, this.animTime);
       this.animateChrome(this.animTime, dt);
