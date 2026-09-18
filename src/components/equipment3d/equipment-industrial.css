@@ -1,0 +1,278 @@
+/*
+ * 深色工业可视化外壳（equipment3d 专属样式）。
+ *
+ * 配套 EquipmentScene.tsx / DeviceAnalysisPanel.tsx 使用：
+ *   - 场景宿主保持深色，营造车间氛围，页面其余浅色区域不受影响；
+ *   - 场景参数 / 画质等次要控件折叠为 <details>，主视觉聚焦车间总览与单台设备；
+ *   - 台账 / 遥测 / 工单数据全部来自真实接口，缺失值显示为“—”，绝不估算。
+ */
+
+/* ---------- 顶部：深色壳 + 次要折叠控件 ---------- */
+
+.equipment-industrial {
+  background:
+    radial-gradient(1200px 400px at 20% -10%, rgba(14, 165, 233, 0.10), transparent 60%),
+    linear-gradient(180deg, #0b1220 0%, #0e1626 100%);
+  border: 1px solid #1e293b;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.equipment-industrial summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.equipment-industrial summary::-webkit-details-marker {
+  display: none;
+}
+
+.equipment-industrial summary::after {
+  content: '▸';
+  margin-left: 6px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.equipment-industrial details[open] > summary::after {
+  content: '▾';
+}
+
+.industrial-render-settings {
+  position: relative;
+  color: #cbd5e1;
+}
+
+.industrial-render-settings > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  font-size: 12px;
+}
+
+.industrial-render-settings > summary:hover {
+  border-color: #38bdf8;
+  color: #e2e8f0;
+}
+
+.industrial-render-settings[open] > summary,
+.industrial-render-settings > summary:focus-visible {
+  outline: none;
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.industrial-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 320px;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.97);
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.65);
+}
+
+/* ---------- 侧栏（设备分析 / 场景参数） ---------- */
+
+.industrial-sidebar {
+  width: 280px;
+  max-height: calc(100% - 24px);
+  z-index: 30;
+}
+
+.industrial-workspace.has-sidebar .industrial-overview {
+  max-width: calc(100% - 300px);
+}
+
+.industrial-overview.is-focused {
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+}
+
+.industrial-overview {
+  transition: opacity 0.2s ease;
+}
+
+.industrial-viewport canvas {
+  display: block;
+  outline: none;
+}
+
+/* ---------- 分析面板：底部留出滑出式工单卡片的空间 ---------- */
+
+.industrial-analysis {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+  padding-bottom: 6rem;
+}
+
+/* ---------- 场景参数：每组控件折叠，默认收起 ---------- */
+
+.industrial-control-section > summary {
+  cursor: pointer;
+  list-style: none;
+  color: #cbd5e1;
+}
+
+.industrial-control-section > summary:hover {
+  color: #38bdf8;
+}
+
+.industrial-control-section[open] > summary {
+  color: #7dd3fc;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 4px;
+}
+
+/* ---------- 遥测读数块 ---------- */
+
+.industrial-readings > div {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.industrial-readings {
+  --readings-gap: 8px;
+}
+
+/* ==========================================================================
+   科技感数字孪生大屏 HUD 专属样式（对标 BV18T421v7no）
+   ========================================================================== */
+
+/* 1. 面板外发光与科技质感底色 */
+.hud-sci-fi-panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0px, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    rgba(8, 15, 30, 0.72) !important;
+  border: 1px solid rgba(34, 211, 238, 0.35) !important;
+  box-shadow:
+    0 0 12px rgba(34, 211, 238, 0.12),
+    inset 0 0 18px rgba(34, 211, 238, 0.05) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* 2. 标题栏：发光竖条 + 文字发光 */
+.hud-title-bar-indicator {
+  display: inline-block;
+  width: 3px;
+  height: 13px;
+  background-color: #22d3ee;
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.85);
+  flex-shrink: 0;
+}
+
+.hud-title-text {
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+}
+
+/* 3. 顶部主标题栏与流动扫描线 */
+.hud-main-header {
+  position: relative;
+  background:
+    linear-gradient(90deg, rgba(34, 211, 238, 0.25) 0%, rgba(8, 15, 30, 0.72) 30%, rgba(8, 15, 30, 0.72) 70%, transparent 100%),
+    rgba(8, 15, 30, 0.72) !important;
+  border: 1px solid rgba(34, 211, 238, 0.35) !important;
+  box-shadow:
+    0 0 16px rgba(34, 211, 238, 0.15),
+    inset 0 0 20px rgba(34, 211, 238, 0.06) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.hud-main-title {
+  text-shadow:
+    0 0 10px rgba(34, 211, 238, 0.85),
+    0 0 20px rgba(34, 211, 238, 0.45);
+}
+
+.hud-scanline-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(34, 211, 238, 0.15);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hud-scanline-beam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, #22d3ee 50%, #67e8f9 80%, transparent 100%);
+  box-shadow: 0 0 8px #22d3ee;
+  animation: hud-scanline-flow 4s linear infinite;
+}
+
+@keyframes hud-scanline-flow {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+/* 4. 数据卡 hover / 激活态 */
+.hud-data-card {
+  position: relative;
+  background: rgba(8, 15, 30, 0.6) !important;
+  border: 1px solid rgba(34, 211, 238, 0.2) !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hud-data-card:hover {
+  background: rgba(20, 36, 64, 0.78) !important;
+  border-color: rgba(34, 211, 238, 0.6) !important;
+  box-shadow:
+    0 0 14px rgba(34, 211, 238, 0.2),
+    inset 0 0 10px rgba(34, 211, 238, 0.08) !important;
+}
+
+/* 等宽与青色发光数字 */
+.hud-tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.hud-value-glow {
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.75);
+}
+
+.hud-value-glow-emerald {
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+}
+
+.hud-value-glow-amber {
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+}
+
+.hud-value-glow-rose {
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(244, 63, 94, 0.75);
+}
+
