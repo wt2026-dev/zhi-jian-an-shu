@@ -17,8 +17,12 @@
  *      多宽。实测 scale=2.6 时标签宽约 2373px、画布只有 1304px —— 等于 1.8 个屏宽，
  *      右半截必然被裁掉；同时 sprite 默认以**贴图中心**对齐锚点，而图标在贴图左侧
  *      15.6% 处，于是十字准星离故障点差了约 800px。
- *      → scale 降到 LABEL_SCALE（约占屏宽 40%），并用 sprite.center 把锚点挪到图标上：
- *        图标压在故障点上，文字向右侧展开。
+ *      → scale 降到 LABEL_SCALE，并用 sprite.center 把锚点挪到图标上：
+ *        图标压在故障点上，文字向一侧展开。
+ *   3) 单靠缩小仍不够：L3 右侧详情面板会展开到画布 62% 处，而聚焦相机把故障点放在
+ *      **画布正中**，右向标签的右缘必然伸到面板底下（实测 1192 > 1070）。
+ *      → 预生成**镜像贴图**（图标在右、文字在左），update() 里按锚点的屏幕位置
+ *        择一侧展开 —— 右侧放不下就翻到左侧。缩小到能塞下右侧会让字小到读不清。
  */
 
 import * as THREE from 'three';
@@ -38,6 +42,13 @@ const LABEL_ICON_CX = 100;
  *    `scratch/verify-fault-label.mjs`（像素级量标签包围盒）。
  */
 const LABEL_SCALE = 0.44;
+/**
+ * 锚点 NDC.x 超过该阈值就把标签翻到**左侧**展开。
+ * 右侧详情面板最宽时占到画布约 62%（NDC ≈ 0.24），而聚焦相机把故障点放在正中
+ * （NDC≈0），右向标签右缘 ≈ 0 + 0.84·wNdc 必然越界 ⇒ 默认就走镜像，
+ * 只有当故障点明显偏左（NDC < -0.2）时才向右展开。
+ */
+const LABEL_FLIP_NDC_X = -0.2;
 
 export interface FaultAnchor {
   deviceId: string;
@@ -52,6 +63,11 @@ export interface FaultAnchor {
 interface FaultRecord {
   anchor: FaultAnchor;
   sprite: THREE.Sprite;
+  /** 正常（文字在右）与镜像（文字在左）两张贴图，按锚点屏幕位置择一。 */
+  texNormal: THREE.Texture | null;
+  texMirror: THREE.Texture | null;
+  /** 当前是否用的镜像贴图（避免每帧重复写 material）。 */
+  mirrored: boolean;
   /** 红色实体高亮（光晕球 + 扫描环 + 光柱），与 sprite 同锚点 */
   marker: THREE.Group;
   haloMat: THREE.MeshBasicMaterial;
@@ -66,6 +82,8 @@ export class FaultLocator {
   private records = new Map<string, FaultRecord>();
   private ownedTextures: THREE.Texture[] = [];
   private paused = false;
+  /** 逐帧复用的投影向量（避免每帧 new）。 */
+  private ndc = new THREE.Vector3();
   /** 共享几何体：所有定位标复用同一份球/环/柱，dispose 时统一释放。 */
   private geo = {
     halo: new THREE.SphereGeometry(0.46, 18, 12),
@@ -92,23 +110,27 @@ export class FaultLocator {
         existing.sprite.position.set(a.x, a.y, a.z);
         existing.baseY = a.y;
         this.placeMarker(existing, a);
-        // 部位文字变了要重画贴图
-        const tex = this.makeFaultTexture(a.partName);
-        if (tex) {
+        // 部位文字变了要重画两张贴图（正常 + 镜像）
+        const n = this.makeFaultTexture(a.partName, false);
+        const m = this.makeFaultTexture(a.partName, true);
+        if (n && m) {
           const mat = existing.sprite.material as THREE.SpriteMaterial;
-          mat.map?.dispose();
-          mat.map = tex;
-          mat.needsUpdate = true;
-          this.ownedTextures.push(tex);
+          existing.texNormal?.dispose();
+          existing.texMirror?.dispose();
+          existing.texNormal = n;
+          existing.texMirror = m;
+          // ⚠️ 不要在这里手动 `mat.map = n`：applySide 靠"map 已经是目标贴图"做幂等短路，
+          //    先赋值会让它以为切边已完成，从而漏改 sprite.center.x（标签仍朝旧方向展开）。
+          this.applySide(existing, false);
         }
         continue;
       }
-      const tex = this.makeFaultTexture(a.partName);
-      if (!tex) continue;
-      this.ownedTextures.push(tex);
+      const texN = this.makeFaultTexture(a.partName, false);
+      const texM = this.makeFaultTexture(a.partName, true);
+      if (!texN || !texM) continue;
       const sprite = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: tex,
+          map: texN,
           transparent: true,
           depthTest: false,
           depthWrite: false,
@@ -122,7 +144,7 @@ export class FaultLocator {
       );
       const aspect = LABEL_TEX_H / LABEL_TEX_W;
       sprite.scale.set(LABEL_SCALE, LABEL_SCALE * aspect, 1);
-      // 锚点落在圆圈图标上（而不是贴图中心），文字从故障点向右展开。
+      // 锚点落在圆圈图标上（而不是贴图中心），文字从故障点向一侧展开。
       sprite.center.set(LABEL_ICON_CX / LABEL_TEX_W, 0.5);
       sprite.position.set(a.x, a.y, a.z);
       sprite.renderOrder = 50;
@@ -136,6 +158,9 @@ export class FaultLocator {
         anchor: a,
         sprite,
         marker,
+        texNormal: texN,
+        texMirror: texM,
+        mirrored: false,
         haloMat: marker.userData.haloMat as THREE.MeshBasicMaterial,
         ringMat: marker.userData.ringMat as THREE.MeshBasicMaterial,
         beamMat: marker.userData.beamMat as THREE.MeshBasicMaterial,
@@ -158,14 +183,37 @@ export class FaultLocator {
     this.dropRecord(deviceId, rec);
   }
 
-  /** 释放并摘除单条记录（sprite + 红色实体高亮）。 */
+  /** 释放并摘除单条记录（sprite + 红色实体高亮 + 两张标签贴图）。 */
   private dropRecord(deviceId: string, rec: FaultRecord): void {
     this.group.remove(rec.sprite);
     const m = rec.sprite.material as THREE.SpriteMaterial;
     m.map?.dispose();
     m.dispose();
+    // 两张贴图里没被 material 引用的那张也要释放
+    rec.texNormal?.dispose();
+    rec.texMirror?.dispose();
     this.disposeMarker(rec.marker);
     this.records.delete(deviceId);
+  }
+
+  /**
+   * 切换标签向哪一侧展开：`mirrored` 时代用镜像贴图（图标在右、文字在左）
+   * 并把锚点挪到镜像后的图标上。
+   */
+  private applySide(rec: FaultRecord, mirrored: boolean): void {
+    if (rec.mirrored === mirrored && (rec.sprite.material as THREE.SpriteMaterial).map) {
+      const cur = mirrored ? rec.texMirror : rec.texNormal;
+      if ((rec.sprite.material as THREE.SpriteMaterial).map === cur) return;
+    }
+    rec.mirrored = mirrored;
+    const mat = rec.sprite.material as THREE.SpriteMaterial;
+    const tex = mirrored ? rec.texMirror : rec.texNormal;
+    if (!tex) return;
+    mat.map = tex;
+    mat.needsUpdate = true;
+    rec.sprite.center.x = mirrored
+      ? (LABEL_TEX_W - LABEL_ICON_CX) / LABEL_TEX_W
+      : LABEL_ICON_CX / LABEL_TEX_W;
   }
 
   /**
@@ -286,9 +334,17 @@ export class FaultLocator {
     this.paused = paused;
   }
 
-  update(_dt: number, t: number): void {
+  /**
+   * @param camera 可选。传入后按锚点的屏幕位置决定标签向左还是向右展开
+   *               （右侧详情面板会遮挡右向标签，见 LABEL_FLIP_NDC_X 的说明）。
+   */
+  update(_dt: number, t: number, camera?: THREE.Camera): void {
     if (this.paused) return;
     for (const rec of this.records.values()) {
+      if (camera) {
+        this.ndc.set(rec.anchor.x, rec.anchor.y, rec.anchor.z).project(camera);
+        this.applySide(rec, this.ndc.x > LABEL_FLIP_NDC_X);
+      }
       const pulse = Math.sin(t * 2.6 + rec.phase) * 0.5 + 0.5;
       const aspect = LABEL_TEX_H / LABEL_TEX_W;
       const s = LABEL_SCALE * (1 + pulse * 0.09);
@@ -307,11 +363,16 @@ export class FaultLocator {
     }
   }
 
-  /** 圆圈 + 十字 + "故障位置：xxx" 发光标签。 */
-  private makeFaultTexture(partName: string): THREE.CanvasTexture | null {
+  /**
+   * 圆圈 + 十字 + 两行发光标签。
+   *
+   * @param mirrored true 时图标画在**右侧**、文字底板画在左侧 —— 用于标签需要
+   *                 向故障点左方展开的场景（右侧面板遮挡），避免文字被裁切。
+   */
+  private makeFaultTexture(partName: string, mirrored: boolean): THREE.CanvasTexture | null {
     if (typeof document === 'undefined') return null;
-    const W = 640;
-    const H = 260;
+    const W = LABEL_TEX_W;
+    const H = LABEL_TEX_H;
     const c = document.createElement('canvas');
     c.width = W;
     c.height = H;
@@ -320,7 +381,7 @@ export class FaultLocator {
 
     ctx.clearRect(0, 0, W, H);
 
-    const cx = 100;
+    const cx = mirrored ? W - LABEL_ICON_CX : LABEL_ICON_CX;
     const cy = H / 2;
     const r = 62;
 
@@ -358,9 +419,9 @@ export class FaultLocator {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // 右侧标签底板
-    const bx = 196;
-    const bw = W - bx - 8;
+    // 标签底板：正常布局在图标右侧，镜像布局在图标左侧（宽度一致，只是位置镜像）
+    const bx = mirrored ? 8 : 196;
+    const bw = W - 196 - 8;
     ctx.fillStyle = 'rgba(69,10,10,0.86)';
     ctx.fillRect(bx, 34, bw, H - 68);
     ctx.strokeStyle = '#ef4444';
@@ -406,6 +467,7 @@ export class FaultLocator {
       this.disposeMarker(rec.marker);
     }
     this.records.clear();
+    // 贴图已随每条记录在 dropRecord 里释放，这里只兜底清一次历史登记项
     for (const t of this.ownedTextures) t.dispose();
     this.ownedTextures.length = 0;
     this.geo.halo.dispose();
