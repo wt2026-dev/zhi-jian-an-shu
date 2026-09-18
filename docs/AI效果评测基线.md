@@ -60,7 +60,7 @@
 ## 四、与测试的关系
 
 - `tests/ai-verification.test.ts`（6 用例）：将 A/C/D 的契约固化进 CI，防回归；
-- `vitest.config.ts` 的 `test.env` 将外部凭据置空（dotenv 不覆盖已存在变量）→ **全量 33 文件/234 用例在无网、无 Key 环境稳定全绿**，测试不再依赖真实 DashScope 配额。
+- `vitest.config.ts` 的 `test.env` 将外部凭据置空（dotenv 不覆盖已存在变量）→ **全量 33 文件/237 用例在无网、无 Key 环境稳定全绿**，测试不再依赖真实 DashScope 配额。
 
 ## 五、复跑方式
 

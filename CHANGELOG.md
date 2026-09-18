@@ -4,6 +4,23 @@
 > 历史清理说明：2026-09-13 整理出 12 条发布基线，原始 43 条开发提交完整保留于 `backup/pre-cleanup` 分支；敏感文件历史审计结论为 0 个残留（详见 `docs/敏感文件审计清单.md`）。
 
 
+## [2.0.1] - 2026-09-18（参赛提交收口）
+
+### feat（3D 质感与资产）
+- **GLB 资产入库**：六轴机械臂（2.6MB）+ 10 台工业设备模型（约 55MB），全部 CC BY 4.0，署名见各目录 `ATTRIBUTION.md`（`a567583`）
+- **bloom 后处理链**：EffectComposer（RenderPass→UnrealBloomPass→OutputPass），按画质档分级；三处性能护栏（medium bloom 半分辨率 / 软渲染检测回退 / 直渲-Composer 两阶段探测 FPS 掉 30% 自动降级）（`93a836b`、`7e66a9d`）
+- **选中设备 emissive 蓝调高亮** + 故障定位标签两行布局防裁切（`93a836b`、`82f8108`）
+
+### test（质量证据）
+- 新增 13 个纯新增测试文件与 digital-twin/UI 组件（`10833de`），已在全新 worktree 快照中验证；**提交源码口径实测 47 文件 / 412 用例全绿**
+- 6 个依赖进行中会话未提交改动的测试（telemetry-history / glb-perf / factory-zones / safety-interlock-e2e / seed-permit / work-order-safety-guards）与数字人、视频生成会话文件（`videoHistorySnapshot.ts`、`videoProgress.ts`、`024_video_progress.sql`、`tests/video-*`、`tests/digital-human-*`）**本轮不提交**，待对应会话收口后入库；工作区口径为 57 文件 / 556 用例
+
+### docs（口径终版）
+- 测试基线统一为 47/412（提交快照）并注明工作区 57/556 的差异原因；旧口径 193/223/234/237 为历史核对快照，见 `docs/口径数字同步核对表.md`
+- 评测双口径保留并各自注明含义：AI 降级评测 11/11（`scripts/ai-eval.ts`，12 条固定样本去 1 条）；PG 生产模式核心回归 15/15（`docs/生产模式验证报告.md`）
+- 数据迁移工具 `scripts/migrate-pglite-to-postgres.ts` 现覆盖全部 29 张业务表（早期"仅 12 张核心表"坦白项已随代码补全失效，历史修复报告按当日事实保留）
+
+
 ## [2.0.0] - 2026-09-13
 
 ### feat（功能里程碑）
@@ -22,7 +39,7 @@
 - **知识库单一数据源**：列表与 RAG 检索同口径（approved），消除内存双轨；健康预测降级 statistics 补齐 min 字段
 
 ### test（测试体系）
-- **33 个测试文件 / 234 个用例全绿**，全程离线确定性：`test.env` 隔离外部凭据，AI 路径零真实外部调用
+- **33 个测试文件 / 237 个用例全绿**，全程离线确定性：`test.env` 隔离外部凭据，AI 路径零真实外部调用
 - 安全基线回归（攻击链永久用例）、乐观锁并发、状态机互斥、降级契约验证（`tests/ai-verification.test.ts`）
 
 ### docs（文档与评测）

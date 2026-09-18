@@ -1,0 +1,1050 @@
+{
+  "baseUrl": "http://127.0.0.1:3000",
+  "chrome": "C:\\Users\\26783\\.agent-browser\\browsers\\chrome-153.0.8010.36\\chrome.exe",
+  "startedAt": "2026-09-16T05:02:37.195Z",
+  "shots": [
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\minimap-standard.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-standard.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\minimap-heavy.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-heavy.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\minimap-yard.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-yard.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\pick-device-analysis.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\pick-ai-diagnose.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\orbit-after-drag.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\seed-987654.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\view-orbit.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\view-overhead.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\view-iso.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\view-closeup.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\toggle-highlight-off.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\toggle-grid-off.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-101.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-102.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-103.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-104.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-105.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-106.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-107.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-108.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-109.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-110.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-111.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-112.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-113.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-114.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-115.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-116.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-standby-114-1.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-standby-114-2.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-running-104-1.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-running-104-2.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-warning-110-1.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-warning-110-2.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-fault-112-1.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-fault-112-2.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-critical-103-1.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\motion-critical-103-2.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-standard-eq-110.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-heavy-eq-110.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-yard-eq-110.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\offline-cache-fallback.png",
+    "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\offline-app-fallback.png"
+  ],
+  "controls": {
+    "views": {
+      "orbit": {
+        "mean": 199.18,
+        "hist": [
+          0,
+          3,
+          70,
+          281,
+          1830,
+          543,
+          213,
+          2820
+        ],
+        "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\view-orbit.png"
+      },
+      "overhead": {
+        "mean": 197.22,
+        "hist": [
+          0,
+          44,
+          193,
+          357,
+          1442,
+          643,
+          298,
+          2783
+        ],
+        "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\view-overhead.png"
+      },
+      "iso": {
+        "mean": 195.85,
+        "hist": [
+          0,
+          122,
+          198,
+          283,
+          1506,
+          577,
+          288,
+          2786
+        ],
+        "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\view-iso.png"
+      },
+      "closeup": {
+        "mean": 203.55,
+        "hist": [
+          9,
+          13,
+          102,
+          303,
+          951,
+          1202,
+          345,
+          2835
+        ],
+        "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\view-closeup.png"
+      }
+    },
+    "highlight": {
+      "before": {
+        "state": "true",
+        "chips": {
+          "devices": "16",
+          "faults": "2",
+          "triangles": "35,206",
+          "fps": "20 fps",
+          "buildMs": "33.6 ms",
+          "drawCalls": "434",
+          "animated": "43"
+        }
+      },
+      "afterOff": {
+        "state": "false",
+        "chips": {
+          "devices": "16",
+          "faults": "2",
+          "triangles": "34,054",
+          "fps": "20 fps",
+          "buildMs": "38.6 ms",
+          "drawCalls": "432",
+          "animated": "43"
+        }
+      },
+      "pixels": {
+        "mean": 198.2,
+        "min": 57.846999999999994,
+        "max": 255,
+        "nonDarkRatio": 1,
+        "hist": [
+          0,
+          3,
+          71,
+          303,
+          1912,
+          482,
+          169,
+          2820
+        ]
+      },
+      "afterOn": {
+        "state": "true",
+        "chips": {
+          "devices": "16",
+          "faults": "2",
+          "triangles": "35,206",
+          "fps": "20 fps",
+          "buildMs": "26.8 ms",
+          "drawCalls": "434",
+          "animated": "43"
+        }
+      }
+    },
+    "density": {
+      "eight": {
+        "devices": "8",
+        "faults": "1",
+        "triangles": "25,690",
+        "fps": "20 fps",
+        "buildMs": "36.9 ms",
+        "drawCalls": "335",
+        "animated": "32"
+      },
+      "sixteen": {
+        "devices": "16",
+        "faults": "2",
+        "triangles": "35,206",
+        "fps": "20 fps",
+        "buildMs": "38.4 ms",
+        "drawCalls": "434",
+        "animated": "43"
+      }
+    },
+    "spacing": {
+      "wide": {
+        "devices": "16",
+        "faults": "2",
+        "triangles": "35,206",
+        "fps": "20 fps",
+        "buildMs": "52 ms",
+        "drawCalls": "434",
+        "animated": "43"
+      }
+    },
+    "grid": {
+      "before": "true",
+      "after": "false",
+      "pixels": {
+        "mean": 199.19,
+        "min": 57.846999999999994,
+        "max": 255,
+        "nonDarkRatio": 1,
+        "hist": [
+          0,
+          3,
+          70,
+          281,
+          1831,
+          542,
+          214,
+          2819
+        ]
+      },
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\toggle-grid-off.png"
+    },
+    "tabs": {
+      "state": {
+        "params": "true",
+        "analysis": "false"
+      },
+      "paramsControlsPresent": true,
+      "analysisPanelPresent": false
+    },
+    "viewsDistinct": true
+  },
+  "steps": [
+    {
+      "step": "login",
+      "result": "submitted"
+    },
+    {
+      "step": "enter-3d-view",
+      "result": "ok (attempt 2)"
+    },
+    {
+      "step": "ensure-3d-before-degrade",
+      "result": "ok (attempt 1)"
+    }
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "preExisting": [
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized) http://127.0.0.1:3000/api/v1/auth/me"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      }
+    ],
+    "harnessArtifacts": [
+      {
+        "level": "warning",
+        "text": "[.WebGL-0x2e5c00908600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels http://127.0.0.1:3000/"
+      },
+      {
+        "level": "warning",
+        "text": "[.WebGL-0x2e5c00908600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels http://127.0.0.1:3000/"
+      },
+      {
+        "level": "warning",
+        "text": "[.WebGL-0x2e5c00908600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels http://127.0.0.1:3000/"
+      },
+      {
+        "level": "warning",
+        "text": "[.WebGL-0x2e5c00908600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat) http://127.0.0.1:3000/"
+      },
+      {
+        "level": "warning",
+        "text": "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+      }
+    ],
+    "offlineInduced": [
+      {
+        "level": "warning",
+        "text": "[WARN] [equipment3d] 设备台账接口不可用，将尝试使用已加载数据: Failed to fetch"
+      },
+      {
+        "level": "error",
+        "text": "[ERROR] AppDataContext: Backend API full sync error: TypeError: Failed to fetch\n    at request (http://127.0.0.1:3000/src/api/index.ts:46:26)\n    at Object.list (http://127.0.0.1:3000/src/api/index.ts:71:12)\n    at http://127.0.0.1:3000/src/context/AppDataContext.tsx:36:24\n    at http://127.0.0.1:3000/src/context/AppDataContext.tsx:64:7\n    at Object.react_stack_bottom_frame (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:18567:20)\n    at runWithFiberInDEV (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:997:72)\n    at commitHookEffectListMount (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:9411:163)\n    at commitHookPassiveMountEffects (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:9465:60)\n    at commitPassiveMountOnFiber (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:11040:29)\n    at recursivelyTraversePassiveMountEffects (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:11010:13)"
+      },
+      {
+        "level": "error",
+        "text": "[ERROR] AppDataContext: Backend API full sync error: TypeError: Failed to fetch\n    at request (http://127.0.0.1:3000/src/api/index.ts:46:26)\n    at Object.list (http://127.0.0.1:3000/src/api/index.ts:71:12)\n    at http://127.0.0.1:3000/src/context/AppDataContext.tsx:36:24\n    at http://127.0.0.1:3000/src/context/AppDataContext.tsx:64:7\n    at Object.react_stack_bottom_frame (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:18567:20)\n    at runWithFiberInDEV (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:997:72)\n    at commitHookEffectListMount (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:9411:163)\n    at commitHookPassiveMountEffects (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:9465:60)\n    at reconnectPassiveEffects (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:11273:13)\n    at doubleInvokeEffectsOnFiber (http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js?v=fb017766:13339:135)"
+      }
+    ]
+  },
+  "presets": {
+    "standard": {
+      "chips": {
+        "devices": "16",
+        "faults": "2",
+        "triangles": "35,206",
+        "fps": "22 fps",
+        "buildMs": "78.9 ms",
+        "drawCalls": "434",
+        "animated": "43"
+      },
+      "legend": {
+        "running": "9",
+        "warning": "4",
+        "fault": "1",
+        "critical": "1",
+        "standby": "1"
+      },
+      "pixels": {
+        "mean": 199.17,
+        "min": 57.846999999999994,
+        "max": 255,
+        "nonDarkRatio": 1,
+        "hist": [
+          0,
+          3,
+          69,
+          283,
+          1831,
+          542,
+          209,
+          2823
+        ]
+      },
+      "minimap": {
+        "rect": {
+          "x": 264,
+          "y": 342,
+          "width": 176,
+          "height": 132
+        },
+        "w": 176,
+        "h": 132,
+        "paintedRatio": 1,
+        "distinctColours": 241
+      },
+      "minimapShot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\minimap-standard.png"
+    },
+    "heavy": {
+      "chips": {
+        "devices": "16",
+        "faults": "2",
+        "triangles": "39,030",
+        "fps": "21 fps",
+        "buildMs": "41.4 ms",
+        "drawCalls": "474",
+        "animated": "43"
+      },
+      "legend": {
+        "running": "9",
+        "warning": "4",
+        "fault": "1",
+        "critical": "1",
+        "standby": "1"
+      },
+      "pixels": {
+        "mean": 168.17,
+        "min": 27.369999999999997,
+        "max": 255,
+        "nonDarkRatio": 1,
+        "hist": [
+          30,
+          417,
+          1771,
+          362,
+          130,
+          106,
+          159,
+          2785
+        ]
+      },
+      "minimap": {
+        "rect": {
+          "x": 264,
+          "y": 342,
+          "width": 176,
+          "height": 132
+        },
+        "w": 176,
+        "h": 132,
+        "paintedRatio": 1,
+        "distinctColours": 276
+      },
+      "minimapShot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\minimap-heavy.png"
+    },
+    "yard": {
+      "chips": {
+        "devices": "16",
+        "faults": "2",
+        "triangles": "38,110",
+        "fps": "21 fps",
+        "buildMs": "32.5 ms",
+        "drawCalls": "308",
+        "animated": "43"
+      },
+      "legend": {
+        "running": "9",
+        "warning": "4",
+        "fault": "1",
+        "critical": "1",
+        "standby": "1"
+      },
+      "pixels": {
+        "mean": 190.86,
+        "min": 18.259999999999998,
+        "max": 255,
+        "nonDarkRatio": 1,
+        "hist": [
+          4,
+          62,
+          166,
+          860,
+          1441,
+          224,
+          214,
+          2789
+        ]
+      },
+      "minimap": {
+        "rect": {
+          "x": 264,
+          "y": 342,
+          "width": 176,
+          "height": 132
+        },
+        "w": 176,
+        "h": 132,
+        "paintedRatio": 1,
+        "distinctColours": 279
+      },
+      "minimapShot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\minimap-yard.png"
+    }
+  },
+  "picking": {
+    "at": [
+      0.42,
+      0.6
+    ],
+    "text": "16# 环冷机余热回收热管换热器 EQ-2024-HEX-16 | 换热容器 预警 健康分 74 主要生产 专属辨识特征 竖直热管束阵列 + 箱体 + 风道 竖直热管束阵列 箱体 风道 专属涂装 eq-116 型号 南京圣诺 SN-HP-2600 热管式换热器 车间 烧结车间 安装位 环冷机余热回收段 16# 烟道位 制造商 南京圣诺热管 实时遥测曲线 近 48 小时 · 落库时序 轴温 90.1 °C(83.2~90.9) 振动 2.29 mm/s(1.16~2.29) 负载率 94.6 %(80.1~95.5) 电流 0 A 电压 0 V 转速 0 rpm AI 智能诊断 发起 AI 诊断 诊断由 AI 大模型按需触发（不计入场景渲染开销）。点击上方按钮开始研判。 最近工单 待接单 16# 环冷机余热回收热管换热器换热效率衰减与翅片积灰清堵 中 实时参数 轴温 82.3 °C 振动 1.1 mm/s 负载率 88 % 更新 — 数据来源：设备台账 / 遥测时序 / 工单接口（无本地模拟）"
+  },
+  "interaction": {
+    "beforeMeanLuma": 197.15,
+    "afterMeanLuma": 199.15,
+    "changed": true
+  },
+  "emptyState": {
+    "visible": false
+  },
+  "browser": "Chrome/153.0.8010.36",
+  "webgl": {
+    "vendor": "Google Inc. (Google)",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "maxTextureSize": 8192,
+    "dpr": 1,
+    "cssSize": [
+      1388,
+      608
+    ]
+  },
+  "windowSize": "1680,980",
+  "analysis": {
+    "equipmentId": "eq-116",
+    "status": "预警",
+    "health": "74",
+    "signature": "专属辨识特征竖直热管束阵列 + 箱体 + 风道竖直热管束阵列箱体风道专属涂装eq-116",
+    "charts": [
+      {
+        "series": "temperature",
+        "text": "轴温90.1 °C(83.2~90.9)"
+      },
+      {
+        "series": "vibration",
+        "text": "振动2.29 mm/s(1.16~2.29)"
+      },
+      {
+        "series": "loadRate",
+        "text": "负载率94.6 %(80.1~95.5)"
+      }
+    ],
+    "hasDiagnoseButton": true,
+    "ai": null,
+    "aiError": null,
+    "orders": "待接单16# 环冷机余热回收热管换热器换热效率衰减与翅片积灰清堵中",
+    "text": "16# 环冷机余热回收热管换热器 EQ-2024-HEX-16 | 换热容器 预警 健康分 74 主要生产 专属辨识特征 竖直热管束阵列 + 箱体 + 风道 竖直热管束阵列 箱体 风道 专属涂装 eq-116 型号 南京圣诺 SN-HP-2600 热管式换热器 车间 烧结车间 安装位 环冷机余热回收段 16# 烟道位 制造商 南京圣诺热管 实时遥测曲线 近 48 小时 · 落库时序 轴温 90.1 °C(83.2~90.9) 振动 2.29 mm/s(1.16~2.29) 负载率 94.6 %(80.1~95.5) 电流 0 A 电压 0 V 转速 0 rpm AI 智能诊断 发起 AI 诊断 诊断由 AI 大模型按需触发（不计入场景渲染开销）。点击上方按钮开始研判。 最近工单 待接单 16# 环冷机余热回收热管换热器换热效率衰减与翅片积灰清堵 中 实时参数 轴温 82.3 °C 振动 1.1 mm/s 负载率 88 % 更新 — 数据来源：设备台账 / 遥测时序 / 工单接口（无本地模拟）"
+  },
+  "diagnoseClick": true,
+  "analysisAfterDiagnose": {
+    "equipmentId": "eq-116",
+    "status": "预警",
+    "health": "74",
+    "signature": "专属辨识特征竖直热管束阵列 + 箱体 + 风道竖直热管束阵列箱体风道专属涂装eq-116",
+    "charts": [
+      {
+        "series": "temperature",
+        "text": "轴温90.1 °C(83.2~90.9)"
+      },
+      {
+        "series": "vibration",
+        "text": "振动2.29 mm/s(1.16~2.29)"
+      },
+      {
+        "series": "loadRate",
+        "text": "负载率94.6 %(80.1~95.5)"
+      }
+    ],
+    "hasDiagnoseButton": true,
+    "ai": "严重风险分值 92设备处于完全停机状态（电压0V、电流0A），但负载率虚高94.6%，轴温超限（90.1°C）与振动超限（2.29mm/s）系因驱动电机断电后环冷机惯性滑行导致热管换热器转子系统失稳，叠加轴承干摩擦劣化引发热积累与低频涡动，存在轴瓦熔焊、主轴弯曲及热管束局部过热爆管风险。首要原因：驱动电机上游电源中断且未触发联锁停机保护（9500%）建议措施：验证主动力回路断电状态并排查CT二次回路开路故障：拆检电流互感器S1/S2端子接线盒，测量CT二次侧直流电阻（应＜0.5Ω），检查端子排有无氧化、松动或绝缘击穿痕迹；同步校验DCS模拟量输入卡件（AI722-H）通道零点与满度误差（±0.1%FS）。；停机状态下手动盘车检查轴承转动阻力：拆除轴承座端盖，注入少量ISO VG 220极压锂基脂（Shell Gadus S2 V220），使用扭矩扳手（0–50N·m）匀速盘动转子，记录每30°位置的启动力矩波动值；若单圈最大力矩差＞15N·m或出现卡滞点，则判定轴承滚道损伤。；解体检查轴承状态并测量径向游隙：使用加热拆卸法（轴承内圈控温≤110°C）取出NU318ECP圆柱滚子轴承，用塞尺+外径千分尺测量原始游隙（标准C3组：0.025–0.041mm）；检查滚子端面剥落、保持架变形及润滑脂碳化程度。安全防范：【安全警示】执行任何检修前必须实施LOTO（停电挂牌上锁验证）：断开EQ-2024-HEX-16主回路断路器QF1（AC 690V/125A）、控制电源空开QF2（AC 230V/16A），使用CAT III 1000V等级验电器逐相验证零电压，并在操作手柄挂‘禁止合闸，有人工作’双锁具（机械锁+电子锁）；GB 30871-2022要求能量隔离点需经三方确认（操作方、检修方、安全监督方）。；进入环冷机壳体内部前须强制通风≥30min，使用四合一气体检测仪（O2、CO、H2S、LEL）连续监测，氧含量19.5%–23.5%、CO＜24ppm方可作业；热管束区域存在余热积聚风险，表面温度可能＞80°C，须穿戴阻燃隔热手套（EN 407:2020 Class I）及面罩。本建议涉及能量隔离/LOTO等高风险作业，需持证人员复核后方可执行（能量隔离 · LOTO）",
+    "aiError": null,
+    "orders": "待接单16# 环冷机余热回收热管换热器换热效率衰减与翅片积灰清堵中",
+    "text": "16# 环冷机余热回收热管换热器 EQ-2024-HEX-16 | 换热容器 预警 健康分 74 主要生产 专属辨识特征 竖直热管束阵列 + 箱体 + 风道 竖直热管束阵列 箱体 风道 专属涂装 eq-116 型号 南京圣诺 SN-HP-2600 热管式换热器 车间 烧结车间 安装位 环冷机余热回收段 16# 烟道位 制造商 南京圣诺热管 实时遥测曲线 近 48 小时 · 落库时序 轴温 90.1 °C(83.2~90.9) 振动 2.29 mm/s(1.16~2.29) 负载率 94.6 %(80.1~95.5) 电流 0 A 电压 0 V 转速 0 rpm AI 智能诊断 重新研判 严重 风险分值 92 设备处于完全停机状态（电压0V、电流0A），但负载率虚高94.6%，轴温超限（90.1°C）与振动超限（2.29mm/s）系因驱动电机断电后环冷机惯性滑行导致热管换热器转子系统失稳，叠加轴承干摩擦劣化引发热积累与低频涡动，存在轴瓦熔焊、主轴弯曲及热管束局部过热爆管风险。 首要原因：驱动电机上游电源中断且未触发联锁停机保护（9500%） 建议措施：验证主动力回路断电状态并排查CT二次回路开路故障：拆检电流互感器S1/S2端子接线盒，测量CT二次侧直流电阻（应＜0.5Ω），检查端子排有无氧化、松动或绝缘击穿痕迹；同步校验DCS模拟量输入卡件（AI722-H）通道零点与满度误差（±0"
+  },
+  "aiDiagnosePoll": {
+    "waitedMs": 36000,
+    "resolved": true
+  },
+  "quality": {
+    "low": {
+      "buildMs": "30.4 ms",
+      "triangles": "34,710",
+      "fps": "20 fps"
+    },
+    "medium": {
+      "buildMs": "41.1 ms",
+      "triangles": "38,110",
+      "fps": "20 fps"
+    },
+    "high": {
+      "buildMs": "25.4 ms",
+      "triangles": "38,110",
+      "fps": "20 fps"
+    }
+  },
+  "seedChange": {
+    "beforeMean": 190.89,
+    "afterMean": 190.88,
+    "buildMs": "25.3 ms",
+    "changed": true
+  },
+  "shells": {
+    "ghost": {
+      "error": "button-not-found"
+    },
+    "full": {
+      "error": "button-not-found"
+    },
+    "none": {
+      "error": "button-not-found"
+    }
+  },
+  "perDevice": {
+    "eq-101": {
+      "equipmentId": "eq-101",
+      "status": "预警",
+      "health": "78",
+      "signature": "专属辨识特征立式管道泵：蜗壳泵体 + 顶部电机 + 红色联轴器护罩蜗壳泵体顶部电机红色联轴器护罩进出口法兰底座黄色警示带专属涂装eq-101",
+      "series": [
+        "temperature:轴温83.0 °C(77.9~86.7)",
+        "vibration:振动5.40 mm/s(4.45~6.08)",
+        "loadRate:负载率82.8 %(77.5~92.1)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-101.png"
+    },
+    "eq-102": {
+      "equipmentId": "eq-102",
+      "status": "正常",
+      "health": "92",
+      "signature": "专属辨识特征方形隔音箱体：顶部散热格栅 + 侧面进风百叶 + 可见螺杆转子方形隔音箱体顶部散热格栅侧面进风百叶内置螺杆轮廓绿色运行灯专属涂装eq-102",
+      "series": [
+        "temperature:轴温66.2 °C(64.9~71.2)",
+        "vibration:振动1.67 mm/s(1.62~2.00)",
+        "loadRate:负载率71.6 %(63.8~79.4)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-102.png"
+    },
+    "eq-103": {
+      "equipmentId": "eq-103",
+      "status": "紧急",
+      "health": "54",
+      "signature": "专属辨识特征大型减速箱：对轮联轴器 + 独立润滑油站（油罐 + 管路）大型箱体对轮联轴器独立润滑油站(油罐+管路)重型地脚红色脉冲灯输入轴振动标记专属涂装eq-103",
+      "series": [
+        "temperature:轴温101.4 °C(93.6~103.0)",
+        "vibration:振动8.82 mm/s(7.23~9.13)",
+        "loadRate:负载率95.0 %(84.7~98.7)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-103.png"
+    },
+    "eq-104": {
+      "equipmentId": "eq-104",
+      "status": "正常",
+      "health": "96",
+      "signature": "专属辨识特征大型圆柱机壳：散热翅片环 + 顶部接线盒（蓝色涂装）大型圆柱机壳散热翅片环顶部接线盒轴承端盖蓝色涂装专属涂装eq-104",
+      "series": [
+        "temperature:轴温54.0 °C(50.8~57.0)",
+        "vibration:振动0.93 mm/s(0.77~1.01)",
+        "loadRate:负载率72.1 %(60.2~76.1)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-104.png"
+    },
+    "eq-105": {
+      "equipmentId": "eq-105",
+      "status": "正常",
+      "health": "88",
+      "signature": "专属辨识特征8 级泵壳串联长筒体（全场唯一）+ 两端管路 + 中间支架8 级泵壳串联长筒体(全场唯一)两端管路中间支架专属涂装eq-105",
+      "series": [
+        "temperature:轴温64.5 °C(59.4~65.4)",
+        "vibration:振动2.21 mm/s(1.86~2.33)",
+        "loadRate:负载率86.9 %(72.7~86.9)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-105.png"
+    },
+    "eq-106": {
+      "equipmentId": "eq-106",
+      "status": "正常",
+      "health": "90",
+      "signature": "专属辨识特征水平剖分离心蜗壳 + 进气导叶 + 大直径进排气管水平剖分离心蜗壳进气导叶大直径进排气管轴承箱专属涂装eq-106",
+      "series": [
+        "temperature:轴温73.1 °C(68.2~75.0)",
+        "vibration:振动1.58 mm/s(1.32~1.68)",
+        "loadRate:负载率85.2 %(73.7~88.6)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-106.png"
+    },
+    "eq-107": {
+      "equipmentId": "eq-107",
+      "status": "预警",
+      "health": "71",
+      "signature": "专属辨识特征灰蓝色箱体 + 输出轴端大法兰 + 底座灰蓝色箱体输出轴端大法兰底座专属涂装eq-107",
+      "series": [
+        "temperature:轴温85.4 °C(76.8~86.2)",
+        "vibration:振动6.82 mm/s(4.93~6.82)",
+        "loadRate:负载率90.4 %(78.2~94.1)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-107.png"
+    },
+    "eq-108": {
+      "equipmentId": "eq-108",
+      "status": "正常",
+      "health": "94",
+      "signature": "专属辨识特征同步电机：主机圆柱 + 尾部励磁机小圆柱 + 冷却风罩主机圆柱尾部励磁机小圆柱冷却风罩专属涂装eq-108",
+      "series": [
+        "temperature:轴温59.7 °C(55.3~61.4)",
+        "vibration:振动1.23 mm/s(1.05~1.36)",
+        "loadRate:负载率82.8 %(75.9~89.9)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-108.png"
+    },
+    "eq-109": {
+      "equipmentId": "eq-109",
+      "status": "正常",
+      "health": "87",
+      "signature": "专属辨识特征龙门架（双立柱 + 横梁）+ 可动主轴头 + 刀库（全场唯一龙门）龙门架(双立柱+横梁)可动主轴头刀库(全场唯一龙门)专属涂装eq-109",
+      "series": [
+        "temperature:轴温40.8 °C(38.5~44.3)",
+        "vibration:振动0.75 mm/s(0.59~0.81)",
+        "loadRate:负载率58.7 %(54.5~68.9)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-109.png"
+    },
+    "eq-110": {
+      "equipmentId": "eq-110",
+      "status": "预警",
+      "health": "69",
+      "signature": "专属辨识特征橘色六关节机械臂 + 基座 + 两指夹爪（KUKA 配色）橘色六关节机械臂基座末端抓手(KUKA 配色)专属涂装eq-110",
+      "series": [
+        "temperature:轴温59.0 °C(52.6~62.1)",
+        "vibration:振动3.77 mm/s(2.52~4.05)",
+        "loadRate:负载率57.7 %(56.3~71.4)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-110.png"
+    },
+    "eq-111": {
+      "equipmentId": "eq-111",
+      "status": "正常",
+      "health": "91",
+      "signature": "专属辨识特征矩形板片组（多层夹紧）+ 四角接管 + 框架矩形板片组(多层夹紧)四角接管框架专属涂装eq-111",
+      "series": [
+        "temperature:轴温45.9 °C(45.4~51.9)",
+        "vibration:振动0.39 mm/s(0.32~0.48)",
+        "loadRate:负载率68.4 %(66.8~81.8)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-111.png"
+    },
+    "eq-112": {
+      "equipmentId": "eq-112",
+      "status": "故障",
+      "health": "42",
+      "signature": "专属辨识特征端吸泵 + 电机；故障红色高亮 + 泵体异常抖动端吸泵电机fault 红色高亮泵体异常抖动专属涂装eq-112",
+      "series": [
+        "temperature:轴温102.6 °C(94.7~106.9)",
+        "vibration:振动9.51 mm/s(7.79~10.63)",
+        "loadRate:负载率89.7 %(88.0~100.0)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-112.png"
+    },
+    "eq-113": {
+      "equipmentId": "eq-113",
+      "status": "正常",
+      "health": "85",
+      "signature": "专属辨识特征螺杆主机 + 圆筒油分离器 + 冷凝器 + 管路螺杆主机圆筒油分离器冷凝器管路专属涂装eq-113",
+      "series": [
+        "temperature:轴温61.7 °C(61.0~67.4)",
+        "vibration:振动2.15 mm/s(2.13~2.64)",
+        "loadRate:负载率73.3 %(68.5~83.5)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-113.png"
+    },
+    "eq-114": {
+      "equipmentId": "eq-114",
+      "status": "待机",
+      "health": "97",
+      "signature": "专属辨识特征变频电机 + 独立冷却风扇罩；待机灰色静止变频电机独立冷却风扇罩standby 灰色静止专属涂装eq-114",
+      "series": [
+        "temperature:轴温33.4 °C(32.3~36.6)",
+        "vibration:振动0.01 mm/s(0.01~0.03)",
+        "loadRate:负载率0.0 %(0.0~0.0)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-114.png"
+    },
+    "eq-115": {
+      "equipmentId": "eq-115",
+      "status": "正常",
+      "health": "89",
+      "signature": "专属辨识特征白色大臂 + 平行四边形连杆 + 末端吸盘抓手（与 10# 明显不同）白色大臂平行四边形连杆末端吸盘抓手(与 10# 明显不同)专属涂装eq-115",
+      "series": [
+        "temperature:轴温43.3 °C(40.8~47.3)",
+        "vibration:振动1.58 mm/s(1.42~1.80)",
+        "loadRate:负载率59.6 %(50.8~65.3)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-115.png"
+    },
+    "eq-116": {
+      "equipmentId": "eq-116",
+      "status": "预警",
+      "health": "74",
+      "signature": "专属辨识特征竖直热管束阵列 + 箱体 + 风道竖直热管束阵列箱体风道专属涂装eq-116",
+      "series": [
+        "temperature:轴温90.1 °C(83.2~90.9)",
+        "vibration:振动2.29 mm/s(1.16~2.29)",
+        "loadRate:负载率94.6 %(80.1~95.5)"
+      ],
+      "hasOrders": true,
+      "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-116.png"
+    }
+  },
+  "perDeviceSummary": {
+    "count": 16,
+    "shotCount": 16,
+    "distinctFrames": 16,
+    "allDistinct": true,
+    "distinctSignatures": 16,
+    "withHealth": 16,
+    "withThreeSeries": 16,
+    "statuses": [
+      "待机",
+      "故障",
+      "正常",
+      "紧急",
+      "预警"
+    ]
+  },
+  "keyPairs": [
+    {
+      "pair": "eq-103 vs eq-105",
+      "frameDistance": 1,
+      "distinctFrame": true,
+      "a": {
+        "signature": "专属辨识特征大型减速箱：对轮联轴器 + 独立润滑油站（油罐 + 管路）大型箱体对轮联轴器独立润滑油站(油罐+管路)重型地脚红色脉冲灯输入轴振动标记专属涂装eq-103",
+        "status": "紧急"
+      },
+      "b": {
+        "signature": "专属辨识特征8 级泵壳串联长筒体（全场唯一）+ 两端管路 + 中间支架8 级泵壳串联长筒体(全场唯一)两端管路中间支架专属涂装eq-105",
+        "status": "正常"
+      },
+      "shots": [
+        "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-103.png",
+        "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-105.png"
+      ]
+    },
+    {
+      "pair": "eq-110 vs eq-115",
+      "frameDistance": 1,
+      "distinctFrame": true,
+      "a": {
+        "signature": "专属辨识特征橘色六关节机械臂 + 基座 + 两指夹爪（KUKA 配色）橘色六关节机械臂基座末端抓手(KUKA 配色)专属涂装eq-110",
+        "status": "预警"
+      },
+      "b": {
+        "signature": "专属辨识特征白色大臂 + 平行四边形连杆 + 末端吸盘抓手（与 10# 明显不同）白色大臂平行四边形连杆末端吸盘抓手(与 10# 明显不同)专属涂装eq-115",
+        "status": "正常"
+      },
+      "shots": [
+        "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-110.png",
+        "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\device-eq-115.png"
+      ]
+    }
+  ],
+  "motion": {
+    "standby": {
+      "id": "eq-114",
+      "status": "待机",
+      "diff": {
+        "changedRatio": 0.2213,
+        "meanDelta": 29.501
+      },
+      "diffFullCanvas": {
+        "changedRatio": 0.145,
+        "meanDelta": 20.766
+      }
+    },
+    "running": {
+      "id": "eq-104",
+      "status": "正常",
+      "diff": {
+        "changedRatio": 0.0898,
+        "meanDelta": 9.17
+      },
+      "diffFullCanvas": {
+        "changedRatio": 0.0669,
+        "meanDelta": 7.254
+      }
+    },
+    "warning": {
+      "id": "eq-110",
+      "status": "预警",
+      "diff": {
+        "changedRatio": 0.0374,
+        "meanDelta": 2.767
+      },
+      "diffFullCanvas": {
+        "changedRatio": 0.029,
+        "meanDelta": 2.722
+      }
+    },
+    "fault": {
+      "id": "eq-112",
+      "status": "故障",
+      "diff": {
+        "changedRatio": 0.0143,
+        "meanDelta": 1.018
+      },
+      "diffFullCanvas": {
+        "changedRatio": 0.0082,
+        "meanDelta": 0.653
+      }
+    },
+    "critical": {
+      "id": "eq-103",
+      "status": "紧急",
+      "diff": {
+        "changedRatio": 0.0952,
+        "meanDelta": 11.507
+      },
+      "diffFullCanvas": {
+        "changedRatio": 0.0637,
+        "meanDelta": 7.182
+      }
+    },
+    "animatedChips": {
+      "devices": "16",
+      "faults": "2",
+      "triangles": "35,206",
+      "fps": "20 fps",
+      "buildMs": "39.2 ms",
+      "drawCalls": "434",
+      "animated": "43"
+    },
+    "diagnostic": {
+      "note": "诊断性数据，不作通过判据：画面变化量受常动行车（与设备状态无关）干扰，无法隔离单台设备的动画。",
+      "rows": [
+        {
+          "status": "standby",
+          "device": "eq-114",
+          "label": "待机",
+          "ratio": 0.2213,
+          "ratioFullCanvas": 0.145
+        },
+        {
+          "status": "running",
+          "device": "eq-104",
+          "label": "正常",
+          "ratio": 0.0898,
+          "ratioFullCanvas": 0.0669
+        },
+        {
+          "status": "warning",
+          "device": "eq-110",
+          "label": "预警",
+          "ratio": 0.0374,
+          "ratioFullCanvas": 0.029
+        },
+        {
+          "status": "fault",
+          "device": "eq-112",
+          "label": "故障",
+          "ratio": 0.0143,
+          "ratioFullCanvas": 0.0082
+        },
+        {
+          "status": "critical",
+          "device": "eq-103",
+          "label": "紧急",
+          "ratio": 0.0952,
+          "ratioFullCanvas": 0.0637
+        }
+      ],
+      "animatedInstances": "43"
+    }
+  },
+  "presetInvariance": {
+    "detail": {
+      "standard": {
+        "signature": "专属辨识特征橘色六关节机械臂 + 基座 + 两指夹爪（KUKA 配色）橘色六关节机械臂基座末端抓手(KUKA 配色)专属涂装eq-110",
+        "status": "预警",
+        "health": "69",
+        "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-standard-eq-110.png"
+      },
+      "heavy": {
+        "signature": "专属辨识特征橘色六关节机械臂 + 基座 + 两指夹爪（KUKA 配色）橘色六关节机械臂基座末端抓手(KUKA 配色)专属涂装eq-110",
+        "status": "预警",
+        "health": "69",
+        "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-heavy-eq-110.png"
+      },
+      "yard": {
+        "signature": "专属辨识特征橘色六关节机械臂 + 基座 + 两指夹爪（KUKA 配色）橘色六关节机械臂基座末端抓手(KUKA 配色)专属涂装eq-110",
+        "status": "预警",
+        "health": "69",
+        "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\preset-yard-eq-110.png"
+      }
+    },
+    "signatureIdentical": true
+  },
+  "offline": {
+    "layer": "3d-view",
+    "blockedUrls": [
+      "*/api/v1/equipments*",
+      "*/api/v1/work-orders*"
+    ],
+    "canvasPresent": true,
+    "sourceWarningVisible": true,
+    "emptyVisible": false,
+    "chips": {
+      "devices": "16",
+      "faults": "2",
+      "triangles": "35,206",
+      "fps": "22 fps",
+      "buildMs": "623.9 ms",
+      "drawCalls": "434",
+      "animated": "43"
+    },
+    "legend": {
+      "running": "9",
+      "warning": "4",
+      "fault": "1",
+      "critical": "1",
+      "standby": "1"
+    },
+    "warningGeom": {
+      "rect": [
+        1125,
+        145,
+        240,
+        51
+      ],
+      "inViewport": true,
+      "occluded": false,
+      "coveringElement": null
+    },
+    "pixels": {
+      "mean": 200.01,
+      "min": 57.846999999999994,
+      "max": 255,
+      "nonDarkRatio": 1,
+      "hist": [
+        0,
+        3,
+        69,
+        283,
+        1764,
+        556,
+        227,
+        2858
+      ]
+    },
+    "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\offline-cache-fallback.png",
+    "newPageErrors": [],
+    "newConsoleEntries": [
+      "[WARN] [equipment3d] 设备台账接口不可用，将尝试使用已加载数据: Failed to fetch"
+    ]
+  },
+  "appFallback": {
+    "layer": "app-boot",
+    "loadErrorVisible": true,
+    "hasRetryButton": true,
+    "hasLogoutButton": true,
+    "bodyText": "后端数据加载失败\n\nFailed to fetch\n\n系统已禁止使用本地模拟数据兜底，请确认后端服务与数据库正常后重试。\n\n重新加载数据\n返回重新登录",
+    "pixels": {
+      "mean": 249.17,
+      "min": 64.61099999999999,
+      "max": 255,
+      "nonDarkRatio": 1,
+      "hist": [
+        0,
+        0,
+        8,
+        5,
+        2,
+        17,
+        25,
+        5703
+      ]
+    },
+    "shot": "D:\\实验\\实验项目2\\docs\\equipment3d-shots\\offline-app-fallback.png"
+  },
+  "finishedAt": "2026-09-16T05:11:46.008Z",
+  "checks": {
+    "noPageErrors": true,
+    "noRealConsoleErrors": true,
+    "sixteenDevices": true,
+    "framesAllDistinct": true,
+    "signaturesAllDistinct": true,
+    "realDataOnEveryDevice": true,
+    "keyPairsDistinct": true,
+    "presetInvariance": true,
+    "aiDiagnoseRendered": true,
+    "paramsControlsEffective": true
+  },
+  "ok": true
+}

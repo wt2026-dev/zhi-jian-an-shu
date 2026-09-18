@@ -1,0 +1,438 @@
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3000",
+  "startedAt": "2026-09-16T05:13:21.403Z",
+  "refreshes": [
+    {
+      "round": 1,
+      "ms": 1657,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 2,
+      "ms": 1348,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 3,
+      "ms": 1251,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 4,
+      "ms": 1285,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 5,
+      "ms": 1486,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 6,
+      "ms": 1227,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 7,
+      "ms": 1209,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 8,
+      "ms": 1272,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 9,
+      "ms": 1352,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 10,
+      "ms": 1215,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 11,
+      "ms": 1324,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "round": 12,
+      "ms": 1329,
+      "bouncedToLogin": false,
+      "apiRequests": 35,
+      "count429": 0,
+      "urls429": [],
+      "authMeStatuses": [
+        200,
+        200,
+        200
+      ]
+    }
+  ],
+  "navSwitching": {
+    "rounds": 4,
+    "tabsPerRound": 8,
+    "missingTabs": [],
+    "apiRequests": 167,
+    "count429": 0,
+    "urls429": [],
+    "bouncedToLogin": false
+  },
+  "authMe": {
+    "me": {
+      "200": 300
+    },
+    "meTotal": 300,
+    "meAll200": true,
+    "otherStatus": 200,
+    "otherRemaining": "26",
+    "otherLimit": "600"
+  },
+  "bruteForce": [
+    {
+      "attempt": 1,
+      "status": 401,
+      "code": null,
+      "remainingSeconds": null
+    },
+    {
+      "attempt": 2,
+      "status": 401,
+      "code": null,
+      "remainingSeconds": null
+    },
+    {
+      "attempt": 3,
+      "status": 401,
+      "code": null,
+      "remainingSeconds": null
+    },
+    {
+      "attempt": 4,
+      "status": 401,
+      "code": null,
+      "remainingSeconds": null
+    },
+    {
+      "attempt": 5,
+      "status": 401,
+      "code": null,
+      "remainingSeconds": null
+    },
+    {
+      "attempt": 6,
+      "status": 429,
+      "code": "IP_LOCKED",
+      "remainingSeconds": 900
+    }
+  ],
+  "firstLogin": "submitted",
+  "refreshShot": "D:\\实验\\实验项目2\\docs\\ratelimit-shots\\after-12-refreshes.png",
+  "navShot": "D:\\实验\\实验项目2\\docs\\ratelimit-shots\\after-rapid-nav.png",
+  "bruteForceSummary": {
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": 401,
+        "code": null,
+        "remainingSeconds": null
+      },
+      {
+        "attempt": 2,
+        "status": 401,
+        "code": null,
+        "remainingSeconds": null
+      },
+      {
+        "attempt": 3,
+        "status": 401,
+        "code": null,
+        "remainingSeconds": null
+      },
+      {
+        "attempt": 4,
+        "status": 401,
+        "code": null,
+        "remainingSeconds": null
+      },
+      {
+        "attempt": 5,
+        "status": 401,
+        "code": null,
+        "remainingSeconds": null
+      },
+      {
+        "attempt": 6,
+        "status": 429,
+        "code": "IP_LOCKED",
+        "remainingSeconds": 900
+      }
+    ],
+    "locked": true,
+    "lockedAtAttempt": 6,
+    "firstFiveRejected": true
+  },
+  "bruteForceShot": "D:\\实验\\实验项目2\\docs\\ratelimit-shots\\brute-force-locked.png",
+  "newPageErrors": [],
+  "errors": {
+    "preExisting": [
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized) http://127.0.0.1:3000/api/v1/auth/me"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 (Not Found) http://127.0.0.1:3000/favicon.ico"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      },
+      {
+        "level": "error",
+        "text": "The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. http://127.0.0.1:3000/"
+      }
+    ],
+    "harnessInduced": [
+      {
+        "level": "warning",
+        "text": "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently https://webapi.amap.com/maps?v=2.0&key=bf0ec8b7ea7b8e9614aaf35beb53a6a0"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized) http://127.0.0.1:3000/api/v1/auth/login"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized) http://127.0.0.1:3000/api/v1/auth/login"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized) http://127.0.0.1:3000/api/v1/auth/login"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized) http://127.0.0.1:3000/api/v1/auth/login"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized) http://127.0.0.1:3000/api/v1/auth/login"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 429 (Too Many Requests) http://127.0.0.1:3000/api/v1/auth/login"
+      }
+    ],
+    "real": []
+  },
+  "finishedAt": "2026-09-16T05:14:06.843Z",
+  "summary": {
+    "no429": true,
+    "noBounce": true,
+    "authMeExempt": true,
+    "bruteForceStillLocks": true,
+    "bruteForceFirstFiveRejected": true,
+    "noPageErrors": true,
+    "totalApiRequestsAcrossRefreshes": 420,
+    "total429AcrossRefreshes": 0
+  }
+}
