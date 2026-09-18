@@ -193,10 +193,10 @@ function Row({ label, value, hint }: { label: string; value: React.ReactNode; hi
   );
 }
 
-function RingGauge({ percent, label, color }: { percent: number; label: string; color: string }) {
+function RingGauge({ percent, label, color }: { percent: number | null; label: string; color: string }) {
   const r = 20;
   const circ = 2 * Math.PI * r;
-  const strokeDashoffset = circ - (percent / 100) * circ;
+  const strokeDashoffset = percent == null ? circ : circ - (percent / 100) * circ;
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="relative w-12 h-12 flex items-center justify-center">
@@ -215,7 +215,11 @@ function RingGauge({ percent, label, color }: { percent: number; label: string; 
             style={{ filter: `drop-shadow(0 0 4px ${color})` }}
           />
         </svg>
-        <span className="absolute text-[10px] font-mono font-bold text-cyan-100 hud-tabular-nums hud-value-glow">{percent}%</span>
+        {percent == null ? (
+          <span className="absolute text-[7px] font-mono text-slate-400">未接入</span>
+        ) : (
+          <span className="absolute text-[10px] font-mono font-bold text-cyan-100 hud-tabular-nums hud-value-glow">{percent}%</span>
+        )}
       </div>
       <span className="text-[9px] text-slate-300 font-sans tracking-tight">{label}</span>
     </div>
@@ -302,15 +306,15 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
       item.devices.push(d);
       if (isAbnormal(d)) item.abnormalCount++;
     }
-    const fixedOutputs = ['¥1.85亿', '¥2.40亿', '¥0.92亿', '¥1.35亿', '¥0.68亿'];
+    // 产值口径：系统未接入车间产值数据源，不展示 mock 金额，统一显示"未接入"
     const entries = Array.from(map.entries());
     if (entries.length === 0) {
       return [
-        { id: 'hall-1', name: '机加车间', count: 4, abnormalCount: 0, output: '¥1.85亿', status: 'normal' as const },
-        { id: 'hall-2', name: '装配车间', count: 4, abnormalCount: 0, output: '¥2.40亿', status: 'normal' as const },
-        { id: 'hall-3', name: '焊接车间', count: 3, abnormalCount: 1, output: '¥0.92亿', status: 'warning' as const },
-        { id: 'hall-4', name: '涂装车间', count: 3, abnormalCount: 0, output: '¥1.35亿', status: 'normal' as const },
-        { id: 'hall-5', name: '立体库房', count: 2, abnormalCount: 0, output: '¥0.68亿', status: 'normal' as const },
+        { id: 'hall-1', name: '机加车间', count: 4, abnormalCount: 0, output: '未接入', status: 'normal' as const },
+        { id: 'hall-2', name: '装配车间', count: 4, abnormalCount: 0, output: '未接入', status: 'normal' as const },
+        { id: 'hall-3', name: '焊接车间', count: 3, abnormalCount: 1, output: '未接入', status: 'warning' as const },
+        { id: 'hall-4', name: '涂装车间', count: 3, abnormalCount: 0, output: '未接入', status: 'normal' as const },
+        { id: 'hall-5', name: '立体库房', count: 2, abnormalCount: 0, output: '未接入', status: 'normal' as const },
       ];
     }
     return entries.map(([name, data], idx) => ({
@@ -318,13 +322,13 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
       name,
       count: data.devices.length,
       abnormalCount: data.abnormalCount,
-      output: fixedOutputs[idx % fixedOutputs.length],
+      output: '未接入',
       status: (data.abnormalCount > 0 ? 'warning' : 'normal') as 'normal' | 'warning',
     }));
   }, [devices]);
 
   const runningRate = useMemo(() => {
-    if (devices.length === 0) return 93.8;
+    if (devices.length === 0) return 0;
     const running = devices.filter((d) => d.status === 'running' || d.status === 'standby').length;
     return (running / devices.length) * 100;
   }, [devices]);
@@ -739,7 +743,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                             />
                             <span className="truncate">{ws.name}</span>
                           </div>
-                          <span className="text-[10px] font-mono font-bold text-emerald-300 hud-tabular-nums hud-value-glow-emerald">{ws.output}</span>
+                          <span className="text-[10px] font-mono font-bold text-slate-400 hud-tabular-nums">{ws.output}</span>
                         </div>
 
                         <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
@@ -837,7 +841,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     <div className="p-2 rounded hud-data-card">
                       <div className="text-[9px] text-slate-400">生产良品率</div>
                       <div className="mt-0.5 flex items-baseline gap-1">
-                        <span className="text-lg font-mono font-bold text-emerald-300 hud-tabular-nums hud-value-glow-emerald">98.6%</span>
+                        <span className="text-[10px] font-mono text-slate-400">未接入</span>
                       </div>
                     </div>
                   </div>
@@ -860,7 +864,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                   <div className="p-2 rounded hud-data-card flex flex-col gap-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] text-slate-400">7日产能走势</span>
-                      <span className="text-[8px] font-mono text-cyan-300 hud-tabular-nums hud-value-glow">达成 102%</span>
+                      <span className="text-[8px] font-mono text-slate-400">未接入</span>
                     </div>
                     <svg viewBox="0 0 240 38" className="w-full h-[34px]" preserveAspectRatio="none">
                       <defs>
@@ -905,7 +909,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                       <div className="p-1 rounded bg-slate-950/70 border border-cyan-500/20">
                         <div className="text-[8px] text-slate-400">已结案</div>
                         <div className="text-[10px] font-bold text-emerald-300 hud-tabular-nums hud-value-glow-emerald">
-                          {workOrders.filter((w) => w.status === 'completed').length || 8}
+                          {workOrders.filter((w) => w.status === 'completed').length}
                         </div>
                       </div>
                     </div>
@@ -940,18 +944,18 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     </div>
                     <div className="flex items-end justify-between gap-2.5 h-10 pt-1 font-mono text-[7px] text-slate-400">
                       {[
-                        { name: '机加', rate: 94 },
-                        { name: '冲压', rate: 91 },
-                        { name: '焊接', rate: 96 },
-                        { name: '涂装', rate: 89 },
-                        { name: '总装', rate: 98 },
+                        { name: '机加', rate: null },
+                        { name: '冲压', rate: null },
+                        { name: '焊接', rate: null },
+                        { name: '涂装', rate: null },
+                        { name: '总装', rate: null },
                       ].map((proc) => (
                         <div key={proc.name} className="flex flex-col items-center gap-0.5 group">
-                          <span className="text-[7px] hud-tabular-nums text-cyan-300 hud-value-glow">{proc.rate}%</span>
+                          <span className="text-[7px] hud-tabular-nums text-slate-500">{proc.rate == null ? '未接入' : `${proc.rate}%`}</span>
                           <div className="w-3 bg-slate-900/80 rounded-t h-6 relative flex items-end border-b border-cyan-500/30">
                             <div
                               className="w-full bg-gradient-to-t from-cyan-600 to-cyan-300 rounded-t shadow-[0_0_6px_rgba(34,211,238,0.4)] transition-all group-hover:brightness-125"
-                              style={{ height: `${(proc.rate / 100) * 24}px` }}
+                              style={{ height: `${(proc.rate ?? 0) / 100 * 24}px` }}
                             />
                           </div>
                           <span className="text-slate-300">{proc.name}</span>
@@ -969,9 +973,9 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                       <span className="hud-title-text">交付与质检达成</span>
                     </div>
                     <div className="flex items-center justify-around gap-2 pt-0.5">
-                      <RingGauge percent={93} label="订单交付" color="#10b981" />
-                      <RingGauge percent={64} label="物料齐套" color="#f59e0b" />
-                      <RingGauge percent={100} label="质检达标" color="#06b6d4" />
+                      <RingGauge percent={null} label="订单交付" color="#10b981" />
+                      <RingGauge percent={null} label="物料齐套" color="#f59e0b" />
+                      <RingGauge percent={null} label="质检达标" color="#06b6d4" />
                     </div>
                   </div>
 
@@ -989,11 +993,11 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     <div className="space-y-1 text-[8px] font-mono pt-1">
                       <div className="flex justify-between items-center text-slate-300">
                         <span>装配公差</span>
-                        <span className="text-cyan-300 hud-tabular-nums hud-value-glow font-bold">42%</span>
+                        <span className="text-slate-500">未接入</span>
                       </div>
                       <div className="flex justify-between items-center text-slate-300">
                         <span>轴承润滑</span>
-                        <span className="text-amber-300 hud-tabular-nums hud-value-glow-amber font-bold">31%</span>
+                        <span className="text-slate-500">未接入</span>
                       </div>
                     </div>
                   </div>
