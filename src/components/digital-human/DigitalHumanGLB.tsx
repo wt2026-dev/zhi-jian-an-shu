@@ -196,41 +196,6 @@ const TARGET_HEIGHT = 1.75;
 // 说话动画名（GLB 内置，匈牙利语 beszéd = 说话）
 const SPEAK_CLIP_NAME = 'Armature|beszed';
 
-// ─── 角色专属工业发光徽章构建器（与 VRM 版一致，挂胸前）───────────────
-
-function createIndustrialBadge(color: number): THREE.Group {
-  const group = new THREE.Group();
-  group.name = 'industrial-badge';
-
-  const baseGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.004, 6);
-  baseGeo.rotateX(Math.PI / 2);
-  const baseMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b,
-    metalness: 0.85,
-    roughness: 0.25,
-  });
-  group.add(new THREE.Mesh(baseGeo, baseMat));
-
-  const ringGeo = new THREE.RingGeometry(0.010, 0.018, 6);
-  const ringMat = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.95,
-    side: THREE.DoubleSide,
-  });
-  const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-  ringMesh.position.z = 0.003;
-  group.add(ringMesh);
-
-  const dotGeo = new THREE.CircleGeometry(0.0045, 16);
-  const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
-  const dotMesh = new THREE.Mesh(dotGeo, dotMat);
-  dotMesh.position.z = 0.0035;
-  group.add(dotMesh);
-
-  return group;
-}
-
 // ─── Component ────────────────────────────────────────────────────
 
 export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLBProps>(
@@ -328,16 +293,6 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           } catch (e) {
             console.warn('[DigitalHumanGLB] 口型绑定失败:', e);
             ctx.mouth = null;
-          }
-
-          // 角色专属胸前发光标识（挂 Spine2 骨骼，相当于胸口）
-          const personaConf = PERSONA_CONFIGS[ctx.personaId] || PERSONA_CONFIGS.zhang;
-          const badgeColor = personaConf?.badgeAccent ?? 0x0ea5e9;
-          const chestBone = root.getObjectByName(BONE.spine2) || root.getObjectByName(BONE.spine1);
-          if (chestBone) {
-            const badge = createIndustrialBadge(badgeColor);
-            badge.position.set(0.0, 0.16, 0.13);
-            chestBone.add(badge);
           }
 
           ctx.root = root;
