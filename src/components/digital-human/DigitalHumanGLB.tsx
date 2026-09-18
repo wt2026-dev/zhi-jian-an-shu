@@ -23,6 +23,7 @@ import React, { useRef, useEffect, useImperativeHandle, forwardRef, useCallback 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PERSONA_CONFIGS } from './EngineerModel';
+import { speakChinese, cancelSpeech, primeSpeech, voiceGenderFor } from './speech';
 
 // ─── Public interface (与 DigitalHumanVRM 同构) ────────────────────
 
@@ -218,6 +219,8 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       lastTime: number;
       disposed: boolean;
       personaId: string;
+      /** 当前朗读句柄的取消函数（切换/打断时调用） */
+      cancelSpeak: (() => void) | null;
     } | null>(null);
 
     // ── Load GLB model ──────────────────────────────────────────
@@ -375,6 +378,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
         lastTime: performance.now(),
         disposed: false,
         personaId,
+        cancelSpeak: null as (() => void) | null,
       };
       sceneRef.current = ctx;
 
@@ -510,6 +514,9 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
         ctx.disposed = true;
         cancelAnimationFrame(ctx.animId);
         ro.disconnect();
+        try {
+          ctx.cancelSpeak?.();
+        } catch {}
 
         if (ctx.mixer) {
           ctx.mixer.stopAllAction();
@@ -599,13 +606,15 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
             .trim();
           if (!clean) return false;
 
-          const excerpt = clean.length > 280 ? clean.slice(0, 280) : clean;
-
           // 视觉播报时长（口型/手势）：至少 2.5s，按文本长度最多 9s。
-          // 即使系统 TTS 无语音（onerror 立即触发 / speechSynthesis 不可用），
-          // 也保持说话状态到估算时长，保证"嘴巴在动"的视觉完整。
+          // 真实语音时长由 speech.ts 的 onEnd 决定，这里只作为"没声音时也要嘴动"的兜底。
           const startT = Date.now();
-          const estMs = Math.min(Math.max(excerpt.length * 150, 2500), 9000);
+          const estMs = Math.min(Math.max(clean.length * 150, 2500), 9000);
+
+          // 打断上一次朗读
+          try {
+            ctx.cancelSpeak?.();
+          } catch {}
 
           ctx.anim.speaking = true;
           triggerNod(1);
@@ -621,39 +630,31 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
             }, Math.max(0, remain));
           };
 
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            return new Promise<boolean>((resolve) => {
-              const utterance = new SpeechSynthesisUtterance(excerpt);
-              utterance.lang = 'zh-CN';
-              utterance.rate = 1.0;
-              utterance.pitch = 1.0;
+          // 统一走 speech.ts：确定性选中文音色 + 真实事件 + 看门狗兜底
+          primeSpeech();
+          const handle = speakChinese(clean, {
+            gender: voiceGenderFor(ctx.personaId),
+            onEnd: () => {
+              if (ctx && !ctx.disposed) ctx.cancelSpeak = null;
+            },
+          });
+          ctx.cancelSpeak = handle.cancel;
 
-              let settled = false;
-              const finish = (ok: boolean) => {
-                if (settled) return;
-                settled = true;
-                release(ok, resolve);
-              };
-              utterance.onend = () => finish(true);
-              utterance.onerror = () => finish(false);
-              try {
-                window.speechSynthesis.speak(utterance);
-              } catch {
-                finish(false);
-              }
-              // 硬兜底：TTS 卡死（onend/onerror 都不触发）时也按时长结束
-              window.setTimeout(() => finish(false), estMs + 3000);
-            });
-          }
-
-          return new Promise<boolean>((resolve) => release(true, resolve));
+          // 等真实语音结束，但视觉状态至少维持 estMs（口型不会因为 TTS 秒退而闪一下）
+          return new Promise<boolean>((resolve) => {
+            handle.promise
+              .then((spoken) => release(spoken, resolve))
+              .catch(() => release(false, resolve));
+          });
         },
 
         stop: () => {
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-          }
           const ctx = sceneRef.current;
+          try {
+            ctx?.cancelSpeak?.();
+          } catch {}
+          if (ctx) ctx.cancelSpeak = null;
+          cancelSpeech();
           if (ctx && !ctx.disposed) {
             ctx.anim.speaking = false;
           }

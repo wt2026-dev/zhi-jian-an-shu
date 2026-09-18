@@ -1,8 +1,13 @@
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Sparkles, Volume2, VolumeX, Activity, Check, AlertTriangle, FileText, Settings2, Radio } from 'lucide-react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+import {
+  Sparkles, Volume2, VolumeX, Activity, Check, AlertTriangle, FileText, Settings2, Radio,
+  RotateCcw,
+} from 'lucide-react';
 import { DigitalHumanPersona } from '../types';
+import { DigitalHumanVRM, type DigitalHumanVRMHandle } from './digital-human/DigitalHumanVRM';
 import { DigitalHumanGLB, type DigitalHumanGLBHandle } from './digital-human/DigitalHumanGLB';
 import { DigitalHuman3D, type DigitalHuman3DHandle } from './digital-human/DigitalHuman3D';
+import { speakChinese, cancelSpeech, primeSpeech, voiceGenderFor } from './digital-human/speech';
 
 /**
  * 金色 / 天青动态声波仪（Dynamic Audio Waveform HUD）
@@ -50,7 +55,6 @@ const QUICK_DIRECTIVES: { text: string; Icon: React.ComponentType<{ className?: 
 ];
 
 
-
 export const DIGITAL_PERSONAS: DigitalHumanPersona[] = [
   {
     id: 'zhang',
@@ -58,7 +62,7 @@ export const DIGITAL_PERSONAS: DigitalHumanPersona[] = [
     roleTitle: '机械首席总工程师',
     description: '30年离心机组与重载设备诊断经验，熟悉GB 30871高危规范',
     gender: 'male',
-    themeColor: '#0ea5e9', // Sky Blue
+    themeColor: '#2563eb', // 蓝色工装 + 蓝色安全帽
     avatarSvgType: 'zhang',
   },
   {
@@ -67,7 +71,7 @@ export const DIGITAL_PERSONAS: DigitalHumanPersona[] = [
     roleTitle: '电气自动化工程师',
     description: '精通PLC逻辑、变频调速与电气防爆LOTO隔离',
     gender: 'female',
-    themeColor: '#10b981', // Emerald Green
+    themeColor: '#16a34a', // 绿色工装 + 绿色安全帽
     avatarSvgType: 'li',
   },
   {
@@ -76,7 +80,7 @@ export const DIGITAL_PERSONAS: DigitalHumanPersona[] = [
     roleTitle: 'AI智能巡检专家',
     description: '连接工厂遥测中枢与千问大模型，秒级响应故障研判',
     gender: 'male',
-    themeColor: '#06b6d4', // Cyan
+    themeColor: '#06b6d4', // 青色安全帽
     avatarSvgType: 'zhi',
   },
 ];
@@ -88,6 +92,8 @@ interface DigitalHumanAvatarProps {
   onToggleSpeech: () => void;
   onSelectPrompt?: (text: string) => void;
   className?: string;
+  /** 真实发声状态回传：让上层（悬浮球 / 面板 / 会话状态）与数字人保持一致 */
+  onSpeakingChange?: (speaking: boolean) => void;
 }
 
 export interface DigitalHumanAvatarHandle {
@@ -99,6 +105,15 @@ export interface DigitalHumanAvatarHandle {
   is3D?: () => boolean;
 }
 
+/** 渲染后端标识：VRM（三人设差异化）→ GLB（写实工程师）→ 自研程序化 3D */
+type RenderBackend = 'vrm' | 'glb' | 'procedural';
+
+const BACKEND_TITLE: Record<RenderBackend, string> = {
+  vrm: '工业 3D 数字人・本地渲染',
+  glb: '写实工程师 3D 数字人・本地渲染',
+  procedural: '自研3D数字人・本地渲染',
+};
+
 export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHumanAvatarProps>((
   {
     isSpeaking,
@@ -107,6 +122,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
     onToggleSpeech,
     onSelectPrompt,
     className = '',
+    onSpeakingChange,
   },
   ref,
 ) => {
@@ -118,79 +134,102 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
     }
   });
 
-  // VRM 加载失败容灾兜底状态
-  const [vrmError, setVrmError] = useState<boolean>(false);
+  // 渲染后端逐级降级状态：VRM → GLB → 自研 3D
+  // 默认渲染后端：写实工业工程师 GLB（用户明确不要动漫；VRM 仅作可选降级保留）
+  const [backend, setBackend] = useState<RenderBackend>('glb');
+  /** 本地发声状态：与父级 isSpeaking 取并集，保证"真实在发声"时一定亮起 */
+  const [localSpeaking, setLocalSpeaking] = useState(false);
 
-  const vrmRef = useRef<DigitalHumanGLBHandle>(null);
+  const vrmRef = useRef<DigitalHumanVRMHandle>(null);
+  const glbRef = useRef<DigitalHumanGLBHandle>(null);
   const human3dRef = useRef<DigitalHuman3DHandle>(null);
+
+  /** 最近一次朗读的文本，供"重播"按钮使用 */
+  const lastSpokenRef = useRef<string>('');
+
+  const speakingActive = isSpeaking || localSpeaking;
+
+  // 把真实发声状态同时回传上层
+  const handleSpeakingChange = useCallback((v: boolean) => {
+    setLocalSpeaking(v);
+    onSpeakingChange?.(v);
+  }, [onSpeakingChange]);
+
+  /**
+   * 唯一的发声降级链：当前挂载的 3D 后端 → Web Speech 兜底。
+   *
+   * 注意：同一时刻只挂载一个 3D 后端（VRM / GLB / 程序化 3D），
+   * 所以这里只需要"当前后端失败就落到纯语音"，不必逐个遍历 ref。
+   * 关键点是**绝不在某条路径返回 false 时静默结束** —— 那正是
+   * "口型在动但完全没声音"的成因。
+   */
+  const runSpeakChain = useCallback(
+    async (text: string): Promise<boolean> => {
+      if (!text) return false;
+      lastSpokenRef.current = text;
+
+      const backend = vrmRef.current || glbRef.current || human3dRef.current;
+      if (backend) {
+        try {
+          if ((await backend.speak(text)) === true) return true;
+        } catch {
+          /* 落到下面的纯语音兜底 */
+        }
+      }
+
+      // 纯语音兜底：即使 3D 后端全部不可用，也必须让用户听到声音
+      const handle = speakChinese(text, {
+        gender: voiceGenderFor(selectedPersonaId),
+        onStart: () => handleSpeakingChange(true),
+        onEnd: () => handleSpeakingChange(false),
+      });
+      return handle.promise;
+    },
+    [handleSpeakingChange, selectedPersonaId],
+  );
 
   // 语音静音联动：静音时立即停止语音播报
   useEffect(() => {
     if (!speechEnabled) {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        try {
-          window.speechSynthesis.cancel();
-        } catch {}
-      }
-      try {
-        vrmRef.current?.stop();
-      } catch {}
-      try {
-        human3dRef.current?.stop();
-      } catch {}
+      cancelSpeech();
+      try { vrmRef.current?.stop(); } catch {}
+      try { glbRef.current?.stop(); } catch {}
+      try { human3dRef.current?.stop(); } catch {}
+      setLocalSpeaking(false);
     }
   }, [speechEnabled]);
 
+  // 首次用户手势解锁自动播放策略（Chrome 要求文档具备 user activation）
+  useEffect(() => {
+    const unlock = () => primeSpeech();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
   // 对外暴露句柄：is3D() / speak() / stop()
   useImperativeHandle(ref, () => ({
-    is3D: () => true,
+    is3D: () => !!(vrmRef.current || glbRef.current || human3dRef.current),
+
+    /**
+     * 统一发声入口。
+     * 逐级尝试 3D 渲染后端，**任一级失败都会继续往下走**，
+     * 最后一定落到 Web Speech 纯语音兜底 —— 不再出现"某条路径静默失败导致完全无声"。
+     */
     speak: async (text: string) => {
       if (!text || !speechEnabled) return false;
-
-      // 1. 优先调用本地 3D 数字人（VRM 或 兜底自研 3D）
-      try {
-        if (!vrmError && vrmRef.current) {
-          const ok = await vrmRef.current.speak(text);
-          if (ok) return true;
-        } else if (human3dRef.current) {
-          const ok = await human3dRef.current.speak(text);
-          if (ok) return true;
-        }
-      } catch (e) {
-        console.warn('[DigitalHumanAvatar] 3D speak 失败，降级纯语音合成:', e);
-      }
-
-      // 2. 失败时降级纯 TTS (speechSynthesis)
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        try {
-          const cleanText = text
-            .replace(/[#*`_~>[\]()!-]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          if (!cleanText) return false;
-          const excerpt = cleanText.length > 280 ? cleanText.slice(0, 280) : cleanText;
-          const utterance = new SpeechSynthesisUtterance(excerpt);
-          utterance.lang = 'zh-CN';
-          window.speechSynthesis.speak(utterance);
-          return true;
-        } catch (ttsErr) {
-          console.warn('[DigitalHumanAvatar] 降级纯 TTS 异常:', ttsErr);
-        }
-      }
-      return false;
+      return runSpeakChain(text);
     },
+
     stop: () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        try {
-          window.speechSynthesis.cancel();
-        } catch {}
-      }
-      try {
-        vrmRef.current?.stop();
-      } catch {}
-      try {
-        human3dRef.current?.stop();
-      } catch {}
+      cancelSpeech();
+      try { vrmRef.current?.stop(); } catch {}
+      try { glbRef.current?.stop(); } catch {}
+      try { human3dRef.current?.stop(); } catch {}
+      setLocalSpeaking(false);
     },
   }));
 
@@ -203,6 +242,19 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
     } catch {}
   };
 
+  /** 重播：把最近一次 AI 回答再念一遍（用户点"播报"就该听到声音） */
+  const handleReplay = () => {
+    const text = lastSpokenRef.current;
+    if (!text || !speechEnabled) return;
+    primeSpeech();
+    // 先打断当前朗读（避免新语音被 Chrome 排队），再走同一条降级链
+    cancelSpeech();
+    try { vrmRef.current?.stop(); } catch {}
+    try { glbRef.current?.stop(); } catch {}
+    try { human3dRef.current?.stop(); } catch {}
+    void runSpeakChain(text);
+  };
+
   return (
     <div className={`hud-card fx-shimmer p-4 sm:p-5 relative transition-all ${className}`}>
       {/* Top Header: Title & Persona Switcher */}
@@ -213,7 +265,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
           </div>
           <div className="min-w-0">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center space-x-1.5 truncate">
-              <span>{vrmError ? '自研3D数字人・本地渲染' : '写实工程师 3D 数字人・本地渲染'}</span>
+              <span>{BACKEND_TITLE[backend]}</span>
               <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full border shrink-0 bg-cyan-50 text-cyan-700 border-cyan-200">
                 本地 3D · LIVE
               </span>
@@ -224,12 +276,24 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
           </div>
         </div>
 
-        {/* TTS Speech Toggle */}
+        {/* TTS Speech Toggle + Replay */}
         <div className="flex items-center space-x-1.5 shrink-0">
           <button
             type="button"
+            onClick={handleReplay}
+            disabled={!speechEnabled}
+            data-testid="digital-human-replay"
+            title={speechEnabled ? '重播最近一次播报内容' : '请先开启语音朗读'}
+            className="px-2 py-1 rounded-md text-[11px] font-medium flex items-center space-x-1 transition-all cursor-pointer border bg-white text-slate-600 border-slate-200 hover:text-cyan-700 hover:bg-cyan-50 hover:border-cyan-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>播报</span>
+          </button>
+          <button
+            type="button"
             onClick={onToggleSpeech}
-            title={speechEnabled ? '已开启语音朗读 (点击静音)' : '已静音 (点击开启语音朗读)'}
+            data-testid="digital-human-speech-toggle"
+            title={speechEnabled ? '语音朗读已开启（点击关闭）' : '语音朗读已关闭（点击开启）'}
             className={`px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center space-x-1 transition-all cursor-pointer border ${
               speechEnabled
                 ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-2xs'
@@ -237,7 +301,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
             }`}
           >
             {speechEnabled ? <Volume2 className="w-3.5 h-3.5 text-blue-600" /> : <VolumeX className="w-3.5 h-3.5" />}
-            <span>{speechEnabled ? '播报中' : '静音'}</span>
+            <span>{speechEnabled ? '朗读开' : '朗读关'}</span>
           </button>
         </div>
       </div>
@@ -266,7 +330,7 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
                   key={i}
                   className={`absolute inset-0 rounded-full border pulse-ring ${i === 1 ? 'pulse-ring-2' : i === 2 ? 'pulse-ring-3' : ''}`}
                   style={{
-                    borderColor: isSpeaking
+                    borderColor: speakingActive
                       ? 'rgba(232, 163, 61, 0.55)'
                       : isListening
                       ? 'rgba(16, 185, 129, 0.45)'
@@ -279,24 +343,38 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
             {/* ⑤ 全息科技光环 */}
             <div
               className="hud-halo"
-              style={{ opacity: isSpeaking ? 0.95 : isListening ? 0.8 : 0.55 }}
+              style={{ opacity: speakingActive ? 0.95 : isListening ? 0.8 : 0.55 }}
             />
 
-            {/* ⑥ 3D 渲染舞台（首选 VRM 模型，加载失败自动平滑回退至自研 3D 工程师模型） */}
+            {/* ⑥ 3D 渲染舞台（VRM 三人设 → 写实 GLB → 自研 3D，逐级平滑降级） */}
             <div className="absolute inset-0 flex items-center justify-center z-10">
               <div className="w-full h-full flex items-center justify-center">
-                {!vrmError ? (
-                  <DigitalHumanGLB
+                {backend === 'vrm' && (
+                  <DigitalHumanVRM
                     ref={vrmRef}
                     personaId={selectedPersonaId}
                     isSpeaking={isSpeaking}
+                    onSpeakingChange={handleSpeakingChange}
                     onError={(err) => {
-                      console.warn('[DigitalHumanAvatar] GLB 写实工程师模型加载异常，平滑回退至自研 3D 工程师模型:', err);
-                      setVrmError(true);
+                      console.warn('[DigitalHumanAvatar] VRM 模型加载异常，降级至写实 GLB 工程师模型:', err);
+                      setBackend('glb');
                     }}
                     className="w-full h-full"
                   />
-                ) : (
+                )}
+                {backend === 'glb' && (
+                  <DigitalHumanGLB
+                    ref={glbRef}
+                    personaId={selectedPersonaId}
+                    isSpeaking={isSpeaking}
+                    onError={(err) => {
+                      console.warn('[DigitalHumanAvatar] GLB 模型加载异常，降级至自研程序化 3D 模型:', err);
+                      setBackend('procedural');
+                    }}
+                    className="w-full h-full"
+                  />
+                )}
+                {backend === 'procedural' && (
                   <DigitalHuman3D
                     ref={human3dRef}
                     personaId={selectedPersonaId}
@@ -312,9 +390,9 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
 
             {/* ⑧ 金色/天青声波仪表盘 + 状态浮标 */}
             <div className="absolute inset-x-4 bottom-3 z-20 flex flex-col items-center gap-1.5 pointer-events-none">
-              <WaveformHUD active={isSpeaking || isListening} bars={24} className="h-6 w-full" />
+              <WaveformHUD active={speakingActive || isListening} bars={24} className="h-6 w-full" />
               <div className="px-2.5 py-0.5 rounded-full bg-white/90 backdrop-blur-xs border border-amber-200/70 text-[10px] font-mono text-slate-700 flex items-center space-x-1.5 shadow-sm">
-                {isSpeaking ? (
+                {speakingActive ? (
                   <>
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
                     <span className="text-amber-700 font-bold">3D语音实时输出中</span>

@@ -1,20 +1,31 @@
 /**
- * DigitalHumanVRM.tsx — VRM 日式动漫 3D 数字人 React 组件
+ * DigitalHumanVRM.tsx — VRM 3D 数字人 React 组件（三人设差异化 · 工业风装备）
  *
- * 职责：Three.js 场景初始化 / VRM 模型加载 / 渲染循环 / 动画驱动 / 语音合成 + 口型
- * 对外只暴露 speak / stop / setSpeaking / setPersona 四个方法（与 DigitalHuman3D 同构，
+ * 职责：Three.js 场景初始化 / VRM 模型加载 / 渲染循环 / 程序化动画 / 中文语音合成
+ * 对外暴露 speak / stop / setSpeaking / setPersona 四个方法（与 DigitalHumanGLB 同构，
  * 可直接替换使用）。
  *
- * 模型来源：VRoid Studio 官方示例模型（AvatarSample A/B/C，日式动漫风格），
- * 经 npm 包 virtual-avatar 分发获取，许可遵循 VRoid 官方示例模型许可（可免费使用/修改，
- * 详见 https://vroid.com/studio 与包内 LICENSE 说明）。模型文件位于 public/models/，
- * 运行时走本地静态资源，无外网依赖。
+ * ── 三人设差异化（本文件的核心变更）────────────────────────────────
+ * 三个 VRoid 官方示例模型是三个不同的角色，按人设一一映射：
+ *   张工 → AvatarSample_A.vrm   李工 → AvatarSample_B.vrm   小智 → AvatarSample_C.vrm
+ * 再通过 `industrialGear.ts` 程序化挂上**安全帽 + 反光背心 + 发光胸章**
+ * （张工蓝 / 李工绿 / 小智青），保证三个人一眼可辨且贴合工业检修场景。
  *
- * 依赖：three@0.186.0、@pixiv/three-vrm@3.5.5（项目已装）。
+ * ── 模型来源与许可 ───────────────────────────────────────────────
+ * VRoid Studio 官方示例模型（AvatarSample A/B/C）。模型内嵌许可证
+ * （`vrm.meta.licenseUrl` → hub.vroid.com/license）明确：
+ *   corporate_commercial_use = allow、modification = allow、credit = unnecessary
+ * 即**可商用、可修改、无需署名**。模型文件位于 public/models/，运行时走本地静态资源，无外网依赖。
  *
- * 动画说明：
+ * ── 依赖 ────────────────────────────────────────────────────────
+ * three@0.186.0、@pixiv/three-vrm@3.5.5（项目已装）。
+ * 三个模型均为 VRM 0.x：54 骨骼、表情 A/I/U/E/O + Blink（three-vrm 会内部映射为
+ * VRM 1.0 的 aa/ih/oh/blink 预设名，所以 setValue 用 1.0 名字即可）。
+ * 模型**不含内置动画**，所有动作均为程序化生成。
+ *
+ * ── 动画说明 ────────────────────────────────────────────────────
  *  - 眨眼：VRM BlendShape（Blink）
- *  - 口型：VRM BlendShape（Aa / Ih / Oh 交替，speaking 时随机张合）
+ *  - 口型：VRM BlendShape（aa / ih / oh 交替），由**真实语音事件**驱动开合
  *  - 点头/头动：Humanoid Head 骨骼
  *  - 手臂手势：Humanoid 上臂骨骼（说话姿态微抬，左右对称）
  *  - 呼吸：Spine 骨骼缩放
@@ -25,6 +36,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils, VRMHumanBoneName } from '@pixiv/three-vrm';
 import type { VRM } from '@pixiv/three-vrm';
+import { attachIndustrialGear, detachIndustrialGear } from './industrialGear';
+import { speakChinese, cancelSpeech, primeSpeech, voiceGenderFor } from './speech';
 
 // ─── Public interface ─────────────────────────────────────────────
 
@@ -39,15 +52,32 @@ interface DigitalHumanVRMProps {
   personaId: string;
   isSpeaking?: boolean;
   className?: string;
+  onError?: (error: any) => void;
+  /** 真实发声状态回传（供上层统一"播报中"UI，避免各处状态不一致） */
+  onSpeakingChange?: (speaking: boolean) => void;
+  /** 模型加载完成回调（含实测尺寸，便于验收/单测） */
+  onReady?: (info: {
+    personaId: string;
+    torsoLen: number;
+    headTopY: number;
+    headRadius: number;
+    torsoHalfDepth: number;
+  }) => void;
 }
 
-// ─── Persona → VRM model mapping ──────────────────────────────────
+// ─── Persona → VRM model mapping（三人设 = 三个不同角色）─────────────
 
-const PERSONA_MODEL: Record<string, string> = {
+export const PERSONA_MODEL: Record<string, string> = {
   zhang: '/models/AvatarSample_A.vrm',
   li: '/models/AvatarSample_B.vrm',
   zhi: '/models/AvatarSample_C.vrm',
 };
+
+/** 人设 → 中文音色性别倾向（定义在 speech.ts，与 DIGITAL_PERSONAS.gender 对齐） */
+
+export function modelUrlFor(personaId: string): string {
+  return PERSONA_MODEL[personaId] || PERSONA_MODEL.zhang;
+}
 
 // ─── Animation state (mutable, not React state) ───────────────────
 
@@ -62,10 +92,10 @@ interface AnimState {
   /* jaw */
   jawWeight: number;        // current mouth open weight 0..1
   jawTarget: number;        // target mouth open weight
-  jawShape: 'Aa' | 'Ih' | 'Oh'; // current mouth shape
+  jawShape: 'aa' | 'ih' | 'oh'; // current mouth shape（VRM 1.0 预设名）
   jawCycle: number;         // ms countdown for next jaw target change
-  /* arm restore */
-  armLerp: number;          // 0 = rest, 1 = speaking pose
+  /* speech-driven mouth boost（真实语音 boundary 事件累积，随帧衰减） */
+  speechPulse: number;
 }
 
 function freshAnimState(): AnimState {
@@ -77,18 +107,18 @@ function freshAnimState(): AnimState {
     nodDir: 1,
     jawWeight: 0,
     jawTarget: 0,
-    jawShape: 'Aa',
+    jawShape: 'aa',
     jawCycle: 0,
-    armLerp: 0,
+    speechPulse: 0,
   };
 }
 
 // ─── Constants ────────────────────────────────────────────────────
 
-// VRM 模型原点在脚底（y=0），相机对准上半身——完整展现自然下垂的手臂与面部
-const CAM_POS = new THREE.Vector3(0, 1.25, 2.05);
-const CAM_TARGET = new THREE.Vector3(0, 1.18, 0);
-const FOV = 40;
+// 相机微调至腰部以上半身构图（聚焦面部表情、呼吸胸腔与说话手势）
+const CAM_POS = new THREE.Vector3(0, 1.22, 1.68);
+const CAM_TARGET = new THREE.Vector3(0, 1.16, 0);
+const FOV = 38;
 
 // VRM 绑定姿势是 T-pose（手臂水平平伸，rot.z = 0）。
 // 自然站姿下垂：大臂下垂至体侧（约 72° / 1.26 rad），避免穿模；手肘微曲，双手自然垂于身侧。
@@ -118,36 +148,29 @@ function applyNaturalPose(vrm: VRM): void {
   if (rHand) rHand.rotation.set(0, 0, 0);
 }
 
-// ─── BlendShape helper (compatible with VRM 0.x & 1.0) ─────────────
+// ─── Expression helper（统一走 VRM 1.0 预设名，three-vrm 内部映射 0.x）──
 
-function setExpression(
-  vrm: VRM,
-  name0x: string,
-  name1x: string,
-  value: number,
-): void {
-  const anyVrm = vrm as unknown as {
-    expressionManager?: { setValue?: (k: string, v: number) => void; update?: () => void };
-    blendShapeProxy?: { setValue?: (k: string, v: number) => void; update?: () => void };
-  };
-  const em = anyVrm.expressionManager;
-  if (em && typeof em.setValue === 'function') {
-    em.setValue(name1x, value);
-    if (typeof em.update === 'function') em.update();
-    return;
-  }
-  const bsp = anyVrm.blendShapeProxy;
-  if (bsp && typeof bsp.setValue === 'function') {
-    bsp.setValue(name0x, value);
-    if (typeof bsp.update === 'function') bsp.update();
+function setExpression(vrm: VRM, name: string, value: number): void {
+  const em = vrm.expressionManager;
+  if (!em) return;
+  try {
+    em.setValue(name, value);
+  } catch {
+    /* 某些模型可能缺该预设，忽略即可 */
   }
 }
 
 // ─── Component ────────────────────────────────────────────────────
 
 export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRMProps>(
-  ({ personaId, isSpeaking = false, className = '' }, ref) => {
+  ({ personaId, isSpeaking = false, className = '', onError, onSpeakingChange, onReady }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const onErrorRef = useRef(onError);
+    onErrorRef.current = onError;
+    const onSpeakingChangeRef = useRef(onSpeakingChange);
+    onSpeakingChangeRef.current = onSpeakingChange;
+    const onReadyRef = useRef(onReady);
+    onReadyRef.current = onReady;
 
     // Mutable refs for Three.js objects (not React state to avoid re-renders)
     const sceneRef = useRef<{
@@ -155,22 +178,44 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
       scene: THREE.Scene;
       camera: THREE.PerspectiveCamera;
       vrm: VRM | null;
+      grid: THREE.GridHelper;
       animId: number;
       anim: AnimState;
       lastTime: number;
       disposed: boolean;
       personaId: string;
+      loadSeq: number;
+      /** 当前朗读句柄的取消函数（切换/打断时调用） */
+      cancelSpeak: (() => void) | null;
     } | null>(null);
+
+    /** 统一维护"真实发声状态"，同时回传上层 */
+    const setSpeakingState = useCallback((v: boolean) => {
+      const ctx = sceneRef.current;
+      if (ctx && !ctx.disposed) {
+        const was = ctx.anim.speaking;
+        ctx.anim.speaking = v;
+        if (v && !was) {
+          ctx.anim.nodProgress = 0;
+          ctx.anim.nodDir = 1;
+        } else if (!v && was) {
+          ctx.anim.nodProgress = 0;
+          ctx.anim.nodDir = -1;
+        }
+      }
+      onSpeakingChangeRef.current?.(v);
+    }, []);
 
     // ── Load VRM model (async) ──────────────────────────────────
 
     const loadVRM = useCallback((url: string, ctx: NonNullable<typeof sceneRef.current>): Promise<void> => {
+      const seq = ++ctx.loadSeq;
       return new Promise<void>((resolve, reject) => {
         const loader = new GLTFLoader();
         loader.register((parser) => new VRMLoaderPlugin(parser));
         loader.loadAsync(url).then((gltf) => {
-          if (ctx.disposed) {
-            // Component unmounted while loading — dispose what we got
+          // 组件已卸载 / 期间又切换了人设 → 丢弃这次结果，避免"旧模型覆盖新模型"
+          if (ctx.disposed || seq !== ctx.loadSeq) {
             VRMUtils.deepDispose(gltf.scene);
             resolve();
             return;
@@ -183,15 +228,15 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
           }
           // Replace old model
           if (ctx.vrm) {
+            detachIndustrialGear(ctx.vrm.scene);
             ctx.scene.remove(ctx.vrm.scene);
             VRMUtils.deepDispose(ctx.vrm.scene);
           }
           ctx.scene.add(vrm.scene);
 
-          // VRM 0.x 模型默认面向 -Z（背对镜头），转 180° 面向 +Z
-          if (vrm.meta?.metaVersion === '0') {
-            VRMUtils.rotateVRM0(vrm);
-          }
+          // VRM 0.x 模型默认面向 -Z（背对镜头），转 180° 面向 +Z。
+          // rotateVRM0 内部自带 metaVersion === '0' 守卫，对 VRM1 是空操作。
+          VRMUtils.rotateVRM0(vrm);
           // T-pose 绑定姿势 → 自然站姿（手臂下垂，不再平伸）
           applyNaturalPose(vrm);
 
@@ -210,11 +255,34 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
             vrm.scene.position.z -= center.z;
           }
 
+          // 人设专属工业装备（安全帽 / 反光背心 / 发光胸章）
+          let measurement = null;
+          try {
+            measurement = attachIndustrialGear(vrm, ctx.personaId);
+            // 诊断出口：验收脚本可读取实测的头/躯干尺寸，确认"尺寸是量出来的"
+            if (typeof window !== 'undefined') {
+              (window as unknown as { __digitalHumanGear?: unknown }).__digitalHumanGear = measurement;
+            }
+          } catch (e) {
+            console.warn('[DigitalHumanVRM] 工业装备装配失败（不影响人物渲染）:', e);
+          }
+
           ctx.vrm = vrm;
           ctx.anim = freshAnimState();
+          // 语音音色需要音色表就绪，加载完成时顺手预热
+          primeSpeech();
+          if (measurement) {
+            onReadyRef.current?.({
+              personaId: ctx.personaId,
+              torsoLen: measurement.torsoLen,
+              headTopY: measurement.head.topY,
+              headRadius: measurement.head.radius,
+              torsoHalfDepth: measurement.torso.halfDepth,
+            });
+          }
           resolve();
         }).catch((err) => {
-          if (!ctx.disposed) reject(err);
+          if (!ctx.disposed && seq === ctx.loadSeq) reject(err);
         });
       });
     }, []);
@@ -224,6 +292,9 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
     useEffect(() => {
       const container = containerRef.current;
       if (!container) return;
+
+      // StrictMode 双挂载幂等：先清掉容器里的残留 canvas
+      container.querySelectorAll('canvas').forEach((c) => c.remove());
 
       // --- Renderer ---
       const renderer = new THREE.WebGLRenderer({
@@ -248,23 +319,38 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
       // --- Scene ---
       const scene = new THREE.Scene();
 
-      // --- Lights (动漫风格：主光 + 天光 + 冷色补光) ---
-      const mainLight = new THREE.DirectionalLight(0xfff4e2, 1.5);
-      mainLight.position.set(2, 3, 4);
+      // --- 工业风虚拟工厂透明网格地板 ---
+      const grid = new THREE.GridHelper(8, 20, 0x0ea5e9, 0x334155);
+      grid.position.set(0, 0, 0);
+      if (Array.isArray(grid.material)) {
+        grid.material.forEach((m) => {
+          m.transparent = true;
+          m.opacity = 0.28;
+          m.depthWrite = false;
+        });
+      } else {
+        grid.material.transparent = true;
+        grid.material.opacity = 0.28;
+        grid.material.depthWrite = false;
+      }
+      scene.add(grid);
+
+      // --- Lights (工业科技风：主光冷白 5000K + 补光偏青 + 轮廓光 + 低饱和度环境光) ---
+      const mainLight = new THREE.DirectionalLight(0xf0f6ff, 1.65);
+      mainLight.position.set(2.2, 3.2, 3.5);
       scene.add(mainLight);
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
-      scene.add(ambientLight);
-
-      const rimLight = new THREE.DirectionalLight(0x8ec5ff, 0.8);
-      rimLight.position.set(-2.5, 1.5, -3);
-      scene.add(rimLight);
-
-      const fillLight = new THREE.DirectionalLight(0xffd9a8, 0.45);
-      fillLight.position.set(1.5, 0.6, 2.5);
+      const fillLight = new THREE.DirectionalLight(0x67e8f9, 0.6);
+      fillLight.position.set(1.6, 0.8, 2.2);
       scene.add(fillLight);
 
-      // --- Animation state ---
+      const rimLight = new THREE.DirectionalLight(0x8ec5ff, 0.85);
+      rimLight.position.set(-2.5, 1.6, -2.8);
+      scene.add(rimLight);
+
+      const ambientLight = new THREE.AmbientLight(0xdbe4ee, 0.42);
+      scene.add(ambientLight);
+
       const anim = freshAnimState();
 
       const ctx = {
@@ -272,19 +358,22 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
         scene,
         camera,
         vrm: null as VRM | null,
+        grid,
         animId: 0,
         anim,
         lastTime: performance.now(),
         disposed: false,
         personaId,
+        loadSeq: 0,
+        cancelSpeak: null as (() => void) | null,
       };
       sceneRef.current = ctx;
 
       // --- Load initial model ---
-      const modelUrl = PERSONA_MODEL[personaId] || PERSONA_MODEL.zhang;
-      loadVRM(modelUrl, ctx).catch((err) => {
+      loadVRM(modelUrlFor(personaId), ctx).catch((err) => {
         if (!ctx.disposed) {
           console.warn('[DigitalHumanVRM] 模型加载失败:', err);
+          onErrorRef.current?.(err);
         }
       });
 
@@ -344,30 +433,34 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
           if (a.blinkProgress >= 1) {
             a.blinkProgress = -1;
             a.blinkCountdown = 2500 + Math.random() * 2000;
-            setExpression(vrm, 'Blink', 'blink', 0);
+            setExpression(vrm, 'blink', 0);
           } else {
             const squish = Math.pow(Math.sin(a.blinkProgress * Math.PI), 0.5);
-            setExpression(vrm, 'Blink', 'blink', squish);
+            setExpression(vrm, 'blink', squish);
           }
         }
 
         // ── B. Speaking: Jaw / lip sync (BlendShape) ──
+        // 口型由**真实语音事件**驱动：speak() 里 onStart 置位、onEnd 复位，
+        // onBoundary 每次累加 speechPulse 让嘴型跟随真实语句节奏跳动。
         if (a.speaking) {
           a.jawCycle -= dt;
           if (a.jawCycle <= 0) {
             a.jawTarget = 0.35 + Math.random() * 0.65; // 0.35 ~ 1.0
             a.jawCycle = 180 + Math.random() * 140;     // 180~320ms
-            const shapes: Array<'Aa' | 'Ih' | 'Oh'> = ['Aa', 'Ih', 'Oh'];
+            const shapes: Array<'aa' | 'ih' | 'oh'> = ['aa', 'ih', 'oh'];
             a.jawShape = shapes[Math.floor(Math.random() * shapes.length)];
           }
           a.jawWeight += (a.jawTarget - a.jawWeight) * 0.3;
         } else {
           a.jawWeight += (0 - a.jawWeight) * 0.12;
         }
-        // Apply mouth shape weights (clear siblings then set active)
-        setExpression(vrm, 'Aa', 'aa', a.jawShape === 'Aa' ? a.jawWeight : 0);
-        setExpression(vrm, 'Ih', 'ih', a.jawShape === 'Ih' ? a.jawWeight : 0);
-        setExpression(vrm, 'Oh', 'oh', a.jawShape === 'Oh' ? a.jawWeight : 0);
+        // speechPulse 随帧衰减，叠加到当前口型上（boundary 越密集，嘴动越明显）
+        a.speechPulse = Math.max(0, a.speechPulse - dt / 420);
+        const jawOut = Math.min(1, a.jawWeight + a.speechPulse * 0.45);
+        setExpression(vrm, 'aa', a.jawShape === 'aa' ? jawOut : 0);
+        setExpression(vrm, 'ih', a.jawShape === 'ih' ? jawOut : 0);
+        setExpression(vrm, 'oh', a.jawShape === 'oh' ? jawOut : 0);
 
         // ── B. Speaking: Head nod ──
         if (a.nodProgress >= 0) {
@@ -382,10 +475,8 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
 
         // ── B. Speaking / Idle: Arm gesture（正弦微摆 + 平滑插值，双手始终有自然动感）──
         const swingT = t / 1000;
-        // 待机微摆：缓慢晃动（约 0.35 Hz，幅度 ~4°），手臂不僵硬
         const idleSwingZ = 0.07 * Math.sin(swingT * 2.2);
         const idleSwingX = 0.05 * Math.sin(swingT * 1.6 + 1.2);
-        // 说话摆动：较快节奏（约 1 Hz，幅度 ~8°），配合口型节奏
         const speakSwingZ = a.speaking ? 0.14 * Math.sin(swingT * 6.0) : 0;
         const speakSwingX = a.speaking ? 0.1 * Math.sin(swingT * 4.6) : 0;
 
@@ -426,15 +517,30 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
       // --- Cleanup ---
       return () => {
         ctx.disposed = true;
+        ctx.loadSeq++; // 让在途加载结果作废
         cancelAnimationFrame(ctx.animId);
         ro.disconnect();
+        try {
+          ctx.cancelSpeak?.();
+        } catch {}
 
         // Dispose model
         if (ctx.vrm) {
+          detachIndustrialGear(ctx.vrm.scene);
           ctx.scene.remove(ctx.vrm.scene);
-          
           VRMUtils.deepDispose(ctx.vrm.scene);
           ctx.vrm = null;
+        }
+
+        // Dispose grid helper
+        if (ctx.grid) {
+          ctx.scene.remove(ctx.grid);
+          ctx.grid.geometry?.dispose();
+          if (Array.isArray(ctx.grid.material)) {
+            ctx.grid.material.forEach((m) => m.dispose());
+          } else {
+            ctx.grid.material?.dispose();
+          }
         }
 
         scene.clear();
@@ -454,11 +560,11 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
     useEffect(() => {
       const ctx = sceneRef.current;
       if (!ctx || ctx.disposed || ctx.personaId === personaId) return;
-      const modelUrl = PERSONA_MODEL[personaId] || PERSONA_MODEL.zhang;
       ctx.personaId = personaId;
-      loadVRM(modelUrl, ctx).catch((err) => {
+      loadVRM(modelUrlFor(personaId), ctx).catch((err) => {
         if (!ctx.disposed) {
           console.warn('[DigitalHumanVRM] 切换人设模型失败:', err);
+          onErrorRef.current?.(err);
         }
       });
     }, [personaId, loadVRM]);
@@ -469,7 +575,6 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
       if (ctx) {
         const wasSpeak = ctx.anim.speaking;
         ctx.anim.speaking = isSpeaking;
-        // Trigger nod on transition
         if (isSpeaking && !wasSpeak) {
           ctx.anim.nodProgress = 0;
           ctx.anim.nodDir = 1;
@@ -497,91 +602,58 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
           const ctx = sceneRef.current;
           if (!ctx || ctx.disposed) return false;
 
-          // Clean markdown syntax
-          const clean = text
-            .replace(/[#*`_~>[\]()!-]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          if (!clean) return false;
+          // 打断上一次朗读（含视觉状态复位）
+          try {
+            ctx.cancelSpeak?.();
+          } catch {}
 
-          const excerpt = clean.length > 280 ? clean.slice(0, 280) : clean;
-
-          // Start speaking animation
-          ctx.anim.speaking = true;
-          triggerNod(1);
-
-          // speechSynthesis available?
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            return new Promise<boolean>((resolve) => {
-              const utterance = new SpeechSynthesisUtterance(excerpt);
-              utterance.lang = 'zh-CN';
-              utterance.rate = 1.0;
-              utterance.pitch = 1.0;
-
-              utterance.onend = () => {
-                if (ctx && !ctx.disposed) {
-                  ctx.anim.speaking = false;
-                  triggerNod(-1);
-                }
-                resolve(true);
-              };
-
-              utterance.onerror = () => {
-                if (ctx && !ctx.disposed) {
-                  ctx.anim.speaking = false;
-                }
-                resolve(false);
-              };
-
-              window.speechSynthesis.speak(utterance);
-            });
-          }
-
-          // Fallback: jaw animation only for ~3 seconds
-          return new Promise<boolean>((resolve) => {
-            setTimeout(() => {
-              if (ctx && !ctx.disposed) {
-                ctx.anim.speaking = false;
-                triggerNod(-1);
-              }
-              resolve(true);
-            }, Math.min(excerpt.length * 120, 8000)); // ~120ms per char, max 8s
+          const handle = speakChinese(text, {
+            gender: voiceGenderFor(ctx.personaId),
+            rate: 1.0,
+            pitch: 1.0,
+            onStart: () => setSpeakingState(true),
+            onBoundary: () => {
+              const c = sceneRef.current;
+              if (c && !c.disposed) c.anim.speechPulse = Math.min(1.2, c.anim.speechPulse + 0.55);
+            },
+            onEnd: () => {
+              const c = sceneRef.current;
+              if (c && !c.disposed) c.cancelSpeak = null;
+              setSpeakingState(false);
+            },
           });
+
+          if (!handle || typeof handle.promise?.then !== 'function') {
+            return false;
+          }
+          ctx.cancelSpeak = handle.cancel;
+          return handle.promise;
         },
 
         stop: () => {
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-          }
           const ctx = sceneRef.current;
-          if (ctx && !ctx.disposed) {
-            ctx.anim.speaking = false;
-          }
+          try {
+            ctx?.cancelSpeak?.();
+          } catch {}
+          if (ctx) ctx.cancelSpeak = null;
+          cancelSpeech();
+          setSpeakingState(false);
         },
 
-        setSpeaking: (v: boolean) => {
-          const ctx = sceneRef.current;
-          if (ctx && !ctx.disposed) {
-            const was = ctx.anim.speaking;
-            ctx.anim.speaking = v;
-            if (v && !was) triggerNod(1);
-            if (!v && was) triggerNod(-1);
-          }
-        },
+        setSpeaking: (v: boolean) => setSpeakingState(v),
 
         setPersona: (id: string) => {
           const ctx = sceneRef.current;
           if (!ctx || ctx.disposed || ctx.personaId === id) return;
-          const modelUrl = PERSONA_MODEL[id] || PERSONA_MODEL.zhang;
           ctx.personaId = id;
-          loadVRM(modelUrl, ctx).catch((err) => {
+          loadVRM(modelUrlFor(id), ctx).catch((err) => {
             if (!ctx.disposed) {
               console.warn('[DigitalHumanVRM] setPersona 模型加载失败:', err);
             }
           });
         },
       }),
-      [loadVRM, triggerNod],
+      [loadVRM, triggerNod, setSpeakingState],
     );
 
     // ── Render ─────────────────────────────────────────────────
@@ -597,3 +669,5 @@ export const DigitalHumanVRM = forwardRef<DigitalHumanVRMHandle, DigitalHumanVRM
 );
 
 DigitalHumanVRM.displayName = 'DigitalHumanVRM';
+
+export default DigitalHumanVRM;
