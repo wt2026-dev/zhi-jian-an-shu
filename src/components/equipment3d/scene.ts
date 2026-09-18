@@ -14,6 +14,10 @@
  */
 
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SCENE_PRESETS, QUALITY, type ScenePreset, type QualityKey, type LayoutPattern } from './styles';
 import { Hall, type DeviceSlot, type ShellMode } from './hall';
 import {
@@ -269,6 +273,21 @@ export class EquipmentScene {
   private resizeObserver: ResizeObserver | null = null;
   private onWindowResize = () => this.resize();
 
+  /* ---- 后处理辉光（UnrealBloom）----
+   * high：全分辨率 bloom；medium：bloom 渲染目标减半；low / 软件渲染：不建 composer，直渲。
+   * 阈值经实测定为 1.6（线性 HDR 域，见 applyPostProcessing 注释），
+   * 让泛光只落在高亮爆点（扫描环、粒子、发光件）上，地面网格与暗部保持干净。 */
+  private composer: EffectComposer | null = null;
+  private bloomPass: UnrealBloomPass | null = null;
+  private composerQuality: QualityKey | null = null;
+
+  /* ---- 选中设备 emissive 高亮 ----
+   * 设备主体材质跨台共享（instanceColor 管颜色），直接改 emissive 会点亮全场；
+   * 所以选中时给该台的 Mesh 克隆一份带蓝光的材质，取消选中即还原并 dispose。
+   * 蓝色系（0x1e3a5f）与故障红标形成"选中蓝 / 故障红"的语义区分。 */
+  private selEmissiveBackup = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+  private selEmissiveClones = new Map<THREE.Material, THREE.Material>();
+
   private rafId = 0;
   private lastTime = 0;
   private running = false;
@@ -332,6 +351,7 @@ export class EquipmentScene {
     this.bindControls();
 
     this.resize();
+    this.applyPostProcessing();
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.resize());
       this.resizeObserver.observe(container);
@@ -411,7 +431,9 @@ export class EquipmentScene {
     if (!this.pmrem) this.pmrem = new THREE.PMREMGenerator(this.renderer);
     const rt = this.pmrem.fromEquirectangular(tex);
     this.scene.environment = rt.texture;
-    this.scene.environmentIntensity = 0.62;
+    // 0.68：比原 0.62 略抬一档，金属设备反射更"实"（PBR 环境光是金属质感的主光源），
+    // 再高会让钢壳过亮发假；渐变 PMREM 保持，不引入外部 HDRI（包体积 + 软渲染风险）。
+    this.scene.environmentIntensity = 0.68;
     tex.dispose();
     this.envRT?.dispose();
     this.envSource?.dispose();
@@ -1462,7 +1484,75 @@ export class EquipmentScene {
     this.camera.updateProjectionMatrix();
     const box = this.focusedId ? this.equipment?.boxById.get(this.focusedId) : null;
     if (aspectChanged && box) this.frameIsolated(box, true);
+    this.syncComposerSize();
     this.dirty = true;
+  }
+
+  /* ========================= 后处理辉光 ========================= */
+
+  /**
+   * 软件渲染检测：SwiftShader/llvmpipe 下 bloom 的 mip 链每帧要几百毫秒
+   * （本项目 PMREM 在软渲染下就有前科），检测到即整体回退直渲。
+   */
+  private isSoftwareRenderer(): boolean {
+    try {
+      const gl = this.renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+      return /swiftshader|llvmpipe|software|basic render/i.test(name);
+    } catch {
+      return false;
+    }
+  }
+
+  /** 按画质档创建/重建 bloom 链；low 档与软件渲染保持直渲。幂等，可在 build() 里放心调。 */
+  private applyPostProcessing(): void {
+    const want = this.params.quality !== 'low' && !this.isSoftwareRenderer();
+    if (!want) {
+      this.disposeComposer();
+      return;
+    }
+    if (this.composer && this.composerQuality === this.params.quality) return;
+    this.disposeComposer();
+    const w = Math.max(1, this.container.clientWidth || 1);
+    const h = Math.max(1, this.container.clientHeight || 1);
+    const pr = this.renderer.getPixelRatio();
+    const composer = new EffectComposer(this.renderer);
+    composer.addPass(new RenderPass(this.scene, this.camera));
+    // ⚠️ threshold 实测取 1.6 而非资料常见的 0.8~0.9：RenderPass 输出到 HalfFloat RT，
+    // bloom 工作在**色调映射前的线性 HDR 域**，本项目白色机身（0xe9eef3 + sun1.2 + 环境 0.68）
+    // 线性亮度 ≈1.2~1.5，0.85 时整机糊成白团（截图对比见 scratch/bloom-th-*.png）。
+    // 1.6 只放过高光爆点、加性混合的扫描环/粒子/发光件，地面网格与暗部保持干净。
+    const bloom = new UnrealBloomPass(new THREE.Vector2(w * pr, h * pr), 0.55, 0.4, 1.6);
+    composer.addPass(bloom);
+    // OutputPass 放最后：RenderPass 渲染到 RT 时材质跳过色调映射，由它统一做
+    // ACES 曝光 + sRGB 输出，一次完成、不重复。
+    composer.addPass(new OutputPass());
+    this.composer = composer;
+    this.bloomPass = bloom;
+    this.composerQuality = this.params.quality;
+    this.syncComposerSize();
+  }
+
+  private syncComposerSize(): void {
+    if (!this.composer) return;
+    const w = Math.max(1, this.container.clientWidth || 1);
+    const h = Math.max(1, this.container.clientHeight || 1);
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
+    this.composer.setSize(w, h);
+    // 均衡档 bloom 分辨率减半（性能护栏①）：composer.setSize 刚把 bloom 重置为
+    // 全尺寸，这里再传一半的有效像素尺寸（UnrealBloomPass 内部还会再 /2 建 mip）。
+    if (this.bloomPass && this.composerQuality === 'medium') {
+      const pr = this.renderer.getPixelRatio();
+      this.bloomPass.setSize(Math.round((w * pr) / 2), Math.round((h * pr) / 2));
+    }
+  }
+
+  private disposeComposer(): void {
+    this.composer?.dispose();
+    this.composer = null;
+    this.bloomPass = null;
+    this.composerQuality = null;
   }
 
   /* ========================= 构建管线 ========================= */
@@ -1475,6 +1565,8 @@ export class EquipmentScene {
    */
   build(params: SceneParams, devices: DeviceLike[]): SceneStats {
     const t0 = performance.now();
+    // 旧设备组即将销毁：先还原选中克隆材质并释放，避免克隆泄漏
+    this.applySelectionEmissive(null);
     const prevParams = { ...this.params };
     this.params = { ...params };
     // 重建会替换 hall/props 子对象，先按记录恢复显隐，避免旧引用残留到恢复表里
@@ -1692,6 +1784,8 @@ export class EquipmentScene {
 
     const triangles = this.countTriangles();
     this.resize();
+    // 画质档可能在此切换（low↔medium/high），幂等重建 bloom 链
+    this.applyPostProcessing();
 
     this.slotStatus = [];
     for (const p of this.picks) {
@@ -2321,11 +2415,52 @@ export class EquipmentScene {
     return { id, index };
   }
 
-  /** 选中高亮：地面白环跟随选中设备。 */
+  /** 选中高亮：地面白环跟随选中设备 + 该台设备 emissive 蓝调提亮。 */
   setSelected(id: string | null): void {
     this.selectedId = id;
+    this.applySelectionEmissive(id);
     this.refreshSelection();
     this.drawMinimap();
+  }
+
+  /**
+   * 给选中设备逐 Mesh 换上有蓝调 emissive 的克隆材质；传 null 还原全部。
+   * 只动"原本不发光"的 MeshStandardMaterial —— 状态灯/发光件自带语义，不叠加。
+   */
+  private applySelectionEmissive(id: string | null): void {
+    // 还原上一轮
+    for (const [mesh, prev] of this.selEmissiveBackup) mesh.material = prev;
+    this.selEmissiveBackup.clear();
+    for (const c of this.selEmissiveClones.values()) (c as THREE.MeshStandardMaterial).dispose();
+    this.selEmissiveClones.clear();
+
+    if (!id || !this.equipment) return;
+    const devGroup = this.equipment.group.getObjectByName(`device:${id}`);
+    if (!devGroup) return;
+    devGroup.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh) return;
+      const m = o.material;
+      const list = Array.isArray(m) ? m : [m];
+      let changed = false;
+      const next = list.map((mat) => {
+        if (!(mat instanceof THREE.MeshStandardMaterial)) return mat;
+        if (mat.emissive.getHex() !== 0) return mat;
+        let own = this.selEmissiveClones.get(mat);
+        if (!own) {
+          const clone = mat.clone();
+          clone.emissive.setHex(0x1e3a5f);
+          clone.emissiveIntensity = 0.35;
+          this.selEmissiveClones.set(mat, clone);
+          own = clone;
+        }
+        changed = true;
+        return own;
+      });
+      if (changed) {
+        this.selEmissiveBackup.set(o, m);
+        o.material = Array.isArray(m) ? next : next[0];
+      }
+    });
   }
 
   /* ========================= 状态覆盖（遥测回放联动） ========================= */
@@ -2639,7 +2774,9 @@ export class EquipmentScene {
         this.miniTimer = 0;
         this.drawMinimap();
       }
-      this.renderer.render(this.scene, this.camera);
+      // 后处理链存在时走 composer（RenderPass→Bloom→OutputPass），否则直渲
+      if (this.composer) this.composer.render();
+      else this.renderer.render(this.scene, this.camera);
       this.trackFps(dt);
     };
     this.rafId = requestAnimationFrame(loop);
@@ -2756,6 +2893,8 @@ export class EquipmentScene {
     this.pmrem?.dispose();
     this.pmrem = null;
     this.scene.environment = null;
+    this.disposeComposer();
+    this.applySelectionEmissive(null);
     this.bgParticles = null;
     this.particleSpeeds = null;
 
