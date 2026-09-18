@@ -17,6 +17,7 @@
 
 import * as THREE from 'three';
 import { mulberry32, clamp } from './rand';
+import { loadEquipmentGLB } from './equipment';
 import type { StatusKey } from './equipment';
 
 /* ========================= 类型 ========================= */
@@ -59,6 +60,11 @@ export interface RobotStationInfo {
   deviceId: string | null;
   x: number;
   z: number;
+  /**
+   * 程序化机械臂零件（基座/腰/肩/大小臂/腕/工具）。
+   * 外部 GLB 模型就绪后隐藏，避免新旧两套叠加显示。
+   */
+  armParts: THREE.Object3D[];
 }
 
 /* ========================= 画布贴图工具 ========================= */
@@ -508,6 +514,9 @@ export class ProductionLine {
     }
 
     this.buildMaterialBoxes();
+
+    // 异步加载外部机械臂 GLB（Sketchfab 6-Axis，CC-BY），就绪后替换程序化几何
+    this.initRobotGLB();
   }
 
   private buildOneStation(index: number, x: number, z: number, side: number): RobotStationInfo {
@@ -518,25 +527,32 @@ export class ProductionLine {
     // 面向传送带：位于 -Z 侧则朝 +Z，位于 +Z 侧则朝 -Z
     g.rotation.y = side < 0 ? 0 : Math.PI;
 
+    // 程序化机械臂零件（GLB 就绪后隐藏）
+    const armParts: THREE.Object3D[] = [];
+
     // —— 基座
     const pad = new THREE.Mesh(this.geo.pad, this.mat.dark);
     pad.position.y = 0.15;
     pad.receiveShadow = this.opts.shadows;
     g.add(pad);
+    armParts.push(pad);
 
     const pedestal = new THREE.Mesh(this.geo.pedestal, this.mat.body);
     pedestal.position.y = 0.72;
     pedestal.castShadow = this.opts.shadows;
     g.add(pedestal);
+    armParts.push(pedestal);
 
     const waist = new THREE.Mesh(this.geo.waist, this.mat.body);
     waist.position.y = 1.45;
     waist.castShadow = this.opts.shadows;
     g.add(waist);
+    armParts.push(waist);
 
     // 状态灯（绿=正常，青=运行中；由 setStationRunning 切换）
+    // 外部 GLB 机械臂更高，灯位抬高以保持可见
     const lamp = new THREE.Mesh(this.geo.lamp, this.mat.lampOk);
-    lamp.position.set(0, 1.45, 0.72);
+    lamp.position.set(0, 2.55, 0.6);
     g.add(lamp);
 
     // —— 回转体（绕 Y 摆动）
@@ -548,11 +564,13 @@ export class ProductionLine {
     shoulder.rotation.x = Math.PI / 2;
     shoulder.castShadow = this.opts.shadows;
     swivel.add(shoulder);
+    armParts.push(shoulder);
 
     // —— 大臂
     const upper = new THREE.Group();
     upper.position.y = 0;
     swivel.add(upper);
+    armParts.push(upper);
     const a1 = -0.34;
     const arm1 = new THREE.Mesh(this.geo.arm1, this.mat.body);
     arm1.position.set(0, 0.85, 0);
@@ -568,11 +586,13 @@ export class ProductionLine {
     elbow.rotation.x = Math.PI / 2;
     elbow.position.set(elbowX, elbowY, 0);
     swivel.add(elbow);
+    armParts.push(elbow);
 
     // —— 小臂（绕肘旋转）
     const fore = new THREE.Group();
     fore.position.set(elbowX, elbowY, 0);
     swivel.add(fore);
+    armParts.push(fore);
     const a2 = 0.66;
     const arm2 = new THREE.Mesh(this.geo.arm2, this.mat.body);
     arm2.rotation.z = a2;
@@ -586,11 +606,13 @@ export class ProductionLine {
     wrist.rotation.x = Math.PI / 2;
     wrist.position.set(wristX, wristY, 0);
     fore.add(wrist);
+    armParts.push(wrist);
 
     const tool = new THREE.Mesh(this.geo.tool, this.mat.accent);
     tool.position.set(wristX + 0.3, wristY - 0.34, 0);
     tool.rotation.z = a2;
     fore.add(tool);
+    armParts.push(tool);
 
     // —— 基座工作台（位于机械臂与传送带之间）
     const table = new THREE.Group();
@@ -636,7 +658,74 @@ export class ProductionLine {
     g.add(pickBox);
     this.picks.push(pickBox);
 
-    return { index, code, group: g, deviceId: null, x, z };
+    return { index, code, group: g, deviceId: null, x, z, armParts };
+  }
+
+  /**
+   * 异步加载外部机械臂 GLB（Sketchfab「6 Axis Industrial Robot Arm」CC-BY，
+   * 作者 Jayson Stauffer）并替换各站程序化几何。
+   * - 一次加载，clone 到每个工作站，几何/材质跨站共享；
+   * - 实例挂到该站回转体 swivel 下，保留既有腰转动画；
+   * - 加载失败静默降级：程序化几何保持现状，不阻塞场景。
+   */
+  private initRobotGLB(): void {
+    const url = '/models/robotarm/6_axis_industrial_robot_arm.glb';
+    loadEquipmentGLB(url)
+      .then((model) => {
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        // 目标总高约 2.9m（工业六轴机械臂比例），底座垫高 0.15
+        const scale = size.y > 0 ? 2.9 / size.y : 2.25;
+        const offsetX = -center.x * scale;
+        const offsetY = 0.15 - box.min.y * scale;
+        const offsetZ = -center.z * scale;
+
+        for (let i = 0; i < this.stations.length; i++) {
+          const st = this.stations[i];
+          const swivel = this.stationAnims[i]?.swivel;
+          if (!swivel) continue;
+          for (const p of st.armParts) p.visible = false;
+          const inst = model.clone(true);
+          inst.scale.setScalar(scale);
+          inst.position.set(offsetX, offsetY, offsetZ);
+          // 性能优化：
+          // 1) 关闭阴影（6 台 × GLB 材质，远观不可见，省 shadow map 重算）
+          // 2) KHR_materials_specular 生成 MeshPhysicalMaterial，shader 开销大；
+          //    转成 MeshStandardMaterial（保留 map/roughness/metalness 质感）降 draw cost
+          inst.traverse((o) => {
+            const m = o as THREE.Mesh;
+            if (!m.isMesh) return;
+            m.castShadow = false;
+            m.receiveShadow = false;
+            const mats = Array.isArray(m.material) ? m.material : [m.material];
+            m.material = mats.map((mat) => {
+              if (mat instanceof THREE.MeshPhysicalMaterial) {
+                const std = new THREE.MeshStandardMaterial({
+                  map: mat.map,
+                  roughnessMap: mat.roughnessMap,
+                  metalnessMap: mat.metalnessMap,
+                  normalMap: mat.normalMap,
+                  emissiveMap: mat.emissiveMap,
+                  emissive: mat.emissive,
+                  color: mat.color,
+                  roughness: mat.roughness,
+                  metalness: mat.metalness,
+                  transparent: mat.transparent,
+                  opacity: mat.opacity,
+                });
+                mat.dispose();
+                return std;
+              }
+              return mat;
+            }) as THREE.Material | THREE.Material[];
+          });
+          swivel.add(inst);
+        }
+      })
+      .catch(() => {
+        // 加载失败：保留程序化几何兜底，不抛错
+      });
   }
 
   private buildStationPlate(parent: THREE.Group, code: string, index: number): void {

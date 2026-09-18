@@ -91,7 +91,7 @@ export const EQUIPMENT_GLB_MAP: Record<string, string> = {
 const gltfLoader = typeof window !== 'undefined' ? new GLTFLoader() : null;
 const gltfCache = new Map<string, Promise<THREE.Group>>();
 
-function loadEquipmentGLB(url: string): Promise<THREE.Group> {
+export function loadEquipmentGLB(url: string): Promise<THREE.Group> {
   if (gltfCache.has(url)) {
     return gltfCache.get(url)!.then((g) => g.clone(true));
   }
