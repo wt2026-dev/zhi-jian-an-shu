@@ -247,7 +247,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
       <div ref={hostRef} className="absolute inset-0" />
       <div className="absolute inset-0 z-20 pointer-events-none select-none">
         {/* 顶部中央 tab：数据统计 / 工厂总览 / 智慧安防（下移避开下钻壳面包屑） */}
-        <div className="pointer-events-auto absolute left-1/2 top-[104px] -translate-x-1/2 flex gap-1 rounded-lg border border-cyan-400/25 bg-[rgba(8,15,30,0.72)] px-1 py-1 backdrop-blur">
+        <div className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2 flex gap-1 rounded-lg border border-cyan-400/25 bg-[rgba(8,15,30,0.72)] px-1 py-1 backdrop-blur">
           {["数据统计", "工厂总览", "智慧安防"].map((t) => (
             <button
               key={t}
@@ -260,7 +260,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
         </div>
 
         {/* 左上 tab + 左侧数据面板（leftInset 避开应用侧边栏） */}
-        <div className="absolute top-[60px] bottom-3 flex w-[300px] flex-col gap-2" style={{ left: leftInset + 12 }}>
+        <div className="absolute top-3 bottom-3 flex w-[300px] flex-col gap-2" style={{ left: leftInset + 12 }}>
           <div className="pointer-events-auto flex gap-1 rounded-lg border border-cyan-400/25 bg-[rgba(8,15,30,0.72)] px-1 py-1 backdrop-blur">
             {["图分析", "重点工厂", "出口分析"].map((t) => (
               <button
@@ -325,7 +325,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
         </div>
 
         {/* 右侧数据面板 */}
-        <div className="absolute right-3 top-[60px] bottom-3 flex w-[300px] flex-col gap-2">
+        <div className="absolute right-3 top-3 bottom-3 flex w-[300px] flex-col gap-2">
           <div className="pointer-events-auto hud-data-card rounded-lg p-3">
             <div className="flex items-baseline justify-between">
               <span className="text-lg font-semibold text-cyan-100">{greetWord(clock.getHours())}</span>

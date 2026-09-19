@@ -227,7 +227,7 @@ export function CityOverviewView({
       <div ref={hostRef} className="absolute inset-0" />
       <div className="absolute inset-0 z-20 pointer-events-none select-none">
         {/* 左侧工厂列表（leftInset 避开应用侧边栏） */}
-        <div className="absolute top-[60px] w-[280px]" style={{ left: leftInset + 12 }}>
+        <div className="absolute top-3 w-[280px]" style={{ left: leftInset + 12 }}>
           <div className="pointer-events-auto hud-data-card rounded-lg p-3">
             <div className="text-[11px] tracking-widest text-cyan-300/80">{city || "—"} · 工厂列表</div>
             <div className="mt-2 space-y-1.5">
@@ -251,7 +251,7 @@ export function CityOverviewView({
         </div>
 
         {/* 右侧城市运营面板 */}
-        <div className="absolute right-3 top-[60px] w-[280px]">
+        <div className="absolute right-3 top-3 w-[280px]">
           <div className="pointer-events-auto hud-data-card rounded-lg p-3">
             <div className="text-[11px] tracking-widest text-cyan-300/80">{city || "—"} · 城市运营</div>
             <div className="mt-2 grid grid-cols-2 gap-2">
