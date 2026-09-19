@@ -33,7 +33,7 @@ import {
   handleAiRagSearch,
   handleGetAiStats,
 } from "../controllers/aiAssistantController.ts";
-import { handleVisionDefectDetect, makeVisionCompatHandler, handleSpeechToText, handleVideoAnalysis, handleAiMultimodalSearch } from "../controllers/aiVisionController.ts";
+import { handleVisionDefectDetect, handleSpeechToText, handleVideoAnalysis, handleAiMultimodalSearch } from "../controllers/aiVisionController.ts";
 import {
   handleGenerateWorkOrder,
   handleRootCauseAnalysis,
@@ -66,8 +66,6 @@ export function registerAiRoutes(app: express.Express) {
 
   // 阿里云 DashScope / 通义千问 Qwen-VL 工业视觉缺陷深度识别链路
   app.post("/api/v1/ai/vision-defect-detect", validateBody(visionDefectDetectSchema), handleVisionDefectDetect);
-  // 兼容旧接口
-  app.post("/api/v1/ai/vision", validateBody(visionDefectDetectSchema), makeVisionCompatHandler(app));
 
   // AI 多模态检索（看图找相似案例）
   app.post("/api/v1/ai/multimodal-search", requireAuth, validateBody(multimodalSearchSchema), handleAiMultimodalSearch);

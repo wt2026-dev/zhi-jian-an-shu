@@ -1,5 +1,4 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样（speech-to-text 含指派的最小修复，见响应处注释）。
-import express from "express";
 import { getAiClient, extractAiJson } from "../services/aiClient.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
@@ -108,12 +107,6 @@ export const handleVisionDefectDetect = async (req: any, res: any) => {
     },
     modelEngine: "fallback-degraded",
   });
-};
-
-// 兼容旧接口（handler 需要 app 引用以复用 _router 内部转发，故以工厂形式导出）
-export const makeVisionCompatHandler = (app: express.Express) => async (req: any, res: any) => {
-  req.url = "/api/v1/ai/vision-defect-detect";
-  (app as any)._router.handle(req, res);
 };
 
 // 语音识别转写链路 (ASR)

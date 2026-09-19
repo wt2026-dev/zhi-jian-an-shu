@@ -31,7 +31,7 @@ import {
 import { Equipment } from '../types';
 
 /**
- * AI 协同任务链路视图：把 20 项点状 AI 能力中的 4 项
+ * AI 协同任务链路视图：把点状 AI 能力（清单见 src/aiCapabilities.ts）中的 4 项
  * （故障诊断 → 检修方案生成 → 风险审核 ∥ 派单推荐）
  * 编排为一次可追踪、可审核的「AI 协同诊断」任务。
  */

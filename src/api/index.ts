@@ -539,12 +539,6 @@ export const aiApi = {
       body: JSON.stringify(data),
     }),
 
-  vision: (imageBase64: string, promptText?: string) =>
-    request<{ success: boolean; analysis: any; model: string }>('/ai/vision', {
-      method: 'POST',
-      body: JSON.stringify({ imageBase64, promptText }),
-    }),
-
   // 功能②：知识贡献识别 (对话后判断是否沉淀为知识案例)
   suggestContribution: (data: { lastUserMessage: string; lastAiReply: string; equipment?: string }) =>
     request<{

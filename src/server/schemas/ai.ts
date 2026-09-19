@@ -24,12 +24,6 @@ export const aiDiagnoseSchema = z.object({
   errorCodes: z.string().optional(),
 });
 
-export const aiVisionSchema = z.object({
-  imageBase64: z.string().optional(),
-  mimeType: z.string().optional(),
-  promptText: z.string().optional(),
-});
-
 export const aiRagSearchSchema = z.object({
   query: z.string().optional(),
   knowledgeList: z.array(z.any()).optional(),

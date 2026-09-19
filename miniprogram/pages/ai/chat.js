@@ -306,7 +306,7 @@ Page({
     });
     this.scrollBottom();
 
-    request("/api/v1/ai/vision", {
+    request("/api/v1/ai/vision-defect-detect", {
       method: "POST",
       timeout: 90000,
       data: {

@@ -1,5 +1,8 @@
 // OpenAPI 3.0 规范（生产级 API 文档，/api-docs 可视化查看）
 // 覆盖：auth / equipments / work-orders / inspections / safety-permits / knowledge / ai
+// AI 能力数不在此手抄：由 src/aiCapabilities.ts 单一来源注入，tests/ai-capability-registry.test.ts 负责防漂移。
+import { AI_CORE_CAPABILITY_COUNT, AI_STUB_ENDPOINT_COUNT } from "./aiCapabilities.ts";
+
 export function buildOpenApiSpec(): Record<string, any> {
   const bearer = [{ bearerAuth: [] }];
   const okJson = (desc: string) => ({
@@ -11,7 +14,7 @@ export function buildOpenApiSpec(): Record<string, any> {
     info: {
       title: "工业设备运行智能决策与作业协同系统 API",
       version: "2.0.0",
-      description: "检修工单全生命周期 / 巡检作业 / 高危作业票与 LOTO / 设备台账与健康监测 / 知识库 RAG / AI 智能辅助（15 项能力）。认证方式：Authorization: Bearer <JWT>（登录接口获取）。错误统一返回 { error, code? }。",
+      description: `检修工单全生命周期 / 巡检作业 / 高危作业票与 LOTO / 设备台账与健康监测 / 知识库 RAG / AI 智能辅助（${AI_CORE_CAPABILITY_COUNT} 项能力，另有 ${AI_STUB_ENDPOINT_COUNT} 个占位接口不计入）。认证方式：Authorization: Bearer <JWT>（登录接口获取）。错误统一返回 { error, code? }。`,
     },
     servers: [{ url: "/", description: "当前实例" }],
     components: {
@@ -118,6 +121,15 @@ export function buildOpenApiSpec(): Record<string, any> {
       "/api/v1/ai/chat/stream": { post: { tags: ["ai"], security: bearer, summary: "AI 对话（SSE 流式）",
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["message"], properties: { message: { type: "string" }, history: { type: "array", items: { type: "object" } } } } } } },
         responses: { "200": { description: "text/event-stream：data:{\"content\"} 帧，结束 data:[DONE]，错误 data:{\"error\"}", content: { "text/event-stream": { schema: { type: "string" } } } } } } },
+      "/api/v1/ai/chat": { post: { tags: ["ai"], security: bearer, summary: "数字人对话问答（多轮上下文 + 知识检索）", responses: { "200": okJson("回答与溯源"), "502": okJson("AI 调用失败") } } },
+      "/api/v1/ai/suggest-contribution": { post: { tags: ["ai"], security: bearer, summary: "知识贡献识别（对话后判断是否沉淀为案例）", responses: { "200": okJson("沉淀建议") } } },
+      "/api/v1/ai/vision-defect-detect": { post: { tags: ["ai"], summary: "视觉缺陷识别（Qwen-VL 多模态）", responses: { "200": okJson("缺陷定性（服务不可用时返回 degraded 复核提示）") } } },
+      "/api/v1/ai/multimodal-search": { post: { tags: ["ai"], security: bearer, summary: "多模态检索（看图找相似案例）", responses: { "200": okJson("相似案例"), "502": okJson("AI 调用失败") } } },
+      "/api/v1/ai/rag-search": { post: { tags: ["ai"], security: bearer, summary: "知识库 RAG 语义检索", responses: { "200": okJson("带来源的检索结果") } } },
+      "/api/v1/ai/speech-to-text": { post: { tags: ["ai"], summary: "语音转写【占位接口，不计入 AI 能力数】", responses: { "200": okJson("固定返回 success:false + degraded，提示改用文本/视觉入口") } } },
+      "/api/v1/ai/video-analysis": { post: { tags: ["ai"], summary: "检修视频时序分析【占位接口，不计入 AI 能力数】", responses: { "200": okJson("规则推断的排查方向，明确标注非图像实测结论") } } },
+      "/api/v1/ai/video-analyze": { post: { tags: ["ai"], security: bearer, summary: "检修视频多模态时序分析（服务端抽帧送 Qwen-VL）", responses: { "200": okJson("多帧联合诊断报告（含 framesCount）"), "503": okJson("AI 服务未配置") } } },
+      "/api/v1/ai/pipeline": { post: { tags: ["ai"], security: bearer, summary: "AI 协同任务链路（诊断→方案→审核∥派单）", responses: { "200": okJson("任务 ID，编排异步执行") } } },
       "/api/v1/ai/diagnose": { post: { tags: ["ai"], security: bearer, summary: "多维故障诊断（结构化 JSON）", responses: { "200": okJson("诊断报告"), "502": okJson("AI 调用失败") } } },
       "/api/v1/ai/generate-work-order": { post: { tags: ["ai"], security: bearer, summary: "智能工单生成（巡检异常→工单草稿）", responses: { "200": okJson("工单草稿 / 降级提示") } } },
       "/api/v1/ai/root-cause-analysis": { post: { tags: ["ai"], security: bearer, summary: "根因分析（5Why/故障树；失败时规则引擎降级）", responses: { "200": okJson("RCA 报告（或 degraded 规则结果）") } } },

@@ -20,7 +20,6 @@ import { logger } from "../utils/logger.ts";
 import { UPLOADS_DIR } from "./utils/config.ts";
 import { registerSystemRoutes } from "./routes/system.ts";
 import { registerDashboardRoutes } from "./routes/dashboard.ts";
-import { registerSseRoutes } from "./routes/sse.ts";
 import { registerEquipmentRoutes } from "./routes/equipment.ts";
 import { registerWorkOrderRoutes } from "./routes/workorders.ts";
 import { registerAuthRoutes } from "./routes/auth.ts";
@@ -239,8 +238,9 @@ export async function createApp() {
   // ==================== 业务域路由注册（保持原 server.ts 首次注册顺序） ====================
   registerSystemRoutes(app); // 审计日志查询 / 管理 admin 接口 / 健康详情 / swagger / 数字人状态 / 调试日志 / 源码打包
   registerDashboardRoutes(app); // 驾驶舱指标
-  registerSseRoutes(app); // AI 流式输出（SSE）
-  // 注意：legacy /api/ai/* 兼容层已完全下线并由 /api/v1/ai/* 统一接管
+  // 注意：legacy /api/ai/* 兼容层已下线（路由文件已删除，由 /api/v1/ai/* 统一接管）；
+  // AI 分析类接口不提供 /stream 双胞胎——只有对话流式（/api/v1/ai/chat/stream）有真实调用方，
+  // 其余 6 个 stream 变体因零调用方连同 aiStreamController 一并移除。
   registerEquipmentRoutes(app); // 设备台账
   registerWorkOrderRoutes(app); // 检修工单全生命周期
   registerAuthRoutes(app); // 认证
