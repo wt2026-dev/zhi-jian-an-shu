@@ -106,6 +106,12 @@
   transition: opacity 0.2s ease;
 }
 
+/* 工单抽屉滑出时让位：左侧信息列（工单图例 / 状态图例 / 小地图）与抽屉同占左缘，
+   留半截在抽屉上方比直接收起来更乱 */
+.industrial-workspace:has([data-testid="equipment3d-repair-step-card"]) .industrial-overview {
+  display: none;
+}
+
 .industrial-viewport canvas {
   display: block;
   outline: none;

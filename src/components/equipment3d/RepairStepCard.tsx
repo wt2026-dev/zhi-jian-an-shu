@@ -2,10 +2,18 @@
  * 检修步骤卡片 (RepairStepCard)
  *
  * 用于 3D 设备场景中：点击设备关联工单或从工单列表跳转时，
- * 弹出展示该工单的详细信息、检修步骤清单或作业安全指引。
+ * 以**左侧滑出面板**（贴住大屏工具栏以下、直达底部）展示该工单的详细信息、
+ * 检修步骤清单或作业安全指引。不再浮在画布左下角遮挡设备与地面。
+ *
+ * 维修闭环（3D 内操作）：状态可操作时内嵌工单流转按钮——
+ *   created  主管派单（自动采纳调度推荐）
+ *   dispatched  技师接单
+ *   in_progress  逐步勾选检修步骤（联动 3D 故障定位标逐层减淡）→ 完工上报
+ *   pending_acceptance  质检验收通过
+ * 所有操作都走真实工单 API，状态互斥拦截原样透出；3D 只做"手"，不做假状态。
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Wrench,
   CheckCircle2,
@@ -18,6 +26,13 @@ import {
   FileText,
   AlertTriangle,
   Layers,
+  UserPlus,
+  PlayCircle,
+  ClipboardCheck,
+  BadgeCheck,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import type { WorkOrder } from '../../types';
 import {
@@ -29,6 +44,26 @@ interface RepairStepCardProps {
   workOrder: WorkOrder;
   onClose: () => void;
   onFocusDevice?: () => void;
+
+  // ── 维修闭环操作（全部可选：不传则保持只读展示） ─────────────────
+  /** 当前登录用户署名（如 "李工 (技师)"），用于操作提示 */
+  currentUser?: string | null;
+  /** 操作请求进行中（按钮禁用） */
+  busy?: boolean;
+  /** 操作失败信息（状态互斥拦截等，原样透出） */
+  actionError?: string | null;
+  /** 已勾选步骤数（重新打开卡片时恢复进度） */
+  initialCheckedCount?: number;
+  /** created → 派单（自动采纳调度推荐的技师） */
+  onDispatch?: () => void;
+  /** dispatched → 接单 */
+  onClaim?: () => void;
+  /** in_progress → 完工上报 */
+  onComplete?: (payload: { causeAnalysis: string; workHours: number; resolutionSteps: string }) => void;
+  /** pending_acceptance → 验收通过 */
+  onAccept?: () => void;
+  /** 勾选步骤变化（checked 为勾选数，total 为步骤总数），用于联动 3D */
+  onStepProgress?: (checked: number, total: number) => void;
 }
 
 /**
@@ -86,6 +121,15 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
   workOrder,
   onClose,
   onFocusDevice,
+  currentUser,
+  busy = false,
+  actionError = null,
+  initialCheckedCount = 0,
+  onDispatch,
+  onClaim,
+  onComplete,
+  onAccept,
+  onStepProgress,
 }) => {
   // 解析步骤清单
   const steps = useMemo(() => {
@@ -103,10 +147,55 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
 
   const hasCustomSteps = Boolean(workOrder.repairLog?.resolutionSteps?.trim());
 
+  // ---- 维修闭环：步骤勾选（in_progress 时可勾，联动 3D 定位标减淡） ----
+  const [checked, setChecked] = useState<Set<number>>(() => {
+    const init = new Set<number>();
+    for (let i = 0; i < Math.min(initialCheckedCount, steps.length); i++) init.add(i);
+    return init;
+  });
+  const [completeFormOpen, setCompleteFormOpen] = useState(false);
+  const [causeAnalysis, setCauseAnalysis] = useState('');
+  const [workHours, setWorkHours] = useState('2');
+
+  const actionable = workOrder.status === 'in_progress' && typeof onStepProgress === 'function';
+  const checkedCount = checked.size;
+  const progress = steps.length > 0 ? checkedCount / steps.length : 0;
+
+  const toggleStep = (idx: number) => {
+    if (!actionable || busy) return;
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      onStepProgress?.(next.size, steps.length);
+      return next;
+    });
+  };
+
+  const doneStepsText = useMemo(
+    () => steps.filter((_, i) => checked.has(i)).join('；'),
+    [steps, checked]
+  );
+
+  const canSubmitComplete =
+    actionable &&
+    checkedCount > 0 &&
+    causeAnalysis.trim().length > 0 &&
+    Number(workHours) > 0;
+
+  const submitComplete = () => {
+    if (!canSubmitComplete || busy) return;
+    onComplete?.({
+      causeAnalysis: causeAnalysis.trim(),
+      workHours: Number(workHours),
+      resolutionSteps: doneStepsText || steps.join('；'),
+    });
+  };
+
   return (
-    <div
+    <aside
       data-testid="equipment3d-repair-step-card"
-      className="absolute bottom-3 left-3 z-40 w-[380px] max-w-[calc(100%-24px)] max-h-[calc(100%-24px)] flex flex-col bg-slate-900/90 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl text-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200"
+      className="absolute left-0 top-[52px] bottom-0 z-40 w-[360px] max-w-[78%] flex flex-col bg-slate-900/92 backdrop-blur-md border-t border-r border-b border-white/15 border-l-2 border-l-cyan-400/70 rounded-r-2xl shadow-[22px_0_54px_-18px_rgba(2,6,23,0.95)] text-slate-100 overflow-hidden animate-in fade-in slide-in-from-left duration-200"
     >
       {/* 卡片头部 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
@@ -190,18 +279,71 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
             )}
           </div>
 
-          <div className="space-y-1.5">
-            {steps.map((step, idx) => (
-              <div
-                key={idx}
-                className="flex items-start gap-2 p-2 rounded-xl bg-white/5 hover:bg-white/8 border border-white/8 transition-colors text-[11px]"
-              >
-                <span className="w-4 h-4 rounded-full bg-blue-500/25 text-blue-300 border border-blue-500/40 flex items-center justify-center shrink-0 text-[9px] font-bold mt-0.5">
-                  {idx + 1}
+          {/* 维修进度条：勾一步亮一格，联动 3D 故障定位标逐层减淡 */}
+          {actionable && (
+            <div data-testid="equipment3d-repair-progress">
+              <div className="flex items-center justify-between text-[10px] mb-1">
+                <span className="text-amber-300 font-medium">检修进度（勾选已完成步骤）</span>
+                <span className="tabular-nums text-slate-300">
+                  {checkedCount} / {steps.length}
                 </span>
-                <span className="text-slate-200 leading-relaxed flex-1">{step}</span>
               </div>
-            ))}
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-300"
+                  style={{ width: `${Math.round(progress * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            {steps.map((step, idx) => {
+              const done = checked.has(idx);
+              const row = (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-2 p-2 rounded-xl border transition-colors text-[11px] ${
+                    done
+                      ? 'bg-emerald-500/10 border-emerald-500/30'
+                      : 'bg-white/5 border-white/8 hover:bg-white/8'
+                  } ${actionable && !busy ? 'cursor-pointer' : ''}`}
+                >
+                  {actionable ? (
+                    <span
+                      aria-checked={done}
+                      role="checkbox"
+                      data-testid={`equipment3d-repair-step-${idx}`}
+                      className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                        done
+                          ? 'bg-emerald-500 border-emerald-400 text-white'
+                          : 'bg-white/10 border-white/30 text-transparent'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                    </span>
+                  ) : (
+                    <span className="w-4 h-4 rounded-full bg-blue-500/25 text-blue-300 border border-blue-500/40 flex items-center justify-center shrink-0 text-[9px] font-bold mt-0.5">
+                      {idx + 1}
+                    </span>
+                  )}
+                  <span
+                    className={`leading-relaxed flex-1 ${
+                      done ? 'text-emerald-100 line-through decoration-emerald-400/50' : 'text-slate-200'
+                    }`}
+                  >
+                    {step}
+                  </span>
+                </div>
+              );
+              return actionable ? (
+                <div key={idx} onClick={() => toggleStep(idx)}>
+                  {row}
+                </div>
+              ) : (
+                row
+              );
+            })}
           </div>
         </div>
 
@@ -237,6 +379,147 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
         )}
       </div>
 
+      {/* 维修闭环操作区（按工单状态给出唯一可用动作，全部走真实 API） */}
+      {(onDispatch || onClaim || onComplete || onAccept) && (
+        <div
+          data-testid="equipment3d-repair-actions"
+          className="px-4 py-3 border-t border-white/10 bg-white/5 space-y-2"
+        >
+          {actionError && (
+            <div className="text-[10px] leading-relaxed text-amber-200 bg-amber-500/10 border border-amber-500/25 rounded-lg px-2 py-1.5">
+              {actionError}
+            </div>
+          )}
+
+          {workOrder.status === 'created' && onDispatch && (
+            <button
+              type="button"
+              data-testid="equipment3d-repair-dispatch"
+              onClick={onDispatch}
+              disabled={busy}
+              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+              title={currentUser ? `以 ${currentUser} 身份派单（自动采纳调度推荐首位技师）` : '自动采纳调度推荐的技师'}
+            >
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+              主管派单（调度推荐）
+            </button>
+          )}
+
+          {workOrder.status === 'dispatched' && onClaim && (
+            <button
+              type="button"
+              data-testid="equipment3d-repair-claim"
+              onClick={onClaim}
+              disabled={busy}
+              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+              title={currentUser ? `以 ${currentUser} 身份接单开工` : '接单开工'}
+            >
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
+              技师接单 · 开始检修
+            </button>
+          )}
+
+          {workOrder.status === 'in_progress' && onComplete && (
+            <>
+              {completeFormOpen ? (
+                <div className="space-y-2 p-2.5 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
+                    <span className="flex items-center gap-1">
+                      <ClipboardCheck className="w-3 h-3 text-emerald-400" />
+                      完工上报（检修记录将写入工单）
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCompleteFormOpen(false)}
+                      className="text-slate-400 hover:text-white"
+                      aria-label="收起完工上报表单"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <textarea
+                    data-testid="equipment3d-repair-cause"
+                    value={causeAnalysis}
+                    onChange={(e) => setCauseAnalysis(e.target.value)}
+                    placeholder="根因分析（必填）：如 轴承疲劳微剥落并伴随同轴度偏差"
+                    rows={3}
+                    className="w-full px-2 py-1.5 rounded-lg bg-white/8 border border-white/12 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-400/60 resize-none"
+                  />
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                    <label htmlFor="equipment3d-repair-hours" className="shrink-0">实用工时 (h)</label>
+                    <input
+                      id="equipment3d-repair-hours"
+                      data-testid="equipment3d-repair-hours"
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={workHours}
+                      onChange={(e) => setWorkHours(e.target.value)}
+                      className="w-20 px-2 py-1 rounded-lg bg-white/8 border border-white/12 text-[11px] text-slate-100 tabular-nums focus:outline-none focus:border-emerald-400/60"
+                    />
+                    <span className="truncate" title={doneStepsText || '先勾选已完成的检修步骤'}>
+                      执行记录：{doneStepsText ? `已勾 ${checkedCount} 步` : '未勾选步骤'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="equipment3d-repair-complete"
+                    onClick={submitComplete}
+                    disabled={busy || !canSubmitComplete}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                    title={!checkedCount ? '先勾选已完成的检修步骤' : !causeAnalysis.trim() ? '请填写根因分析' : '提交完工上报，进入质检验收'}
+                  >
+                    {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    提交完工上报
+                  </button>
+                  {!canSubmitComplete && !busy && (
+                    <p className="text-[9px] leading-relaxed text-slate-500">
+                      需至少勾选 1 步已完成操作，并填写根因分析；执行记录取勾选步骤原文。
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="equipment3d-repair-open-complete"
+                  onClick={() => setCompleteFormOpen(true)}
+                  disabled={busy}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5" />
+                  完工上报（已勾 {checkedCount} / {steps.length} 步）
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </>
+          )}
+
+          {workOrder.status === 'pending_acceptance' && onAccept && (
+            <div className="space-y-1">
+              <button
+                type="button"
+                data-testid="equipment3d-repair-accept"
+                onClick={onAccept}
+                disabled={busy}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                title={currentUser ? `以 ${currentUser} 身份验收` : '质检验收通过，工单闭环归档'}
+              >
+                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeCheck className="w-3.5 h-3.5" />}
+                质检验收通过 · 闭环归档
+              </button>
+              <p className="text-[9px] text-slate-500 text-center">验收不通过/驳回请前往「工单管理」页操作</p>
+            </div>
+          )}
+
+          {workOrder.status === 'completed' && (
+            <div className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
+              <BadgeCheck className="w-3.5 h-3.5" />
+              工单已闭环归档
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 底部操作条 */}
       <div className="px-4 py-2.5 border-t border-white/10 bg-white/5 flex items-center justify-between text-xs">
         <div className="text-[10px] text-slate-400 flex items-center gap-1">
@@ -265,6 +548,6 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
