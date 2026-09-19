@@ -74,6 +74,10 @@ class FakeUtterance {
 
 describe('DigitalHumanAvatar - GLB Primary Render Path', () => {
   beforeEach(() => {
+    // 本 describe 专门盯写实 GLB 这条链（降级顺序、加载失败兜底）。
+    // 默认后端已改成自研程序化 3D，所以这里显式开 `?dh_backend=glb` 把口径钉住，
+    // GLB 那条路的回归保护一条都不少；默认口径见文件末尾的另一个 describe。
+    window.history.replaceState(null, '', '/?dh_backend=glb');
     localStorage.clear();
     spoken = [];
     mocks.glb.speak.mockClear();
@@ -316,5 +320,56 @@ describe('DigitalHumanAvatar - GLB Primary Render Path', () => {
     expect(mocks.glb.speak).toHaveBeenCalledWith('检查冷却水路是否堵塞');
     expect(ok).toBe(true);
     expect(spoken.join(' ')).toContain('检查冷却水路是否堵塞');
+  });
+});
+
+/**
+ * 默认口径（用户选定：国内比赛用可控的东亚工程师面孔，而不是按骨骼估尺寸的写实 GLB）。
+ * 这条 describe 守住"打开就是程序化 3D"，防止以后有人把默认值改回 glb 而无人察觉。
+ */
+describe('DigitalHumanAvatar - 默认走自研程序化 3D', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+    localStorage.clear();
+    spoken = [];
+    mocks.glb.speak.mockClear();
+    mocks.three.speak.mockClear();
+    mocks.glb.fail = false;
+    mocks.three.fail = false;
+    vi.stubGlobal('SpeechSynthesisUtterance', FakeUtterance);
+    Object.defineProperty(window, 'speechSynthesis', {
+      writable: true,
+      value: { speak: vi.fn(), cancel: vi.fn(), getVoices: vi.fn(() => []), addEventListener: vi.fn() },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('不带 query 时挂载程序化 3D，GLB 不占位', () => {
+    render(<DigitalHumanAvatar isSpeaking={false} speechEnabled onToggleSpeech={vi.fn()} />);
+    expect(screen.getByTestId('fallback-3d-component')).toBeTruthy();
+    expect(screen.queryByTestId('glb-component')).toBeNull();
+    expect(screen.getByText('自研3D数字人・本地渲染')).toBeTruthy();
+  });
+
+  it('默认后端的 speak 走程序化 3D，而不是 GLB', async () => {
+    const ref = React.createRef<DigitalHumanAvatarHandle>();
+    render(
+      <DigitalHumanAvatar ref={ref} isSpeaking={false} speechEnabled onToggleSpeech={vi.fn()} />,
+    );
+    await act(async () => {
+      await ref.current?.speak('轴承温度处于正常受控区间');
+    });
+    expect(mocks.three.speak).toHaveBeenCalledWith('轴承温度处于正常受控区间');
+    expect(mocks.glb.speak).not.toHaveBeenCalled();
+  });
+
+  it('切形象只换 personaId，不换渲染后端', () => {
+    render(<DigitalHumanAvatar isSpeaking={false} speechEnabled onToggleSpeech={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /李工/ }));
+    expect(screen.getByTestId('fallback-3d-component').getAttribute('data-persona')).toBe('li');
   });
 });
