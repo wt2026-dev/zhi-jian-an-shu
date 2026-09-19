@@ -54,6 +54,9 @@ function makeDecor(lowFx = false): FocusSceneDecor {
     detail: 2,
     rotationY: Math.PI / 2,
     lowFx,
+    // 默认口径已改为"聚焦层不渲染任何悬浮标签"（读数交给右侧面板）；
+    // 本文件测的就是气泡/引线/卡片这套屏幕槽位，必须显式打开。
+    floatingLabels: true,
   });
 }
 
@@ -382,7 +385,9 @@ describe('FocusSceneDecor 挂载与卸载', () => {
     d.dispose();
   });
 
-  it('检修卡片落在画面左下（避开中央故障标签与右侧详情面板）', () => {
+  it('检修卡片落在画面左上（避开中央故障标签，与下半区的气泡分区）', () => {
+    // 分区口径：中央故障标签向左展开占住 y∈[-0.21,0.21]；气泡占下半区（y≤-0.24），
+    // 卡片与警示牌占上半区（y≥0.24），卡片贴左安全线、警示牌贴右安全线，同排不打架。
     const d = makeDecor();
     d.setData({ ...BASE_DATA, status: 'fault', faultPartName: '顶部电机', workOrder: { orderNo: 'WO-1', status: 'in_progress' } });
     const cam = new THREE.PerspectiveCamera(46, 1304 / 761, 0.6, 2600);
@@ -395,8 +400,143 @@ describe('FocusSceneDecor 挂载与卸载', () => {
     const v = new THREE.Vector3();
     d.card!.getWorldPosition(v);
     v.project(cam);
-    expect(v.x).toBeLessThan(0); // 左半屏
-    expect(v.y).toBeLessThan(0); // 下半屏（右侧面板在右上，故障标签在中央）
+    expect(v.x).toBeLessThan(0); // 左半屏（贴左安全线）
+    expect(v.y).toBeGreaterThan(0.24); // 上半区：让开中央故障标签
+    // 与四个气泡都不重叠：气泡在下半区，卡片在上半区
+    for (const p of d.bubbleWorldPositions()) {
+      const b = v.copy(p).project(cam);
+      expect(b.y).toBeLessThan(-0.2);
+    }
+    d.dispose();
+  });
+
+  it('右栏变宽时气泡/卡片自动让位（安全线 NDC 由 UI 层喂进来）', () => {
+    // 右侧详情面板是浮在画布上的 DOM，宽度会变（实测左缘 NDC 0.539 → 0.316）。
+    // 这里模拟"面板占到大半屏"，断言所有 sprite 的**右缘**都被收到安全线左边。
+    const d = makeDecor();
+    d.setData({ ...BASE_DATA, status: 'fault', faultPartName: '顶部电机', workOrder: { orderNo: 'WO-1', status: 'in_progress' } });
+    const cam = new THREE.PerspectiveCamera(46, 1304 / 761, 0.6, 2600);
+    const cy = BOX.y + BOX.h / 2;
+    const place = () => {
+      cam.position.set(BOX.x + 11, cy + 4, BOX.z);
+      cam.lookAt(BOX.x, cy, BOX.z);
+      cam.updateMatrixWorld(true);
+      cam.updateProjectionMatrix();
+      d.update(0.016, 12, cam);
+    };
+
+    const rightEdges = () => {
+      const e = cam.projectionMatrix.elements;
+      const v = new THREE.Vector3();
+      return d.bubbleWorldPositions().concat(d.card ? [d.card.getWorldPosition(new THREE.Vector3())] : [])
+        .map((p) => {
+          const sp = v.copy(p).project(cam);
+          return sp.x;
+        });
+    };
+
+    d.setSafeArea(0.95);
+    place();
+    const wide = Math.max(...rightEdges());
+
+    d.setSafeArea(-0.1); // 面板占到大半屏
+    place();
+    const narrow = Math.max(...rightEdges());
+    expect(narrow).toBeLessThan(wide - 0.05); // 确实整体左移了
+
+    // 右缘 = 中心 + 半宽；半宽由 P00·scale.x/2 精确算出 ⇒ 断言不越线
+    const e = cam.projectionMatrix.elements;
+    let sp: THREE.Sprite | null = null;
+    d.group.traverse((o) => { if ((o as THREE.Sprite).isSprite && (o as THREE.Sprite).scale.x < 0.25) sp = o as THREE.Sprite; });
+    const halfW = (e[0] * sp!.scale.x) / 2;
+    const cx = sp!.getWorldPosition(new THREE.Vector3()).project(cam).x;
+    expect(cx + halfW).toBeLessThanOrEqual(-0.1 + 1e-3);
+    expect(d.safeArea).toBe(-0.1);
+    d.dispose();
+  });
+
+  it('左侧「检修步骤卡片」弹窗挡住左半边时，气泡与卡片整体右移让位', () => {
+    // 真实事故：聚焦层左侧会浮出 w-[380px] 的工单弹窗（几乎满高），
+    // 实测把左列气泡（NDC x=-0.62）整列盖住（命中测试 9/9 全被压）。
+    // 只喂右侧安全线是不够的 —— 早期版本只喂右边，左列气泡照样全看不见。
+    const d = makeDecor();
+    d.setData({ ...BASE_DATA, status: 'fault', faultPartName: '顶部电机', workOrder: { orderNo: 'WO-1', status: 'in_progress' } });
+    const cam = new THREE.PerspectiveCamera(46, 1304 / 761, 0.6, 2600);
+    const cy = BOX.y + BOX.h / 2;
+    const place = () => {
+      cam.position.set(BOX.x + 11, cy + 4, BOX.z);
+      cam.lookAt(BOX.x, cy, BOX.z);
+      cam.updateMatrixWorld(true);
+      cam.updateProjectionMatrix();
+      d.update(0.016, 12, cam);
+    };
+    const e = cam.projectionMatrix.elements;
+    const leftEdges = () => {
+      const v = new THREE.Vector3();
+      return d.bubbleWorldPositions().concat(d.card ? [d.card.getWorldPosition(new THREE.Vector3())] : [])
+        .map((p) => v.copy(p).project(cam).x);
+    };
+
+    place();
+    const before = Math.min(...leftEdges());
+
+    d.setSafeAreaLeft(-0.4); // 左弹窗右缘实测 ≈ NDC -0.40
+    place();
+    const after = Math.min(...leftEdges());
+    expect(after).toBeGreaterThan(before + 0.05); // 确实整体右移了
+
+    // 左缘 = 中心 - 半宽；半宽由 P00·scale.x/2 精确算出 ⇒ 断言不越线
+    let sp: THREE.Sprite | null = null;
+    d.group.traverse((o) => { if ((o as THREE.Sprite).isSprite && (o as THREE.Sprite).scale.x < 0.25) sp = o as THREE.Sprite; });
+    const halfW = (e[0] * sp!.scale.x) / 2;
+    const cx = sp!.getWorldPosition(new THREE.Vector3()).project(cam).x;
+    expect(cx - halfW).toBeGreaterThanOrEqual(-0.4 - 1e-3);
+    expect(d.safeAreaLeft).toBe(-0.4);
+    d.dispose();
+  });
+
+  it('两侧一起挤到 0.72 NDC 宽时：卡片自适应缩窄，警示牌仍与它同排不打架', () => {
+    // 左右各被 DOM 压掉一块，中间只剩 0.72 NDC；卡片理想宽 0.46 + 警示牌 0.27 + 缝 0.04
+    // = 0.77 > 0.72 ⇒ 卡片必须自适应缩窄，否则两个 sprite 直接叠在一起。
+    const d = makeDecor();
+    d.setData({ ...BASE_DATA, status: 'fault', faultPartName: '顶部电机', workOrder: { orderNo: 'WO-1', status: 'in_progress' } });
+    const cam = new THREE.PerspectiveCamera(46, 1304 / 761, 0.6, 2600);
+    const cy = BOX.y + BOX.h / 2;
+    d.setSafeAreaLeft(-0.4);
+    d.setSafeArea(0.316);
+    cam.position.set(BOX.x + 11, cy + 4, BOX.z);
+    cam.lookAt(BOX.x, cy, BOX.z);
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    d.update(0.016, 12, cam);
+
+    const e = cam.projectionMatrix.elements;
+    const v = new THREE.Vector3();
+    const boxes: Array<{ x: number; y: number; w: number; h: number }> = [];
+    d.group.traverse((o) => {
+      const sprite = o as THREE.Sprite;
+      if (!sprite.isSprite) return;
+      const p = sprite.getWorldPosition(v.clone()).project(cam);
+      boxes.push({ x: p.x, y: p.y, w: e[0] * sprite.scale.x, h: e[5] * sprite.scale.y });
+    });
+    for (const b of boxes) {
+      expect(b.x - b.w / 2).toBeGreaterThanOrEqual(-0.4 - 1e-3);
+      expect(b.x + b.w / 2).toBeLessThanOrEqual(0.316 + 1e-3);
+    }
+    // 两两不重叠
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j];
+        const ox = Math.min(a.x + a.w / 2, b.x + b.w / 2) - Math.max(a.x - a.w / 2, b.x - b.w / 2);
+        const oy = Math.min(a.y + a.h / 2, b.y + b.h / 2) - Math.max(a.y - a.h / 2, b.y - b.h / 2);
+        const overlap = ox > 0.01 && oy > 0.01;
+        expect(overlap).toBe(false);
+      }
+    }
+    // 卡片确实被缩窄了（理想 0.46 ⇒ 实际 < 0.46）
+    const cardW = e[0] * d.card!.scale.x;
+    expect(cardW).toBeLessThan(0.46);
+    expect(cardW).toBeGreaterThanOrEqual(0.3);
     d.dispose();
   });
 

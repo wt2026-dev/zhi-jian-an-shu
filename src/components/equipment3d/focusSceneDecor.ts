@@ -100,6 +100,22 @@ export interface FocusSceneDecorOptions {
   rotationY?: number;
   /** 软渲染 / 低画质：跳过新增光效（扫描环、脚下光圈、脉冲）。 */
   lowFx?: boolean;
+  /**
+   * 屏幕空间悬浮标签（4 个测点气泡 + 检修闭环卡片）。
+   *
+   * 默认 **false**：温度/振动/电流/压力这类读数全部交给右侧参数面板，
+   * 画面里只保留故障定位那一个红标签（用户明确要求"不要 PPT 式注释"）。
+   * 置 true 才恢复气泡 + 引线 + 卡片布局（单设备聚焦层的检修作业闭环口径用它）。
+   */
+  floatingLabels?: boolean;
+  /**
+   * 只画数据、不画物理件。
+   *
+   * 同层的 `DeviceDetailEnv`（地面警戒线 / 立柱 / 屋架 / 管道 / 工具车 / 备件箱 /
+   * 作业人员 / 工作灯）已经把这些摆了一遍，这里再摆就是"两辆工具车 + 两组工人"。
+   * 由 scene.ts 在挂载时置 true：物理件归 DeviceDetailEnv，数据标注归本模块。
+   */
+  dataOnly?: boolean;
 }
 
 /* ========================= 纯函数（可单测，无 three 依赖） ========================= */
@@ -227,28 +243,47 @@ const BUBBLE_SCALE = 0.22;
 const CARD_SCALE = 0.34;
 
 /**
- * 四个数据气泡的**屏幕槽位**（NDC 偏移，相对设备中心）。
+ * 四个数据气泡的**屏幕槽位**：[列比例, 行 NDC y]。
+ *
  * 为什么不是世界坐标偏移：聚焦层相机方位由阻尼插值决定，世界 X 很可能就是视线方向，
  * 实测四个气泡会在屏幕上叠成一坨。NDC 槽位与相机距离/方位无关，恒定不叠。
- * 取值约束（实测画布 1304×761）：
- *   - 右侧详情面板左缘**会变**（实测 1261 → 1116 CSS，即 NDC 0.539 → 0.316），
- *     所以所有槽位右缘必须 ≤0.20 留足余量，别贴着面板放。
- *   - 中央故障标签（NDC 半宽 0.414、半高 0.21）会向左展开占住 x∈[-0.83,-0.13]、y∈[-0.21,0.21]，
- *     气泡下沿要 >0.24、卡片上沿要 <-0.24 才不会被它压住。
- *   - 元素 NDC 尺寸：气泡 0.30×0.19、卡片 0.47×0.56、警示牌 0.28×0.27。
+ *
+ * 为什么列写成"安全带内的比例"而不是写死的绝对 NDC：画布上浮着两块 DOM，两侧一起挤——
+ *   ① 左侧「检修步骤卡片」弹窗（`absolute bottom-3 left-3 w-[380px]`，几乎满高），
+ *      实测把左列气泡（NDC x=-0.62）整列盖住，精确命中测试 9/9 采样点全被压；
+ *   ② 右侧详情面板，左缘会随内容变（实测 CSS 1261 → 1116，即 NDC 0.539 → 0.316）。
+ * 两块中间只剩约 0.72 NDC 宽，写死绝对 NDC 必然有一侧钻到 DOM 底下。
+ * 所以 x = 安全带内按比例展开（t=0 贴左安全线、t=1 贴右安全线），y 用固定行高。
+ *
+ * 分区（避开中央故障标签，它向左展开占住 x∈[-0.83,-0.13]、y∈[-0.21,0.21]）：
+ *   - 下半区 y ≤ -0.24：四个气泡，两列 × 两行。
+ *   - 上半区 y ≥ 0.24：检修卡片（贴左安全线）+ 警示牌（贴右安全线），同排不打架；
+ *     卡片宽度按带宽自适应，带宽实在不够时**卡片优先**（D 是硬要求）、牌子让位不画。
+ *   - 元素 NDC 尺寸（P00≈1.364、P11≈2.336）：气泡 0.30×0.19、卡片 0.46×0.55、警示牌 0.27×0.26。
  */
 const BUBBLE_SLOTS: ReadonlyArray<readonly [number, number]> = [
-  [-0.62, 0.66],
-  [0.02, 0.66],
-  [-0.62, 0.34],
-  [0.02, 0.34],
+  [0, -0.34],
+  [1, -0.34],
+  [0, -0.62],
+  [1, -0.62],
 ];
 
-/** 检修闭环卡片的屏幕槽位（左下，避开中央故障标签与右侧面板）。 */
-const CARD_SLOT: readonly [number, number] = [-0.45, -0.52];
+/** 两列气泡的最大展开间距（NDC）：带宽富余时不再继续往两边拉，免得气泡贴死在画布边缘。 */
+const BUBBLE_MAX_SPREAD = 0.75;
 
-/** 检修警示牌的屏幕槽位（右下，避开卡片与右侧详情面板）。 */
-const SIGN_SLOT: readonly [number, number] = [0.05, -0.72];
+/** 卡片与警示牌之间留的缝（NDC）。 */
+const TOP_BAND_GAP = 0.04;
+
+/** 卡片自适应后的最小宽度（NDC）—— 再窄五步闭环就画不下了。 */
+const CARD_MIN_W = 0.3;
+
+/**
+ * 上半区元素（卡片 / 警示牌）的**顶边** NDC。
+ * ⚠️ 画布顶部偏右压着一条 HUD 状态条（实测 h=50px、左缘 CSS 1261 ⇒ 占 NDC y 0.818~0.95），
+ *    贴着 0.95 放会把警示牌整块压在它底下（命中测试 9/9）。实测让到 0.78 ⇒ 顶边落在
+ *    CSS 84px，与状态条留 15px 余量。
+ */
+const TOP_SAFE_Y = 0.78;
 
 /** 引线采样点数（弧线）。 */
 const LEAD_SEGMENTS = 22;
@@ -270,8 +305,10 @@ function makeCanvas(w: number, h: number): { canvas: HTMLCanvasElement; ctx: Can
 interface LeadItem {
   /** 设备上的测点锚点（group 局部坐标） */
   anchor: THREE.Vector3;
-  sx: number;
-  sy: number;
+  /** 气泡在安全带内的列比例：0 = 贴左安全线，1 = 贴右安全线 */
+  colT: number;
+  /** 气泡的行 NDC y（负 = 下半区，避开中央故障标签） */
+  rowY: number;
   line: THREE.Line;
   bubble: THREE.Sprite | null;
   dot: THREE.Mesh;
@@ -290,11 +327,20 @@ export class FocusSceneDecor {
   private dataGroup = new THREE.Group();
 
   private ownedTextures: THREE.Texture[] = [];
+  /** 非共享的零星几何/材质（如实物警示牌），随实例统一释放。 */
+  private ownedGeometries: THREE.BufferGeometry[] = [];
+  private ownedMaterials: THREE.Material[] = [];
   private disposed = false;
 
   private footRings: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial }> = [];
   /** 检修人员的 InstancedMesh（按几何体分桶），dispose 时逐桶释放实例缓冲。 */
   private crewParts: THREE.InstancedMesh[] = [];
+  /**
+   * 待检修人员的"零件 → 实例"映射，逐帧写回 instanceMatrix 做待机小动作。
+   * 14 个零件 / 帧，成本可忽略，换来的是"活人"而不是塑料模特。
+   */
+  private crewItems: Array<{ inst: THREE.InstancedMesh; slot: number; pose: number; part: THREE.Matrix4 }> = [];
+  private crewPoses: Array<{ base: THREE.Matrix4; phase: number; origin: THREE.Vector3; ry: number }> = [];
   private scanRing: THREE.Mesh | null = null;
   private signSprite: THREE.Sprite | null = null;
   private measureBubbles: THREE.Sprite[] = [];
@@ -317,6 +363,13 @@ export class FocusSceneDecor {
   private curve = new THREE.QuadraticBezierCurve3(
     new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(),
   );
+  /** animateCrew 的复用临时量（每帧零分配）。 */
+  private crewPoseM = new THREE.Matrix4();
+  private crewTmpM = new THREE.Matrix4();
+  private crewQ = new THREE.Quaternion();
+  private crewE = new THREE.Euler();
+  private crewOne = new THREE.Vector3(1, 1, 1);
+  private crewTmpV = new THREE.Vector3();
   /**
    * 是否需要重排屏幕槽位。
    * ⚠️ 不能用 `lastCamPos = (NaN,NaN,NaN)` 当"还没排过"的哨兵：
@@ -325,6 +378,18 @@ export class FocusSceneDecor {
    */
   private layoutDirty = true;
   private lastCamPos = new THREE.Vector3();
+  /**
+   * 屏幕右侧"安全线"（NDC）。右侧详情面板是浮在画布上的 DOM，宽度会随内容变
+   * （实测左缘 CSS 1261 → 1116，NDC 0.539 → 0.316），由 UI 层量出来喂进来。
+   */
+  private safeRight = 0.95;
+
+  /**
+   * 屏幕左侧"安全线"（NDC）。左侧「检修步骤卡片」弹窗（`w-[380px]`，几乎满高）
+   * 会把左半边整列盖住（实测左列气泡命中测试 9/9 全被压），同样由 UI 层量出来。
+   * ⚠️ 只有右侧安全线是不够的 —— 早期版本只喂右边，左列气泡照样全看不见。
+   */
+  private safeLeft = -0.95;
 
   private geo!: {
     band: THREE.ShapeGeometry;
@@ -367,10 +432,15 @@ export class FocusSceneDecor {
     this.centerLocal.set(0, (opts.box.y ?? 0) + opts.box.h / 2, 0);
     this.group.add(this.staticGroup, this.dataGroup);
     this.initAssets();
-    this.buildWorkZone();
-    this.buildToolCart();
+    if (!opts.dataOnly) {
+      // 物理件：地面警戒带 + 四角立柱 + 红色虚线框 + 工具车 + 两名作业人员。
+      // ⚠️ dataOnly（scene.ts 默认这么挂）时整体跳过 —— 同层 DeviceDetailEnv 已经摆了
+      //    地面警戒线 / 工具车 / 工人，两边都摆会当场出现"两辆工具车 + 两组工人"。
+      this.buildWorkZone();
+      this.buildToolCart();
+      this.buildCrew();
+    }
     this.buildWarningSign();
-    this.buildCrew();
     this.buildScanRing();
   }
 
@@ -568,6 +638,26 @@ export class FocusSceneDecor {
   private buildWarningSign(): void {
     const tex = this.makeSignTexture();
     if (!tex) return;
+    if (!this.opts.floatingLabels) {
+      // 实物警示牌：钉在朝向相机那根立柱上，随设备一起转。
+      // 屏幕空间那种"浮在画面上的一块牌"和悬浮标签是同一类东西，一并收掉。
+      const { box } = this.opts;
+      const pad = this.pad();
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      });
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.44), mat);
+      board.position.set(box.w / 2 + pad * 0.92, (box.y ?? 0) + 0.95, box.d / 2 + pad * 0.92);
+      board.rotation.y = Math.PI * 0.25;
+      board.renderOrder = 6;
+      this.staticGroup.add(board);
+      this.ownedGeometries.push(board.geometry);
+      this.ownedMaterials.push(mat);
+      return;
+    }
     const sp = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: tex,
@@ -593,33 +683,44 @@ export class FocusSceneDecor {
   private buildCrew(): void {
     const { box } = this.opts;
     const pad = this.pad();
-    // 站位：一个正前方面对设备，一个侧方蹲姿检修（世界坐标，用于脚下光圈）
+    // 站位：警戒带**内侧**（带子内缘在 w/2 + pad·0.58），一名正前方面对设备站立观察，
+    // 一名侧方蹲姿检修。早期版本把人摆在带子外侧（pad·0.86），既踩在黄纹上也不像"作业中"。
     const poses: Array<{ p: THREE.Vector3; ry: number; crouch: boolean }> = [
-      { p: new THREE.Vector3(0, box.y ?? 0, box.d / 2 + pad * 0.86), ry: Math.PI, crouch: false },
-      { p: new THREE.Vector3(-box.w / 2 - pad * 0.7, box.y ?? 0, box.d * 0.18), ry: Math.PI * 0.5, crouch: true },
+      { p: new THREE.Vector3(box.w * 0.16, box.y ?? 0, box.d / 2 + pad * 0.3), ry: Math.PI, crouch: false },
+      { p: new THREE.Vector3(-(box.w / 2 + pad * 0.26), box.y ?? 0, box.d * 0.14), ry: Math.PI * 0.5, crouch: true },
     ];
 
     // 两名人员一共 14 个零件，但只有 5 种几何体 ⇒ 按几何体分桶建 InstancedMesh
     // （14 次 draw call → 5 次）。零件局部变换按"人"的位姿矩阵左乘得到实例矩阵。
     const buckets = new Map<THREE.BufferGeometry, {
       mat: THREE.Material;
-      items: THREE.Matrix4[];
+      items: Array<{ m: THREE.Matrix4; pose: number; part: THREE.Matrix4 }>;
     }>();
     const base = new THREE.Matrix4();
     const part = new THREE.Matrix4();
     const q = new THREE.Quaternion();
-    for (const pose of poses) {
+    this.crewPoses = poses.map((_, i) => ({
+      base: new THREE.Matrix4(),
+      phase: i * 1.9,
+      origin: poses[i].p.clone(),
+      ry: poses[i].ry,
+    }));
+    poses.forEach((pose, pi) => {
       base.compose(pose.p, q.setFromEuler(new THREE.Euler(0, pose.ry, 0)), new THREE.Vector3(1, 1, 1));
+      this.crewPoses[pi].base.copy(base);
       for (const it of this.workerParts(pose.crouch)) {
         let b = buckets.get(it.geo);
         if (!b) { b = { mat: it.mat, items: [] }; buckets.set(it.geo, b); }
         part.compose(it.position, q.setFromEuler(it.rotation), it.scale);
-        b.items.push(base.clone().multiply(part));
+        b.items.push({ m: base.clone().multiply(part), pose: pi, part: part.clone() });
       }
-    }
+    });
     for (const [geo, b] of buckets) {
       const inst = new THREE.InstancedMesh(geo, b.mat, b.items.length);
-      b.items.forEach((m, i) => inst.setMatrixAt(i, m));
+      b.items.forEach((it, i) => {
+        inst.setMatrixAt(i, it.m);
+        this.crewItems.push({ inst, slot: i, pose: it.pose, part: it.part });
+      });
       inst.instanceMatrix.needsUpdate = true;
       this.staticGroup.add(inst);
       this.crewParts.push(inst);
@@ -669,8 +770,29 @@ export class FocusSceneDecor {
     ];
   }
 
-  /* ---------------- E 流程扫描环 ---------------- */
+  /**
+   * 待机小动作：整体缓慢起伏（呼吸）+ 极小幅度转身，两名人员相位错开。
+   * 只写 instanceMatrix，不新建对象、不加 draw call。
+   */
+  private animateCrew(t: number): void {
+    if (!this.crewItems.length || this.opts.lowFx) return;
+    for (let i = 0; i < this.crewPoses.length; i++) {
+      const pose = this.crewPoses[i];
+      this.crewPoseM.compose(
+        this.crewTmpV.set(pose.origin.x, pose.origin.y + Math.sin(t * 1.15 + pose.phase) * 0.022, pose.origin.z),
+        this.crewQ.setFromEuler(this.crewE.set(0, pose.ry + Math.sin(t * 0.42 + pose.phase) * 0.14, 0)),
+        this.crewOne,
+      );
+      for (const it of this.crewItems) {
+        if (it.pose !== i) continue;
+        this.crewTmpM.copy(this.crewPoseM).multiply(it.part);
+        it.inst.setMatrixAt(it.slot, this.crewTmpM);
+      }
+    }
+    for (const inst of this.crewParts) inst.instanceMatrix.needsUpdate = true;
+  }
 
+  /* ---------------- E 流程扫描环 ---------------- */
   private buildScanRing(): void {
     if (this.opts.lowFx) return; // 软渲染：跳过新增光效
     const { box } = this.opts;
@@ -690,11 +812,12 @@ export class FocusSceneDecor {
     this.clearDataGroup();
 
     const points = buildMeasurementPoints(data.recipeId, data.telemetry);
+    // 读数仍然算出来（右侧参数面板与单测都消费 points），只是不再摆到画面上。
     this.lastPoints = points;
-    this.buildMeasurementLeads(points);
+    if (this.opts.floatingLabels) this.buildMeasurementLeads(points);
 
     const faulty = data.status === 'fault' || data.status === 'warning' || data.status === 'maintenance';
-    if (faulty && data.workOrder) {
+    if (this.opts.floatingLabels && faulty && data.workOrder) {
       this.buildRepairCard(data);
     }
     // 扫描环颜色：故障/预警青色（诊断中），正常设备极淡绿
@@ -779,7 +902,7 @@ export class FocusSceneDecor {
       this.dataGroup.add(bubble);
       this.measureBubbles.push(bubble);
 
-      this.leads.push({ anchor, sx: slot[0], sy: slot[1], line, bubble, dot: dots, dashed });
+      this.leads.push({ anchor, colT: slot[0], rowY: slot[1], line, bubble, dot: dots, dashed });
     });
 
     dots.instanceMatrix.needsUpdate = true;
@@ -856,26 +979,70 @@ export class FocusSceneDecor {
 
     // 槽位原点 = 屏幕中心（相机正前方 dist 处）
     const origin = this.tmpOrigin.copy(camera.position).addScaledVector(this.fwd, dist);
-    const place = (target: THREE.Object3D, sx: number, sy: number) => {
+
+    // ── 安全带（两侧 DOM 遮挡之间真正露出来的那一条）─────────────────────────
+    // 左侧是「检修步骤卡片」弹窗、右侧是详情面板，两块都是浮在画布上的 DOM，
+    // 宽度还会变 ⇒ 由 UI 层用 elementFromPoint 精确扫出来喂进来（见 EquipmentScene）。
+    const bandL = Math.min(this.safeLeft, this.safeRight - 0.2);
+    const bandR = this.safeRight;
+    const band = Math.max(0.2, bandR - bandL);
+    const bandCx = (bandL + bandR) / 2;
+
+    // 恒定屏幕尺寸 sprite 的 NDC 尺寸可由投影矩阵精确算出：宽 = P00·scale.x、高 = P11·scale.y
+    // ⇒ 不需要任何魔法常数就能把左右缘都收在安全线以内、上下缘收在画布内。
+    const place = (target: THREE.Object3D, x: number, y: number) => {
+      const s = (target as THREE.Sprite).scale;
+      const halfW = s ? (p00 * s.x) / 2 : 0;
+      const halfH = s ? (p11 * s.y) / 2 : 0;
+      const cx = Math.max(bandL + halfW, Math.min(x, bandR - halfW));
+      const cy = Math.max(-0.95 + halfH, Math.min(0.95 - halfH, y));
       const world = this.tmpA.copy(origin)
-        .addScaledVector(this.right, sx * kx)
-        .addScaledVector(this.up, sy * ky);
+        .addScaledVector(this.right, cx * kx)
+        .addScaledVector(this.up, cy * ky);
       target.position.copy(this.group.worldToLocal(world));
     };
 
-    for (const item of this.leads) {
-      if (!item.bubble) continue;
-      place(item.bubble, item.sx, item.sy);
-      this.updateLeadCurve(item.anchor, item.bubble.position, item.line);
+    // ── 上半区：检修卡片（贴左）+ 警示牌（贴右）────────────────────────────
+    // 卡片宽度按带宽自适应：先按理想尺寸，放不下就缩，缩到 CARD_MIN_W 还放不下
+    // 就让警示牌不画 —— 五步闭环卡片是硬要求，牌子是加分项，冲突时牌子让位。
+    const signW = p00 * SIGN_SCALE;
+    let cardW = p00 * CARD_SCALE;
+    let showSign = !!this.signSprite;
+    if (showSign && cardW + signW + TOP_BAND_GAP > band) {
+      const shrunk = band - signW - TOP_BAND_GAP;
+      if (shrunk >= CARD_MIN_W) cardW = shrunk;
+      else { cardW = Math.min(cardW, Math.max(CARD_MIN_W, band - 0.02)); showSign = false; }
     }
+    cardW = Math.min(cardW, band - 0.02);
 
     if (this.stepCard) {
-      place(this.stepCard, CARD_SLOT[0], CARD_SLOT[1]);
+      // scale.x 直接决定 NDC 宽度，反解出来即可，不用猜
+      const cs = cardW / p00;
+      this.stepCard.scale.set(cs, cs * (320 / 460), 1);
+      const cardH = p11 * this.stepCard.scale.y;
+      place(this.stepCard, bandL + cardW / 2, TOP_SAFE_Y - cardH / 2);
       if (this.cardAnchor && this.cardLead) {
         this.updateLeadCurve(this.cardAnchor, this.stepCard.position, this.cardLead);
       }
     }
-    if (this.signSprite) place(this.signSprite, SIGN_SLOT[0], SIGN_SLOT[1]);
+    if (this.signSprite) {
+      this.signSprite.visible = showSign;
+      if (showSign) {
+        const signH = p11 * this.signSprite.scale.y;
+        place(this.signSprite, bandR - signW / 2, TOP_SAFE_Y - signH / 2);
+      }
+    }
+
+    // ── 下半区：四个气泡，两列 × 两行 ──────────────────────────────────────
+    // 列间距 = min(带宽 - 一个气泡宽, 0.75)：带宽被两侧 DOM 挤窄时自动往中间收，
+    // 但气泡宽 0.30 是硬下限，收不进去就贴着安全线放（此时宁可紧一点也不叠）。
+    const bubW = p00 * BUBBLE_SCALE;
+    const spread = Math.max(0, Math.min(BUBBLE_MAX_SPREAD, band - bubW));
+    for (const item of this.leads) {
+      if (!item.bubble) continue;
+      place(item.bubble, bandCx + (item.colT - 0.5) * spread, item.rowY);
+      this.updateLeadCurve(item.anchor, item.bubble.position, item.line);
+    }
   }
 
   /** 重算一条弧线引线：控制点向外（背离设备中心）推出，绕开设备本体。 */
@@ -1087,6 +1254,40 @@ export class FocusSceneDecor {
   }
 
   /**
+   * 设置屏幕右侧安全线（NDC）。右侧详情面板是浮在画布上的 DOM，宽度会变，
+   * 由 UI 层量出面板左缘换算后喂进来；槽位右缘会自动收到这条线左边。
+   */
+  setSafeArea(rightNdc: number): void {
+    // ⚠️ 下界别设太保守：详情面板展开时实测能占到画布 62%（NDC 左缘 ≈ 0.24 甚至更小），
+    //    早期把下界写死成 0.05，结果"让位"根本没生效。
+    const v = Number.isFinite(rightNdc) ? Math.min(0.95, Math.max(-0.6, rightNdc)) : 0.95;
+    if (Math.abs(v - this.safeRight) < 1e-4) return;
+    this.safeRight = v;
+    this.layoutDirty = true;
+  }
+
+  /**
+   * 设置屏幕左侧安全线（NDC）。
+   * @param leftNdc 左侧遮挡物的右缘；槽位左缘一律收在这条线右边。
+   */
+  setSafeAreaLeft(leftNdc: number): void {
+    const v = Number.isFinite(leftNdc) ? Math.max(-0.95, Math.min(0.6, leftNdc)) : -0.95;
+    if (Math.abs(v - this.safeLeft) < 1e-4) return;
+    this.safeLeft = v;
+    this.layoutDirty = true;
+  }
+
+  /** 当前右侧安全线（自检/单测用）。 */
+  get safeArea(): number {
+    return this.safeRight;
+  }
+
+  /** 当前左侧安全线（自检/单测用）。 */
+  get safeAreaLeft(): number {
+    return this.safeLeft;
+  }
+
+  /**
    * @param camera 传相机才会重排屏幕槽位（气泡/卡片要恒定贴在屏幕指定位置）。
    *               ⚠️ 重排不受 setPaused 影响 —— 暂停的只是动画，镜头一动仍要跟。
    */
@@ -1105,6 +1306,7 @@ export class FocusSceneDecor {
       // 0.5 圈 / 8s ⇒ π rad / 8s ≈ 0.3927 rad/s
       this.scanRing.rotation.z = t * 0.3927;
     }
+    this.animateCrew(t);
     if (!this.opts.lowFx) {
       const pulse = Math.sin(t * 2.1) * 0.5 + 0.5;
       for (const r of this.footRings) {
@@ -1152,6 +1354,10 @@ export class FocusSceneDecor {
     this.crewParts.length = 0;
     for (const tex of this.ownedTextures) tex.dispose(); // 静态贴图（斜纹/光圈/警示牌）
     this.ownedTextures.length = 0;
+    for (const g of this.ownedGeometries) g.dispose();
+    this.ownedGeometries.length = 0;
+    for (const m of this.ownedMaterials) m.dispose();
+    this.ownedMaterials.length = 0;
     this.group.clear();
   }
 }
