@@ -14,7 +14,7 @@ export async function handleAiChat(req: any, res: any) {
     const { message, history = [], contextData = {} } = req.body;
     const ai = getAiClient();
 
-    const systemPrompt = `你是一位拥有20年工业重型设备（离心泵、压缩机、减速机、大型变频电机、数控机床、工业机器人）检修与安全生产管理经验的特级设备检修与安全专家，运行于《设备检修知识检索与作业系统 v2.0.0》。
+    const systemPrompt = `你是一位拥有20年工业重型设备（离心泵、压缩机、减速机、大型变频电机、数控机床、工业机器人）检修与安全生产管理经验的特级设备检修与安全专家，运行于《庖丁智驭——工业设备运行智能决策与作业协同系统 v2.0.0》。
 上下文信息:
 ${JSON.stringify(contextData, null, 2)}
 

@@ -212,7 +212,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="min-w-0">
               <div className="flex items-center space-x-1.5 sm:space-x-2">
                 <span className="font-bold text-sm sm:text-base md:text-lg text-slate-900 tracking-tight truncate max-w-[170px] sm:max-w-none">
-                  设备检修知识检索与作业系统
+                  庖丁智驭
                 </span>
                 <span className="text-xs font-mono px-1.5 sm:px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 shrink-0">
                   v2.0.0
@@ -223,7 +223,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-mono hidden md:block">
-                {timeStr || '2026-09-02 06:10:00'} | 工业设备数字化全生命周期运维平台
+                {timeStr || '2026-09-02 06:10:00'} | 设备运行智能决策中枢 · 全生命周期运维
               </p>
             </div>
           </div>

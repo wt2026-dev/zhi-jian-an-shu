@@ -172,13 +172,14 @@ export const OnboardingGuide: React.FC = () => {
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">欢迎使用工业设备智能检修系统</h3>
-                <p className="text-[11px] text-slate-500">中国软件杯 A1 赛题 · 多模态工业诊断与知识协同平台</p>
+                <h3 className="text-base font-bold text-slate-900">欢迎使用庖丁智驭</h3>
+                <p className="text-[11px] text-slate-500">中国软件杯 A1 赛题 · 设备运行智能决策中枢</p>
               </div>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              本系统覆盖设备台账、健康监测、检修工单、巡检作业、安全作业票与知识库 RAG
-              全流程，并内置 AI 数字人助手可随时为您做故障诊断与规程检索。
+              本系统把设备台账、健康预判、检修工单、巡检作业、安全作业票与知识库 RAG
+              串成一条决策闭环，让设备少停机、让老师傅的经验留得下；
+              并内置 AI 数字人助手可随时为您做故障诊断与规程检索。
             </p>
             <div className="mt-5 flex items-center justify-between">
               <button

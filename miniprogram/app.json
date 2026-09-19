@@ -38,7 +38,7 @@
   "window": {
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "工业设备智能检修",
+    "navigationBarTitleText": "设备运行智能决策",
     "backgroundColor": "#F5F7FA",
     "backgroundTextStyle": "dark"
   },

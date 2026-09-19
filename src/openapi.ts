@@ -9,7 +9,7 @@ export function buildOpenApiSpec(): Record<string, any> {
   return {
     openapi: "3.0.3",
     info: {
-      title: "工业设备智能检修与作业协同系统 API",
+      title: "工业设备运行智能决策与作业协同系统 API",
       version: "2.0.0",
       description: "检修工单全生命周期 / 巡检作业 / 高危作业票与 LOTO / 设备台账与健康监测 / 知识库 RAG / AI 智能辅助（15 项能力）。认证方式：Authorization: Bearer <JWT>（登录接口获取）。错误统一返回 { error, code? }。",
     },

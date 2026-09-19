@@ -1,1 +1,1 @@
-{ "desc": "工业设备智能检修小程序", "rules": [{ "action": "allow", "page": "*" }] }
+{ "desc": "工业设备运行智能决策小程序", "rules": [{ "action": "allow", "page": "*" }] }

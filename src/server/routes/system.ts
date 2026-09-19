@@ -47,7 +47,7 @@ export function registerSystemRoutes(app: express.Express) {
     "/api-docs",
     swaggerUi.serve,
     swaggerUi.setup(buildOpenApiSpec(), {
-      customSiteTitle: "工业设备智能检修系统 API 文档",
+      customSiteTitle: "工业设备运行智能决策系统 API 文档",
       customCss: ".topbar { display: none } .opblock-summary-description { color: #64748b }",
     })
   );

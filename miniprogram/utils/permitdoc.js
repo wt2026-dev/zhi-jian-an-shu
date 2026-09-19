@@ -154,7 +154,7 @@ function paint(ctx, W, H, items, doc, meta, matrix) {
 
       ctx.fillStyle = "#737373";
       ctx.font = "18px sans-serif";
-      ctx.fillText("工业设备智能检修与作业协同系统", PAD + 20, y + 72);
+      ctx.fillText("工业设备运行智能决策与作业协同系统", PAD + 20, y + 72);
 
       ctx.textAlign = "right";
       ctx.fillStyle = "#a78bfa";
@@ -267,7 +267,7 @@ function paint(ctx, W, H, items, doc, meta, matrix) {
       ctx.font = "18px sans-serif";
       ctx.fillText("生成时间: " + (meta.generatedAt || "-"), PAD, y + 40);
       ctx.fillText("数据来源: 后端接口 GET /api/v1/safety-permits", PAD, y + 66);
-      ctx.fillText("工业设备智能检修与作业协同系统 v2.0.0", PAD, y + 92);
+      ctx.fillText("工业设备运行智能决策与作业协同系统 v2.0.0", PAD, y + 92);
       ctx.fillStyle = "#525252";
       ctx.font = "16px sans-serif";
       ctx.fillText("票号 " + (doc.permitNo || "-"), W - PAD - qrSize, y + 128);

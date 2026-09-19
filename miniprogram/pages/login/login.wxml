@@ -1,8 +1,8 @@
 <view class="login">
   <view class="brand">
-    <view class="logo">检</view>
-    <view class="bt">工业设备智能检修与作业协同系统</view>
-    <view class="bs">移动端 · 现场作业入口</view>
+    <view class="logo">驭</view>
+    <view class="bt">庖丁智驭</view>
+    <view class="bs">移动端 · 设备运行智能决策入口</view>
   </view>
   <view class="card">
     <input class="input" placeholder="账号" placeholder-class="ph" value="{{username}}" bindinput="onUser" />
