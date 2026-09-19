@@ -180,21 +180,63 @@ describe('FocusSceneDecor 挂载与卸载', () => {
       if ((o as THREE.Sprite).isSprite) sprites++;
       if ((o as THREE.Line).isLine) lines++;
     });
-    expect(meshes).toBeGreaterThanOrEqual(4 + 1 + 4 + 4 + 8); // 带 + 立柱4 + 工具车 + 人员肢体
     expect(sprites).toBeGreaterThanOrEqual(1); // 检修警示牌
     expect(lines).toBeGreaterThanOrEqual(1); // 红色地面虚线框
+    // 全部同形部件都走 InstancedMesh ⇒ raw mesh 数被压到 15 上下（早期是 34）
+    expect(meshes).toBeGreaterThanOrEqual(10);
+    expect(meshes).toBeLessThanOrEqual(24);
+    d.dispose();
+  });
+
+  it('同形部件一律 InstancedMesh（立柱/轮子/把手/人员/测点球）', () => {
+    // 铁律④：新增元素共享 geometry/material + InstancedMesh。
+    // 人员 14 个零件只有 5 种几何 ⇒ 应该只有 5 个实例桶，而不是 14 个 Mesh。
+    const d = makeDecor();
+    d.setData(BASE_DATA);
+    const inst: THREE.InstancedMesh[] = [];
+    d.group.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) inst.push(o as THREE.InstancedMesh); });
+    expect(inst.length).toBeGreaterThanOrEqual(8); // 立柱 + 轮 + 把手 + 人员 5 桶 + 测点球
+    // 实例总数：立柱4 + 轮4 + 把手2 + 人员(腿4+臂4+躯干2+头2+帽2=14) + 测点球4 = 28
+    const total = inst.reduce((n, m) => n + m.count, 0);
+    expect(total).toBeGreaterThanOrEqual(28);
+    // 四角立柱 / 轮子 / 腿 / 手臂 / 测点球 都是 4 个实例
+    expect(inst.filter((m) => m.count === 4).length).toBeGreaterThanOrEqual(4);
+    // 躯干 / 头 / 安全帽 / 把手 是 2 个实例
+    expect(inst.filter((m) => m.count === 2).length).toBeGreaterThanOrEqual(4);
     d.dispose();
   });
 
   it('两名检修人员都在：一个站立、一个蹲姿（蹲姿整体压低）', () => {
     const d = makeDecor();
+    // 安全帽黄的材质只出现在两处：四角立柱 + 人员头顶
     let helmet = 0;
+    let suit = 0;
     d.group.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-      if (m && m.isMeshStandardMaterial && m.color && m.color.getHex() === 0xf5c518) helmet++;
+      if (!m || !m.isMeshStandardMaterial || !m.color) return;
+      const h = m.color.getHex();
+      if (h === 0xf5c518) helmet++;
+      if (h === 0x3b82f6) suit++;
     });
-    // 4 根立柱也是安全帽黄，因此这里只校验"至少两顶帽子"存在
-    expect(helmet).toBeGreaterThanOrEqual(6);
+    expect(helmet).toBeGreaterThanOrEqual(2);
+    expect(suit).toBeGreaterThanOrEqual(3); // 腿 / 躯干 / 手臂三个实例桶
+    // 蹲姿与主姿的高度差：读人员躯干桶的两个实例矩阵的 Y
+    const torso = (() => {
+      let hit: THREE.InstancedMesh | null = null;
+      d.group.traverse((o) => {
+        const m = (o as THREE.InstancedMesh);
+        if (m.isInstancedMesh && m.count === 2 && (m.material as THREE.MeshStandardMaterial).color?.getHex() === 0x3b82f6
+          && m.geometry.type === 'CylinderGeometry' && !hit) {
+          hit = m;
+        }
+      });
+      return hit;
+    })();
+    expect(torso).toBeTruthy();
+    const a = new THREE.Matrix4(); const b = new THREE.Matrix4();
+    torso!.getMatrixAt(0, a); torso!.getMatrixAt(1, b);
+    // 两人站位 z 不同（一个正前方、一个侧方），蹲姿那人的躯干更低
+    expect(a.elements[13]).not.toBeCloseTo(b.elements[13], 2);
     d.dispose();
   });
 

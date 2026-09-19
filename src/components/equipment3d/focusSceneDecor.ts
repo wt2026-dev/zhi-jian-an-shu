@@ -230,21 +230,25 @@ const CARD_SCALE = 0.34;
  * 四个数据气泡的**屏幕槽位**（NDC 偏移，相对设备中心）。
  * 为什么不是世界坐标偏移：聚焦层相机方位由阻尼插值决定，世界 X 很可能就是视线方向，
  * 实测四个气泡会在屏幕上叠成一坨。NDC 槽位与相机距离/方位无关，恒定不叠。
- * 取值约束（实测画布 1304×761、右侧详情面板左缘 NDC≈0.54）：
- *   气泡 NDC 尺寸约 0.30×0.19 ⇒ 同列行距 ≥0.25、右列右缘 <0.45。
+ * 取值约束（实测画布 1304×761）：
+ *   - 右侧详情面板左缘**会变**（实测 1261 → 1116 CSS，即 NDC 0.539 → 0.316），
+ *     所以所有槽位右缘必须 ≤0.20 留足余量，别贴着面板放。
+ *   - 中央故障标签（NDC 半宽 0.414、半高 0.21）会向左展开占住 x∈[-0.83,-0.13]、y∈[-0.21,0.21]，
+ *     气泡下沿要 >0.24、卡片上沿要 <-0.24 才不会被它压住。
+ *   - 元素 NDC 尺寸：气泡 0.30×0.19、卡片 0.47×0.56、警示牌 0.28×0.27。
  */
 const BUBBLE_SLOTS: ReadonlyArray<readonly [number, number]> = [
-  [-0.58, 0.60],
-  [0.10, 0.60],
-  [-0.58, 0.30],
-  [0.10, 0.30],
+  [-0.62, 0.66],
+  [0.02, 0.66],
+  [-0.62, 0.34],
+  [0.02, 0.34],
 ];
 
 /** 检修闭环卡片的屏幕槽位（左下，避开中央故障标签与右侧面板）。 */
-const CARD_SLOT: readonly [number, number] = [-0.30, -0.52];
+const CARD_SLOT: readonly [number, number] = [-0.45, -0.52];
 
 /** 检修警示牌的屏幕槽位（右下，避开卡片与右侧详情面板）。 */
-const SIGN_SLOT: readonly [number, number] = [0.30, -0.55];
+const SIGN_SLOT: readonly [number, number] = [0.05, -0.72];
 
 /** 引线采样点数（弧线）。 */
 const LEAD_SEGMENTS = 22;
@@ -289,6 +293,8 @@ export class FocusSceneDecor {
   private disposed = false;
 
   private footRings: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial }> = [];
+  /** 检修人员的 InstancedMesh（按几何体分桶），dispose 时逐桶释放实例缓冲。 */
+  private crewParts: THREE.InstancedMesh[] = [];
   private scanRing: THREE.Mesh | null = null;
   private signSprite: THREE.Sprite | null = null;
   private measureBubbles: THREE.Sprite[] = [];
@@ -482,16 +488,18 @@ export class FocusSceneDecor {
     bandMesh.renderOrder = 2;
     this.staticGroup.add(bandMesh);
 
-    // 四角立柱
+    // 四角立柱：4 根完全同形的柱子 ⇒ InstancedMesh（4 次 draw call 变 1 次）
     const W = box.w / 2 + pad * 0.92;
     const D = box.d / 2 + pad * 0.92;
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        const post = new THREE.Mesh(this.geo.post, this.mat.post);
-        post.position.set(sx * W, (box.y ?? 0) + 0.475, sz * D);
-        this.staticGroup.add(post);
-      }
-    }
+    const corners: Array<[number, number]> = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    const posts = new THREE.InstancedMesh(this.geo.post, this.mat.post, corners.length);
+    const pm = new THREE.Matrix4();
+    corners.forEach(([sx, sz], i) => {
+      pm.makeTranslation(sx * W, (box.y ?? 0) + 0.475, sz * D);
+      posts.setMatrixAt(i, pm);
+    });
+    posts.instanceMatrix.needsUpdate = true;
+    this.staticGroup.add(posts);
 
     // 红色地面虚线框（绕设备包围盒）
     const iw = box.w / 2 + pad * 0.34;
@@ -529,20 +537,30 @@ export class FocusSceneDecor {
     top.position.y = 0.7;
     g.add(top);
 
+    // 4 个轮子 / 2 根把手：同形部件一律 InstancedMesh
+    const wheels = new THREE.InstancedMesh(this.geo.cartWheel, this.mat.dark, 4);
+    const wm = new THREE.Matrix4();
+    const wq = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2));
+    const one = new THREE.Vector3(1, 1, 1);
+    let wi = 0;
     for (const sx of [-0.34, 0.34]) {
       for (const sz of [-0.2, 0.2]) {
-        const wheel = new THREE.Mesh(this.geo.cartWheel, this.mat.dark);
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(sx, 0.12, sz);
-        g.add(wheel);
+        wm.compose(new THREE.Vector3(sx, 0.12, sz), wq, one);
+        wheels.setMatrixAt(wi++, wm);
       }
     }
+    wheels.instanceMatrix.needsUpdate = true;
+    g.add(wheels);
 
+    const handles = new THREE.InstancedMesh(this.geo.cartHandle, this.mat.steel, 2);
+    const hq = new THREE.Quaternion();
+    let hi = 0;
     for (const sx of [-0.4, 0.4]) {
-      const handle = new THREE.Mesh(this.geo.cartHandle, this.mat.steel);
-      handle.position.set(sx, 0.92, -0.18);
-      g.add(handle);
+      wm.compose(new THREE.Vector3(sx, 0.92, -0.18), hq, one);
+      handles.setMatrixAt(hi++, wm);
     }
+    handles.instanceMatrix.needsUpdate = true;
+    g.add(handles);
 
     this.staticGroup.add(g);
   }
@@ -575,20 +593,40 @@ export class FocusSceneDecor {
   private buildCrew(): void {
     const { box } = this.opts;
     const pad = this.pad();
-    // 站位：一个正前方面对设备，一个侧方蹲姿检修
-    const standing = this.makeWorker(false);
-    standing.position.set(0, box.y ?? 0, box.d / 2 + pad * 0.86);
-    standing.rotation.y = Math.PI; // 面朝设备（-Z）
-    this.staticGroup.add(standing);
+    // 站位：一个正前方面对设备，一个侧方蹲姿检修（世界坐标，用于脚下光圈）
+    const poses: Array<{ p: THREE.Vector3; ry: number; crouch: boolean }> = [
+      { p: new THREE.Vector3(0, box.y ?? 0, box.d / 2 + pad * 0.86), ry: Math.PI, crouch: false },
+      { p: new THREE.Vector3(-box.w / 2 - pad * 0.7, box.y ?? 0, box.d * 0.18), ry: Math.PI * 0.5, crouch: true },
+    ];
 
-    const crouch = this.makeWorker(true);
-    crouch.position.set(-box.w / 2 - pad * 0.7, box.y ?? 0, box.d * 0.18);
-    crouch.rotation.y = Math.PI * 0.5; // 面朝设备（+X）
-    this.staticGroup.add(crouch);
+    // 两名人员一共 14 个零件，但只有 5 种几何体 ⇒ 按几何体分桶建 InstancedMesh
+    // （14 次 draw call → 5 次）。零件局部变换按"人"的位姿矩阵左乘得到实例矩阵。
+    const buckets = new Map<THREE.BufferGeometry, {
+      mat: THREE.Material;
+      items: THREE.Matrix4[];
+    }>();
+    const base = new THREE.Matrix4();
+    const part = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    for (const pose of poses) {
+      base.compose(pose.p, q.setFromEuler(new THREE.Euler(0, pose.ry, 0)), new THREE.Vector3(1, 1, 1));
+      for (const it of this.workerParts(pose.crouch)) {
+        let b = buckets.get(it.geo);
+        if (!b) { b = { mat: it.mat, items: [] }; buckets.set(it.geo, b); }
+        part.compose(it.position, q.setFromEuler(it.rotation), it.scale);
+        b.items.push(base.clone().multiply(part));
+      }
+    }
+    for (const [geo, b] of buckets) {
+      const inst = new THREE.InstancedMesh(geo, b.mat, b.items.length);
+      b.items.forEach((m, i) => inst.setMatrixAt(i, m));
+      inst.instanceMatrix.needsUpdate = true;
+      this.staticGroup.add(inst);
+      this.crewParts.push(inst);
+    }
 
     if (this.opts.lowFx) return; // 软渲染：跳过脚下光效
-    this.addFootRing(standing.position.x, box.y ?? 0, standing.position.z);
-    this.addFootRing(crouch.position.x, box.y ?? 0, crouch.position.z);
+    for (const pose of poses) this.addFootRing(pose.p.x, box.y ?? 0, pose.p.z);
   }
 
   private addFootRing(x: number, y: number, z: number): void {
@@ -602,40 +640,33 @@ export class FocusSceneDecor {
     this.footRings.push({ mesh, mat });
   }
 
-  /** 低多边形人员：头 + 安全帽 + 躯干 + 四肢，约 1.6m。 */
-  private makeWorker(crouching: boolean): THREE.Group {
-    const g = new THREE.Group();
+  /**
+   * 低多边形人员的零件清单（头 + 安全帽 + 躯干 + 四肢，约 1.6m）。
+   * 只描述**相对人体原点**的局部变换；由 buildCrew 按位姿矩阵实例化。
+   */
+  private workerParts(crouching: boolean): Array<{
+    geo: THREE.BufferGeometry;
+    mat: THREE.Material;
+    position: THREE.Vector3;
+    rotation: THREE.Euler;
+    scale: THREE.Vector3;
+  }> {
     const k = crouching ? 0.68 : 1; // 蹲姿整体压低
-
-    const legL = new THREE.Mesh(this.geo.leg, this.mat.suit);
-    legL.position.set(-0.09, 0.36 * k, 0);
-    legL.scale.y = k;
-    g.add(legL);
-    const legR = legL.clone();
-    legR.position.x = 0.09;
-    g.add(legR);
-
-    const torso = new THREE.Mesh(this.geo.torso, this.mat.suit);
-    torso.position.y = (0.72 + 0.3) * (crouching ? 0.78 : 1);
-    g.add(torso);
-
-    const armL = new THREE.Mesh(this.geo.limb, this.mat.suit);
-    armL.position.set(-0.24, torso.position.y + 0.06, crouching ? 0.16 : 0.04);
-    armL.rotation.x = crouching ? -0.9 : 0.12;
-    g.add(armL);
-    const armR = armL.clone();
-    armR.position.x = 0.24;
-    g.add(armR);
-
-    const head = new THREE.Mesh(this.geo.head, this.mat.skin);
-    head.position.y = torso.position.y + 0.44;
-    g.add(head);
-
-    const helmet = new THREE.Mesh(this.geo.helmet, this.mat.helmet);
-    helmet.position.y = head.position.y + 0.03;
-    g.add(helmet);
-
-    return g;
+    const torsoY = (0.72 + 0.3) * (crouching ? 0.78 : 1);
+    const headY = torsoY + 0.44;
+    const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    const e = (x: number) => new THREE.Euler(x, 0, 0);
+    const s = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    return [
+      { geo: this.geo.leg, mat: this.mat.suit, position: v(-0.09, 0.36 * k, 0), rotation: e(0), scale: s(1, k, 1) },
+      { geo: this.geo.leg, mat: this.mat.suit, position: v(0.09, 0.36 * k, 0), rotation: e(0), scale: s(1, k, 1) },
+      { geo: this.geo.torso, mat: this.mat.suit, position: v(0, torsoY, 0), rotation: e(0), scale: s(1, 1, 1) },
+      // 蹲姿手臂前伸（检修姿态），站姿自然下垂
+      { geo: this.geo.limb, mat: this.mat.suit, position: v(-0.24, torsoY + 0.06, crouching ? 0.16 : 0.04), rotation: e(crouching ? -0.9 : 0.12), scale: s(1, 1, 1) },
+      { geo: this.geo.limb, mat: this.mat.suit, position: v(0.24, torsoY + 0.06, crouching ? 0.16 : 0.04), rotation: e(crouching ? -0.9 : 0.12), scale: s(1, 1, 1) },
+      { geo: this.geo.head, mat: this.mat.skin, position: v(0, headY, 0), rotation: e(0), scale: s(1, 1, 1) },
+      { geo: this.geo.helmet, mat: this.mat.helmet, position: v(0, headY + 0.03, 0), rotation: e(0), scale: s(1, 1, 1) },
+    ];
   }
 
   /* ---------------- E 流程扫描环 ---------------- */
@@ -690,7 +721,9 @@ export class FocusSceneDecor {
       } else if (o instanceof THREE.Line) {
         o.geometry.dispose();
       } else if (o instanceof THREE.Mesh) {
-        // 测点小球：几何共享（this.geo.dot），材质是按状态色单独建的
+        // InstancedMesh：只释放实例缓冲，**不要**碰共享几何
+        (o as THREE.InstancedMesh).isInstancedMesh && (o as THREE.InstancedMesh).dispose();
+        // 测点小球：几何共享（this.geo.dot），材质是按批单独建的
         const m = o.material as THREE.Material | THREE.Material[];
         if (Array.isArray(m)) m.forEach((x) => x.dispose());
         else m?.dispose();
@@ -720,6 +753,12 @@ export class FocusSceneDecor {
       [halfW * 0.72, baseY + h * 0.9, -halfD * 0.55],
     ];
 
+    // 锚点小节点：4 个同形小球 ⇒ 一个 InstancedMesh + setColorAt（状态色走实例色）
+    const dotMat = new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 0.9 });
+    const dots = new THREE.InstancedMesh(this.geo.dot, dotMat, points.length);
+    const dm = new THREE.Matrix4();
+    const col = new THREE.Color();
+
     points.forEach((p, i) => {
       const a = anchors[i % anchors.length];
       const anchor = new THREE.Vector3(a[0], a[1], a[2]);
@@ -732,21 +771,21 @@ export class FocusSceneDecor {
       line.renderOrder = 10;
       this.dataGroup.add(line);
 
-      // 锚点小节点
-      const dot = new THREE.Mesh(
-        this.geo.dot,
-        new THREE.MeshBasicMaterial({ color: STATE_HEX[p.state], toneMapped: false, transparent: true, opacity: 0.9 }),
-      );
-      dot.position.copy(anchor);
-      dot.renderOrder = 11;
-      this.dataGroup.add(dot);
+      dm.makeTranslation(anchor.x, anchor.y, anchor.z);
+      dots.setMatrixAt(i, dm);
+      dots.setColorAt(i, col.setHex(STATE_HEX[p.state]));
 
       const bubble = this.makeBubble(p);
       this.dataGroup.add(bubble);
       this.measureBubbles.push(bubble);
 
-      this.leads.push({ anchor, sx: slot[0], sy: slot[1], line, bubble, dot, dashed });
+      this.leads.push({ anchor, sx: slot[0], sy: slot[1], line, bubble, dot: dots, dashed });
     });
+
+    dots.instanceMatrix.needsUpdate = true;
+    if (dots.instanceColor) dots.instanceColor.needsUpdate = true;
+    dots.renderOrder = 11;
+    this.dataGroup.add(dots);
   }
 
   /** 故障部位引线 + 五步检修闭环卡片。 */
@@ -1109,6 +1148,8 @@ export class FocusSceneDecor {
     for (const m of Object.values(this.mat)) m.dispose();
     for (const r of this.footRings) r.mat.dispose(); // 脚下光圈是 mat.foot 的 clone
     this.footRings.length = 0;
+    for (const c of this.crewParts) c.dispose(); // 人员实例缓冲（几何仍由 geo 统一释放）
+    this.crewParts.length = 0;
     for (const tex of this.ownedTextures) tex.dispose(); // 静态贴图（斜纹/光圈/警示牌）
     this.ownedTextures.length = 0;
     this.group.clear();
