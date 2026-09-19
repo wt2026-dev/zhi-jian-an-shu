@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   设计令牌：明亮玻璃质感 × 蓝青科技线条
-   科技感由"线条 + 留白 + 层次 + 细微渐变 + 玻璃质感"表达，严禁粒子/流光/霓虹特效
+   设计令牌：明亮次世代游戏感（Bright Game-HUD · Solar-Punk 太阳能朋克）
+   基调：日光白 × 晨曦金 × 钛晶银 × 天青蓝。
+   拒绝死黑压抑的暗黑风——用"景深光影 + 微光描边 + 流光粒子 + 悬浮磨砂"
+   营造 AAA 次世代微客户端的质感与游戏氛围，同时保持浅底深字、对比度 ≥ 4.5:1。
    ========================================================================== */
 :root {
   --primary: #2563EB;
@@ -35,7 +37,7 @@
   --border-subtle: #F1F5F9;
   --accent-cyan: var(--cyan);
   --soft-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  --radius-card: 14px;
+  --radius-card: 16px;
 
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
@@ -48,14 +50,76 @@
   --color-bg-surface: #ffffff;
   --color-bg-card: #ffffff;
   --color-border: rgba(226, 232, 240, 0.85);
+
+  /* ── 明亮次世代游戏化令牌（Bright Game-HUD） ───────────────────────────── */
+  --gold: #E8A33D;               /* 晨曦金：主强调色 */
+  --gold-soft: #F6D08A;          /* 香槟金：渐变亮端 */
+  --gold-deep: #B8761F;          /* 深金：浅底文字保证对比度 */
+  --dawn: #FBBF24;               /* 破晓黄：高光点 */
+  --sky: #0EA5E9;                /* 天青：次强调色 */
+  --titanium: #DCE6F2;           /* 钛晶银：描边 / 分隔 */
+
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-blur: 16px;
+  --glass-border: rgba(255, 255, 255, 0.72);
+  --rim-gold: rgba(232, 163, 61, 0.55);
+  --rim-cyan: rgba(14, 165, 233, 0.42);
+  --gold-glow: rgba(232, 163, 61, 0.30);
+  --cyan-glow: rgba(14, 165, 233, 0.26);
+
+  /* 柔和景深阴影阶梯（由浅至深，始终保持"明亮但立体"） */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 12px -4px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 8px 22px -8px rgba(15, 23, 42, 0.13), 0 2px 6px -2px rgba(15, 23, 42, 0.05);
+  --shadow-xl: 0 14px 34px -12px rgba(15, 23, 42, 0.16), 0 4px 12px -4px rgba(15, 23, 42, 0.06);
+  --shadow-2xl: 0 24px 56px -16px rgba(15, 23, 42, 0.20), 0 8px 22px -8px rgba(15, 23, 42, 0.08);
+  --shadow-lift: 0 20px 44px -14px rgba(15, 23, 42, 0.18), 0 6px 18px -6px rgba(37, 99, 235, 0.10);
+
+  /* 游戏化圆角阶梯（比传统后台更圆润） */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  /* 动效节奏（统一"呼吸"手感） */
+  --ease-game: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 0.18s;
+  --dur-base: 0.28s;
+  --dur-slow: 0.55s;
 }
 
+/* ==========================================================================
+   钛晶明亮背景（Titanium Bright Mesh）
+   由四层叠加构成，取代原先"一张死白纸"的单色底：
+   ① 晨曦微光粒子点阵  ② 微晶六边形全息透光底网  ③ 环境景深漫反射光晕  ④ 钛晶明亮渐变底
+   ========================================================================== */
 body,
 #root {
-  background-color: var(--bg-page);
+  background-color: #F2F7FD;
   background-image:
-    radial-gradient(circle at 12% 15%, rgba(37, 99, 235, 0.04) 0%, transparent 45%),
-    radial-gradient(circle at 88% 10%, rgba(6, 182, 212, 0.04) 0%, transparent 45%);
+    /* ① 晨曦微光粒子（点阵） */
+    radial-gradient(circle, rgba(37, 99, 235, 0.075) 0 1px, transparent 1.6px),
+    /* ② 微晶全息底网：横 / 竖细线 + 60° 斜向暗示六边形 */
+    linear-gradient(rgba(37, 99, 235, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.040) 1px, transparent 1px),
+    linear-gradient(60deg, rgba(232, 163, 61, 0.028) 1px, transparent 1px),
+    /* ③ 环境景深漫反射光晕：天青 / 晨曦金 / 靛紫 */
+    radial-gradient(1100px 720px at 6% -8%, rgba(56, 189, 248, 0.20) 0%, transparent 62%),
+    radial-gradient(900px 640px at 98% 2%, rgba(251, 191, 36, 0.16) 0%, transparent 60%),
+    radial-gradient(1200px 820px at 52% 116%, rgba(129, 140, 248, 0.14) 0%, transparent 66%),
+    /* ④ 钛晶明亮渐变底 */
+    linear-gradient(180deg, #F8FBFF 0%, #F1F7FE 52%, #F7F4FF 100%);
+  background-size:
+    24px 24px,
+    48px 48px,
+    48px 48px,
+    48px 48px,
+    auto,
+    auto,
+    auto,
+    auto;
   background-attachment: fixed;
   color: var(--text-body);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
@@ -64,7 +128,7 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
-/* 明亮主题滚动条（纤细、低对比） */
+/* 明亮主题滚动条（精致纤细，悬停透出品牌高亮） */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -87,68 +151,159 @@ body,
    浅色主题兼容层与容器规范
    ========================================================================== */
 
-/* 1) 容器底色：深色底 → 页面底色 / 纯白实体卡片 */
-[class*="bg-slate-950"] {
-  background-color: var(--page-bg) !important;
+/* 0) 页面级容器放行背板：
+   原先 App 外壳与驾驶舱用不透明 bg-[#f8fafc] 铺满，等于把整张钛晶背板盖死，
+   页面因此退化成"一张没有层次的纸"。这里改为透明，让 ①②③④ 四层背板透出来。 */
+[class*="bg-[#f8fafc]"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-[#F8FAFC]"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-[var(--page-bg)]"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  background-color: transparent !important;
 }
-[class*="bg-slate-900"] {
-  background-color: #ffffff !important;
+
+/* 1) 容器底色：深色底 → 明亮实体面板 / 纯白实体卡片
+   注：bg-slate-950 在历史组件中既作页面级容器，也作弹窗面板
+   （ProceduresView / VideoAnalysisModal / main.tsx），故统一还原为"近纯白亮面板"；
+   页面级背板由 0) 的 bg-[#f8fafc] 放行规则负责透出钛晶网格。 */
+[class*="bg-slate-950"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  background-color: rgba(255, 255, 255, 0.96) !important;
 }
-[class*="bg-slate-850"] {
-  background-color: #ffffff !important;
+[class*="bg-slate-900"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-850"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  color: #1e293b;
 }
-[class*="bg-slate-800"] {
+/* 注意：index.html 的 <body> 自带 class="bg-slate-900"，若在此一并刷成白底，
+   会把上面钛晶背板的 background-color 压掉（!important 优先）。因此底色还原时排除 body，
+   让 body 保留背板底色；文字压深仍然照旧生效。 */
+[class*="bg-slate-900"]:not(body):not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-850"]:not(body):not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"]:not(body):not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #ffffff !important;
 }
 
+/* 1.1) 全屏遮罩：由"死黑压抑"改为"明亮磨砂薄纱"
+   历史遮罩大量使用 bg-black/80、bg-slate-900/40 等近黑层，是暗黑压抑感的主要来源。
+   仅命中 fixed + inset-0 的全屏遮罩，不触碰内层徽章 / 缩略图上的半透明小块。 */
+[class*="bg-black/"].fixed.inset-0:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-900/"].fixed.inset-0:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-950/"].fixed.inset-0:not(.industrial-workspace):not(.industrial-workspace *) {
+  background-color: rgba(230, 239, 250, 0.62) !important;
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+
+/* 浅色容器内文本绝不使用白色或淡灰字体 */
+[class*="bg-slate-900"] [class*="text-white"]:not(button[class*="bg-blue-600"]):not(button[class*="bg-primary"]):not([class*="bg-emerald-600"]):not([class*="bg-rose-600"]):not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-900"] [class*="text-slate-50"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-900"] [class*="text-slate-100"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-900"] [class*="text-slate-200"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-900"] [class*="text-slate-300"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"] [class*="text-white"]:not(button[class*="bg-blue-600"]):not(button[class*="bg-primary"]):not([class*="bg-emerald-600"]):not([class*="bg-rose-600"]):not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"] [class*="text-slate-50"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"] [class*="text-slate-100"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"] [class*="text-slate-200"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"] [class*="text-slate-300"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  color: #1e293b !important;
+}
+/* bg-slate-950 同属"已还原为亮面板"的容器，其内部浅色文字同样必须压深
+   （main.tsx 的启动异常兜底页正是 bg-slate-950 + text-slate-100，原先不可读） */
+[class*="bg-slate-950"] [class*="text-white"]:not(button[class*="bg-blue-600"]):not(button[class*="bg-primary"]):not([class*="bg-emerald-600"]):not([class*="bg-rose-600"]):not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-950"] [class*="text-slate-50"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-950"] [class*="text-slate-100"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-950"] [class*="text-slate-200"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-950"] [class*="text-slate-300"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  color: #1e293b !important;
+}
+
+
 /* 2) 边框细化：统一柔和灰线 */
-[class*="border-slate-700"],
-[class*="border-slate-800"],
-[class*="border-slate-600"] {
+[class*="border-slate-700"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="border-slate-800"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="border-slate-600"]:not(.industrial-workspace):not(.industrial-workspace *) {
   border-color: var(--border) !important;
 }
-[class*="border-cyan-900"],
-[class*="border-cyan-800"] {
+[class*="border-cyan-900"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="border-cyan-800"]:not(.industrial-workspace):not(.industrial-workspace *) {
   border-color: var(--border) !important;
 }
-[class*="border-rose-950"] {
+[class*="border-rose-950"]:not(.industrial-workspace):not(.industrial-workspace *) {
   border-color: var(--border) !important;
 }
 
 /* 3) hover 态：细致的浅底过渡 */
-[class*="hover:bg-slate-800"]:hover,
-[class*="hover:bg-slate-750"]:hover,
-[class*="hover:bg-slate-700"]:hover,
-[class*="hover:bg-slate-900"]:hover {
+[class*="hover:bg-slate-800"]:hover:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="hover:bg-slate-750"]:hover:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="hover:bg-slate-700"]:hover:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="hover:bg-slate-900"]:hover:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: var(--border-subtle) !important;
 }
-[class*="even:bg-slate"] {
+[class*="even:bg-slate"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: transparent !important;
 }
 
-/* 5) 阴影：厚重下沉/彩色辉光 → 极轻阴影（去霓虹、去厚重） */
-[class*="shadow-2xl"],
-[class*="shadow-xl"],
-[class*="shadow-lg"]:not([class*="shadow-lg-"]),
-[class*="shadow-cyan"],
-[class*="shadow-blue"],
-[class*="shadow-rose"],
-[class*="shadow-emerald"],
-[class*="shadow-purple"],
-[class*="shadow-amber"] {
-  box-shadow: var(--card-shadow) !important;
+/* 5) 阴影：由"一律抹平"改为"柔和景深阶梯"
+   原先所有 shadow-lg/xl/2xl 被强制压成几乎看不见的一层，卡片因此没有浮空感。
+   现按档位还原为柔和深阴影——始终是明亮色，绝不使用死黑硬边。 */
+[class*="shadow-lg"]:not([class*="shadow-lg-"]):not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: var(--shadow-lg) !important;
+}
+[class*="shadow-xl"]:not([class*="shadow-xl-"]):not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: var(--shadow-xl) !important;
+}
+[class*="shadow-2xl"]:not([class*="shadow-2xl-"]):not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: var(--shadow-2xl) !important;
+}
+/* 彩色辉光：收敛为低饱和柔光（保留微光，去掉霓虹） */
+[class*="shadow-cyan"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: 0 10px 26px -12px var(--cyan-glow) !important;
+}
+[class*="shadow-blue"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: 0 10px 26px -12px rgba(37, 99, 235, 0.30) !important;
+}
+[class*="shadow-amber"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="shadow-yellow"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: 0 10px 26px -12px var(--gold-glow) !important;
+}
+[class*="shadow-rose"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="shadow-red"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: 0 10px 26px -12px rgba(239, 68, 68, 0.28) !important;
+}
+[class*="shadow-emerald"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="shadow-green"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: 0 10px 26px -12px rgba(16, 185, 129, 0.28) !important;
+}
+[class*="shadow-purple"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="shadow-indigo"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  box-shadow: 0 10px 26px -12px rgba(99, 102, 241, 0.28) !important;
 }
 
-/* 6) 圆角：大圆角统一收敛到 8px（保留 rounded-full 用于头像/胶囊） */
-[class*="rounded-2xl"],
-[class*="rounded-3xl"],
-[class*="rounded-xl"] {
+/* 6) 圆角：由"一律 14px"改为尊重作者意图的圆角阶梯
+   （rounded-xl 保持卡片基准，2xl/3xl 真正放大，rounded-full 继续用于胶囊/头像） */
+[class*="rounded-xl"]:not(.industrial-workspace):not(.industrial-workspace *) {
   border-radius: var(--radius-card) !important;
 }
+[class*="rounded-2xl"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  border-radius: var(--radius-lg) !important;
+}
+[class*="rounded-3xl"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  border-radius: var(--radius-xl) !important;
+}
 
-/* 7) 取消闪烁/流光类装饰动画与霓虹 */
-[class*="animate-ping"] {
-  animation: none !important;
+/* 7) 呼吸脉冲：恢复 animate-ping，但降速降烈度，改为"呼吸"而非"闪烁" */
+[class*="animate-ping"]:not(.industrial-workspace):not(.industrial-workspace *) {
+  animation: game-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite !important;
+}
+
+@keyframes game-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
 }
 
 /* ==========================================================================
@@ -162,102 +317,102 @@ body,
 
 /* 7.1 自动将历史组件中半透明深色状态徽章重映射为明亮高对比度语义标签 */
 /* 正常/在线/完成 (绿色系) */
-[class*="bg-emerald-500/20"],
-[class*="bg-emerald-950"] {
+[class*="bg-emerald-500/20"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-emerald-950"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #ecfdf5 !important;
   color: #047857 !important;
   border-color: #a7f3d0 !important;
 }
-[class*="text-emerald-300"],
-[class*="text-emerald-400"] {
+[class*="text-emerald-300"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-emerald-400"]:not(.industrial-workspace):not(.industrial-workspace *) {
   color: #059669 !important;
 }
 
 /* 危险/故障/报警 (红色系) */
-[class*="bg-rose-500/20"],
-[class*="bg-rose-950"],
-[class*="bg-red-500/20"],
-[class*="bg-red-950"] {
+[class*="bg-rose-500/20"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-rose-950"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-red-500/20"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-red-950"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #fef2f2 !important;
   color: #b91c1c !important;
   border-color: #fecaca !important;
 }
-[class*="text-rose-300"],
-[class*="text-rose-400"],
-[class*="text-red-300"],
-[class*="text-red-400"] {
+[class*="text-rose-300"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-rose-400"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-red-300"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-red-400"]:not(.industrial-workspace):not(.industrial-workspace *) {
   color: #dc2626 !important;
 }
 
 /* 警告/待办/预警 (琥珀色/黄色系统一对齐为橙色系 #f97316，保证浅色下清晰) */
-[class*="bg-amber-500/20"],
-[class*="bg-amber-950"],
-[class*="bg-yellow-100"],
-[class*="bg-yellow-500/20"] {
+[class*="bg-amber-500/20"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-amber-950"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-yellow-100"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-yellow-500/20"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #fff7ed !important;
   color: #c2410c !important;
   border-color: #fed7aa !important;
 }
-[class*="text-amber-300"],
-[class*="text-amber-400"],
-[class*="text-amber-500"],
-[class*="text-yellow-700"],
-[class*="text-yellow-800"] {
+[class*="text-amber-300"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-amber-400"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-amber-500"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-yellow-700"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-yellow-800"]:not(.industrial-workspace):not(.industrial-workspace *) {
   color: #c2410c !important;
 }
-[class*="text-amber-600"],
-[class*="text-amber-700"],
-[class*="text-amber-800"] {
+[class*="text-amber-600"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-amber-700"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-amber-800"]:not(.industrial-workspace):not(.industrial-workspace *) {
   color: #9a3412 !important;
 }
-[class*="bg-amber-50"] {
+[class*="bg-amber-50"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #fff7ed !important;
   border-color: #fed7aa !important;
   color: #c2410c !important;
 }
-[class*="bg-amber-100"] {
+[class*="bg-amber-100"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #ffedd5 !important;
   border-color: #fed7aa !important;
   color: #9a3412 !important;
 }
 
 /* 进行中/信息/科技 (亮蓝/青色系) */
-[class*="bg-cyan-500/20"],
-[class*="bg-cyan-950"] {
+[class*="bg-cyan-500/20"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-cyan-950"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #ecfeff !important;
   color: #0e7490 !important;
   border-color: #a5f3fc !important;
 }
-[class*="text-cyan-300"],
-[class*="text-cyan-400"] {
+[class*="text-cyan-300"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-cyan-400"]:not(.industrial-workspace):not(.industrial-workspace *) {
   color: #0891b2 !important;
 }
-[class*="bg-blue-500/20"],
-[class*="bg-blue-950"] {
+[class*="bg-blue-500/20"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-blue-950"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #eff6ff !important;
   color: #1d4ed8 !important;
   border-color: #bfdbfe !important;
 }
-[class*="text-blue-300"],
-[class*="text-blue-400"] {
+[class*="text-blue-300"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-blue-400"]:not(.industrial-workspace):not(.industrial-workspace *) {
   color: #2563eb !important;
 }
 
 /* 紫色系 (审批/高危专项) */
-[class*="bg-purple-500/20"],
-[class*="bg-purple-950"] {
+[class*="bg-purple-500/20"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-purple-950"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #faf5ff !important;
   color: #7e22ce !important;
   border-color: #e9d5ff !important;
 }
-[class*="text-purple-300"],
-[class*="text-purple-400"] {
+[class*="text-purple-300"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="text-purple-400"]:not(.industrial-workspace):not(.industrial-workspace *) {
   color: #7e22ce !important;
 }
 
 /* 停用/备用/归档标签 (石板灰系) */
-[class*="bg-slate-500/20"],
-[class*="bg-slate-700"] {
+[class*="bg-slate-500/20"]:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-700"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #f1f5f9 !important;
   color: #475569 !important;
   border-color: #e2e8f0 !important;
@@ -265,34 +420,34 @@ body,
 
 /* 7.2 按钮图标与内联操作按钮提亮保障：
    禁止暗黑背景包裹暗黑文字/暗黑图标 */
-button[class*="bg-slate-700"],
-button[class*="bg-slate-800"] {
+button[class*="bg-slate-700"]:not(.industrial-workspace):not(.industrial-workspace *),
+button[class*="bg-slate-800"]:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #f8fafc !important;
   color: #334155 !important;
   border: 1px solid #e2e8f0 !important;
   transition: all 0.15s ease !important;
 }
-button[class*="bg-slate-700"]:hover,
-button[class*="bg-slate-800"]:hover {
+button[class*="bg-slate-700"]:hover:not(.industrial-workspace):not(.industrial-workspace *),
+button[class*="bg-slate-800"]:hover:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #eff6ff !important;
   color: #2563eb !important;
   border-color: #93c5fd !important;
 }
 
 /* 表单与弹窗内的深色小输入框/下拉框背景重置为纯白 */
-[class*="bg-slate-800"] input,
-[class*="bg-slate-800"] select,
-[class*="bg-slate-800"] textarea,
-[class*="bg-slate-900"] input,
-[class*="bg-slate-900"] select,
-[class*="bg-slate-900"] textarea {
+[class*="bg-slate-800"] input:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"] select:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-800"] textarea:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-900"] input:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-900"] select:not(.industrial-workspace):not(.industrial-workspace *),
+[class*="bg-slate-900"] textarea:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #ffffff !important;
   color: #0f172a !important;
   border-color: #e2e8f0 !important;
 }
 
 /* 8) 表格全局规范：信息面板感（半透明白 + blur + 细浅边框，白底/极浅灰表头，取消斑马纹，hover 极淡底色） */
-.table-panel {
+.table-panel:not(.industrial-workspace):not(.industrial-workspace *) {
   position: relative;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
@@ -302,7 +457,7 @@ button[class*="bg-slate-800"]:hover {
   overflow: hidden;
   box-shadow: var(--card-shadow);
 }
-.table-panel::before {
+.table-panel:not(.industrial-workspace):not(.industrial-workspace *)::before {
   content: "";
   position: absolute;
   top: 0;
@@ -315,12 +470,12 @@ button[class*="bg-slate-800"]:hover {
   z-index: 2;
 }
 
-table {
+table:not(.industrial-workspace):not(.industrial-workspace *) {
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
 }
-thead th {
+thead th:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #ffffff !important;
   color: #64748b !important;
   font-weight: 600 !important;
@@ -328,34 +483,34 @@ thead th {
   padding-top: 0.75rem !important;
   padding-bottom: 0.75rem !important;
 }
-tbody tr {
+tbody tr:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: transparent !important;
   transition: background-color 0.15s ease;
 }
-tbody tr:hover {
+tbody tr:hover:not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: rgba(59, 130, 246, 0.04) !important;
 }
-tbody td {
+tbody td:not(.industrial-workspace):not(.industrial-workspace *) {
   border-bottom: 1px solid rgba(226, 232, 240, 0.6) !important;
   color: var(--text-body);
 }
 
 /* 9) 表单输入框全局规范：白底、浅边框、聚焦浅蓝光晕 */
-input[type="text"]:not([class*="bg-"]),
-input[type="password"]:not([class*="bg-"]),
-input[type="search"]:not([class*="bg-"]),
-input[type="number"]:not([class*="bg-"]),
-input[type="date"]:not([class*="bg-"]),
-textarea:not([class*="bg-"]),
-select:not([class*="bg-"]) {
+input[type="text"]:not([class*="bg-"]):not(.industrial-workspace):not(.industrial-workspace *),
+input[type="password"]:not([class*="bg-"]):not(.industrial-workspace):not(.industrial-workspace *),
+input[type="search"]:not([class*="bg-"]):not(.industrial-workspace):not(.industrial-workspace *),
+input[type="number"]:not([class*="bg-"]):not(.industrial-workspace):not(.industrial-workspace *),
+input[type="date"]:not([class*="bg-"]):not(.industrial-workspace):not(.industrial-workspace *),
+textarea:not([class*="bg-"]):not(.industrial-workspace):not(.industrial-workspace *),
+select:not([class*="bg-"]):not(.industrial-workspace):not(.industrial-workspace *) {
   background-color: #ffffff !important;
   border: 1px solid var(--border) !important;
   color: var(--text-title) !important;
   border-radius: 8px;
 }
-input:focus,
-textarea:focus,
-select:focus {
+input:focus:not(.industrial-workspace):not(.industrial-workspace *),
+textarea:focus:not(.industrial-workspace):not(.industrial-workspace *),
+select:focus:not(.industrial-workspace):not(.industrial-workspace *) {
   outline: none !important;
   border-color: var(--primary) !important;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12) !important;
@@ -365,19 +520,125 @@ select:focus {
    全新核心通用组件类："明亮玻璃质感 × 蓝青科技线条"
    ========================================================================== */
 
-/* 三、卡片：现代 SaaS 层次实体卡片 */
+/* 三、卡片：游戏级悬浮磨砂卡片（Game HUD Glassmorphism）
+   高清白玉微透磨砂 + 双层微光发光边（内发光 + 1px 金/青描边）+ 悬停浮空上移。
+   注：.glass-card 会被整页级容器复用，故磨砂取 12px（与 .table-panel 对齐）以控制合成开销；
+       真正需要 16px 强磨砂的 HUD 主卡请用 .hud-card。 */
 .glass-card {
-  background: #FFFFFF;
-  border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow);
-  border-radius: 14px;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 10px 26px -14px rgba(15, 23, 42, 0.14);
+  transition:
+    transform var(--dur-base) var(--ease-game),
+    box-shadow var(--dur-base) var(--ease-game),
+    border-color var(--dur-base) var(--ease-game);
 }
 .glass-card:hover {
-  border-color: rgba(37, 99, 235, 0.25);
-  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-2px);
+  border-color: rgba(232, 163, 61, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 0 1px var(--rim-gold),
+    0 18px 40px -14px rgba(15, 23, 42, 0.18),
+    0 6px 16px -8px var(--gold-glow);
 }
 
+/* 游戏 HUD 情报卡：比 glass-card 更强的金边描边与流光，用于驾驶舱 / 数字人 / 助手主卡 */
+.hud-card {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.86) 100%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 0 24px rgba(255, 255, 255, 0.55),
+    0 0 0 1px rgba(232, 163, 61, 0.18),
+    0 12px 30px -14px rgba(15, 23, 42, 0.16),
+    0 3px 10px -6px var(--cyan-glow);
+  transition:
+    transform var(--dur-base) var(--ease-game),
+    box-shadow var(--dur-base) var(--ease-game);
+  overflow: hidden;
+}
+.hud-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 0 28px rgba(255, 255, 255, 0.7),
+    0 0 0 1px var(--rim-gold),
+    0 22px 48px -16px rgba(15, 23, 42, 0.20),
+    0 8px 22px -10px var(--gold-glow);
+}
+/* HUD 卡顶部的金→青能量细线 */
+.hud-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--gold-soft) 22%,
+    var(--gold) 50%,
+    var(--sky) 78%,
+    transparent 100%
+  );
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* 悬停流光扫掠（配合 .hud-card / .chip-gold 使用）
+   注意：本类不声明 position，宿主元素请自行加 relative/absolute，
+   以免"未分层 CSS 覆盖 Tailwind 工具类"导致定位失效。 */
+.fx-shimmer {
+  overflow: hidden;
+}
+.fx-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 42%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.65) 45%,
+    rgba(246, 208, 138, 0.5) 55%,
+    transparent 100%
+  );
+  transform: translateX(-140%);
+  pointer-events: none;
+}
+.fx-shimmer:hover::after {
+  animation: shimmer-sweep 0.9s var(--ease-game);
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-140%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+/* 兼容 .card-saas 并对齐现代工业 SaaS 规范 */
 .card-saas {
   background: #FFFFFF;
   border: 1px solid rgba(226, 232, 240, 0.85);
@@ -437,6 +698,32 @@ select:focus {
   transform: translateY(1px);
 }
 
+/* 发光胶囊按钮（金色黎明）：游戏化主行动点 */
+.btn-gold {
+  position: relative;
+  background: linear-gradient(135deg, var(--gold-soft) 0%, var(--gold) 48%, #D98F2B 100%);
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 4px 14px -4px var(--gold-glow),
+    0 1px 3px rgba(15, 23, 42, 0.08);
+  transition: all var(--dur-base) var(--ease-game);
+}
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 12px 26px -8px rgba(232, 163, 61, 0.5),
+    0 0 0 1px rgba(232, 163, 61, 0.4);
+}
+.btn-gold:active {
+  transform: translateY(0);
+}
+
 /* 五、图标：科技底托 */
 .icon-tile {
   width: 48px;
@@ -491,6 +778,12 @@ select:focus {
   border-color: rgba(99, 102, 241, 0.25);
   color: #6366f1;
 }
+/* 金色底托（新增） */
+.icon-tile-gold {
+  background: linear-gradient(135deg, rgba(246, 208, 138, 0.30) 0%, rgba(232, 163, 61, 0.14) 100%);
+  border-color: rgba(232, 163, 61, 0.35);
+  color: var(--gold-deep);
+}
 
 /* 六、数据卡片：发光顶线与底线 */
 .data-card {
@@ -531,10 +824,12 @@ select:focus {
   line-height: 1.2;
 }
 
-/* 轻量强调（不再使用发光） */
-.glow-blue,
+/* 轻量强调：柔和彩色微光（明亮主题下的小面积辉光，不做霓虹） */
+.glow-blue {
+  box-shadow: 0 8px 22px -10px rgba(37, 99, 235, 0.35) !important;
+}
 .glow-cyan {
-  box-shadow: var(--soft-shadow) !important;
+  box-shadow: 0 8px 22px -10px var(--cyan-glow) !important;
 }
 
 /* 步骤条连接线 */
@@ -588,21 +883,385 @@ select:focus {
   animation-play-state: paused;
 }
 
-/* 3D 数字人蓝青声波柱动画 */
-@keyframes tech-wave-pulse {
-  0%, 100% {
+/* ==========================================================================
+   八、次世代游戏化增强层（Bright Game-HUD）
+   —— 以下为本轮新增：发光胶囊芯片 / 声波仪 / 流光轨迹 / 呼吸脉冲 / 时光长卷
+   ========================================================================== */
+
+/* 8.1 游戏交互胶囊芯片（Game Action Chips）
+   香槟金 → 天青渐变描边 + 内发光 + 悬停浮起，用于推荐问句 / 快捷动作 */
+.chip-gold,
+.chip-cyan {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.44rem 0.95rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    transform var(--dur-base) var(--ease-game),
+    box-shadow var(--dur-base) var(--ease-game),
+    border-color var(--dur-base) var(--ease-game),
+    background-color var(--dur-base) var(--ease-game);
+}
+
+.chip-gold {
+  color: #8A5410 !important;
+  background: linear-gradient(135deg, rgba(255, 252, 244, 0.95) 0%, rgba(254, 243, 214, 0.92) 100%);
+  border: 1px solid rgba(232, 163, 61, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 8px -4px var(--gold-glow);
+}
+.chip-gold:hover {
+  transform: translateY(-2px);
+  border-color: rgba(232, 163, 61, 0.75);
+  background: linear-gradient(135deg, #FFFDF8 0%, #FDF0D2 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 10px 22px -8px rgba(232, 163, 61, 0.45),
+    0 0 0 1px rgba(232, 163, 61, 0.30);
+}
+
+.chip-cyan {
+  color: #0B5E7A !important;
+  background: linear-gradient(135deg, rgba(247, 253, 255, 0.95) 0%, rgba(224, 246, 254, 0.92) 100%);
+  border: 1px solid rgba(14, 165, 233, 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 8px -4px var(--cyan-glow);
+}
+.chip-cyan:hover {
+  transform: translateY(-2px);
+  border-color: rgba(14, 165, 233, 0.7);
+  background: linear-gradient(135deg, #F8FDFF 0%, #DDF3FE 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 10px 22px -8px rgba(14, 165, 233, 0.42),
+    0 0 0 1px rgba(14, 165, 233, 0.28);
+}
+
+/* 8.2 微透游戏对话气泡 */
+.bubble-frost {
+  position: relative;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 8px 22px -14px rgba(15, 23, 42, 0.16);
+}
+.bubble-frost-user {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.96) 0%, rgba(14, 165, 233, 0.94) 100%);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #FFFFFF !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 24px -12px rgba(37, 99, 235, 0.5);
+}
+
+/* 8.3 拟物磨砂悬浮操作底栏 */
+.hud-bar {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: var(--radius-pill);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 -2px 10px -6px rgba(15, 23, 42, 0.08),
+    0 14px 34px -16px rgba(15, 23, 42, 0.22),
+    0 0 0 1px rgba(232, 163, 61, 0.14);
+}
+
+/* 8.4 金色 / 天青动态声波仪（Dynamic Audio Waveform HUD）
+   原 .wave-bar-* 为蓝青细柱，升级为金→青渐变、更高幅度、更弹的律动 */
+.wave-bar-1,
+.wave-bar-2,
+.wave-bar-3,
+.wave-bar-4,
+.wave-bar-5 {
+  background-image: linear-gradient(180deg, var(--gold-soft) 0%, var(--gold) 52%, var(--sky) 100%);
+  box-shadow: 0 0 6px -1px var(--gold-glow);
+}
+
+@keyframes waveform-bounce {
+  0%,
+  100% {
     height: 5px;
-    opacity: 0.6;
+    opacity: 0.55;
   }
   50% {
-    height: 20px;
+    height: 24px;
     opacity: 1;
   }
 }
 
-.wave-bar-1 { animation: tech-wave-pulse 0.75s ease-in-out infinite; }
-.wave-bar-2 { animation: tech-wave-pulse 0.6s ease-in-out infinite 0.15s; }
-.wave-bar-3 { animation: tech-wave-pulse 0.9s ease-in-out infinite 0.3s; }
-.wave-bar-4 { animation: tech-wave-pulse 0.7s ease-in-out infinite 0.1s; }
-.wave-bar-5 { animation: tech-wave-pulse 0.85s ease-in-out infinite 0.25s; }
+.wave-bar-1 { animation: waveform-bounce 0.78s ease-in-out infinite; }
+.wave-bar-2 { animation: waveform-bounce 0.62s ease-in-out infinite 0.14s; }
+.wave-bar-3 { animation: waveform-bounce 0.92s ease-in-out infinite 0.28s; }
+.wave-bar-4 { animation: waveform-bounce 0.7s ease-in-out infinite 0.09s; }
+.wave-bar-5 { animation: waveform-bounce 0.86s ease-in-out infinite 0.22s; }
 
+/* 8.4b 数字人呼吸与眨眼
+   补齐历史遗漏：DigitalHumanAvatar 的 2D 立绘长期以内联 style 引用
+   digital-human-breath / .avatar-eyes，但这两个 keyframes 在源码与旧产物中均未定义，
+   导致"呼吸 / 眨眼"动画实际从未生效。此处正式定义，恢复设计意图。 */
+@keyframes digital-human-breath {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(232, 163, 61, 0));
+  }
+  50% {
+    transform: scale(1.035);
+    filter: drop-shadow(0 0 14px rgba(232, 163, 61, 0.30));
+  }
+}
+
+@keyframes avatar-eyes-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.08);
+  }
+}
+
+.avatar-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: avatar-eyes-blink 5.2s ease-in-out infinite;
+}
+
+/* 8.5 全息科技光环 / 立绘底托（数字人剧场） */
+.hud-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 55%,
+    rgba(246, 208, 138, 0.30) 0%,
+    rgba(14, 165, 233, 0.16) 42%,
+    transparent 70%
+  );
+  filter: blur(6px);
+}
+
+.hud-pedestal {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(246, 208, 138, 0.34) 0%, transparent 68%),
+    linear-gradient(180deg, transparent 0%, rgba(14, 165, 233, 0.10) 100%);
+  border-bottom: 2px solid rgba(232, 163, 61, 0.42);
+  box-shadow: 0 10px 30px -14px var(--gold-glow);
+}
+
+/* 8.6 流光轨迹（Glowing Flow Routes）—— 供 SVG 巡检/物料路径使用 */
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.flow-line {
+  stroke-dasharray: 16 24;
+  stroke-linecap: round;
+  animation: flow-dash 9s linear infinite;
+}
+.flow-line-slow {
+  animation-duration: 16s;
+}
+.flow-line-fast {
+  animation-duration: 5.5s;
+}
+.flow-glow {
+  filter: drop-shadow(0 0 4px var(--gold-glow)) drop-shadow(0 0 8px var(--cyan-glow));
+}
+
+/* 8.7 呼吸脉冲地标锚点（Pulse Rings）—— 同心圆扩散 */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.8;
+  }
+  70% {
+    opacity: 0.12;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+.pulse-ring {
+  transform-origin: center;
+  animation: pulse-ring 2.8s var(--ease-game) infinite;
+}
+.pulse-ring-2 {
+  animation-delay: 0.9s;
+}
+.pulse-ring-3 {
+  animation-delay: 1.8s;
+}
+
+/* 8.8 底部时光长卷（Time Horizon Scroll） */
+.timeline-scroll {
+  position: relative;
+  display: flex;
+  gap: 1.75rem;
+  overflow-x: auto;
+  padding: 0.75rem 0.25rem 0.5rem;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%);
+}
+.timeline-scroll::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 1.09rem;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold) 18%, var(--sky) 82%, transparent);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.timeline-node {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+.timeline-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 0 3px rgba(246, 208, 138, 0.28);
+  transition: all var(--dur-base) var(--ease-game);
+  z-index: 1;
+}
+.timeline-node:hover .timeline-dot,
+.timeline-node-active .timeline-dot {
+  transform: scale(1.25);
+  background: var(--gold);
+  box-shadow: 0 0 0 5px rgba(246, 208, 138, 0.35), 0 0 12px var(--gold-glow);
+}
+.timeline-node-active .timeline-label {
+  color: var(--gold-deep);
+  font-weight: 700;
+}
+.timeline-label {
+  font-size: 0.6875rem;
+  color: var(--text-hint);
+  white-space: nowrap;
+}
+
+/* 8.9 场景化明亮底图与氛围层（纯 CSS 程序化，不引入任何外部图片资源）
+   注意：.fx-hex 不声明 position，宿主元素需自带 relative/absolute + overflow-hidden。 */
+.fx-hex {
+  isolation: isolate;
+}
+.fx-hex::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.05) 1px, transparent 1px),
+    linear-gradient(60deg, rgba(232, 163, 61, 0.035) 1px, transparent 1px),
+    linear-gradient(-60deg, rgba(232, 163, 61, 0.035) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 40px 40px, 40px 40px;
+  mask-image: radial-gradient(circle at 50% 45%, #000 0%, rgba(0, 0, 0, 0.55) 55%, transparent 82%);
+  -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 0%, rgba(0, 0, 0, 0.55) 55%, transparent 82%);
+}
+
+/* 晨曦微光粒子（缓慢上浮） */
+.fx-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(circle, rgba(232, 163, 61, 0.55) 0 1.5px, transparent 2.2px),
+    radial-gradient(circle, rgba(14, 165, 233, 0.45) 0 1.2px, transparent 1.9px),
+    radial-gradient(circle, rgba(251, 191, 36, 0.40) 0 1px, transparent 1.6px);
+  background-size: 130px 130px, 190px 190px, 260px 260px;
+  background-position: 0 0, 60px 90px, 120px 40px;
+  animation: particle-float 26s linear infinite;
+  opacity: 0.55;
+}
+
+@keyframes particle-float {
+  0% {
+    background-position: 0 0, 60px 90px, 120px 40px;
+  }
+  100% {
+    background-position: 0 -130px, 60px -100px, 120px -220px;
+  }
+}
+
+/* 环境景深漫反射光晕（极缓慢漂移的"晨昏"） */
+.fx-bloom {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(46% 38% at 22% 26%, rgba(246, 208, 138, 0.30) 0%, transparent 70%),
+    radial-gradient(42% 36% at 78% 20%, rgba(14, 165, 233, 0.22) 0%, transparent 70%),
+    radial-gradient(50% 42% at 55% 88%, rgba(129, 140, 248, 0.18) 0%, transparent 72%);
+  filter: blur(10px);
+  animation: aurora-drift 34s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(-3%, 2.5%, 0) scale(1.08);
+  }
+}
+
+/* 8.10 无障碍：尊重系统"减少动态效果"偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .fx-particles,
+  .fx-bloom,
+  .animate-marquee,
+  .pulse-ring,
+  .flow-line,
+  .wave-bar-1,
+  .wave-bar-2,
+  .wave-bar-3,
+  .wave-bar-4,
+  .wave-bar-5,
+  [class*="animate-ping"] {
+    animation: none !important;
+  }
+  .glass-card,
+  .hud-card,
+  .chip-gold,
+  .chip-cyan,
+  .btn-gold {
+    transition: none !important;
+  }
+}
