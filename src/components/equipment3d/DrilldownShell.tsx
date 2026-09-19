@@ -1,12 +1,11 @@
 // 五层下钻壳：全国地图(map) → 城市(city) → 厂区/车间/设备(factory，委托既有 Equipment3DView)。
-// - URL 深链：?view=equipment_3d&level=city&factory=factory_gz（level=map 可省略）
-// - 统一舞台：三层共用 fixed inset-x-0 top-[100px] bottom-0 容器（保留左侧菜单与顶栏），
-//   面板 leftInset 避开侧边栏；舞台底色 #0b1220 与车间层一致。
-// - 层间过渡：1.5-2s 交叉淡入淡出（easeInOutCubic + 轻微 scale 收敛模拟相机俯冲），
-//   旧层淡出期间保持挂载，动画结束再卸载，避免硬切"跳一下"。
+// - 布局：壳根节点为常规文档流内的 relative 容器（填充 main 内容区），
+//   三层均以 absolute inset-0 填充壳内——与其他页面一致，
+//   侧边栏与顶栏天然不被遮挡（不再使用 fixed 全屏覆盖）。
+// - 层间过渡：1.6s 交叉淡入淡出（easeInOutCubic + 轻微 scale 收敛模拟相机俯冲）。
 // - 面包屑：全国地图 → XX市 → XX工厂（车间/设备层级由 ProductionHUD 内部面包屑承接）。
 // 数据纪律：厂区名/城市名来自 /api/v1/factories 真实接口。
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { factoryApi, type FactorySummary } from "../../api/factoryApi";
 import { MapOverviewView } from "./MapOverview";
 import { CityOverviewView } from "./CityOverview";
@@ -29,25 +28,9 @@ function parseLevelFromUrl(): DrillLevel {
 export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: string | null }) {
   const [level, setLevel] = useState<DrillLevel>(() => parseLevelFromUrl());
   const [factory, setFactory] = useState<FactorySummary | null>(null);
-  const [leftInset, setLeftInset] = useState(0);
   // 过渡状态：displayLevel 为当前渲染层；transition.from 为淡出中的旧层
   const [displayLevel, setDisplayLevel] = useState<DrillLevel>(() => parseLevelFromUrl());
   const [transition, setTransition] = useState<{ from: DrillLevel } | null>(null);
-
-  // 大屏面板避开应用侧边栏：以 main 内容区左缘为准（侧边栏折叠时自动跟随）
-  useEffect(() => {
-    const main = document.querySelector("main");
-    if (!main) return;
-    const measure = () => setLeftInset(main.getBoundingClientRect().x);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(main);
-    window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, []);
 
   // 层切换 → 交叉淡入淡出过渡（旧层淡出、新层淡入，TRANSITION_MS 后卸载旧层）
   useEffect(() => {
@@ -120,8 +103,8 @@ export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: 
 
   const stageOf = (lvl: DrillLevel, keyPrefix: string) => (
     <div key={`${keyPrefix}-${lvl}`} className="absolute inset-0">
-      {lvl === "map" && <MapOverviewView leftInset={leftInset} onDrillCity={drillCity} />}
-      {lvl === "city" && <CityOverviewView leftInset={leftInset} factory={factory} onEnterFactory={enterFactory} />}
+      {lvl === "map" && <MapOverviewView onDrillCity={drillCity} />}
+      {lvl === "city" && <CityOverviewView factory={factory} onEnterFactory={enterFactory} />}
       {lvl === "factory" && <Equipment3DView initialWorkOrderId={initialWorkOrderId} />}
     </div>
   );
@@ -133,12 +116,11 @@ export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: 
   ];
 
   return (
-    <div className="fixed inset-0">
-      {/* 顶栏与舞台之间的深色过渡带（消除下层页面透出的白色内容） */}
-      <div className="absolute left-0 right-0 top-[56px] h-[44px] bg-[#0b1220]" style={{ left: leftInset }} />
-
-      {/* 统一舞台：与厂区层相同的固定容器，三层共用；底色与车间层深色科技蓝一致 */}
-      <div className="fixed inset-x-0 bottom-0 top-[100px] overflow-hidden bg-[#0b1220]">
+    /* 常规文档流内的 relative 容器：填充 main 内容区（flex-1），
+     * 侧边栏/顶栏由 App 正常布局承载，绝不被 3D 层覆盖 */
+    <div className="relative h-full min-h-[620px] w-full">
+      {/* 统一舞台：三层共用；深色科技蓝渐变底（与车间层风格一致，非纯黑） */}
+      <div className="dd-sky absolute inset-0 overflow-hidden rounded-lg border border-white/10">
         {transition && (
           <div className="dd-stage-leaving absolute inset-0">{stageOf(transition.from, "leaving")}</div>
         )}
@@ -148,7 +130,7 @@ export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: 
       </div>
 
       {/* 顶部面包屑（车间/设备层级由 ProductionHUD 内部面包屑承接） */}
-      <div className="absolute left-1/2 top-[60px] z-40 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-cyan-400/30 bg-[rgba(8,15,30,0.85)] px-2 py-1.5 text-xs backdrop-blur">
+      <div className="absolute left-1/2 top-3 z-40 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-cyan-400/30 bg-[rgba(8,15,30,0.85)] px-2 py-1.5 text-xs backdrop-blur">
         {crumbs.map((c, i) => (
           <span key={c.level} className="flex items-center gap-1">
             {i > 0 && <span className="text-slate-600">›</span>}

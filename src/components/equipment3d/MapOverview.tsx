@@ -9,11 +9,11 @@ import { factoryApi, type FactoryGeoSummary, type FactorySummary } from "../../a
 import { workOrderApi } from "../../api";
 import type { WorkOrder } from "../../types";
 import {
-  MAP_BG,
   buildBorderLines,
   buildFillMesh,
   buildMapGround,
   createDampedOrbit,
+  createFlowDots,
   createLightPillar,
   projectLngLat,
   statusDotColor,
@@ -92,8 +92,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
     const host = hostRef.current;
     if (!host) return;
     let disposed = false;
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setClearColor(MAP_BG);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(host.clientWidth, host.clientHeight);
     host.appendChild(renderer.domElement);
@@ -101,16 +100,15 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
     renderer.domElement.style.touchAction = "none";
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(MAP_BG, 0.0075);
+    scene.fog = new THREE.FogExp2(0x0c1a30, 0.0075);
     const camera = new THREE.PerspectiveCamera(55, host.clientWidth / host.clientHeight, 0.1, 600);
 
     // 地面网格 + 全国轮廓（线框 + 深色半透明填充）
     scene.add(buildMapGround(160));
-    const fill = buildFillMesh(CHINA_FILL_RINGS, { color: 0x0e2033, opacity: 0.82, center: CHINA_CENTER, scale: CHINA_SCALE });
-    const border = buildBorderLines(CHINA_LINE_RINGS, { color: 0x36d3f0, opacity: 0.5, center: CHINA_CENTER, scale: CHINA_SCALE });
-    const innerBorder = buildBorderLines(CHINA_LINE_RINGS, { color: 0x0b2c44, opacity: 0.9, center: CHINA_CENTER, scale: CHINA_SCALE });
-    innerBorder.position.y = -0.002;
-    scene.add(fill, border, innerBorder);
+    const fill = buildFillMesh(CHINA_FILL_RINGS, { color: 0x12283f, opacity: 0.94, center: CHINA_CENTER, scale: CHINA_SCALE, depth: 0.55 });
+    const border = buildBorderLines(CHINA_LINE_RINGS, { color: 0x36d3f0, opacity: 0.55, center: CHINA_CENTER, scale: CHINA_SCALE });
+    border.position.y = 0.6;
+    scene.add(fill, border);
 
     // 相机：开场从高空俯冲拉近（指数阻尼），等距俯视
     const orbit = createDampedOrbit(camera, renderer.domElement, {
@@ -136,12 +134,16 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
           const isMain = !f.isDemo;
           const pillar = createLightPillar({ height: isMain ? 9 : 5.2, radius: isMain ? 0.85 : 0.6 });
           const [px, pz] = projectLngLat(f.geo.lng, f.geo.lat, CHINA_CENTER, CHINA_SCALE);
-          pillar.group.position.set(px, 0.02, pz);
+          pillar.group.position.set(px, 0.55, pz);
           pillarGroup.add(pillar.group);
           pillars.push({ factory: f, pillar });
         }
       })
       .catch(() => {});
+
+    // 移动光点流（人车流动画，全国域巡游）
+    const flow = createFlowDots(14, { minX: -26, maxX: 26, minZ: -20, maxZ: 12 });
+    scene.add(flow.group);
 
     // hover 拾取（光柱）
     const raycaster = new THREE.Raycaster();
@@ -178,6 +180,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
       const t = clock3d.elapsedTime;
       orbit.update(dt);
       for (const p of pillars) p.pillar.update(t);
+      flow.update(dt);
 
       if (pointerDirty) {
         pointerDirty = false;
@@ -222,12 +225,12 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
       orbit.dispose();
       for (const p of pillars) p.pillar.dispose();
       pillars = [];
+      flow.dispose();
       fill.traverse((o) => {
         const m = o as THREE.Mesh;
         m.geometry?.dispose?.();
       });
       border.geometry.dispose();
-      innerBorder.geometry.dispose();
       renderer.dispose();
       host.querySelectorAll("canvas").forEach((c) => c.remove());
     };
@@ -243,11 +246,11 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
     : null;
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#0b1220]">
+    <div className="dd-sky absolute inset-0 overflow-hidden">
       <div ref={hostRef} className="absolute inset-0" />
       <div className="absolute inset-0 z-20 pointer-events-none select-none">
         {/* 顶部中央 tab：数据统计 / 工厂总览 / 智慧安防（下移避开下钻壳面包屑） */}
-        <div className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2 flex gap-1 rounded-lg border border-cyan-400/25 bg-[rgba(8,15,30,0.72)] px-1 py-1 backdrop-blur">
+        <div className="pointer-events-auto absolute left-1/2 top-14 -translate-x-1/2 flex gap-1 rounded-lg border border-cyan-400/25 bg-[rgba(8,15,30,0.72)] px-1 py-1 backdrop-blur">
           {["数据统计", "工厂总览", "智慧安防"].map((t) => (
             <button
               key={t}
@@ -273,7 +276,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
             ))}
           </div>
 
-          <div className="pointer-events-auto hud-data-card rounded-lg p-3">
+          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
             <div className="text-[11px] tracking-widest text-cyan-300/80">总体运营指标 · 设备总数</div>
             <div className="hud-value-glow hud-tabular-nums mt-1 text-4xl font-semibold text-cyan-100">
               {summary ? summary.totals.equipmentCount : "—"}
@@ -285,7 +288,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
             </div>
           </div>
 
-          <div className="pointer-events-auto hud-data-card rounded-lg px-3 py-2 text-xs">
+          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg px-3 py-2 text-xs">
             {[
               ["工业研发投入"],
               ["加工总量"],
@@ -306,7 +309,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
               { title: "工厂分布", value: summary ? `${summary.totals.factoryCount}` : null, unit: "个厂区", yoy: null },
               { title: "24h 设备运行", value: runRate != null ? `${runRate}` : null, unit: "%", yoy: null },
             ].map((card) => (
-              <div key={card.title} className="hud-data-card rounded-lg p-2.5">
+              <div key={card.title} className="hud-data-card dd-hud-card rounded-lg p-2.5">
                 <div className="text-[11px] text-slate-400">{card.title}</div>
                 <div className="mt-1 flex items-baseline gap-1">
                   {card.value != null ? (
@@ -326,7 +329,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
 
         {/* 右侧数据面板 */}
         <div className="absolute right-3 top-3 bottom-3 flex w-[300px] flex-col gap-2">
-          <div className="pointer-events-auto hud-data-card rounded-lg p-3">
+          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
             <div className="flex items-baseline justify-between">
               <span className="text-lg font-semibold text-cyan-100">{greetWord(clock.getHours())}</span>
               <span className="hud-tabular-nums text-xs text-slate-300">
@@ -335,7 +338,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
             </div>
           </div>
 
-          <div className="pointer-events-auto hud-data-card rounded-lg p-3">
+          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
             <div className="text-[11px] tracking-widest text-cyan-300/80">今日异常</div>
             <div className="mt-1 flex items-baseline gap-4">
               <div>
@@ -349,7 +352,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
             </div>
           </div>
 
-          <div className="pointer-events-auto hud-data-card rounded-lg p-3">
+          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] tracking-widest text-cyan-300/80">工业产值</span>
               <NotConnected label="工业产值" />
@@ -357,7 +360,7 @@ export function MapOverviewView({ leftInset = 0, onDrillCity }: { leftInset?: nu
             <div className="mt-2 text-[11px] text-slate-500">柱状图（近 7 天时序）未接入</div>
           </div>
 
-          <div className="pointer-events-auto hud-data-card rounded-lg p-3">
+          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] tracking-widest text-cyan-300/80">工业产出增长率</span>
               <NotConnected label="工业产出增长率" />

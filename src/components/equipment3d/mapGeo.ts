@@ -28,13 +28,15 @@ export function buildBorderLines(
   return new THREE.LineSegments(geo, mat);
 }
 
-/** 填充环 → 一组水平填充面（深色半透明） */
+/** 填充环 → 立体台地（ExtrudeGeometry 挤出厚度，侧壁深色，形成地形起伏感） */
 export function buildFillMesh(
   rings: [number, number][][],
-  opts: { color: number; opacity: number; center?: [number, number]; scale?: number }
+  opts: { color: number; opacity: number; center?: [number, number]; scale?: number; depth?: number }
 ): THREE.Group {
   const group = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color: opts.color, transparent: true, opacity: opts.opacity, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+  const depth = opts.depth ?? 0.5;
+  const topMat = new THREE.MeshBasicMaterial({ color: opts.color, transparent: true, opacity: opts.opacity, side: THREE.DoubleSide, depthWrite: true, toneMapped: false });
+  const sideMat = new THREE.MeshBasicMaterial({ color: 0x091728, transparent: true, opacity: 0.95, toneMapped: false });
   for (const ring of rings) {
     const shape = new THREE.Shape();
     ring.forEach(([lng, lat], i) => {
@@ -43,10 +45,10 @@ export function buildFillMesh(
       if (i === 0) shape.moveTo(x, -z);
       else shape.lineTo(x, -z);
     });
-    const geo = new THREE.ShapeGeometry(shape);
-    const mesh = new THREE.Mesh(geo, mat);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+    const mesh = new THREE.Mesh(geo, [topMat, sideMat]);
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.y = 0.005;
+    mesh.position.y = 0;
     group.add(mesh);
   }
   return group;
@@ -105,6 +107,71 @@ export function makeTextSprite(title: string, sub?: string, accent = "#67e8f9", 
   return sprite;
 }
 
+/** 径向渐变辉光贴图（光柱底座光晕 / 精致发光效果共用） */
+export function makeGlowTexture(inner = "rgba(103,232,249,0.85)", outer = "rgba(34,211,238,0)"): THREE.CanvasTexture {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, inner);
+  grad.addColorStop(0.45, "rgba(56,189,248,0.35)");
+  grad.addColorStop(1, outer);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 移动光点流（人车流动画：地图区域内匀速巡游的发光小点） */
+export interface FlowDots {
+  group: THREE.Group;
+  update: (dt: number) => void;
+  dispose: () => void;
+}
+
+export function createFlowDots(
+  count: number,
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
+  color = 0x67e8f9
+): FlowDots {
+  const group = new THREE.Group();
+  const geo = new THREE.SphereGeometry(0.16, 8, 6);
+  const mat = new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const dots: { mesh: THREE.Mesh; target: THREE.Vector2; speed: number }[] = [];
+  const pick = () => new THREE.Vector2(bounds.minX + Math.random() * (bounds.maxX - bounds.minX), bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ));
+  for (let i = 0; i < count; i++) {
+    const mesh = new THREE.Mesh(geo, mat);
+    const start = pick();
+    mesh.position.set(start.x, 0.85, start.y);
+    group.add(mesh);
+    dots.push({ mesh, target: pick(), speed: 4 + Math.random() * 5 });
+  }
+  return {
+    group,
+    update: (dt: number) => {
+      for (const d of dots) {
+        const dx = d.target.x - d.mesh.position.x;
+        const dz = d.target.y - d.mesh.position.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 0.6) {
+          d.target = pick();
+          continue;
+        }
+        d.mesh.position.x += (dx / dist) * d.speed * dt;
+        d.mesh.position.z += (dz / dist) * d.speed * dt;
+      }
+    },
+    dispose: () => {
+      geo.dispose();
+      mat.dispose();
+      group.clear();
+    },
+  };
+}
+
 export interface LightPillar {
   group: THREE.Group;
   hitMesh: THREE.Mesh;
@@ -157,6 +224,14 @@ export function createLightPillar(opts: { height: number; radius: number; accent
   baseRing.rotation.x = -Math.PI / 2;
   baseRing.position.y = 0.02;
   group.add(baseRing);
+
+  // 底座辉光贴片（径向渐变 sprite，精致发光效果）
+  const glowTex = makeGlowTexture();
+  const glowMat = new THREE.SpriteMaterial({ map: glowTex, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const glow = new THREE.Sprite(glowMat);
+  glow.scale.set(radius * 7, radius * 7, 1);
+  glow.position.y = 0.35;
+  group.add(glow);
 
   // 拾取用透明柱（比可见柱粗，hover 命中稳定）。
   // 注意：不用 visible:false —— 部分 three 版本拾取会跳过不可见对象；

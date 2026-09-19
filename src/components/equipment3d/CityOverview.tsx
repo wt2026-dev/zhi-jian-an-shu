@@ -5,11 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { factoryApi, type FactorySummary } from "../../api/factoryApi";
 import {
-  MAP_BG,
   buildBorderLines,
   buildFillMesh,
   buildMapGround,
   createDampedOrbit,
+  createFlowDots,
   createLightPillar,
   makeTextSprite,
   projectLngLat,
@@ -68,8 +68,7 @@ export function CityOverviewView({
     const view = PROVINCE_VIEW_BY_CODE[code];
     let disposed = false;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setClearColor(MAP_BG);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(host.clientWidth, host.clientHeight);
     host.appendChild(renderer.domElement);
@@ -77,13 +76,18 @@ export function CityOverviewView({
     renderer.domElement.style.touchAction = "none";
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(MAP_BG, 0.016);
+    scene.fog = new THREE.FogExp2(0x0c1a30, 0.016);
     const camera = new THREE.PerspectiveCamera(55, host.clientWidth / host.clientHeight, 0.1, 600);
 
     scene.add(buildMapGround(120));
-    const fill = buildFillMesh(view.fill, { color: 0x0e2033, opacity: 0.85, center: view.center, scale: view.scale });
+    const fill = buildFillMesh(view.fill, { color: 0x12283f, opacity: 0.94, center: view.center, scale: view.scale, depth: 0.55 });
     const border = buildBorderLines(view.line, { color: 0x36d3f0, opacity: 0.55, center: view.center, scale: view.scale });
+    border.position.y = 0.6;
     scene.add(fill, border);
+
+    // 移动光点流（人车流动画）
+    const flow = createFlowDots(10, { minX: -18, maxX: 18, minZ: -14, maxZ: 14 });
+    scene.add(flow.group);
 
     // 开场俯冲：高空 → 城市取景
     const orbit = createDampedOrbit(camera, renderer.domElement, {
@@ -107,7 +111,7 @@ export function CityOverviewView({
       for (const f of list) {
         const pillar = createLightPillar({ height: f.isDemo ? 4.5 : 6.5, radius: 0.7 });
         const [px, pz] = projectLngLat(f.geo.lng, f.geo.lat, view.center, view.scale);
-        pillar.group.position.set(px, 0.02, pz);
+        pillar.group.position.set(px, 0.55, pz);
         pillarGroup.add(pillar.group);
         const label = makeTextSprite(
           f.name,
@@ -156,6 +160,7 @@ export function CityOverviewView({
       const t = clock3d.elapsedTime;
       orbit.update(dt);
       for (const p of pillars) p.pillar.update(t);
+      flow.update(dt);
       if (pointerDirty) {
         pointerDirty = false;
         raycaster.setFromCamera(pointer, camera);
@@ -195,6 +200,7 @@ export function CityOverviewView({
       orbit.dispose();
       for (const p of pillars) p.pillar.dispose();
       pillars = [];
+      flow.dispose();
       labelGroup.traverse((o) => {
         const s = o as THREE.Sprite;
         s.material?.map?.dispose?.();
@@ -223,12 +229,12 @@ export function CityOverviewView({
     : null;
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#0b1220]">
+    <div className="dd-sky absolute inset-0 overflow-hidden">
       <div ref={hostRef} className="absolute inset-0" />
       <div className="absolute inset-0 z-20 pointer-events-none select-none">
         {/* 左侧工厂列表（leftInset 避开应用侧边栏） */}
         <div className="absolute top-3 w-[280px]" style={{ left: leftInset + 12 }}>
-          <div className="pointer-events-auto hud-data-card rounded-lg p-3">
+          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
             <div className="text-[11px] tracking-widest text-cyan-300/80">{city || "—"} · 工厂列表</div>
             <div className="mt-2 space-y-1.5">
               {cityFactories.length === 0 && <div className="py-4 text-center text-xs text-slate-500">加载中…</div>}
@@ -252,7 +258,7 @@ export function CityOverviewView({
 
         {/* 右侧城市运营面板 */}
         <div className="absolute right-3 top-3 w-[280px]">
-          <div className="pointer-events-auto hud-data-card rounded-lg p-3">
+          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
             <div className="text-[11px] tracking-widest text-cyan-300/80">{city || "—"} · 城市运营</div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <div>
