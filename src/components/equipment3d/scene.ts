@@ -43,8 +43,12 @@ import {
   FactoryOverview,
   defaultBuildingSpecs,
   type FactoryBuildingSpec,
+  type FactoryZoneSpec,
+  type FactoryZoneView,
+  type FactoryRankMetric,
 } from './factoryOverview';
 import { FaultLocator, type FaultAnchor } from './faultLocator';
+import { FocusSceneDecor, type FocusDecorData, type FocusDecorBox } from './focusSceneDecor';
 
 /**
  * 场景层级：厂区总览 → 车间生产线 → 单设备聚焦（对标参考视频 r1/r2/r3）。
@@ -54,10 +58,11 @@ import { FaultLocator, type FaultAnchor } from './faultLocator';
  */
 export type SceneLevel = 'factory' | 'workshop' | 'device';
 
-/** 统一拾取结果：厂房 / 机械臂工作站 / 台账设备三选一。 */
+/** 统一拾取结果：分区地块 / 厂房 / 机械臂工作站 / 台账设备 四选一。 */
 export type ScenePickResult =
   | { kind: 'device'; id: string; index: number }
   | { kind: 'building'; buildingId: string; name: string; workshopId: string }
+  | { kind: 'zone'; zoneId: string; name: string }
   | { kind: 'station'; stationId: number; code: string; deviceId: string | null };
 
 export type ViewKey = 'orbit' | 'overhead' | 'iso' | 'closeup';
@@ -131,6 +136,8 @@ export class EquipmentScene {
   private lineGroup = new THREE.Group();
   /** 故障部位定位标 */
   private faultGroup = new THREE.Group();
+  /** 单设备聚焦层 · 检修作业现场（纯加法：进入聚焦层挂载，退出即整体卸载） */
+  private focusDecorGroup = new THREE.Group();
   fluidFlow: FluidFlowSystem;
 
   // ---- 三级层级（厂区 / 车间 / 单设备）----
@@ -138,6 +145,8 @@ export class EquipmentScene {
   productionLine: ProductionLine | null = null;
   /** 车间环境细节层（贴花/仪表/灯柱/工具柜等，纯加法，与产线同生命周期） */
   workshopDetails: WorkshopDetails | null = null;
+  /** 单设备聚焦层的检修作业现场（警戒带/人员/测点引线气泡/检修卡片/扫描环） */
+  focusDecor: FocusSceneDecor | null = null;
   faultLocator: FaultLocator;
   level: SceneLevel = 'workshop';
   /** 当前下钻的厂房 id（null = 未选择） */
@@ -347,6 +356,7 @@ export class EquipmentScene {
       this.factoryGroup,
       this.lineGroup,
       this.faultGroup,
+      this.focusDecorGroup,
       this.fluidFlow.points
     );
 
@@ -1996,14 +2006,18 @@ export class EquipmentScene {
    * 取景距离来自配方包围盒（boxById）：5# 是 9 米长的多级泵、14# 是 4 米长的电机，
    * 用统一的原型尺寸会让前者穿帮、后者过远。
    */
-  focusDevice(id: string): boolean {
+  /**
+   * @param targetY 可选取景中心高度（对准故障部位时传故障点 y）。
+   *                不传即按包围盒中心取景（整机居中）。
+   */
+  focusDevice(id: string, targetY?: number): boolean {
     const eq = this.equipment;
     const hall = this.hall;
     if (!eq || !hall) return false;
     const box = eq.boxById.get(id);
     if (!box) return false;
     this.focusedId = id;
-    this.frameIsolated(box);
+    this.frameIsolated(box, false, targetY);
     return true;
   }
 
@@ -2025,9 +2039,10 @@ export class EquipmentScene {
    *   并按相机 FOV 反解距离，让该设备占满画面约 75%，画面里只剩它一台。
    *
    * @param id 设备 id；传 null 退出独占，恢复 16 台 + 总览取景。
+   * @param targetY 可选取景中心高度（对准故障部位时传故障点 y）。
    * @returns 是否成功；id 不存在时返回 false，调用方据此回退到普通聚焦。
    */
-  setIsolation(id: string | null): boolean {
+  setIsolation(id: string | null, targetY?: number): boolean {
     const eq = this.equipment;
     if (!eq) return false;
 
@@ -2036,6 +2051,8 @@ export class EquipmentScene {
         eq.showAllDevices();
         this.isolationId = null;
         this.fluidFlow?.setIsolation(null);
+        // 退出聚焦层：检修作业现场整体卸载，绝不残留到车间/总览层
+        this.disposeFocusDecor();
         this.applyIsolationChrome(false);
         this.resetFocus();
         this.level = 'workshop';
@@ -2052,7 +2069,9 @@ export class EquipmentScene {
     this.focusedId = id;
     this.fluidFlow?.setIsolation(id);
     this.applyIsolationChrome(true);
-    this.frameIsolated(box);
+    this.frameIsolated(box, false, targetY);
+    // 挂载检修作业现场（警戒带 / 人员 / 工具车 / 警示牌 / 扫描环）
+    this.buildFocusDecor(box);
     this.level = 'device';
     this.onLevelChange?.('device', this.activeBuildingId);
     return true;
@@ -2100,7 +2119,7 @@ export class EquipmentScene {
    *   R ≥ p·u + max(|p·right| / (FILL·tanH), |p·up| / (FILL·tanV))
    * 对俯角、设备朝向、透视都成立。
    */
-  private frameIsolated(box: DeviceBoxInfo, preserveAngles = false): void {
+  private frameIsolated(box: DeviceBoxInfo, preserveAngles = false, targetY?: number): void {
     const o = this.orbit;
     const cam = this.camera;
     const vHalf = (cam.fov * Math.PI) / 360;
@@ -2140,6 +2159,11 @@ export class EquipmentScene {
     const hw = box.w / 2;
     const hd = box.d / 2;
     const yMid = box.h / 2;
+    // 取景中心相对包围盒中心的竖直偏移。
+    // 对准故障部位时 targetY 会高于盒心，此时**必须把角点也按新中心折算**，
+    // 否则沿用"整机居中"的半径会让设备下半截掉出画面（用户反馈"设备被裁一半"）。
+    const baseCenterY = box.centerY ?? box.y + yMid;
+    const dy = targetY === undefined ? 0 : targetY - baseCenterY;
     let need = 0;
     for (const lx of [-hw, hw]) {
       for (const ly of [0, box.h]) {
@@ -2147,7 +2171,7 @@ export class EquipmentScene {
           // 槽位旋转 → 相对目标的偏移
           const px = lx * ca + lz * sa;
           const pz = -lx * sa + lz * ca;
-          const py = ly - yMid;
+          const py = ly - yMid - dy;
           const pU = px * ux + py * uy + pz * uz;
           const pR = px * rx + pz * rz;
           const pUp = px * upx + py * upy + pz * upz;
@@ -2157,7 +2181,7 @@ export class EquipmentScene {
       }
     }
 
-    o.target.set(box.centerX ?? box.x, box.centerY ?? box.y + yMid, box.centerZ ?? box.z);
+    o.target.set(box.centerX ?? box.x, baseCenterY + dy, box.centerZ ?? box.z);
     // Fit must not inherit the previous device's clamp; keep zoom useful at device scale.
     o.minRadius = Math.max(cam.near * 2, Math.min(box.w, box.h, box.d) * 0.6);
     o.maxRadius = Math.max(need * 3, o.minRadius * 4);
@@ -2168,19 +2192,25 @@ export class EquipmentScene {
   }
   /* ========================= 三级层级：厂区 / 车间 / 单设备 ========================= */
 
-  /** 构建（或重建）厂区总览层。厂房清单来自调用方的真实分区数据。 */
-  buildFactory(specs?: FactoryBuildingSpec[]): void {
+  /**
+   * 构建（或重建）厂区总览层。
+   * 厂房清单 / 分区定义均来自调用方的真实数据（台账 workshop 去重等），本引擎不臆造。
+   */
+  buildFactory(specs?: FactoryBuildingSpec[], zones?: FactoryZoneSpec[], rankMetric?: FactoryRankMetric): void {
     this.disposeFactory();
     const list = specs && specs.length ? specs : defaultBuildingSpecs(4);
     const q = QUALITY[this.params.quality];
     this.factory = new FactoryOverview({
       seed: this.params.seed,
       buildings: list,
+      zones,
+      rankMetric,
       shadows: q.shadows,
       detail: q.detail,
     });
     this.factoryGroup.add(this.factory.group);
     this.factoryGroup.visible = this.level === 'factory';
+    this.dirty = true;
   }
 
   private disposeFactory(): void {
@@ -2190,13 +2220,59 @@ export class EquipmentScene {
     this.factory = null;
   }
 
+  /** 分区视图（大屏 HUD 消费：产值 / 故障率 / 健康分 / 排名 / 在建工程）。 */
+  factoryZones(): FactoryZoneView[] {
+    return this.factory?.zones ?? [];
+  }
+
+  /** 切换分区排名口径（产值 / 故障率 / 健康分）。 */
+  setFactoryRankMetric(metric: FactoryRankMetric): void {
+    this.factory?.setRankMetric(metric);
+  }
+
+  /**
+   * 选中某分区：地块高亮 + 标牌聚焦 + 相机取景到该分区。
+   * 传 null 取消选中（回到全园取景）。**不切换层级** —— 层级切换由点击厂房触发。
+   */
+  selectZone(zoneId: string | null): void {
+    const f = this.factory;
+    if (!f) return;
+    f.setActiveZone(zoneId);
+    if (zoneId) {
+      const box = f.boxOfZone(zoneId);
+      if (box) this.frameZone(box);
+    } else {
+      this.frameFactory();
+    }
+    this.dirty = true;
+  }
+
+  /** 按分区包围盒取景（复用厂区取景的同一套反解思路）。 */
+  private frameZone(box: { x: number; z: number; w: number; d: number; h: number }): void {
+    const o = this.orbit;
+    const vFov = (this.camera.fov * Math.PI) / 180;
+    const needZ = (box.d / 2) / Math.tan(vFov / 2);
+    const needX = (box.w / 2) / (Math.tan(vFov / 2) * Math.max(0.35, this.camera.aspect));
+    const need = Math.max(needX, needZ) * 1.5;
+    o.minRadius = 40;
+    o.maxRadius = 900;
+    o.radius = clamp(need, o.minRadius, o.maxRadius);
+    o.target.set(box.x, box.h * 0.4, box.z);
+    o.phi = clamp(0.95, o.minPhi, o.maxPhi);
+    this.dirty = true;
+  }
+
   /** 进入厂区总览。相机拉远到建筑群（阻尼插值 → 平滑过渡，非跳变）。 */
   enterFactoryLevel(): boolean {
     if (!this.factory) this.buildFactory();
     if (!this.factory) return false;
     this.level = 'factory';
     this.applyLevelVisibility();
-    this.frameFactory();
+    // 若此前选中了某分区，回到厂区层时保持该分区视角，不重置用户上下文
+    const active = this.factory.activeZone;
+    const box = active ? this.factory.boxOfZone(active) : null;
+    if (box) this.frameZone(box);
+    else this.frameFactory();
     this.onLevelChange?.('factory', this.activeBuildingId);
     return true;
   }
@@ -2242,7 +2318,7 @@ export class EquipmentScene {
     const vFov = (this.camera.fov * Math.PI) / 180;
     const needZ = halfZ / Math.tan(vFov / 2);
     const needX = halfX / (Math.tan(vFov / 2) * Math.max(0.35, this.camera.aspect));
-    const need = Math.max(needX, needZ) * 1.2;
+    const need = Math.max(needX, needZ) * 1.05;
     o.minRadius = 40;
     o.maxRadius = 900;
     o.radius = clamp(need, o.minRadius, o.maxRadius);
@@ -2295,6 +2371,60 @@ export class EquipmentScene {
     this.lineGroup.remove(this.workshopDetails.group);
     this.workshopDetails.dispose();
     this.workshopDetails = null;
+  }
+
+  /* ---------------- 单设备聚焦层 · 检修作业现场（纯加法） ---------------- */
+
+  /**
+   * 进入单设备聚焦层时挂载检修作业现场（警戒带 / 人员 / 工具车 / 警示牌 / 扫描环）。
+   *
+   * ⚠️ 只做加法：不动任何既有元素，也不改光照与材质风格。
+   * ⚠️ 只在这里 new，退出聚焦层（setIsolation(null)）与 dispose() 里必须成对 dispose，
+   *    否则会残留到车间/总览层。
+   */
+  private buildFocusDecor(box: DeviceBoxInfo): void {
+    this.disposeFocusDecor();
+    const preset = SCENE_PRESETS[this.params.presetId] ?? SCENE_PRESETS.standard;
+    const q = QUALITY[this.params.quality];
+    const decorBox: FocusDecorBox = {
+      x: box.centerX ?? box.x,
+      z: box.centerZ ?? box.z,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+      d: box.d,
+    };
+    this.focusDecor = new FocusSceneDecor({
+      box: decorBox,
+      preset,
+      detail: q.detail,
+      // ⚠️ 既有单测用 Object.create(prototype) 造精简实例，slots 可能未初始化
+      rotationY: this.slots?.[box.index]?.angle ?? 0,
+      // 软渲染（SwiftShader）与 low 画质：跳过新增光效（扫描环、脚下光圈、脉冲）
+      lowFx: this.params.quality === 'low' || this.isSoftwareRenderer(),
+    });
+    this.focusDecor.setPaused(this.particlesPaused);
+    this.focusDecorGroup?.add(this.focusDecor.group);
+    if (this.focusDecorGroup) this.focusDecorGroup.visible = true;
+  }
+
+  private disposeFocusDecor(): void {
+    if (!this.focusDecor) return;
+    this.focusDecorGroup?.remove(this.focusDecor.group);
+    this.focusDecor.dispose();
+    this.focusDecor = null;
+    if (this.focusDecorGroup) this.focusDecorGroup.visible = false;
+  }
+
+  /**
+   * 用**已经取到的**真实台账 / 遥测 / 工单刷新气泡与检修卡片。
+   * 数据由 UI 层（handlePick 里那一次 Promise.allSettled）喂进来 —— 不新增任何请求。
+   */
+  setFocusDecorData(data: FocusDecorData): void {
+    if (!this.focusDecor) return;
+    // 配方 id 用来查真实观察区（部位名），只有场景里的 boxById 有，UI 层拿不到也无需知道
+    const box = this.isolationId ? this.equipment?.boxById.get(this.isolationId) : undefined;
+    this.focusDecor.setData({ ...data, recipeId: data.recipeId ?? box?.recipeId ?? null });
   }
 
   /** 用真实台账刷新设备级细节（坐标/尺寸/状态/遥测快照全部来自 slots / boxById / slotStatus）。 */
@@ -2393,6 +2523,7 @@ export class EquipmentScene {
     this.workshopDetails?.setPaused(paused);
     this.factory?.setPaused(paused);
     this.faultLocator.setPaused(paused);
+    this.focusDecor?.setPaused(paused);
   }
 
   /** 复位三层动画到初始相位。 */
@@ -2429,14 +2560,40 @@ export class EquipmentScene {
 
   /**
    * 聚焦设备并优先把镜头对准故障部位（无定位标时退回整机取景）。
+   *
+   * ⚠️ 必须**一次性**把故障点高度交给 frameIsolated：早期实现是先按整机包围盒
+   * 解距离、再事后把 orbit.target 挪到故障点，于是半径是按"盒心"算的、
+   * 画面却按"故障点"居中 —— 实测设备下半截被裁出画面（用户反馈"设备被裁一半"）。
+   * 现在 targetY 参与半径反解，两者自洽。
    */
   focusDeviceWithFault(id: string): boolean {
-    if (!this.focusDevice(id)) return false;
     const p = this.faultLocator.focusPointOf(id);
+    if (!this.focusDevice(id, p ? p.y : undefined)) return false;
     if (p) {
-      this.orbit.target.copy(p);
+      // 定位标的 x/z 可能不在盒心（部位偏移），这里再补一次水平对齐。
+      this.orbit.target.set(p.x, p.y, p.z);
       this.dirty = true;
     }
+    return true;
+  }
+
+  /**
+   * 已在独占/聚焦态时，按**已设置**的故障部位重新取景（保持当前视角角度）。
+   *
+   * 调用时序很重要：UI 的 handlePick 是「先 setIsolation 进独占、再 showDeviceFault
+   * 建定位标」，所以建标之后必须回过头再取景一次，否则故障点会落在画面边缘。
+   *
+   * @returns 是否命中定位标；没有定位标（设备正常）时返回 false，调用方无需处理。
+   */
+  frameDeviceFault(id: string): boolean {
+    const p = this.faultLocator.focusPointOf(id);
+    if (!p) return false;
+    const box = this.equipment?.boxById.get(id);
+    if (!box) return false;
+    // preserveAngles = true：只调距离与目标点，不改俯仰/方位，避免"又转一圈"的眩晕感。
+    this.frameIsolated(box, true, p.y);
+    this.orbit.target.set(p.x, p.y, p.z);
+    this.dirty = true;
     return true;
   }
 
@@ -2452,6 +2609,7 @@ export class EquipmentScene {
     this.raycaster.setFromCamera(this.ndc, this.camera);
 
     if (this.level === 'factory' && this.factory) {
+      // 厂房体块优先于分区地块（分区地块是平铺面，射线必然命中，会盖住厂房）
       const hits = this.raycaster.intersectObjects(this.factory.picks, false);
       const ud = hits[0]?.object?.userData;
       if (ud?.pick === 'building') {
@@ -2461,6 +2619,11 @@ export class EquipmentScene {
           name: String(ud.buildingName ?? ''),
           workshopId: String(ud.workshopId ?? ud.buildingId),
         };
+      }
+      const zoneHits = this.raycaster.intersectObjects(this.factory.zonePicks, false);
+      const zud = zoneHits[0]?.object?.userData;
+      if (zud?.pick === 'zone') {
+        return { kind: 'zone', zoneId: String(zud.zoneId), name: String(zud.zoneName ?? '') };
       }
       return null;
     }
@@ -2869,7 +3032,11 @@ export class EquipmentScene {
       // 环境细节层：灯柱呼吸 / 指针微摆 / 铭牌远景裁剪（同一暂停开关控制）
       this.workshopDetails?.update(dt, this.animTime, this.camera.position);
       this.factory?.update(dt, this.animTime);
-      this.faultLocator.update(dt, this.animTime);
+      // 传相机：故障标签要按锚点的屏幕位置决定向左还是向右展开，否则会被右侧详情面板挡住
+      this.faultLocator.update(dt, this.animTime, this.camera);
+      // 聚焦层检修作业现场：扫描环旋转 + 脚下光圈脉冲（同一暂停开关控制）
+      // 传相机：数据气泡/检修卡片按屏幕槽位摆放，镜头一转就要重排，否则会挤成一坨
+      this.focusDecor?.update(dt, this.animTime, this.camera);
       this.animateChrome(this.animTime, dt);
       // 小地图只需跟随相机更新，约 8fps 重绘足够，避免占用主线程
       this.miniTimer += dt;
@@ -2960,6 +3127,7 @@ export class EquipmentScene {
     this.disposeGroup(this.helperGroup);
     this.disposeProductionLine();
     this.disposeFactory();
+    this.disposeFocusDecor();
     this.faultLocator.dispose();
     this.workOrderRings.clear();
     this.currentWorkOrderMap.clear();

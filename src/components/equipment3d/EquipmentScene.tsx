@@ -56,8 +56,9 @@ import type { ShellMode } from './hall';
 import { telemetryToStatus } from './statusMapping';
 import { ProductionHUD } from './ProductionHUD';
 import type { SceneLevel } from './scene';
-import type { FactoryBuildingSpec } from './factoryOverview';
+import type { FactoryBuildingSpec, FactoryZoneSpec, FactoryZoneView, FactoryRankMetric } from './factoryOverview';
 import { PART_OBSERVATION_ZONES } from './partEvidence';
+import { toFocusDecorStatus, type FocusDecorTelemetrySample } from './focusSceneDecor';
 import './equipment-industrial.css';
 import {
   isExplodedViewSupported,
@@ -245,16 +246,73 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     return [];
   }, [remote, contextEquipments]);
 
-  /** 厂区总览的厂房清单：直接由台账的真实 `workshop` 字段去重得出，不臆造厂区名。 */
-  const buildingSpecs = useMemo<FactoryBuildingSpec[] | undefined>(() => {
+  /**
+   * 厂区总览的厂房清单 + 分区定义。
+   *
+   * 全部指标由**真实台账 / 工单**派生，本处不产生任何业务数值：
+   *   deviceCount  该车间设备台数
+   *   abnormalCount 异常台数（台账 status ∈ {warning,fault}，或遥测阈值派生）
+   *   failureRate  设备故障率 % = 异常台数 / 设备总数（真实可算）
+   *   healthAvg    平均健康分
+   *   openWorkOrders 该车间未闭环工单数
+   * 产值 / 良品率：系统未接入数据源 → 保持 undefined，标牌如实显示"未接入"。
+   *
+   * 分区（zone）只是**空间分组**视图概念，按车间顺序连续切分，名称用中性编号
+   * （A 区 / B 区 / C 区），不臆造"精密制造区"这类业务含义。
+   */
+  const { buildingSpecs, zoneSpecs } = useMemo<{
+    buildingSpecs: FactoryBuildingSpec[] | undefined;
+    zoneSpecs: FactoryZoneSpec[] | undefined;
+  }>(() => {
     const names = Array.from(new Set(equipments.map((e) => e.workshop).filter((w): w is string => !!w)));
-    if (!names.length) return undefined;
-    return names.slice(0, 5).map((w, i) => ({
-      id: `hall-${i + 1}`,
-      name: `${i + 1} 号厂房・${w}`,
-      workshopId: w,
+    if (!names.length) return { buildingSpecs: undefined, zoneSpecs: undefined };
+
+    const isAbnormal = (d: Equipment): boolean => {
+      if (d.status === 'fault' || d.status === 'warning') return true;
+      const derived = telemetryToStatus(d.telemetry);
+      return derived === 'fault' || derived === 'warning' || derived === 'critical';
+    };
+    const eqIdToWorkshop = new Map<string, string>();
+    for (const e of equipments) if (e.workshop) eqIdToWorkshop.set(e.id, e.workshop);
+
+    const workshops = names.slice(0, 5);
+    const zoneCount = Math.min(workshops.length, 3);
+    const per = Math.ceil(workshops.length / Math.max(1, zoneCount));
+    const letters = ['A', 'B', 'C'];
+
+    const zones: FactoryZoneSpec[] = Array.from({ length: zoneCount }, (_, i) => ({
+      id: `zone-${letters[i].toLowerCase()}`,
+      name: `${letters[i]} 区`,
     }));
-  }, [equipments]);
+    const zoneOfWorkshop = (idx: number) => zones[Math.min(Math.floor(idx / Math.max(1, per)), zoneCount - 1)].id;
+
+    const specs: FactoryBuildingSpec[] = workshops.map((w, i) => {
+      const list = equipments.filter((e) => e.workshop === w);
+      const abnormal = list.filter(isAbnormal).length;
+      const healths = list.map((e) => e.healthScore).filter((v): v is number => typeof v === 'number');
+      const openOrders = allOrders.filter(
+        (o) =>
+          o.status !== 'completed' &&
+          o.status !== 'cancelled' &&
+          !!o.equipmentId &&
+          eqIdToWorkshop.get(o.equipmentId) === w
+      ).length;
+      return {
+        id: `hall-${i + 1}`,
+        name: `${i + 1} 号厂房・${w}`,
+        zoneId: zoneOfWorkshop(i),
+        workshopId: w,
+        deviceCount: list.length,
+        abnormalCount: abnormal,
+        failureRate: list.length ? (abnormal / list.length) * 100 : 0,
+        healthAvg: healths.length ? healths.reduce((a, b) => a + b, 0) / healths.length : undefined,
+        openWorkOrders: openOrders,
+        status: abnormal > 0 ? ('warning' as const) : ('normal' as const),
+      };
+    });
+
+    return { buildingSpecs: specs, zoneSpecs: zones };
+  }, [equipments, allOrders]);
 
   /** HUD 用的选中设备对象（台账全字段） */
   const selectedEquipment = useMemo(
@@ -458,7 +516,7 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     const scene = sceneRef.current;
     if (!ready || !scene) return;
     if (buildingSpecs) {
-      scene.buildFactory?.(buildingSpecs);
+      scene.buildFactory?.(buildingSpecs, zoneSpecs);
     }
     if (!hasInitializedLevelRef.current) {
       hasInitializedLevelRef.current = true;
@@ -466,7 +524,43 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
         scene.enterFactoryLevel?.();
       }
     }
-  }, [ready, buildingSpecs, level]);
+  }, [ready, buildingSpecs, zoneSpecs, level]);
+
+  /* ---------- 厂区总览：分区视图同步（3D → HUD） ---------- */
+  const [factoryZones, setFactoryZones] = useState<FactoryZoneView[]>([]);
+  const [activeZoneId, setActiveZoneId] = useState<string | null>(null);
+  const [rankMetric, setRankMetricState] = useState<FactoryRankMetric>('failureRate');
+
+  const syncFactoryZones = useCallback(() => {
+    const zs = sceneRef.current?.factoryZones?.() ?? [];
+    setFactoryZones(zs);
+    const m = zs[0]?.rankMetric;
+    if (m) setRankMetricState(m);
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    // buildFactory 之后同步一次（分区/排名在引擎内结算）
+    syncFactoryZones();
+  }, [ready, buildingSpecs, zoneSpecs, syncFactoryZones]);
+
+  const selectZone = useCallback(
+    (zoneId: string | null) => {
+      setActiveZoneId(zoneId);
+      sceneRef.current?.selectZone?.(zoneId);
+      syncFactoryZones();
+    },
+    [syncFactoryZones]
+  );
+
+  const changeRankMetric = useCallback(
+    (metric: FactoryRankMetric) => {
+      sceneRef.current?.setFactoryRankMetric?.(metric);
+      setRankMetricState(metric);
+      syncFactoryZones();
+    },
+    [syncFactoryZones]
+  );
 
   // 生产线 / 传送带动画 / 动画暂停 三个开关。
   // 方法级可选调用：测试替身只实现了部分方法，硬调用会在 effect 里抛错并拖挂整个视图。
@@ -668,6 +762,9 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
       const partLabel = zones[0]?.partLabel ?? '关键监测部位';
       if (isFaulty) {
         scene?.showDeviceFault?.(id, partLabel);
+        // 定位标是**在 setIsolation 之后**才建的，所以这里必须回过头按故障部位
+        // 再取景一次：否则镜头半径是按整机包围盒算的，故障点会飘到画面边缘。
+        scene?.frameDeviceFault?.(id);
       } else {
         scene?.clearFaults?.(id);
       }
@@ -698,6 +795,41 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
             setRecentOrders(w.value as WorkOrder[]);
           } else {
             failed++;
+          }
+          // 聚焦层 3D 检修现场：复用上面这三个接口**已经拿到**的真实数据（不新增请求）。
+          // 任一接口失败 → 对应字段为 null → 气泡渲染 "—"，绝不补零/估算。
+          {
+            const hist = t.status === 'fulfilled' && t.value && (t.value as TelemetryHistory).equipmentId === id
+              ? (t.value as TelemetryHistory) : null;
+            const pts = hist?.points ?? [];
+            const last = pts.length > 0 ? pts[pts.length - 1] : null;
+            const snap = (d.status === 'fulfilled' ? d.value?.telemetry : undefined) ?? local?.telemetry ?? null;
+            const sample: FocusDecorTelemetrySample | null = last
+              ? {
+                temperature: last.temperature ?? null,
+                vibration: last.vibration ?? null,
+                current: last.current ?? null,
+                pressure: last.pressure ?? null,
+              }
+              : snap
+                ? {
+                  temperature: snap.temperature ?? null,
+                  vibration: snap.vibration ?? null,
+                  current: snap.current ?? null,
+                  pressure: snap.pressure ?? null,
+                }
+                : null;
+            const orders = w.status === 'fulfilled' && Array.isArray(w.value) ? (w.value as WorkOrder[]) : [];
+            // 展示口径：优先进行中的那张工单，没有则取最新一张（接口已按时间倒序）
+            const active = orders.find((o) => o.status !== 'completed' && o.status !== 'cancelled') ?? orders[0] ?? null;
+            sceneRef.current?.setFocusDecorData?.({
+              deviceId: id,
+              deviceName: (d.status === 'fulfilled' ? d.value?.name : undefined) ?? local?.name ?? null,
+              status: toFocusDecorStatus((d.status === 'fulfilled' ? d.value?.status : undefined) ?? local?.status),
+              telemetry: sample,
+              workOrder: active ? { orderNo: active.orderNo, status: active.status, faultType: active.faultType } : null,
+              faultPartName: isFaulty ? partLabel : null,
+            });
           }
           setCardError(failed ? '部分详情、48h 时序或工单接口不可用；仅展示已获取的真实数据，缺失项不估算' : null);
         })
@@ -809,6 +941,13 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
         clearSelection();
         return;
       }
+      if (hit.kind === 'zone') {
+        // 点击分区地块 → 选中该分区（HUD 展示分区成绩，相机取景到该分区）；不切换层级
+        setActiveZoneId(hit.zoneId);
+        scene.selectZone?.(hit.zoneId);
+        syncFactoryZones();
+        return;
+      }
       if (hit.kind === 'building') {
         scene.drillIntoBuilding(hit.buildingId);
         setActiveBuilding({ id: hit.buildingId, name: hit.name });
@@ -820,7 +959,7 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
       }
       handlePick(hit.id);
     },
-    [handlePick, clearSelection]
+    [handlePick, clearSelection, syncFactoryZones]
   );
 
   /* ---------- 6. 参数更新 ---------- */
@@ -1263,6 +1402,10 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
             onToggleProductionLine={setLineEnabled}
             paused={animPaused}
             onTogglePaused={setAnimPaused}
+            factoryZones={factoryZones}
+            activeZoneId={activeZoneId}
+            onSelectZone={selectZone}
+            onRankMetricChange={changeRankMetric}
           />
         )}
 
