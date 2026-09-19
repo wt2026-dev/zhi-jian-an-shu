@@ -1,6 +1,7 @@
 import React from 'react';
 import { NAV_GROUPS } from './navConfig';
 import { Sparkles, ChevronRight, X } from 'lucide-react';
+import { isTabAllowed } from '../../utils/rbac';
 
 interface SidebarProps {
   activeTab: string;
@@ -37,8 +38,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Navigation Groups List */}
       <div className="flex-1 overflow-y-auto py-3.5 px-2.5 space-y-4 custom-scrollbar">
         {NAV_GROUPS.map((group) => {
-        // 按角色过滤受限菜单项（item.roles 未设置则全员可见）
-        const visibleItems = group.items.filter((item) => !item.roles || (role && item.roles.includes(role)));
+        // 按角色过滤受限菜单项（口径集中在 utils/rbac：'user' 归一为 operator、admin 通行）
+        const visibleItems = group.items.filter((item) => isTabAllowed(item.id, role));
         if (visibleItems.length === 0) return null;
         return (
           <div key={group.id} className="space-y-1">

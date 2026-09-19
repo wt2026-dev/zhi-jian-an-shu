@@ -9,6 +9,7 @@ import {
   Layers,
   Zap,
   Box,
+  Boxes,
   Wrench,
   BookOpen,
   CheckCircle2,
@@ -34,65 +35,80 @@ export interface NavGroupConfig {
   items: NavItemConfig[];
 }
 
+// ── 角色集合速记（只为可读性，roles 字段里仍然写全量数组）──────────────────────
+/** 管理层视图：总工 + 车间主管 */
+const MGMT = ['admin', 'manager'];
+/** 设备技术线：主管 + 技师 + 点检（档案员不参与现场处置） */
+const ASSET_TECH = ['admin', 'manager', 'technician', 'inspector'];
+/** 含档案员的设备档案（档案员管台账但不管现场） */
+const ASSET_ARCHIVE = ['admin', 'manager', 'technician', 'inspector', 'archivist'];
+/** 现场处置线：主管 + 技师 */
+const FIELD = ['admin', 'manager', 'technician'];
+/** 安全监督线：主管 + 点检 */
+const SAFETY_AUDIT = ['admin', 'manager', 'inspector'];
+/** 仅总工（系统管理） */
+const ADMIN_ONLY = ['admin'];
+
 export const NAV_GROUPS: NavGroupConfig[] = [
   {
     id: 'overview',
     label: '综合看板',
     items: [
-      { id: 'dashboard', label: '工作台', icon: Activity },
-      { id: 'cockpit', label: '数据驾驶舱', icon: Tv, highlight: true },
+      { id: 'dashboard', label: '工作台', icon: Activity }, // 全员可见
+      { id: 'cockpit', label: '数据驾驶舱', icon: Tv, highlight: true, roles: [...MGMT] },
     ],
   },
   {
     id: 'ai',
     label: '智能 AI',
     items: [
-      { id: 'ai_assistant', label: 'AI数字人助手', icon: Sparkles, highlight: true },
-      { id: 'ai_pipeline', label: 'AI 协同', icon: Workflow, highlight: true },
+      { id: 'ai_assistant', label: 'AI数字人助手', icon: Sparkles, highlight: true }, // 全员可见
+      { id: 'ai_pipeline', label: 'AI 协同', icon: Workflow, highlight: true, roles: [...MGMT] },
     ],
   },
   {
     id: 'assets',
     label: '设备资产',
     items: [
-      { id: 'equipments', label: '设备档案', icon: Layers },
-      { id: 'health', label: '健康监测', icon: Zap },
-      { id: 'spare_parts', label: '备件库存', icon: Box },
+      { id: 'equipments', label: '设备档案', icon: Layers, roles: [...ASSET_ARCHIVE] },
+      { id: 'health', label: '健康监测', icon: Zap, roles: [...ASSET_TECH] },
+      { id: 'equipment_3d', label: '3D 场景', icon: Boxes, roles: [...FIELD] },
+      { id: 'spare_parts', label: '备件库存', icon: Box, roles: [...FIELD] },
     ],
   },
   {
     id: 'operations',
     label: '检修作业',
     items: [
-      { id: 'work_orders', label: '检修工单', icon: Wrench },
-      { id: 'dispatch', label: '调度大屏', icon: Route, roles: ['admin', 'manager', 'technician'] },
-      { id: 'procedures', label: '作业指引', icon: BookOpen },
-      { id: 'inspections', label: '巡检作业', icon: CheckCircle2 },
-      { id: 'hazards', label: '隐患闭环', icon: AlertTriangle },
+      { id: 'work_orders', label: '检修工单', icon: Wrench }, // 全员可见
+      { id: 'dispatch', label: '调度大屏', icon: Route, roles: [...FIELD] },
+      { id: 'procedures', label: '作业指引', icon: BookOpen }, // 全员可见
+      { id: 'inspections', label: '巡检作业', icon: CheckCircle2, roles: [...SAFETY_AUDIT] },
+      { id: 'hazards', label: '隐患闭环', icon: AlertTriangle, roles: [...SAFETY_AUDIT] },
     ],
   },
   {
     id: 'safety_compliance',
     label: '安全合规',
     items: [
-      { id: 'safety', label: '安全与LOTO', icon: ShieldCheck },
+      { id: 'safety', label: '安全与LOTO', icon: ShieldCheck, roles: [...ASSET_TECH] },
     ],
   },
   {
     id: 'knowledge_center',
     label: '知识中心',
     items: [
-      { id: 'knowledge', label: '知识库RAG', icon: Search },
-      { id: 'knowledge_graph', label: '知识图谱', icon: Share2 },
+      { id: 'knowledge', label: '知识库RAG', icon: Search }, // 全员可见
+      { id: 'knowledge_graph', label: '知识图谱', icon: Share2, roles: ['admin', 'manager', 'archivist'] },
     ],
   },
   {
     id: 'system',
     label: '系统管理',
     items: [
-      { id: 'users', label: '用户与权限', icon: UserCheck },
-      { id: 'ai_reviews', label: 'AI 内容审核', icon: ScanSearch },
-      { id: 'ai_models', label: 'AI 模型路由', icon: Route },
+      { id: 'users', label: '用户与权限', icon: UserCheck, roles: [...ADMIN_ONLY] },
+      { id: 'ai_reviews', label: 'AI 内容审核', icon: ScanSearch, roles: [...ADMIN_ONLY] },
+      { id: 'ai_models', label: 'AI 模型路由', icon: Route, roles: [...ADMIN_ONLY] },
     ],
   },
 ];
