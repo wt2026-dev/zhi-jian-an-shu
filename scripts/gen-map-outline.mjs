@@ -108,7 +108,7 @@ const parts = [];
 for (const [code, label] of Object.entries(provinces)) {
   const p = extract(JSON.parse(fs.readFileSync(path.join(inDir, `${code}_full.json`), "utf8")), 0.03);
   parts.push(
-    `// ${label}\nexport const ${code}_FILL: [number, number][][] = ${JSON.stringify(p.fillRings.map((r) => r.map((q) => [+q[0].toFixed(3), +q[1].toFixed(3)])))};\n\nexport const ${code}_LINE: [number, number][][] = ${JSON.stringify(p.lineRings.map((r) => r.map((q) => [+q[0].toFixed(3), +q[1].toFixed(3)])))};`
+    `// ${label}\nexport const P${code}_FILL: [number, number][][] = ${JSON.stringify(p.fillRings.map((r) => r.map((q) => [+q[0].toFixed(3), +q[1].toFixed(3)])))};\n\nexport const P${code}_LINE: [number, number][][] = ${JSON.stringify(p.lineRings.map((r) => r.map((q) => [+q[0].toFixed(3), +q[1].toFixed(3)])))};`
   );
   console.log(code, label, "fill:", p.fillRings.length, "line:", p.lineRings.length);
 }
