@@ -101,7 +101,7 @@ export function makeTextSprite(title: string, sub?: string, accent = "#67e8f9", 
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(w * 0.055, h * 0.055, 1);
+  sprite.scale.set(w * 0.03, h * 0.03, 1);
   return sprite;
 }
 
@@ -158,9 +158,11 @@ export function createLightPillar(opts: { height: number; radius: number; accent
   baseRing.position.y = 0.02;
   group.add(baseRing);
 
-  // 拾取用透明柱（比可见柱粗，hover 命中稳定）
+  // 拾取用透明柱（比可见柱粗，hover 命中稳定）。
+  // 注意：不用 visible:false —— 部分 three 版本拾取会跳过不可见对象；
+  // colorWrite:false 同样零渲染但 100% 参与 raycast。
   const hitGeo = new THREE.CylinderGeometry(radius * 2.4, radius * 2.4, height + radius * 2, 8);
-  const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+  const hitMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
   const hitMesh = new THREE.Mesh(hitGeo, hitMat);
   hitMesh.position.y = (height + radius * 2) / 2;
   group.add(hitMesh);

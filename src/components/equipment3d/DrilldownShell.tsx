@@ -23,6 +23,22 @@ function parseLevelFromUrl(): DrillLevel {
 export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: string | null }) {
   const [level, setLevel] = useState<DrillLevel>(() => parseLevelFromUrl());
   const [factory, setFactory] = useState<FactorySummary | null>(null);
+  const [leftInset, setLeftInset] = useState(0);
+
+  // 大屏面板避开应用侧边栏：以 main 内容区左缘为准（侧边栏折叠时自动跟随）
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (!main) return;
+    const measure = () => setLeftInset(main.getBoundingClientRect().x);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(main);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   // 深链/刷新恢复：按 URL 的 factory 参数拉取厂区名与城市
   useEffect(() => {
@@ -90,13 +106,18 @@ export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: 
   ];
 
   return (
-    <div className="absolute inset-0">
-      {level === "map" && <MapOverviewView onDrillCity={drillCity} />}
-      {level === "city" && <CityOverviewView factory={factory} onEnterFactory={enterFactory} />}
-      {level === "factory" && <Equipment3DView initialWorkOrderId={initialWorkOrderId} />}
+    <div className="fixed inset-0">
+      {level === "map" && <MapOverviewView leftInset={leftInset} onDrillCity={drillCity} />}
+      {level === "city" && <CityOverviewView leftInset={leftInset} factory={factory} onEnterFactory={enterFactory} />}
+      {level === "factory" && (
+        /* 厂区层下移给壳层面包屑让位（原有 HUD 顶栏完整保留，仅容器整体下移） */
+        <div className="fixed inset-x-0 bottom-0 top-[100px]">
+          <Equipment3DView initialWorkOrderId={initialWorkOrderId} />
+        </div>
+      )}
 
-      {/* 顶部面包屑（车间/设备层级由 ProductionHUD 内部面包屑承接） */}
-      <div className="absolute left-1/2 top-3 z-40 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-cyan-400/30 bg-[rgba(8,15,30,0.78)] px-2 py-1.5 text-xs backdrop-blur">
+      {/* 顶部面包屑（fixed 定位免疫内容滚动；车间/设备层级由 ProductionHUD 内部面包屑承接） */}
+      <div className="absolute left-1/2 top-[60px] z-40 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-cyan-400/30 bg-[rgba(8,15,30,0.78)] px-2 py-1.5 text-xs backdrop-blur">
         {crumbs.map((c, i) => (
           <span key={c.level} className="flex items-center gap-1">
             {i > 0 && <span className="text-slate-600">›</span>}
