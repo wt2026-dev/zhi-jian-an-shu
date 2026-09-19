@@ -83,7 +83,7 @@ export function registerAiRoutes(app: express.Express) {
   app.post("/api/v1/ai/video-analysis", handleVideoAnalysis);
 
   // ==========================================================================
-  // AI 扩展功能 (6 大工业场景)：智能工单生成 / 根因分析 / 检修方案 / 健康预测 / 报告生成 / 作业票风险评估
+  // AI 扩展功能 (6 大工业场景)：智能工单生成 / 根因分析 / 检修方案 / 劣化趋势预警 / 报告生成 / 作业票风险评估
   // 全部复用 DashScope qwen-plus 客户端 (getAiClient)，结构化 JSON 输出，失败明确报错不伪造
   // ==========================================================================
 
@@ -96,7 +96,7 @@ export function registerAiRoutes(app: express.Express) {
   // ---------- 功能 3：检修方案 / 作业指导书生成 ----------
   app.post("/api/v1/ai/generate-maintenance-plan", requireAuth, validateBody(generateMaintenancePlanSchema), handleGenerateMaintenancePlan);
 
-  // ---------- 功能 4：设备健康趋势预测 ----------
+  // ---------- 功能 4：设备劣化趋势预警（确定性统计引擎，AI 仅解读） ----------
   app.post("/api/v1/ai/health-forecast", requireAuth, validateBody(healthForecastSchema), handleHealthForecast);
 
   // ---------- 功能 5：智能报告生成 (巡检 / 检修 / 月度) ----------

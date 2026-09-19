@@ -167,7 +167,7 @@
     </view>
     <view class="menu-item" bindtap="goHealth">
       <view class="menu-glass-icon" style="background: rgba(239, 68, 68, 0.12); color: #EF4444;">💓</view>
-      <view class="menu-title">设备健康预测</view>
+      <view class="menu-title">设备劣化预警</view>
     </view>
     <view class="menu-item" bindtap="goSpares">
       <view class="menu-glass-icon" style="background: rgba(139, 92, 246, 0.12); color: #8B5CF6;">📦</view>

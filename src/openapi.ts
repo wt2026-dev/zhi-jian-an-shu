@@ -122,7 +122,7 @@ export function buildOpenApiSpec(): Record<string, any> {
       "/api/v1/ai/generate-work-order": { post: { tags: ["ai"], security: bearer, summary: "智能工单生成（巡检异常→工单草稿）", responses: { "200": okJson("工单草稿 / 降级提示") } } },
       "/api/v1/ai/root-cause-analysis": { post: { tags: ["ai"], security: bearer, summary: "根因分析（5Why/故障树；失败时规则引擎降级）", responses: { "200": okJson("RCA 报告（或 degraded 规则结果）") } } },
       "/api/v1/ai/generate-maintenance-plan": { post: { tags: ["ai"], security: bearer, summary: "检修方案生成（失败时规则引擎降级）", responses: { "200": okJson("作业指导书（或 degraded 规则结果）") } } },
-      "/api/v1/ai/health-forecast": { post: { tags: ["ai"], security: bearer, summary: "健康趋势预测（失败时规则引擎降级）", responses: { "200": okJson("预测报告（或 degraded 规则结果）") } } },
+      "/api/v1/ai/health-forecast": { post: { tags: ["ai"], security: bearer, summary: "设备劣化趋势预警（确定性统计引擎；AI 不可用时返回同口径规则结果）", responses: { "200": okJson("劣化趋势研判（或 degraded 规则结果）") } } },
       "/api/v1/ai/equipment-summary": { post: { tags: ["ai"], security: bearer, summary: "设备健康画像（失败时规则引擎降级）", responses: { "200": okJson("画像摘要（或 degraded 规则结果）") } } },
       "/api/v1/ai/generate-report": { post: { tags: ["ai"], security: bearer, summary: "智能报告生成（巡检/检修/月度）", responses: { "200": okJson("结构化报告"), "502": okJson("AI 调用失败") } } },
       "/api/v1/ai/safety-risk-assessment": { post: { tags: ["ai"], security: bearer, summary: "作业票风险评估（JSA）", responses: { "200": okJson("评估结果"), "502": okJson("AI 调用失败") } } },

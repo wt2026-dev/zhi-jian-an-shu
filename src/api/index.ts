@@ -644,7 +644,7 @@ export const aiApi = {
       { method: 'POST', body: JSON.stringify(data) }
     ),
 
-  // 功能 4：设备健康趋势预测
+  // 功能 4：设备劣化趋势预警（确定性统计引擎 + AI 解读）
   healthForecast: (data: { equipmentId: string; hours?: number }) =>
     request<{ success: boolean; degraded?: boolean; message?: string; forecast?: AiHealthForecast; statistics?: Record<string, any>; dataPoints?: number; error?: string; model?: string }>(
       '/ai/health-forecast',

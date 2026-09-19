@@ -165,3 +165,41 @@ describe("AI 降级路径契约验证（健康预测）", () => {
     expect(JSON.stringify(res.body)).not.toMatch(/\d+\.\d+mm\/s/);
   });
 });
+
+describe("劣化趋势引擎契约（降级响应的 trend 字段）", () => {
+  it("trend 与 forecast/statistics 同源：评级一致、上升必有 R² 门限背书、ETA 不编造", async () => {
+    const eqList = await request(app).get("/api/v1/equipments").set("Authorization", `Bearer ${adminToken}`);
+    const candidates = eqList.body.filter((e: any) => e.id);
+    let checked = 0;
+    for (const eq of candidates.slice(0, 4)) {
+      const res = await request(app)
+        .post("/api/v1/ai/health-forecast")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ equipmentId: eq.id, hours: 48 });
+      if (res.status !== 200 || !res.body.trend) continue;
+      checked++;
+      const trend = res.body.trend;
+      const pm = trend.perMetric;
+
+      // ① 对外评级就是规则引擎评级，模型不参与降级路径的数字
+      expect(res.body.forecast.healthRating).toBe(trend.summary.riskLevel);
+      expect(res.body.ruleRating).toBe(trend.summary.riskLevel);
+
+      // ② 只有达到置信门限的拟合才允许标"上升/下降"，平稳绝不带 ETA
+      for (const t of Object.values(pm) as any[]) {
+        if (t.direction !== "flat") expect(t.r2).toBeGreaterThanOrEqual(0.3);
+        if (t.direction !== "rising") expect(t.etaToWarnHours).toBeNull();
+        if (t.etaToWarnHours != null) expect(t.ewma).toBeLessThan(t.warnThreshold);
+        // statistics 与 trend 必须是同一次计算，不允许两套数
+        expect(res.body.statistics[t.metric].mean).toBe(t.mean);
+        expect(res.body.statistics[t.metric].slopePerHour).toBe(t.slopePerHour);
+      }
+
+      // ③ 样本不足时必须如实说"不足以判定"，而不是硬给一条趋势
+      for (const t of Object.values(pm) as any[]) {
+        if (t.usedPoints < 3) expect(t.basis).toContain("不足");
+      }
+    }
+    expect(checked, "种子数据里至少应有一台设备带遥测历史可供校验").toBeGreaterThan(0);
+  });
+});

@@ -69,7 +69,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
   const [aiSafetyNotice, setAiSafetyNotice] = useState<any | null>(null);
   const [aiDiagTraceability, setAiDiagTraceability] = useState<any | null>(null);
 
-  // AI 健康趋势预测状态 (功能 4)
+  // AI 劣化趋势预警状态 (功能 4)
   const [forecastState, setForecastState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; data?: AiHealthForecast | null }>({ open: false, loading: false, error: null });
 
   // AI 生成工单草稿状态 (功能 1 健康页入口)
@@ -129,7 +129,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
       if (res.success && res.forecast) {
         setForecastState({ open: true, loading: false, error: null, data: res.forecast });
       } else {
-        setForecastState({ open: true, loading: false, error: res.message || res.error || 'AI 趋势预测失败', degraded: res.degraded });
+        setForecastState({ open: true, loading: false, error: res.message || res.error || 'AI 劣化趋势分析失败', degraded: res.degraded });
       }
     } catch (err: any) {
       setForecastState({ open: true, loading: false, error: err?.message || 'AI 调用失败' });
@@ -475,13 +475,13 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
                 <span>{aiAnalyzing ? 'AI 遥测研判中...' : 'AI 异常预警研判'}</span>
               </button>
 
-              {/* AI 健康趋势预测 (功能 4) */}
+              {/* AI 劣化趋势预警 (功能 4) */}
               <button
                 onClick={handleHealthForecast}
                 className="w-full py-2 bg-white hover:bg-slate-50 text-purple-700 border border-purple-200 rounded-lg text-xs font-medium flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
               >
                 <TrendingUp className="w-3.5 h-3.5" />
-                <span>AI 健康趋势预测</span>
+                <span>AI 劣化趋势预警</span>
               </button>
 
               {/* AI 生成检修工单 (功能 1 健康页入口) */}
@@ -749,10 +749,10 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
         </div>
       </div>
 
-      {/* AI 健康趋势预测弹窗 (功能 4) */}
+      {/* AI 劣化趋势预警弹窗 (功能 4) */}
       <AiResultModal
         open={forecastState.open}
-        title="AI 设备健康趋势预测"
+        title="AI 设备劣化趋势预警"
         loading={forecastState.loading}
         error={forecastState.error}
         degraded={forecastState.degraded}

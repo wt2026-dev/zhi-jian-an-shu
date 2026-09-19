@@ -1,4 +1,5 @@
-// 重构说明：本模块自 server.ts 拆出，逻辑保持原样。（因 aiGenerationController 按单文件 ≤400 行约束拆分，健康预测/报告/风险评估三个子域独立成模块）
+// 重构说明：本模块自 server.ts 拆出。（因 aiGenerationController 按单文件 ≤400 行约束拆分，劣化趋势/报告/风险评估三个子域独立成模块）
+// 劣化趋势的统计口径不在本文件里算，统一走 services/degradationTrend.ts（正常路径与降级路径共用一个引擎）。
 import { callDashScopeJson, handleAiRouteError } from "../services/aiClient.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { AI_EXPERT_SYSTEM } from "../services/aiExpert.ts";
@@ -12,8 +13,9 @@ import { EquipmentRepository, WorkOrderRepository, TelemetryRepository, Inspecti
 import { runSafetyRiskAssessmentCore } from "../services/aiCapabilityService.ts";
 import { createPendingAiReview } from "../services/aiReviewService.ts";
 import { detectSafetyNotice, getPromptVersion, createInputDigest, TraceabilityInfo } from "../services/promptVersion.ts";
+import { evaluateDegradation, toStatisticsView, trendDigest, ruleBasedForecast } from "../services/degradationTrend.ts";
 
-// ---------- 功能 4：设备健康趋势预测 ----------
+// ---------- 功能 4：设备健康劣化趋势预警 ----------
 export const handleHealthForecast = async (req: any, res: any) => {
   try {
     const { equipmentId, hours = 168 } = req.body;
@@ -23,65 +25,25 @@ export const handleHealthForecast = async (req: any, res: any) => {
     }
     const history = await TelemetryRepository.getHistory(equipmentId, Math.min(hours, 72));
     if (!history.length) {
-      return res.status(404).json({ success: false, error: "该设备暂无遥测历史数据，无法进行趋势预测" });
+      return res.status(404).json({ success: false, error: "该设备暂无遥测历史数据，无法进行劣化趋势分析" });
     }
 
-    const metrics = ["temperature", "vibration", "current", "pressure", "loadRate", "rpm"];
-    const metricNames: Record<string, string> = {
-      temperature: "轴承温度(°C)",
-      vibration: "振动速度(mm/s)",
-      current: "运行电流(A)",
-      pressure: "系统压力(MPa)",
-      loadRate: "负载率(%)",
-      rpm: "运转转速(r/min)",
-    };
-    const stats: any = {};
-    for (const m of metrics) {
-      const series = history.map((h: any) => Number(h[m] || 0));
-      const n = series.length;
-      const mean = series.reduce((a: number, b: number) => a + b, 0) / n;
-      const max = Math.max(...series);
-      const min = Math.min(...series);
-      // 简单线性回归斜率 (每小时变化量)
-      const xMean = (n - 1) / 2;
-      const numerator = series.reduce((acc: number, y: number, x: number) => acc + (x - xMean) * (y - mean), 0);
-      const denominator = series.reduce((acc: number, _y: number, x: number) => acc + (x - xMean) ** 2, 0) || 1;
-      const slope = numerator / denominator;
-      const variance = series.reduce((acc: number, y: number) => acc + (y - mean) ** 2, 0) / n;
-      const stdDev = Math.sqrt(variance);
-      stats[m] = {
-        mean: Number(mean.toFixed(2)),
-        max: Number(max.toFixed(2)),
-        min: Number(min.toFixed(2)),
-        slopePerHour: Number(slope.toFixed(4)),
-        volatility: Number(stdDev.toFixed(3)),
-        exceedCount:
-          m === "temperature"
-            ? series.filter((v: number) => v > 75).length
-            : m === "vibration"
-            ? series.filter((v: number) => v > 4.5).length
-            : m === "pressure"
-            ? series.filter((v: number) => v > 2.5).length
-            : m === "loadRate"
-            ? series.filter((v: number) => v > 85).length
-            : m === "current"
-            ? series.filter((v: number) => v > 90).length
-            : m === "rpm"
-            ? series.filter((v: number) => v > 3000).length
-            : 0,
-      };
-    }
+    const report = evaluateDegradation(history);
+    const ruleRating = report.summary.riskLevel;
 
-    const userPrompt = `请基于以下设备遥测统计特征，研判设备劣化趋势并预测风险。
+    const userPrompt = `以下是设备遥测序列的**确定性统计结果**（最小二乘回归 + EWMA 平滑 + R² 置信门限，引擎版本 ${getPromptVersion("health-forecast")}）。
+数字已经算好，你**不需要也不允许重新计算或修改任何数值**；你的任务只是在这些事实之上做工业场景解读：判断可能的劣化机理、给出可执行的处置建议。
+凡是统计结果标为"不可信"的指标，不得在输出里描述为上升或下降；凡是没有给出"预计 X 小时后触及警戒线"的指标，不得自行编造时间。
+
 【设备档案】${eq.name} (${eq.code}) | 类别: ${eq.category} | 当前健康分: ${eq.healthScore} | 当前状态: ${eq.status}
-【最近 ${history.length} 小时遥测统计】
-${metrics.map((m: string) => `- ${metricNames[m]}: 均值 ${stats[m].mean}, 峰值 ${stats[m].max}, 谷值 ${stats[m].min}, 每小时趋势斜率 ${stats[m].slopePerHour}, 波动率(标准差) ${stats[m].volatility}${stats[m].exceedCount ? `, 越限次数 ${stats[m].exceedCount}` : ""}`).join("\n")}
-【参考阈值】温度警戒 75°C / 振动警戒 4.5 mm/s (ISO 10816-3) / 系统压力警戒 2.5 MPa / 负载率警戒 85%
+【最近 ${history.length} 小时遥测劣化趋势分析（振动警戒带取 ISO 10816-3 C/D 区界 4.5 mm/s）】
+${trendDigest(report)}
+【规则引擎评级】${ruleRating}（口径：温度与振动同时越限=危险，任一越限=警告，仅可信上升=关注，其余=正常）
 
-严格按如下 JSON 结构输出:
+严格按如下 JSON 结构输出（这是对已算好的劣化趋势做**解读与处置建议**，不是对未来的预测）:
 {
-  "healthRating": "正常|关注|警告|危险 之一",
-  "ratingReason": "评级理由",
+  "healthRating": "正常|关注|警告|危险 之一，须与规则引擎评级一致",
+  "ratingReason": "评级理由，引用上面的具体数值",
   "trends": [{"metric": "指标名", "direction": "上升|下降|平稳", "rateDescription": "变化速率描述", "description": "趋势解读"}],
   "failureRisks": [{"mode": "潜在故障模式", "basis": "判断依据"}],
   "watchWindowHours": 72,
@@ -97,94 +59,37 @@ ${metrics.map((m: string) => `- ${metricNames[m]}: 均值 ${stats[m].mean}, 峰�
     addAuditLog(req, {
       actionType: "AI_HEALTH_FORECAST",
       module: "ai",
-      detail: `AI 健康趋势预测 (${eq.name}): 评级 ${data.healthRating}`,
+      detail: `AI 劣化趋势解读 (${eq.name}): 评级 ${data.healthRating}，规则评级 ${ruleRating}`,
       status: "SUCCESS",
-      metadata: { equipmentId, dataPoints: history.length, healthRating: data.healthRating, model: DASHSCOPE_CHAT_MODEL },
+      metadata: { equipmentId, dataPoints: history.length, healthRating: data.healthRating, ruleRating, model: DASHSCOPE_CHAT_MODEL },
     });
-    const __body = { success: true, forecast: data, statistics: stats, dataPoints: history.length, model: DASHSCOPE_CHAT_MODEL };
+    const __body = {
+      success: true,
+      forecast: data,
+      trend: report,
+      ruleRating,
+      statistics: toStatisticsView(report),
+      dataPoints: history.length,
+      model: DASHSCOPE_CHAT_MODEL,
+    };
     aiCacheSet("health-forecast", req.body, __body, { equipmentId: equipmentId });
     res.json(__body);
   } catch (err: any) {
-    // 规则引擎降级：基于遥测统计特征直接判定（200 + degraded 标记）
+    // 规则引擎降级：直接返回确定性趋势引擎的研判（200 + degraded 标记，不含任何模型生成内容）
     return handleAiRouteError(res, err, "AI_HEALTH_FORECAST", req, async () => {
       const history = await TelemetryRepository.getHistory(req.body.equipmentId, 72);
       if (!history.length) {
-        return { success: false, degraded: true, message: "该设备暂无遥测历史数据，无法进行趋势预测" };
+        return { success: false, degraded: true, message: "该设备暂无遥测历史数据，无法进行劣化趋势分析" };
       }
-      const metrics = ["temperature", "vibration", "current", "pressure", "loadRate", "rpm"];
-      var metricNames: Record<string, string> = {
-        temperature: "轴承温度(°C)",
-        vibration: "振动速度(mm/s)",
-        current: "运行电流(A)",
-        pressure: "系统压力(MPa)",
-        loadRate: "负载率(%)",
-        rpm: "运转转速(r/min)",
-      };
-      var stats: any = {};
-      for (var mi = 0; mi < metrics.length; mi++) {
-        var m = metrics[mi];
-        var series = history.map(function (h: any) { return Number(h[m] || 0); });
-        var n = series.length;
-        var mean = series.reduce(function (a: number, b: number) { return a + b; }, 0) / n;
-        var xMean = (n - 1) / 2;
-        var numerator = series.reduce(function (acc: number, y: number, x: number) { return acc + (x - xMean) * (y - mean); }, 0);
-        var denominator = series.reduce(function (acc: number, _y: number, x: number) { return acc + (x - xMean) * (x - xMean); }, 0) || 1;
-        var slope = numerator / denominator;
-        stats[m] = {
-          mean: Number(mean.toFixed(2)), max: Number(Math.max.apply(null, series).toFixed(2)),
-          // 补齐 min 字段与 AI 成功路径的 statistics 契约对齐（评审环境无 Key 时走本降级路径，字段缺失会导致断言失败）
-          min: Number(Math.min.apply(null, series).toFixed(2)),
-          slopePerHour: Number(slope.toFixed(4)),
-          exceedCount:
-            m === "temperature"
-              ? series.filter(function (v: number) { return v > 75; }).length
-              : m === "vibration"
-              ? series.filter(function (v: number) { return v > 4.5; }).length
-              : m === "pressure"
-              ? series.filter(function (v: number) { return v > 2.5; }).length
-              : m === "loadRate"
-              ? series.filter(function (v: number) { return v > 85; }).length
-              : m === "current"
-              ? series.filter(function (v: number) { return v > 90; }).length
-              : m === "rpm"
-              ? series.filter(function (v: number) { return v > 3000; }).length
-              : 0,
-        };
-      }
-      var tempAlert = stats.temperature.exceedCount > 0 || stats.temperature.max > 75;
-      var vibAlert = stats.vibration.exceedCount > 0 || stats.vibration.max > 4.5;
-      var healthRating = tempAlert && vibAlert ? "危险" : tempAlert || vibAlert ? "警告" : "正常";
-      var dir = function (v: number) { return v > 0.01 ? "上升" : v < -0.01 ? "下降" : "平稳"; };
-      var mk = function (key: string, unit: string) {
-        return {
-          metric: metricNames[key], direction: dir(stats[key].slopePerHour),
-          rateDescription: `每小时变化 ${stats[key].slopePerHour} ${unit}`,
-          description: `均值 ${stats[key].mean}${unit}，峰值 ${stats[key].max}${unit}`,
-        };
-      };
-      var failureRisks: any[] = [];
-      if (tempAlert) failureRisks.push({ mode: "轴承过热 / 润滑失效", basis: "温度越限且趋势上升" });
-      if (vibAlert) failureRisks.push({ mode: "转子不平衡 / 对中不良", basis: "振动越限" });
+      const report = evaluateDegradation(history);
       return {
-        success: true, degraded: true,
-        message: "AI 服务暂不可用，已返回规则引擎结果",
-        forecast: {
-          healthRating: healthRating,
-          ratingReason: `温度越限 ${stats.temperature.exceedCount} 次、振动越限 ${stats.vibration.exceedCount} 次、压力越限 ${stats.pressure.exceedCount} 次（最近 ${history.length} 小时）`,
-          trends: [
-            mk("temperature", "°C"),
-            mk("vibration", "mm/s"),
-            mk("current", "A"),
-            mk("pressure", "MPa"),
-            mk("loadRate", "%"),
-            mk("rpm", "r/min"),
-          ],
-          failureRisks: failureRisks.length ? failureRisks : [{ mode: "无显著故障模式", basis: "各指标均在受控范围内" }],
-          watchWindowHours: 72,
-          watchWindowNote: "建议未来 72 小时内加密巡检频次",
-          recommendations: [healthRating === "正常" ? "维持现有巡检周期" : "加强巡检并安排检修窗口评估"],
-        },
-        statistics: stats,
+        success: true,
+        degraded: true,
+        message: "AI 服务暂不可用，已返回确定性劣化趋势引擎结果",
+        forecast: ruleBasedForecast(report),
+        trend: report,
+        ruleRating: report.summary.riskLevel,
+        statistics: toStatisticsView(report),
         dataPoints: history.length,
       };
     });
