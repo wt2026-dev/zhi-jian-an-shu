@@ -55,11 +55,21 @@ import {
   type FocusDecorBox,
 } from './focusSceneDecor';
 
-/** 设备详情层暗调氛围：雾色 / 清屏色（深蓝灰 #0d1420，禁止纯黑背景）。 */
-const FOG_COLOUR = 0x0d1420;
-/** 线性雾：近端全清晰、约 22m 处完全融入背景（远处剪影"隐约可见"）。 */
-const FOG_NEAR = 7;
-const FOG_FAR = 22;
+/** 设备详情层暗调氛围：雾色 / 清屏色（深蓝灰，禁止纯黑背景）。 */
+const FOG_COLOUR = 0x111b29;
+/**
+ * 线性雾。近端 12m 内全清晰，52m 处才完全融进背景 ——
+ * 之前用 7/22 时车间壳体（30~50m）被整片糊成雾色，用户验收口径是
+ * "背景不能是纯黑、要保留车间纵深感"，所以拉远；同时把雾色本身抬亮一档。
+ */
+const FOG_NEAR = 12;
+const FOG_FAR = 52;
+/**
+ * 设备详情层的滚轮/双指拉远上限（米）：雾内仍能看清整个作业区，
+ * 再远就会掉进雾外"一片黑"。只约束用户缩放，不约束自动取景
+ * （窄窗口自适应取景必须能拉到 need，否则角点溢出画面）。
+ */
+const FOG_ZOOM_CAP = 17;
 /**
  * 设备详情层「数据标注层」（测点气泡 / 五步闭环卡片 / 警示牌）开关。
  * ⚠️ 用户规格（场景密度优先）明确：3D 画面里不允许任何飘字，数据走右侧 DOM 面板，
@@ -189,6 +199,16 @@ export class EquipmentScene {
   private focusCalloutSafeLeft = -0.95;
   /** 设备详情层暗调氛围的灯光备份（进入聚焦时记录，退出还原）。 */
   private moodBackup: { ambient: number; hemi: number; sun: number; skyVisible: boolean } | null = null;
+  /**
+   * 聚焦层自有基础光（环境/半球/兜底补光）。刻意与 focusDecor 分开持有：
+   * 环境层构造抛错时它依然存在，设备本体不会被留在纯黑里。
+   */
+  private focusBaseLights: {
+    group: THREE.Group;
+    amb: THREE.AmbientLight;
+    hemi: THREE.HemisphereLight;
+    fill: THREE.SpotLight;
+  } | null = null;
   faultLocator: FaultLocator;
   level: SceneLevel = 'workshop';
   /** 当前下钻的厂房 id（null = 未选择） */
@@ -1495,7 +1515,8 @@ export class EquipmentScene {
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       if (this.pinchStart > 0) {
         const k = this.pinchStart / Math.max(1, d);
-        this.orbit.radius = clamp(this.pinchRadius * k, this.orbit.minRadius, this.orbit.maxRadius);
+        const pzr = this.userZoomRange();
+        this.orbit.radius = clamp(this.pinchRadius * k, pzr.min, pzr.max);
       }
       return;
     }
@@ -1529,8 +1550,27 @@ export class EquipmentScene {
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault();
     const k = Math.exp(clamp(e.deltaY, -220, 220) * 0.0012);
-    this.orbit.radius = clamp(this.orbit.radius * k, this.orbit.minRadius, this.orbit.maxRadius);
+    const zr = this.userZoomRange();
+    this.orbit.radius = clamp(this.orbit.radius * k, zr.min, zr.max);
   };
+
+  /**
+   * 用户缩放（滚轮/双指）的有效区间（仅设备详情层）：
+   *   - 下限 ≥ 包围盒最长边 × 1.2 —— 防止缩过头把镜头怼回设备脸上；
+   *   - 上限封顶在雾可见范围内 —— 拉远可看整个作业区，但不掉进雾外黑屏。
+   * 自动取景（frameIsolated）不受此区间约束，保证任意纵横比都能正确框住设备。
+   */
+  private userZoomRange(): { min: number; max: number } {
+    if (this.isolationId && this.scene.fog) {
+      const box = this.equipment?.boxById.get(this.isolationId);
+      const longest = box ? Math.max(box.w, box.h, box.d) : 0;
+      return {
+        min: Math.max(this.orbit.minRadius, longest * 1.2),
+        max: Math.min(this.orbit.maxRadius, FOG_ZOOM_CAP),
+      };
+    }
+    return { min: this.orbit.minRadius, max: this.orbit.maxRadius };
+  }
 
   /* ========================= 尺寸 ========================= */
 
@@ -2204,10 +2244,9 @@ export class EquipmentScene {
     const tanV = Math.tan(vHalf);
     const tanH = tanV * Math.max(0.001, cam.aspect);
     // FILL 是"包围盒占画面的比例"的目标值。
-    // 「场景密度优先」口径（2026-09）：设备 + 周围检修物件要占画面主体，
-    // 设备约占画面高度 50-60%（NDC 角点 ≤ FILL ≈ 1.2），相机距离比旧值
-    // 0.85 缩短约 30% —— 对标参考视频"设备占画面大部分，能看清管道和工人"。
-    const FILL = 1.2;
+    // 「场景密度优先」口径：完整设备约占视锥高度 55%（NDC 角点 ≤ FILL ≈ 0.9），
+    // 周围工具车/管道/工人随取景一起可见；用户滚轮拉远上限由 userZoomCap 封在雾内。
+    const FILL = 0.9;
     const denomV = FILL * tanV;
     const denomH = FILL * tanH;
 
@@ -2260,11 +2299,16 @@ export class EquipmentScene {
       }
     }
 
+    // 聚焦层目标点**固定为设备包围盒中心**：对准故障点会把镜头怼到零件上（"贴脸"），
+    // 故障红标（depthTest:false）穿壳可见，无需镜头迁就。
     o.target.set(box.centerX ?? box.x, baseCenterY + dy, box.centerZ ?? box.z);
-    // Fit must not inherit the previous device's clamp; keep zoom useful at device scale.
     o.minRadius = Math.max(cam.near * 2, Math.min(box.w, box.h, box.d) * 0.6);
     o.maxRadius = Math.max(need * 3, o.minRadius * 4);
-    o.radius = clamp(need, o.minRadius, o.maxRadius);
+    // 轨道半径限位：保持在包围盒外接球半径的 1.8~2.5 倍之间（转一圈设备不出画）。
+    // 下限是硬约束（防贴脸）；上限只在自动取景本身偏近时生效，
+    // 窄纵横比需要更远的 need 时以取景为准（雾外不可见，视觉无损）。
+    const rSphere = 0.5 * Math.sqrt(box.w * box.w + box.h * box.h + box.d * box.d);
+    o.radius = clamp(Math.max(need, rSphere * 1.8), o.minRadius, o.maxRadius);
     o.phi = phi;
     o.theta = theta;
     this.dirty = true;
@@ -2484,24 +2528,76 @@ export class EquipmentScene {
       h: box.h,
       d: box.d,
     };
-    this.focusDecor = new DeviceDetailEnv({
-      box: decorBox,
-      // ⚠️ 既有单测用 Object.create(prototype) 造精简实例，slots 可能未初始化
-      rotationY: this.slots?.[box.index]?.angle ?? 0,
-      // 软渲染（SwiftShader）与 low 画质：跳过阴影投射灯与部分小件
-      lowFx: this.params.quality === 'low' || this.isSoftwareRenderer(),
-    });
-    this.focusDecorGroup?.add(this.focusDecor.group);
-    if (this.focusDecorGroup) this.focusDecorGroup.visible = true;
-    // 压暗环境：暗调工业风，设备与检修物料是视觉焦点
+    // 压暗 + 立基础光必须排在环境层**之前**：环境层是 40 多个构件的堆叠，
+    // 任何一次构造抛错都不该把设备留在"车间灯被隐藏、自己的灯又没建起来"的黑屏里。
     this.applyDeviceMood(true, box);
+    this.buildFocusBaseLights(box);
+    try {
+      this.focusDecor = new DeviceDetailEnv({
+        box: decorBox,
+        // ⚠️ 既有单测用 Object.create(prototype) 造精简实例，slots 可能未初始化
+        rotationY: this.slots?.[box.index]?.angle ?? 0,
+        // 软渲染（SwiftShader）与 low 画质：跳过阴影投射灯与部分小件
+        lowFx: this.params.quality === 'low' || this.isSoftwareRenderer(),
+      });
+      this.focusDecorGroup?.add(this.focusDecor.group);
+    } catch (e) {
+      // 兜底降级：环境层起不来就退回"设备本体 + 基础光"，右侧 DOM 面板照常工作。
+      console.error('[equipment3d] 设备详情环境层构造失败，已降级为无环境聚焦视图', e);
+      this.focusDecor = null;
+      this.boostFocusBaseLights();
+    }
+    if (this.focusDecorGroup) this.focusDecorGroup.visible = true;
+  }
+
+  /**
+   * 聚焦层自有基础光（环境光 + 半球光 + 一盏补光聚光）。由**场景**持有而非环境层持有：
+   * 环境层构造失败时它仍在，设备与周围物件不会黑成一片。
+   */
+  private buildFocusBaseLights(box: DeviceBoxInfo): void {
+    if (this.focusBaseLights) return;
+    const cx = box.centerX ?? box.x ?? 0;
+    const cz = box.centerZ ?? box.z ?? 0;
+    const topY = (box.y ?? 0) + (box.h ?? 3);
+    const amb = new THREE.AmbientLight(0x9db4d8, 0.26);
+    // 上深蓝灰 / 下地面灰：让立柱、工具车、工人这些周围物件有可读的明暗层次
+    const hemi = new THREE.HemisphereLight(0x2b3c58, 0x3f4650, 0.5);
+    // 补光平时关闭，只在环境层构造失败时顶上（见 boostFocusBaseLights）
+    const fill = new THREE.SpotLight(0xdfe9ff, 0, 34, 0.55, 0.95, 1.4);
+    fill.position.set(cx - 3.4, topY + 7.5, cz + 3.2);
+    fill.target.position.set(cx, topY * 0.45, cz);
+    const group = new THREE.Group();
+    group.name = 'focusBaseLights';
+    group.add(amb, hemi, fill, fill.target);
+    this.focusBaseLights = { group, amb, hemi, fill };
+    this.focusDecorGroup?.add(group);
+  }
+
+  /** 环境层缺席时的补救：把基础光抬到"设备看得清"的量级，不追求明暗层次。 */
+  private boostFocusBaseLights(): void {
+    const base = this.focusBaseLights;
+    if (!base) return;
+    base.amb.intensity = 0.55;
+    base.hemi.intensity = 0.9;
+    base.fill.intensity = 520;
+  }
+
+  private disposeFocusBaseLights(): void {
+    const base = this.focusBaseLights;
+    if (!base) return;
+    this.focusDecorGroup?.remove(base.group);
+    base.group.clear();
+    this.focusBaseLights = null;
   }
 
   private disposeFocusDecor(): void {
     // 既有单测用 Object.create(prototype) 造精简实例，无 faultGlow 字段
     if (this.faultGlow) this.faultGlow.intensity = 0;
-    if (!this.focusDecor) return;
+    this.disposeFocusBaseLights();
+    // 还原灯光必须在 focusDecor 判空之前：环境层构造失败时 focusDecor 是 null，
+    // 但 applyDeviceMood(true) 已经生效，走这里退出必须把它还原回去。
     this.applyDeviceMood(false);
+    if (!this.focusDecor) return;
     this.focusDecorGroup?.remove(this.focusDecor.group);
     this.focusDecor.dispose();
     this.focusDecor = null;
@@ -2813,14 +2909,8 @@ export class EquipmentScene {
    * 现在 targetY 参与半径反解，两者自洽。
    */
   focusDeviceWithFault(id: string): boolean {
-    const p = this.faultLocator.focusPointOf(id);
-    if (!this.focusDevice(id, p ? p.y : undefined)) return false;
-    if (p) {
-      // 定位标的 x/z 可能不在盒心（部位偏移），这里再补一次水平对齐。
-      this.orbit.target.set(p.x, p.y, p.z);
-      this.dirty = true;
-    }
-    return true;
+    // 「聚焦机位居中」口径：目标点固定设备包围盒中心，不再对准故障点。
+    return this.focusDevice(id);
   }
 
   /**
@@ -2832,14 +2922,12 @@ export class EquipmentScene {
    * @returns 是否命中定位标；没有定位标（设备正常）时返回 false，调用方无需处理。
    */
   frameDeviceFault(id: string): boolean {
-    const p = this.faultLocator.focusPointOf(id);
-    if (!p) return false;
     const box = this.equipment?.boxById.get(id);
     if (!box) return false;
+    // 「聚焦机位居中」口径：目标点固定设备包围盒中心（不怼故障点），
+    // 故障红标 depthTest:false 穿壳可见，拉远后在设备旁清晰可辨。
     // preserveAngles = true：只调距离与目标点，不改俯仰/方位，避免"又转一圈"的眩晕感。
-    this.frameIsolated(box, true, p.y);
-    this.orbit.target.set(p.x, p.y, p.z);
-    this.dirty = true;
+    this.frameIsolated(box, true);
     return true;
   }
 

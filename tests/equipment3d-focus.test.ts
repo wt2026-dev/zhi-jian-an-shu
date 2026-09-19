@@ -92,7 +92,9 @@ describe('actual geometry focus bounds', () => {
     s.update(10); s.camera.updateMatrixWorld(true);
     for (const x of [-b.w / 2, b.w / 2]) for (const y of [-b.h / 2, b.h / 2]) for (const z of [-b.d / 2, b.d / 2]) {
       const corner = new THREE.Vector3(x, y, z).applyAxisAngle(new THREE.Vector3(0, 1, 0), s.slots[b.index].angle).add(s.orbit.target).project(s.camera);
-      expect(Math.abs(corner.x)).toBeLessThanOrEqual(0.851); expect(Math.abs(corner.y)).toBeLessThanOrEqual(0.851);
+      // FILL 已按「场景密度优先」调到 1.0（设备约占画面高度 40-50%）；
+      // 雾内缩放上限只约束用户滚轮/双指，不约束自动取景，角点仍须精确适配。
+      expect(Math.abs(corner.x)).toBeLessThanOrEqual(1.06); expect(Math.abs(corner.y)).toBeLessThanOrEqual(1.06);
     }
     s.setIsolation(null);
     expect(s.orbit.minRadius).toBe(3); expect(s.orbit.maxRadius).toBe(620);
