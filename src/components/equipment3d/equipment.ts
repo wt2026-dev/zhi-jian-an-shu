@@ -91,6 +91,51 @@ export const EQUIPMENT_GLB_MAP: Record<string, string> = {
 const gltfLoader = typeof window !== 'undefined' ? new GLTFLoader() : null;
 const gltfCache = new Map<string, Promise<THREE.Group>>();
 
+/**
+ * 把 GLB 里的 `MeshPhysicalMaterial` 降级为 `MeshStandardMaterial`。
+ *
+ * 原因：`KHR_materials_specular` / `KHR_materials_ior` 会让 GLTFLoader 生成
+ * MeshPhysicalMaterial —— 它的 shader 变体比 Standard 重得多（多出 clearcoat/sheen/
+ * specular/transmission 等分支）。实测本目录里 `lathe_machine.glb` 用了这两个扩展。
+ *
+ * 在**缓存的原始模型**上做一次，所有 clone 共享转换后的材质
+ * （`Object3D.clone()` 是按引用共享材质的），因此不会每个设备各转一遍、
+ * 也不会出现"dispose 掉别人还在用的材质"。
+ */
+export function normalizeGLBMaterials(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    let changed = false;
+    const next = mats.map((mat) => {
+      if (!(mat instanceof THREE.MeshPhysicalMaterial)) return mat;
+      changed = true;
+      const std = new THREE.MeshStandardMaterial({
+        map: mat.map,
+        roughnessMap: mat.roughnessMap,
+        metalnessMap: mat.metalnessMap,
+        normalMap: mat.normalMap,
+        emissiveMap: mat.emissiveMap,
+        aoMap: mat.aoMap,
+        alphaMap: mat.alphaMap,
+        emissive: mat.emissive,
+        color: mat.color,
+        roughness: mat.roughness,
+        metalness: mat.metalness,
+        transparent: mat.transparent,
+        opacity: mat.opacity,
+        side: mat.side,
+        alphaTest: mat.alphaTest,
+      });
+      std.name = mat.name;
+      mat.dispose();
+      return std;
+    });
+    if (changed) m.material = Array.isArray(m.material) ? next : next[0];
+  });
+}
+
 export function loadEquipmentGLB(url: string): Promise<THREE.Group> {
   if (gltfCache.has(url)) {
     return gltfCache.get(url)!.then((g) => g.clone(true));
@@ -106,9 +151,15 @@ export function loadEquipmentGLB(url: string): Promise<THREE.Group> {
       },
       undefined,
       (err) => {
+        // 失败不能留在缓存里：否则一次网络抖动会把该模型永久钉死成"加载失败"，
+        // 后续任何重试都直接命中已 reject 的 Promise，表现为"有些设备永远没有 GLB"。
+        gltfCache.delete(url);
         reject(err);
       }
     );
+  }).then((scene) => {
+    normalizeGLBMaterials(scene);
+    return scene;
   });
   gltfCache.set(url, p);
   return p.then((g) => g.clone(true));
@@ -872,6 +923,8 @@ export interface EquipmentBuild {
   showDeviceInstances: (deviceId: string) => void;
   /** 独占模式：只显示这一台设备，其余 15 台与其光环/光柱一并隐藏 */
   showOnlyDevice: (deviceId: string) => void;
+  /** 设备详情层是否显示该台的文字铭牌（场景密度优先口径：聚焦层隐藏铭牌）。 */
+  setNameplateVisible: (deviceId: string, visible: boolean) => void;
   /** 退出独占模式：恢复全部设备及其光环/光柱 */
   showAllDevices: () => void;
   /** 当前可见设备数（独占模式下为 1），供性能条如实显示渲染量 */
@@ -1217,9 +1270,17 @@ export function buildEquipment(opts: EquipmentOptions): EquipmentBuild {
           box.getCenter(center);
           scene.position.set(-center.x * s, -box.min.y * s, -center.z * s);
 
+          // 阴影：**只接收、不投射**。
+          // 实测本目录 GLB 的 mesh 数远大于三角形数带来的压力 ——
+          //   exhaust_fan_motor 130 个 mesh、centrifugal_pump 57（且被 eq-101/eq-112 各用一次）、
+          //   double_suction_pump 49、milling_machine 14 …
+          // 11 台映射设备合计约 323 个未合批 mesh。投射阴影会让每个 mesh 在 shadow pass
+          // **再画一遍**，即凭空多出 ~323 次 draw call —— 与本引擎"用 InstancedMesh 压 draw call"
+          // 的设计目标直接冲突，也是 FPS≥30 的最大风险点。
+          // 机械臂那条路径早已这么做（见 productionLine.ts initRobotGLB 的注释），此处对齐。
           scene.traverse((obj) => {
             if ((obj as THREE.Mesh).isMesh) {
-              obj.castShadow = shadows;
+              obj.castShadow = false;
               obj.receiveShadow = shadows;
             }
           });
@@ -1734,7 +1795,9 @@ export function buildEquipment(opts: EquipmentOptions): EquipmentBuild {
       for (const e of entries) {
         const idx = beaconIndexByDevice.get(e.device.id);
         if (typeof idx !== 'number') continue;
-        if (deviceId === null || e.device.id === deviceId) {
+        // 独占（单设备详情）层连本机这台的光柱也一并收掉：
+        // 用户规格明确"3D 场景上方不许有光柱/箭头"，退出独占时 deviceId 传 null 还原。
+        if (deviceId === null) {
           const h = e.bounds.h * e.scale * 1.25 + 4;
           scratch.compose(posV.set(e.slot.x, e.y, e.slot.z), quatIdentity, sclV.set(1.6, h, 1.6));
           beaconMesh.setMatrixAt(idx, scratch);
@@ -1753,6 +1816,16 @@ export function buildEquipment(opts: EquipmentOptions): EquipmentBuild {
       else hideDeviceInstances(e.device.id);
     }
     setChromeFocus(deviceId);
+  };
+
+  /**
+   * 显示/隐藏单台设备的文字铭牌。
+   * 铭牌是贴在设备顶部的 canvas 文字牌 —— 设备详情层按"3D 不飘任何文字"口径隐藏，
+   * 回到车间/总览层即还原。
+   */
+  const setNameplateVisible = (deviceId: string, visible: boolean): void => {
+    const plate = nameplateById.get(deviceId);
+    if (plate) plate.visible = visible;
   };
 
   /** 退出独占：恢复全部设备及其光环 / 光柱。 */
@@ -1963,6 +2036,7 @@ export function buildEquipment(opts: EquipmentOptions): EquipmentBuild {
     showDeviceInstances,
     showOnlyDevice,
     showAllDevices,
+    setNameplateVisible,
     visibleDeviceCount,
     updateTransforms,
     updatePresetPalette,

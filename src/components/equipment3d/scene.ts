@@ -48,7 +48,37 @@ import {
   type FactoryRankMetric,
 } from './factoryOverview';
 import { FaultLocator, type FaultAnchor } from './faultLocator';
-import { FocusSceneDecor, type FocusDecorData, type FocusDecorBox } from './focusSceneDecor';
+import { DeviceDetailEnv, type DeviceDetailEnvBox } from './deviceDetailEnv';
+import {
+  FocusSceneDecor,
+  type FocusDecorData,
+  type FocusDecorBox,
+} from './focusSceneDecor';
+
+/** 设备详情层暗调氛围：雾色 / 清屏色（深蓝灰 #0d1420，禁止纯黑背景）。 */
+const FOG_COLOUR = 0x0d1420;
+/** 线性雾：近端全清晰、约 22m 处完全融入背景（远处剪影"隐约可见"）。 */
+const FOG_NEAR = 7;
+const FOG_FAR = 22;
+/**
+ * 设备详情层「数据标注层」（测点气泡 / 五步闭环卡片 / 警示牌）开关。
+ * ⚠️ 用户规格（场景密度优先）明确：3D 画面里不允许任何飘字，数据走右侧 DOM 面板，
+ *    因此默认 false。并行工作流曾将其作为"硬要求"挂回 —— 冲突时以用户规格为准；
+ *    恢复悬浮标注只需改为 true（buildFocusCallouts 基础设施保持完整）。
+ */
+// 「场景密度优先」口径默认不挂载数据标注层 —— 但支持两种**运行时**临时打开方式，
+// 不需要改源码也不会和别的会话反复改这个常量：
+//   ① URL 参数：`?focusCallouts=1` 或 `?focusCallouts=true`
+//   ② 运行时调用：`window.__equipmentScene.setFocusCalloutsEnabled(true)`
+// 这样探针可以一键验证「开关为 true 时的布局是否正确」，默认仍尊重"不飘字"规格。
+let FOCUS_CALLOUTS_ENABLED = (() => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const v = new URLSearchParams(window.location.search).get('focusCallouts');
+    if (v !== null) return v === '1' || v === 'true';
+  } catch { /* ignore */ }
+  return false;
+})();
 
 /**
  * 场景层级：厂区总览 → 车间生产线 → 单设备聚焦（对标参考视频 r1/r2/r3）。
@@ -136,6 +166,8 @@ export class EquipmentScene {
   private lineGroup = new THREE.Group();
   /** 故障部位定位标 */
   private faultGroup = new THREE.Group();
+  /** 故障呼吸灯：红色点光源，聚焦层按 0.8~1.2 呼吸（用户规格：动态效果不许静止） */
+  private readonly faultGlow = new THREE.PointLight(0xff4d40, 0, 9, 2);
   /** 单设备聚焦层 · 检修作业现场（纯加法：进入聚焦层挂载，退出即整体卸载） */
   private focusDecorGroup = new THREE.Group();
   fluidFlow: FluidFlowSystem;
@@ -145,8 +177,18 @@ export class EquipmentScene {
   productionLine: ProductionLine | null = null;
   /** 车间环境细节层（贴花/仪表/灯柱/工具柜等，纯加法，与产线同生命周期） */
   workshopDetails: WorkshopDetails | null = null;
-  /** 单设备聚焦层的检修作业现场（警戒带/人员/测点引线气泡/检修卡片/扫描环） */
-  focusDecor: FocusSceneDecor | null = null;
+  /** 单设备聚焦层的工业环境（地面警戒线/立柱/屋架/管道/检修物料/工人/工作灯/聚光灯） */
+  focusDecor: DeviceDetailEnv | null = null;
+  /* ---- 单设备聚焦层 · 检修作业闭环数据标注（测点引线+气泡 / 五步闭环卡片 / 警示牌 / 扫描环）
+     与 focusDecor 同生命周期，但**只画数据、不再重复画物理件**：地面警戒线、工具车、
+     作业人员由 DeviceDetailEnv 负责，这里重复摆放会当场出现"两辆工具车/两组工人"。 ---- */
+  private focusCalloutGroup = new THREE.Group();
+  focusCallouts: FocusSceneDecor | null = null;
+  /** 屏幕左右安全线（NDC）；callouts 每次重建都要带上，否则又回到默认 ±0.95 */
+  private focusCalloutSafeRight = 0.95;
+  private focusCalloutSafeLeft = -0.95;
+  /** 设备详情层暗调氛围的灯光备份（进入聚焦时记录，退出还原）。 */
+  private moodBackup: { ambient: number; hemi: number; sun: number; skyVisible: boolean } | null = null;
   faultLocator: FaultLocator;
   level: SceneLevel = 'workshop';
   /** 当前下钻的厂房 id（null = 未选择） */
@@ -282,6 +324,9 @@ export class EquipmentScene {
   private pinchStart = 0;
   private pinchRadius = 0;
 
+  /** 完工恢复的相机缓推：{t, r0} 计时还原轨道半径；null = 无进行中的推镜。 */
+  private recoveryPush: { t: number; r0: number } | null = null;
+
   private resizeObserver: ResizeObserver | null = null;
   private onWindowResize = () => this.resize();
 
@@ -356,7 +401,9 @@ export class EquipmentScene {
       this.factoryGroup,
       this.lineGroup,
       this.faultGroup,
+      this.faultGlow,
       this.focusDecorGroup,
+      this.focusCalloutGroup,
       this.fluidFlow.points
     );
 
@@ -2049,13 +2096,17 @@ export class EquipmentScene {
     if (id === null) {
       if (this.isolationId !== null) {
         eq.showAllDevices();
+        // 离开设备详情层：还原文字铭牌（车间/总览层允许铭牌）
+        eq.setNameplateVisible?.(this.isolationId, true);
         this.isolationId = null;
         this.fluidFlow?.setIsolation(null);
         // 退出聚焦层：检修作业现场整体卸载，绝不残留到车间/总览层
         this.disposeFocusDecor();
+        this.disposeFocusCallouts();
         this.applyIsolationChrome(false);
         this.resetFocus();
         this.level = 'workshop';
+        this.applyFocusLevelVisibility();
         this.onLevelChange?.('workshop', this.activeBuildingId);
       }
       return true;
@@ -2064,27 +2115,54 @@ export class EquipmentScene {
     const box = eq.boxById.get(id);
     if (!box) return false;
 
+    this.level = 'device';
     eq.showOnlyDevice(id);
+    // 铭牌是贴在设备顶部的 canvas 文字牌 —— 聚焦层同样属于"3D 上飘字"，
+    // 退出独占时由 setIsolation(null) 那条路径还原。
+    eq.setNameplateVisible?.(id, false);
     this.isolationId = id;
     this.focusedId = id;
     this.fluidFlow?.setIsolation(id);
+    this.applyFocusLevelVisibility();
     this.applyIsolationChrome(true);
     this.frameIsolated(box, false, targetY);
     // 挂载检修作业现场（警戒带 / 人员 / 工具车 / 警示牌 / 扫描环）
     this.buildFocusDecor(box);
-    this.level = 'device';
+    // 挂载检修作业闭环的数据标注（测点引线+气泡 / 五步闭环卡片 / 警示牌 / 扫描环）
+    // 「场景密度优先」口径（用户规格）：3D 画面里不飘任何文字/气泡/卡片，
+    // 数据全部由右侧 DOM 面板承担 —— 数据标注层默认不挂载。
+    if (FOCUS_CALLOUTS_ENABLED) this.buildFocusCallouts(box);
     this.onLevelChange?.('device', this.activeBuildingId);
     return true;
+  }
+
+  /**
+   * 聚焦层的设备/厂厅显隐复位。
+   *
+   * equipGroup 与 hallGroup 归层级状态机管（厂区总览下两者隐藏）。而"在厂区层
+   * 直接用设备下拉框进入详情"这条路径不经过 enterWorkshopLevel()，没有人为它们
+   * 恢复可见 —— 实测聚焦画面里设备 0 个 draw call、地面消失、整屏纯黑。
+   * 只复位这两组，其余 chrome 仍由 applyIsolationChrome 的恢复表负责。
+   */
+  private applyFocusLevelVisibility(): void {
+    const show = this.level !== 'factory';
+    if (this.equipGroup) this.equipGroup.visible = show;
+    if (this.hallGroup) this.hallGroup.visible = show;
+    // 产线层由层级派生，不进 applyIsolationChrome 的恢复表：
+    // 从厂区层直接用下拉框进详情时，进聚焦那一刻它是 false，按恢复表还原
+    // 会让退出聚焦回到车间层后产线永远不再出现。
+    if (this.lineGroup) this.lineGroup.visible = this.lineLayerVisible;
   }
 
   /** Keep the floor, but mask unrelated helpers without overwriting their requested visibility. */
   private applyIsolationChrome(on: boolean): void {
     if (on) {
-      // 生产线与厂区层同样属于"非本设备"内容，聚焦时一并隐藏。
+      // 厂区层属于"非本设备"内容，聚焦时一并隐藏；产线层改由 applyFocusLevelVisibility
+      // 按层级派生（进恢复表会让"厂区层→详情→退出"后车间层再也看不到产线）。
       // filter(Boolean)：既有单测用 Object.create(prototype) 构造精简实例，
       // 未定义这两个新增 group，直接 push 会把 undefined 混进数组并在下方 .visible 处炸掉。
       const objects = [this.propsGroup, this.workerGroup, this.workOrderGroup, this.safetyGroup, this.helperGroup,
-        this.lineGroup, this.factoryGroup,
+        this.factoryGroup,
         ...this.hallGroup.children.filter(object => object.name !== 'floor' && object.name !== 'apron')]
         .filter((o): o is THREE.Object3D => !!o);
       for (const object of objects) {
@@ -2125,10 +2203,11 @@ export class EquipmentScene {
     const vHalf = (cam.fov * Math.PI) / 360;
     const tanV = Math.tan(vHalf);
     const tanH = tanV * Math.max(0.001, cam.aspect);
-    // FILL 是"包围盒占画面的比例"的目标值。取 0.85 而不是 0.75：
-    // 包围盒的 8 个角里有空角（零件并不会填满盒角），实测投影占比约为
-    // FILL 的 0.85 倍，所以用 0.85 反解，落到画面上才是"约 3/4"。
-    const FILL = 0.85;
+    // FILL 是"包围盒占画面的比例"的目标值。
+    // 「场景密度优先」口径（2026-09）：设备 + 周围检修物件要占画面主体，
+    // 设备约占画面高度 50-60%（NDC 角点 ≤ FILL ≈ 1.2），相机距离比旧值
+    // 0.85 缩短约 30% —— 对标参考视频"设备占画面大部分，能看清管道和工人"。
+    const FILL = 1.2;
     const denomV = FILL * tanV;
     const denomH = FILL * tanH;
 
@@ -2292,13 +2371,24 @@ export class EquipmentScene {
     this.enterWorkshopLevel();
   }
 
+  /**
+   * 产线层（机械臂工作站铭牌、设备悬浮标签、传送带）的可见性。
+   *
+   * 单设备聚焦层必须一并排除：lineGroup 的显隐会被"数据刷新重建产线"和
+   * "低配整体开关"两条路径写回 true，实测聚焦画面里飘出 机械臂 001/002 标签
+   * —— 用户规格：3D 画面里不允许飘任何文字。
+   */
+  private get lineLayerVisible(): boolean {
+    return this.level !== 'factory' && this.level !== 'device' && this.lineEnabled;
+  }
+
   private applyLevelVisibility(): void {
     const isFactory = this.level === 'factory';
     this.factoryGroup.visible = isFactory;
     this.hallGroup.visible = !isFactory;
     this.equipGroup.visible = !isFactory;
     this.propsGroup.visible = !isFactory;
-    this.lineGroup.visible = !isFactory && this.lineEnabled;
+    this.lineGroup.visible = this.lineLayerVisible;
     // 总览层不需要车间内的工单环 / 安全边界 / 故障链 / 人员
     this.workOrderGroup.visible = !isFactory;
     this.safetyGroup.visible = !isFactory;
@@ -2345,7 +2435,7 @@ export class EquipmentScene {
     });
     this.productionLine = line;
     this.lineGroup.add(line.group);
-    this.lineGroup.visible = this.level !== 'factory' && this.lineEnabled;
+    this.lineGroup.visible = this.lineLayerVisible;
     this.buildWorkshopDetails();
     this.bindStationsToDevices();
     this.refreshFaultFloats();
@@ -2373,19 +2463,62 @@ export class EquipmentScene {
     this.workshopDetails = null;
   }
 
-  /* ---------------- 单设备聚焦层 · 检修作业现场（纯加法） ---------------- */
+  /* ---------------- 单设备聚焦层 · 工业环境（场景密度优先） ---------------- */
 
   /**
-   * 进入单设备聚焦层时挂载检修作业现场（警戒带 / 人员 / 工具车 / 警示牌 / 扫描环）。
+   * 进入单设备聚焦层时挂载设备详情工业环境：
+   * 深灰环氧地坪 + 45° 警戒线 + 工字钢立柱 + 屋架/管道桥 + 工业管道（球阀/法兰）
+   * + 工具车/备件箱/电缆盘/检修平台/临时工作灯（真实暖光）/ 工人 ×2 + 上盖板移开 30cm。
    *
-   * ⚠️ 只做加法：不动任何既有元素，也不改光照与材质风格。
+   * ⚠️ 一律不产生文字 / 编号 / 箭头 —— 数据全部由右侧 DOM 面板承担。
    * ⚠️ 只在这里 new，退出聚焦层（setIsolation(null)）与 dispose() 里必须成对 dispose，
    *    否则会残留到车间/总览层。
    */
   private buildFocusDecor(box: DeviceBoxInfo): void {
     this.disposeFocusDecor();
-    const preset = SCENE_PRESETS[this.params.presetId] ?? SCENE_PRESETS.standard;
-    const q = QUALITY[this.params.quality];
+    const decorBox: DeviceDetailEnvBox = {
+      x: box.centerX ?? box.x,
+      z: box.centerZ ?? box.z,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+      d: box.d,
+    };
+    this.focusDecor = new DeviceDetailEnv({
+      box: decorBox,
+      // ⚠️ 既有单测用 Object.create(prototype) 造精简实例，slots 可能未初始化
+      rotationY: this.slots?.[box.index]?.angle ?? 0,
+      // 软渲染（SwiftShader）与 low 画质：跳过阴影投射灯与部分小件
+      lowFx: this.params.quality === 'low' || this.isSoftwareRenderer(),
+    });
+    this.focusDecorGroup?.add(this.focusDecor.group);
+    if (this.focusDecorGroup) this.focusDecorGroup.visible = true;
+    // 压暗环境：暗调工业风，设备与检修物料是视觉焦点
+    this.applyDeviceMood(true, box);
+  }
+
+  private disposeFocusDecor(): void {
+    // 既有单测用 Object.create(prototype) 造精简实例，无 faultGlow 字段
+    if (this.faultGlow) this.faultGlow.intensity = 0;
+    if (!this.focusDecor) return;
+    this.applyDeviceMood(false);
+    this.focusDecorGroup?.remove(this.focusDecor.group);
+    this.focusDecor.dispose();
+    this.focusDecor = null;
+    if (this.focusDecorGroup) this.focusDecorGroup.visible = false;
+  }
+
+  /**
+   * 单设备聚焦层 · 检修作业闭环的**数据标注**层（与 DeviceDetailEnv 同生命周期）：
+   * 真实测点引线 + 数据气泡（缺测显示"—"）+ 五步检修闭环卡片 + 检修警示牌 + 诊断扫描环。
+   *
+   * ⚠️ 只画数据，物理件（地面警戒线 / 立柱 / 工具车 / 作业人员）交给 DeviceDetailEnv，
+   *    两边都摆就变成"两辆工具车 + 两组工人"。dataOnly 即为此开关。
+   * ⚠️ 数据一律来自设备台账与遥测接口，由 EquipmentScene 在既有那次 Promise.allSettled
+   *    里顺手喂进来，本模块自己不发请求。
+   */
+  private buildFocusCallouts(box: DeviceBoxInfo): void {
+    this.disposeFocusCallouts();
     const decorBox: FocusDecorBox = {
       x: box.centerX ?? box.x,
       z: box.centerZ ?? box.z,
@@ -2394,37 +2527,114 @@ export class EquipmentScene {
       h: box.h,
       d: box.d,
     };
-    this.focusDecor = new FocusSceneDecor({
+    const q = QUALITY[this.params.quality];
+    this.focusCallouts = new FocusSceneDecor({
       box: decorBox,
-      preset,
+      preset: SCENE_PRESETS[this.params.presetId] ?? SCENE_PRESETS.standard,
       detail: q.detail,
       // ⚠️ 既有单测用 Object.create(prototype) 造精简实例，slots 可能未初始化
       rotationY: this.slots?.[box.index]?.angle ?? 0,
-      // 软渲染（SwiftShader）与 low 画质：跳过新增光效（扫描环、脚下光圈、脉冲）
       lowFx: this.params.quality === 'low' || this.isSoftwareRenderer(),
+      // 测点气泡 + 五步闭环卡片是本层的硬要求（数据来自真实台账/遥测，缺测显示"—"）
+      floatingLabels: true,
+      dataOnly: true,
     });
-    this.focusDecor.setPaused(this.particlesPaused);
-    this.focusDecorGroup?.add(this.focusDecor.group);
-    if (this.focusDecorGroup) this.focusDecorGroup.visible = true;
+    this.focusCallouts.setPaused(this.particlesPaused === true);
+    this.focusCallouts.setSafeArea(this.focusCalloutSafeRight);
+    this.focusCallouts.setSafeAreaLeft(this.focusCalloutSafeLeft);
+    this.focusCalloutGroup?.add(this.focusCallouts.group);
+    if (this.focusCalloutGroup) this.focusCalloutGroup.visible = true;
   }
 
-  private disposeFocusDecor(): void {
-    if (!this.focusDecor) return;
-    this.focusDecorGroup?.remove(this.focusDecor.group);
-    this.focusDecor.dispose();
-    this.focusDecor = null;
-    if (this.focusDecorGroup) this.focusDecorGroup.visible = false;
+  private disposeFocusCallouts(): void {
+    if (!this.focusCallouts) return;
+    this.focusCalloutGroup?.remove(this.focusCallouts.group);
+    this.focusCallouts.dispose();
+    this.focusCallouts = null;
+    if (this.focusCalloutGroup) this.focusCalloutGroup.visible = false;
+  }
+
+  /* ---- 数据/安全区入口：由 EquipmentScene 调用，喂的是既有那一次请求的结果 ---- */
+  setFocusDecorData(data: FocusDecorData): void {
+    // 补 recipeId：调用方拿不到设备几何，测点部位名要按设备型号从真实观测区取
+    const box = this.equipment?.boxById.get(data.deviceId);
+    this.focusCallouts?.setData({
+      ...data,
+      recipeId: data.recipeId ?? box?.recipeId ?? null,
+    });
+  }
+
+  setFocusDecorSafeArea(rightNdc: number): void {
+    this.focusCalloutSafeRight = rightNdc;
+    this.focusCallouts?.setSafeArea(rightNdc);
+  }
+
+  setFocusDecorSafeAreaLeft(leftNdc: number): void {
+    this.focusCalloutSafeLeft = leftNdc;
+    this.focusCallouts?.setSafeAreaLeft(leftNdc);
+  }
+
+  setFocusDecorPaused(_paused: boolean): void { /* 由 setLayerAnimationsPaused 统一驱动 */ }
+
+  /**
+   * 临时开关数据标注层。默认 false（尊重"3D 不飘字"规格），置 true 立即挂载、
+   * 置 false 立即卸载。**只为探针/单设备调试留口**，不要在前端 UI 里挂按钮。
+   */
+  setFocusCalloutsEnabled(enabled: boolean): void {
+    const v = !!enabled;
+    if (v === FOCUS_CALLOUTS_ENABLED) return;
+    FOCUS_CALLOUTS_ENABLED = v;
+    if (v) {
+      const id = this.isolationId;
+      if (id) {
+        const box = this.equipment?.boxById.get(id);
+        if (box) this.buildFocusCallouts(box);
+      }
+    } else {
+      this.disposeFocusCallouts();
+    }
   }
 
   /**
-   * 用**已经取到的**真实台账 / 遥测 / 工单刷新气泡与检修卡片。
-   * 数据由 UI 层（handlePick 里那一次 Promise.allSettled）喂进来 —— 不新增任何请求。
+   * 设备详情层的暗调灯光氛围：
+   *   - 环境光 / 半球光 / 阳光全部压低（冷白聚光灯与暖黄工作灯由 DeviceDetailEnv 提供）
+   *   - 指数雾 + 深蓝灰清屏色，隐约遮蔽远景；天空球在聚焦层隐藏
+   * 相机 / 轨道手感零改动。harness 精简实例（无灯）直接跳过。
    */
-  setFocusDecorData(data: FocusDecorData): void {
-    if (!this.focusDecor) return;
-    // 配方 id 用来查真实观察区（部位名），只有场景里的 boxById 有，UI 层拿不到也无需知道
-    const box = this.isolationId ? this.equipment?.boxById.get(this.isolationId) : undefined;
-    this.focusDecor.setData({ ...data, recipeId: data.recipeId ?? box?.recipeId ?? null });
+  private applyDeviceMood(on: boolean, box?: DeviceBoxInfo): void {
+    if (!this.ambient || !this.hemi || !this.sun) return;
+    if (on) {
+      if (!this.moodBackup) {
+        this.moodBackup = {
+          ambient: this.ambient.intensity,
+          hemi: this.hemi.intensity,
+          sun: this.sun.intensity,
+          skyVisible: this.skyMesh ? this.skyMesh.visible : false,
+        };
+      }
+      this.ambient.intensity = this.moodBackup.ambient * 0.42;
+      this.hemi.intensity = this.moodBackup.hemi * 0.36;
+      this.sun.intensity = this.moodBackup.sun * 0.42;
+      this.sun.position.set(
+        (box?.centerX ?? 0) + 14, (box?.h ?? 3) + 22, (box?.centerZ ?? 0) + 10,
+      );
+      if (this.skyMesh) this.skyMesh.visible = false;
+      if (!this.scene.fog) {
+        this.scene.fog = new THREE.Fog(FOG_COLOUR, FOG_NEAR, FOG_FAR);
+      }
+      this.renderer.setClearColor(FOG_COLOUR, 1);
+    } else {
+      if (this.moodBackup) {
+        this.ambient.intensity = this.moodBackup.ambient;
+        this.hemi.intensity = this.moodBackup.hemi;
+        this.sun.intensity = this.moodBackup.sun;
+        this.sun.position.set(80, 130, 60);
+        if (this.skyMesh) this.skyMesh.visible = this.moodBackup.skyVisible;
+        this.moodBackup = null;
+      }
+      this.scene.fog = null;
+      this.renderer.setClearColor(0x000000, 0);
+    }
   }
 
   /** 用真实台账刷新设备级细节（坐标/尺寸/状态/遥测快照全部来自 slots / boxById / slotStatus）。 */
@@ -2466,7 +2676,7 @@ export class EquipmentScene {
   /** 生产线整体开关（低配可整体关闭）。 */
   setProductionLineEnabled(on: boolean): void {
     this.lineEnabled = on;
-    this.lineGroup.visible = this.level !== 'factory' && on;
+    this.lineGroup.visible = this.lineLayerVisible;
     this.dirty = true;
   }
 
@@ -2523,7 +2733,7 @@ export class EquipmentScene {
     this.workshopDetails?.setPaused(paused);
     this.factory?.setPaused(paused);
     this.faultLocator.setPaused(paused);
-    this.focusDecor?.setPaused(paused);
+    this.focusCallouts?.setPaused(paused);
   }
 
   /** 复位三层动画到初始相位。 */
@@ -2543,19 +2753,55 @@ export class EquipmentScene {
     else this.faultLocator.clearAll();
   }
 
-  /** 便捷定位某台设备的具体故障部位标 */
-  showDeviceFault(deviceId: string, partName: string): boolean {
+  /**
+   * 便捷定位某台设备的具体故障部位标。
+   * @param partKey 可选。传入观察区 partKey 时按**真实零件几何**的世界包围盒生成
+   *                红色线框笼；匹配不到零件则退回锚点处的标准笼盒。
+   */
+  showDeviceFault(deviceId: string, partName: string, partKey?: string): boolean {
     const box = this.equipment?.boxById.get(deviceId);
     if (!box) return false;
     const y = ((box.h ?? 3.2) * (box.scale ?? 1)) * 0.75 + (box.y ?? 0);
-    this.setFaults([{
-      deviceId,
-      partName,
-      x: box.x,
-      y,
-      z: box.z,
-    }]);
+    const bounds = partKey ? this.partWorldBounds(deviceId, partKey) : undefined;
+    if (bounds) {
+      // 钳制：零件矩阵可能叠加设备缩放导致包围盒虚大（实测油罐笼高 5.85m，
+      // 把相机推到屋顶上方俯视）。笼盒尺寸收进设备尺度的合理范围，
+      // 中心高度钳回设备包围盒内，保证取景始终对准设备本体。
+      const cap = Math.max(0.3, Math.min(box.w, box.h, box.d));
+      bounds.sx = Math.min(Math.max(bounds.sx, 0.25), cap);
+      bounds.sy = Math.min(Math.max(bounds.sy, 0.25), cap);
+      bounds.sz = Math.min(Math.max(bounds.sz, 0.25), cap);
+      bounds.cy = Math.min(Math.max(bounds.cy, box.y + bounds.sy / 2), box.y + box.h - bounds.sy / 2);
+    }
+    const ax = bounds ? bounds.cx : box.x;
+    const ay = bounds ? bounds.cy : y;
+    const az = bounds ? bounds.cz : box.z;
+    // 红色呼吸灯打在故障部位上（纯光、不带任何文字/引线）
+    this.faultGlow.position.set(ax, ay, az);
+    this.faultGlow.intensity = 0.8;
+    this.setFaults([{ deviceId, partName, x: ax, y: ay, z: az, bounds }]);
     return true;
+  }
+
+  /** 求指定零件的世界 AABB（设备实例变换后）；找不到返回 null。 */
+  private partWorldBounds(deviceId: string, partKey: string):
+    { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number } | null {
+    const eq = this.equipment;
+    if (!eq) return null;
+    const parts = eq.getDevicePartInfo(deviceId);
+    if (!parts) return null;
+    const part = parts.find((p) => p.key === partKey);
+    if (!part) return null;
+    if (!part.geo.boundingBox) part.geo.computeBoundingBox();
+    const bb = part.geo.boundingBox!;
+    // part.matrix 在 equipment.ts 里就是 deviceMatrix × partMatrix，**已经是世界矩阵**；
+    // 再乘一次 dev.matrixWorld 会把锚点甩到别处（实测相机对着 25m 外的空地，画面全黑）。
+    const min = bb.min.clone().applyMatrix4(part.matrix);
+    const max = bb.max.clone().applyMatrix4(part.matrix);
+    const cx = (min.x + max.x) / 2;
+    const cy = (min.y + max.y) / 2;
+    const cz = (min.z + max.z) / 2;
+    return { cx, cy, cz, sx: Math.abs(max.x - min.x), sy: Math.abs(max.y - min.y), sz: Math.abs(max.z - min.z) };
   }
 
   /**
@@ -2595,6 +2841,40 @@ export class EquipmentScene {
     this.orbit.target.set(p.x, p.y, p.z);
     this.dirty = true;
     return true;
+  }
+
+  /* ---------------- 维修闭环（工单操作联动） ---------------- */
+
+  /**
+   * 检修阶段覆盖：'repairing' = 技师接单检修中（台账蓝色"检修中"）；
+   * 'operating' = 修复完成恢复运转（绿色，旋转件复转、告警灯熄灭）。
+   * 只覆盖显示，不改台账；台账状态由工单流程与刷新后的真实接口驱动。
+   */
+  setDeviceRepairPhase(deviceId: string, phase: 'repairing' | 'operating'): void {
+    this.setStatusOverride(deviceId, phase === 'repairing' ? 'overhauling' : 'running');
+  }
+
+  /** 检修步骤进度（0~1）→ 故障定位标逐层减淡（勾一步消一层）。 */
+  setDeviceRepairProgress(deviceId: string, ratio: number): void {
+    this.faultLocator.setRepairProgress(deviceId, ratio);
+  }
+
+  /**
+   * 完工恢复动画：故障定位标红→绿扫过并淡出自毁 + 设备状态色立即转绿复转 +
+   * 相机向设备缓推再回落（"验收复机"的镜头语言）。
+   * @returns 是否命中了定位标（无定位标的设备也做状态/相机部分）
+   */
+  playRepairRecovery(deviceId: string): boolean {
+    const hitMarker = this.faultLocator.startRecovery(deviceId);
+    this.setStatusOverride(deviceId, 'running');
+    const o = this.orbit;
+    const r0 = Math.max(o.radius, o.sRadius);
+    if (r0 > o.minRadius * 1.5) {
+      // 先把目标半径收 12%，1.6s 后由帧循环还原；阻尼让两段都平滑不跳变
+      o.radius = Math.max(o.minRadius + 0.5, r0 * 0.88);
+      this.recoveryPush = { t: 0, r0 };
+    }
+    return hitMarker;
   }
 
   /* ---------------- 统一拾取 ---------------- */
@@ -3036,7 +3316,13 @@ export class EquipmentScene {
       this.faultLocator.update(dt, this.animTime, this.camera);
       // 聚焦层检修作业现场：扫描环旋转 + 脚下光圈脉冲（同一暂停开关控制）
       // 传相机：数据气泡/检修卡片按屏幕槽位摆放，镜头一转就要重排，否则会挤成一坨
-      this.focusDecor?.update(dt, this.animTime, this.camera);
+      this.focusDecor?.update(dt, this.animTime);
+      // 故障呼吸灯：0.8~1.2 之间起伏，退出聚焦（intensity 归 0）即停
+      if (this.faultGlow.intensity > 0) {
+        this.faultGlow.intensity = 1 + Math.sin(this.animTime * 2.6) * 0.2;
+      }
+      // ⚠️ 必须把相机传进去：气泡/卡片是按屏幕槽位反解出来的，镜头一动就要重排
+      this.focusCallouts?.update(dt, this.animTime, this.camera);
       this.animateChrome(this.animTime, dt);
       // 小地图只需跟随相机更新，约 8fps 重绘足够，避免占用主线程
       this.miniTimer += dt;
@@ -3080,6 +3366,14 @@ export class EquipmentScene {
 
   /** 阻尼相机 + 行车往复 —— 与参考实现 update() 一致。 */
   update(dt: number): void {
+    // 完工恢复推镜：1.6s 后把轨道半径还原（收→放的阻尼过渡由下方插值完成）
+    if (this.recoveryPush) {
+      this.recoveryPush.t += dt;
+      if (this.recoveryPush.t >= 1.6) {
+        this.orbit.radius = this.recoveryPush.r0;
+        this.recoveryPush = null;
+      }
+    }
     const o = this.orbit;
     const k = 1 - Math.exp(-dt * 9);
     o.sTheta += (o.theta - o.sTheta) * k;
@@ -3128,6 +3422,7 @@ export class EquipmentScene {
     this.disposeProductionLine();
     this.disposeFactory();
     this.disposeFocusDecor();
+    this.disposeFocusCallouts();
     this.faultLocator.dispose();
     this.workOrderRings.clear();
     this.currentWorkOrderMap.clear();
