@@ -845,7 +845,7 @@ export class FocusSceneDecor {
         o.geometry.dispose();
       } else if (o instanceof THREE.Mesh) {
         // InstancedMesh：只释放实例缓冲，**不要**碰共享几何
-        (o as THREE.InstancedMesh).isInstancedMesh && (o as THREE.InstancedMesh).dispose();
+        if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose();
         // 测点小球：几何共享（this.geo.dot），材质是按批单独建的
         const m = o.material as THREE.Material | THREE.Material[];
         if (Array.isArray(m)) m.forEach((x) => x.dispose());

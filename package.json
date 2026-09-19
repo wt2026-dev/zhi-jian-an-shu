@@ -12,7 +12,8 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "test": "vitest run",
-    "lint": "tsc --noEmit",
+    "lint": "eslint . && tsc --noEmit",
+    "lint:fix": "eslint . --fix",
     "metrics:check": "node scripts/check-metrics.mjs",
     "metrics:fix": "node scripts/check-metrics.mjs --fix"
   },
@@ -48,6 +49,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@sentry/vite-plugin": "^5.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@testing-library/jest-dom": "^7.0.1",
@@ -69,11 +71,16 @@
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.12.0",
     "jsdom": "^30.0.1",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
+    "typescript-eslint": "^8.70.0",
     "vite": "^6.2.3",
     "vitest": "^5.0.0"
   },

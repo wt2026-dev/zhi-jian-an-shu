@@ -11,7 +11,7 @@ Page({
       var sp = e.specs || {};
       for (var k in sp) specs.push({ k: k, v: sp[k] });
       that.setData({
-        loading: false, e: e, sText: st[0],
+        loading: false, sText: st[0],
         sStyle: "color:" + st[1] + ";background:" + st[1] + "26;border:1rpx solid " + st[1] + "88;",
         specEntries: specs,
         e: Object.assign({}, e, { maintenanceHistory: e.maintenanceHistory || [], telemetry: e.telemetry || {} }),

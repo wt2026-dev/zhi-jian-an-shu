@@ -92,6 +92,9 @@ Page({
   },
 
   drawPermitDocument: function (ctx, w, h, p) {
+    // 本方法仅以 that.drawPermitDocument(...) 的形式被调用，this 即页面实例；
+    // 此前方法体内直接引用外层 that（未在本作用域声明），导出文档时必抛 ReferenceError。
+    var that = this;
     var bg = "#0a0a0a";
     var cardBg = "#141414";
     var border = "#262626";

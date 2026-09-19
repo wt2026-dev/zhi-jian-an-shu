@@ -46,8 +46,10 @@ jobs:
         # fail fast：锁文件不一致直接失败，暴露依赖漂移（禁止 || npm install 兜底掩盖问题）
         run: npm ci
 
-      - name: Run TypeScript Type Check (tsc --noEmit)
-        run: npx tsc --noEmit
+      - name: Run Static Checks (ESLint + tsc --noEmit)
+        # 分级：硬线规则（0 存量违规）为 error 会拦截新增债；历史债为 warn，
+        # 只标注不置红（未加 --max-warnings，避免并行会话的正常改动把 CI 打停）。
+        run: npm run lint
 
       - name: Run Automated Test Suite (npm test)
         run: npm test

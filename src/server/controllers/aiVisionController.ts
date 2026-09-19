@@ -2,8 +2,6 @@
 import { getAiClient, extractAiJson } from "../services/aiClient.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
-import { validateBody } from "../middleware/validate.ts";
-import { visionDefectDetectSchema, speechToTextSchema } from "../schemas/ai.ts";
 import { findRelevantKnowledge } from "../services/knowledgeRetrieval.ts";
 
 // 阿里云 DashScope / 通义千问 Qwen-VL 工业视觉缺陷深度识别链路
