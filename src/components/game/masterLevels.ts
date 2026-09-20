@@ -204,6 +204,59 @@ export function buildMasterLevels(
   return [L1, L2, L3, L4];
 }
 
+/* ============================ 限时规则 ============================ */
+
+/**
+ * BOSS 战第 `stepIdx` 阶段的限时（秒）；不分阶段限时的关卡返回 0。
+ *
+ * 取 `min` 兜底：万一 `phaseSeconds` 比步骤数短，最后一段限时会被复用，
+ * 而不是让某个阶段变成"不限时"（那等于给玩家开天窗）。
+ */
+export function phaseLimitOf(level: MasterLevel, stepIdx: number): number {
+  if (!level.phaseSeconds.length) return 0;
+  return level.phaseSeconds[Math.min(stepIdx, level.phaseSeconds.length - 1)] ?? 0;
+}
+
+export interface TimerState {
+  /** 限时剩余（秒）；-1 = 不限时 */
+  timeLeft: number;
+  lives: number;
+  mistakes: number;
+  /** 当前第几步（BOSS 战按阶段取限时要用） */
+  stepIdx: number;
+}
+
+export interface TimerTick extends TimerState {
+  /** 本 tick 发生了"阶段超时"（BOSS 战的分阶段限时），调用方据此提示玩家 */
+  phaseTimedOut: boolean;
+}
+
+/**
+ * 推进一个计时 tick（纯函数，可单测）。
+ *
+ * 两条计时路径：
+ * - **全关限时**（`level.timeLimit > 0`）：烧完就把 `timeLeft` 停在 0，由调用方判负。
+ * - **分阶段限时**（`level.phaseSeconds` 非空，仅 BOSS 战）：当前阶段烧完**不判负**，
+ *   扣一条命并把**该阶段**重新起表；生命耗尽由调用方的 `lives <= 0` 统一判负
+ *   （与"答错扣命"共用同一套失败语义）。
+ *
+ * 为什么抽成纯函数：这段逻辑原先埋在组件 effect 里、只有真浏览器能验，
+ * 结果 `phaseSeconds` 被写进 state 之后**没人读**、BOSS 战实际没有时间限制也没被发现。
+ */
+export function tickTimer(state: TimerState, level: MasterLevel, dt: number): TimerTick {
+  const next: TimerTick = { ...state, phaseTimedOut: false };
+  if (next.timeLeft <= 0) return next; // -1 = 不限时
+  next.timeLeft = Math.max(0, next.timeLeft - dt);
+  if (next.timeLeft > 0) return next;
+  if (level.phaseSeconds.length > 0) {
+    next.lives = Math.max(0, next.lives - 1);
+    next.mistakes += 1;
+    next.timeLeft = phaseLimitOf(level, state.stepIdx);
+    next.phaseTimedOut = true;
+  }
+  return next;
+}
+
 /* ============================ 等级（职称） ============================ */
 
 export type Rank = 'apprentice' | 'technician' | 'senior' | 'chief';

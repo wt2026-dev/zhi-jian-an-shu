@@ -35,10 +35,13 @@ import {
   MAX_GAP,
   MAX_RISE,
   nextRankHint,
+  phaseLimitOf,
   rankFor,
+  tickTimer,
   RANK_NAME,
   RANK_ORDER,
   type MasterLevel,
+  type TimerState,
 } from "../src/components/game/masterLevels.ts";
 import type { Equipment, MaintenanceProcedure } from "../src/types/index.ts";
 
@@ -466,6 +469,24 @@ describe("检修大师 · 关卡结构", () => {
     expect(l4.phaseSeconds.every((s) => s > 0)).toBe(true);
   });
 
+  it("BOSS 战的阶段限时与步骤数一一对应（少一段就会有阶段没有限时）", () => {
+    const levels = build();
+    const boss = levels.find((l) => l.kind === "boss");
+    expect(boss).toBeTruthy();
+    // "阶段"就是步骤：hunt → tool → order，三段限时必须和步骤数等长。
+    // 原先只断言 `>= 2`，于是 phaseSeconds 被写进 state 后**没人读**也没被发现。
+    expect(boss!.phaseSeconds.length).toBe(boss!.levels[0].steps.length);
+    expect(boss!.phaseSeconds.every((s) => s > 0)).toBe(true);
+    // 分阶段限时的关卡不能再叠一层全关限时：否则 timeLeft 只认全关限时，
+    // phaseSeconds 会退化成死数据（BOSS 战限时失效正是这么漏掉的）。
+    expect(boss!.timeLimit).toBe(0);
+    // 其余关卡一律不分阶段，避免两条计时路径互相打架
+    for (const l of levels) {
+      if (l.kind === "boss") continue;
+      expect(l.phaseSeconds).toEqual([]);
+    }
+  });
+
   it("每台设备的题目都由真实规程生成，且恒为三步（找异常 → 选工具 → 定顺序）", () => {
     const { equipments, procs } = pool();
     const knownIds = new Set(equipments.map((e) => e.id));
@@ -670,5 +691,72 @@ describe("检修大师 · 端到端可玩性（用真实物理跑一遍）", () 
       });
     }
     expect([...hit].sort((a, b) => a - b)).toEqual(l2.devices.map((_, k) => k));
+  });
+});
+
+/* ============================ 限时规则 ============================ */
+
+describe("检修大师 · 限时规则（BOSS 战分阶段限时）", () => {
+  const boss = () => build().find((l) => l.kind === "boss")!;
+
+  /** 一直 tick 到限时归零那一刻（或阶段超时），返回那一刻的状态 */
+  const burn = (state: TimerState, level: MasterLevel, dt = 0.25) => {
+    let s = state;
+    for (let i = 0; i < 100000; i++) {
+      const t = tickTimer(s, level, dt);
+      if (t.phaseTimedOut || t.timeLeft === 0) return t;
+      if (t.timeLeft < 0) throw new Error("关卡不限时，烧不完");
+      s = t;
+    }
+    throw new Error("限时烧不完（疑似没有限时）");
+  };
+
+  it("全关限时的关卡：烧完就停在 0、不扣命（判负交给调用方）", () => {
+    const l2 = build()[1];
+    const end = burn({ timeLeft: l2.timeLimit, lives: 3, mistakes: 0, stepIdx: 0 }, l2);
+    expect(end.timeLeft).toBe(0);
+    expect(end.phaseTimedOut).toBe(false);
+    expect(end.lives).toBe(3);
+    expect(end.mistakes).toBe(0);
+  });
+
+  // ★ 这条就是原 bug 的守卫：`phaseSeconds` 被写进 state 后**没人读**，
+  //   BOSS 战实际没有时间限制，而 HUD 却写着"分阶段限时"。只有断言
+  //   "第 N 阶段重置回第 N 段限时"才区分得出到底读没读这个数组。
+  it("★ BOSS 战每个阶段用的是自己那一段限时（不是永远第 0 段）", () => {
+    const l4 = boss();
+    for (let step = 0; step < l4.phaseSeconds.length; step++) {
+      const end = burn({ timeLeft: l4.phaseSeconds[step], lives: 3, mistakes: 0, stepIdx: step }, l4);
+      expect(end.phaseTimedOut).toBe(true);
+      expect(end.timeLeft).toBe(l4.phaseSeconds[step]);
+    }
+    // 三段限时互不相同 ⇒ 上面的断言才真正区分得出"用了哪一段"
+    expect(new Set(l4.phaseSeconds).size).toBe(l4.phaseSeconds.length);
+  });
+
+  it("BOSS 战阶段超时只扣一条命并重新起表，生命不会被扣成负数", () => {
+    const l4 = boss();
+    const first = burn({ timeLeft: l4.phaseSeconds[0], lives: 1, mistakes: 0, stepIdx: 0 }, l4);
+    expect(first.lives).toBe(0);
+    expect(first.mistakes).toBe(1);
+    expect(first.timeLeft).toBe(l4.phaseSeconds[0]);
+    // 生命已经是 0，再烧一段也不能变负（判负由调用方的 lives<=0 负责）
+    const again = burn({ ...first, lives: 0 }, l4);
+    expect(again.lives).toBe(0);
+  });
+
+  it("不限时（timeLeft = -1）的关卡永远不烧、不扣命", () => {
+    const [l1] = build();
+    const s: TimerState = { timeLeft: -1, lives: 3, mistakes: 0, stepIdx: 0 };
+    let cur = s;
+    for (let i = 0; i < 200; i++) cur = tickTimer(cur, l1, 0.25);
+    expect(cur).toEqual({ ...s, phaseTimedOut: false });
+  });
+
+  it("phaseLimitOf 越界时兜到最后一段，而不是让该阶段变成'不限时'", () => {
+    const l4 = boss();
+    expect(phaseLimitOf(l4, 99)).toBe(l4.phaseSeconds[l4.phaseSeconds.length - 1]);
+    // 不分阶段的关卡返回 0，调用方据此走"全关限时"那条路
+    expect(phaseLimitOf(build()[1], 0)).toBe(0);
   });
 });

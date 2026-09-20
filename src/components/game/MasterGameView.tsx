@@ -22,7 +22,9 @@ import { fetchProcedures } from './gameData';
 import {
   buildMasterLevels,
   nextRankHint,
+  phaseLimitOf,
   rankFor,
+  tickTimer,
   RANK_NAME,
   type MasterLevel,
   type Rank,
@@ -125,12 +127,10 @@ interface RunState {
   score: number;
   lives: number;
   mistakes: number;
-  /** 限时剩余（秒）；-1 = 不限时 */
+  /** 限时剩余（秒）；-1 = 不限时。BOSS 关存的是**当前阶段**的剩余时间 */
   timeLeft: number;
   /** 已用时（秒） */
   elapsed: number;
-  /** 当前阶段的限时（BOSS 关按阶段切换） */
-  phaseLimit: number;
 }
 
 function freshRun(level: MasterLevel): RunState {
@@ -143,9 +143,9 @@ function freshRun(level: MasterLevel): RunState {
     score: 0,
     lives: MAX_LIVES,
     mistakes: 0,
-    timeLeft: level.timeLimit > 0 ? level.timeLimit : -1,
+    // 全关限时优先；BOSS 关没有全关限时，起表值就是第 0 阶段的限时
+    timeLeft: level.timeLimit > 0 ? level.timeLimit : (level.phaseSeconds[0] ?? -1),
     elapsed: 0,
-    phaseLimit: level.phaseSeconds[0] ?? 0,
   };
 }
 
@@ -294,6 +294,9 @@ function MasterRun({ level, levelIdx, total, save, onSave, onNext, onRetry, onRe
         const lv = mirror.current.level;
         if (!lv) return;
         playerRef.current = { ...playerRef.current, x, y: lv.world.groundY, vx: 0, vy: 0, onGround: true };
+      },
+      setTimeLeft: (seconds) => {
+        setRun((r) => ({ ...r, timeLeft: seconds }));
       },
       /* 当前可点的目标（虚拟坐标）—— 让验收脚本能发真实鼠标事件，
        * 从而走完整条 "客户端坐标 → 虚拟坐标 → 世界坐标 → 命中" 的链路，
@@ -531,16 +534,25 @@ function MasterRun({ level, levelIdx, total, save, onSave, onNext, onRetry, onRe
   useEffect(() => {
     if (phase !== 'run' && phase !== 'interact') return;
     const timer = window.setInterval(() => {
-      setRun((r) => {
-        const lv = mirror.current.level;
-        if (!lv) return r;
-        const elapsed = r.elapsed + 0.25;
-        let timeLeft = r.timeLeft;
-        if (timeLeft > 0) {
-          timeLeft = Math.max(0, timeLeft - 0.25);
-        }
-        return { ...r, elapsed, timeLeft };
-      });
+      const lv = mirror.current.level;
+      if (!lv) return;
+      // 计时规则本身是纯函数（见 masterLevels.tickTimer）：全关限时烧完停在 0 由下面判负；
+      // BOSS 战的分阶段限时则扣命 + 该阶段重新起表。这里只负责"把结果写回 state + 说给玩家听"。
+      const t = tickTimer(mirror.current.run, lv, 0.25);
+      setRun((prev) => ({
+        ...prev,
+        elapsed: prev.elapsed + 0.25,
+        timeLeft: t.timeLeft,
+        lives: t.lives,
+        mistakes: t.mistakes,
+      }));
+      if (t.phaseTimedOut) {
+        setFeedback({
+          ok: false,
+          title: '本阶段超时',
+          detail: `扣 1 条命，本阶段重新计时 ${t.timeLeft}s`,
+        });
+      }
     }, 250);
     return () => window.clearInterval(timer);
   }, [phase]);
@@ -555,6 +567,8 @@ function MasterRun({ level, levelIdx, total, save, onSave, onNext, onRetry, onRe
       return;
     }
     if (run.timeLeft === 0) {
+      // 只有"全关限时"的关卡会走到这里：BOSS 战的分阶段限时在 tickTimer 里就扣命并把
+      // 该阶段重新起表了，timeLeft 不会停在 0（它判负走的是上面那条"生命耗尽"）。
       finishLevel(false, run, lv, lv.kind === 'emergency' ? '抢修超时，故障扩大' : '排查超时');
     }
     // finishLevel / run 是有意不放进依赖的：这里只在"归零那一刻"触发一次
@@ -598,7 +612,18 @@ function MasterRun({ level, levelIdx, total, save, onSave, onNext, onRetry, onRe
         return next;
       });
     } else {
-      setRun((prev) => ({ ...prev, stepIdx: prev.stepIdx + 1, orderSeq: [], revealed: [] }));
+      setRun((prev) => {
+        const nextStep = prev.stepIdx + 1;
+        const limit = phaseLimitOf(lv, nextStep);
+        return {
+          ...prev,
+          stepIdx: nextStep,
+          orderSeq: [],
+          revealed: [],
+          // BOSS 战：每个阶段各有一段限时，进入下一阶段要重新起表
+          timeLeft: limit > 0 ? limit : prev.timeLeft,
+        };
+      });
     }
   }, [finishLevel]);
 
@@ -615,7 +640,18 @@ function MasterRun({ level, levelIdx, total, save, onSave, onNext, onRetry, onRe
         setFeedback({ ok: true, title: '这台已经修好了', detail: '去下一台设备吧' });
         return;
       }
-      setRun((r) => ({ ...r, active: index, stepIdx: 0, revealed: [], orderSeq: [] }));
+      setRun((r) => {
+        const limit = phaseLimitOf(lv, 0);
+        return {
+          ...r,
+          active: index,
+          stepIdx: 0,
+          revealed: [],
+          orderSeq: [],
+          // BOSS 战：开始修这台设备时，第 0 阶段重新起表
+          timeLeft: limit > 0 ? limit : r.timeLeft,
+        };
+      });
       setFeedback(null);
       setPhase('interact');
     },
@@ -932,6 +968,13 @@ function MasterRun({ level, levelIdx, total, save, onSave, onNext, onRetry, onRe
                     feedback={feedback}
                   />
                 )}
+              </div>
+            )}
+            {/* 跑动阶段没有面板，但"阶段超时扣命"这类反馈必须让玩家看见 ——
+                否则只是生命值悄悄少一格、计时器悄悄跳回去，玩家不知道发生了什么。 */}
+            {phase !== 'interact' && feedback && (
+              <div className="w-full max-w-[620px] px-1">
+                <FeedbackLine feedback={feedback} />
               </div>
             )}
           </div>
@@ -1353,6 +1396,14 @@ export interface MasterProbe {
   /** 直接把玩家放到某台设备旁（省掉长距离跑动，验收用） */
   teleportTo: (i: number) => void;
   setPlayerX: (x: number) => void;
+  /**
+   * 直接改剩余限时（验收用）。
+   *
+   * 为什么需要：BOSS 战的阶段限时是 40/30/55 秒，真等一轮要 40 秒 ——
+   * "阶段超时会扣命并重新起表"这条规则就没法在验收里验了（只能靠单测）。
+   * 把它拨到 0.2 秒，就能在几百毫秒内看到完整效果。
+   */
+  setTimeLeft: (seconds: number) => void;
   /** 当前可点目标（虚拟坐标，960×540 系）与当前步骤的正确答案 */
   targets: () => {
     devices: Array<{ i: number; name: string; x: number; y: number; done: boolean }>;
