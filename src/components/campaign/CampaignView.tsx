@@ -353,7 +353,8 @@ export function CampaignView(props: { currentUser: UserProfile | null }) {
 
         {/* 左列整个留给 3D 舞台，幕面板固定在右侧；窄屏时面板独占一列 */}
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(330px,400px)]">
-          <div className="pointer-events-auto flex min-h-0 flex-col gap-2 overflow-y-auto pr-0.5 lg:order-2">
+          {/* pb-24：全局 AI 悬浮球固定占据视口右下 80px，幕末按钮不给留白就会被它盖住点不到 */}
+          <div className="pointer-events-auto flex min-h-0 flex-col gap-2 overflow-y-auto pr-0.5 pb-24 lg:order-2">
             {isInitialLoading && <ApiNotice kind="empty" text="台账正在从后端加载，加载完成后再开始主线。" />}
             {phase === 'intro' && <IntroPanel progress={progress} rankTitle={`${rank.current.level} · ${rank.current.title}`} onStart={begin} onReset={onResetProgress} />}
             {phase === 'running' && <ActComp key={actId} {...actProps} />}
