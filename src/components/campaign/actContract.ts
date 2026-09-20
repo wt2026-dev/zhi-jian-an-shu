@@ -36,6 +36,9 @@ export interface RunContext {
   /** 第 5 幕命中的真实规程与登记的 LOTO 锁 */
   procedure: MaintenanceProcedure | null;
   lotoLockNo: string | null;
+  /** 第 5 幕办理的作业票：第 7 幕完工后要注销，票不结掉该设备下次开不了工 */
+  permitId: string | null;
+  permitNo: string | null;
   /** 第 5 幕实际用掉的备件（领料流水已写入） */
   partsUsed: Array<{ name: string; quantity: number }>;
   /** 第 6 幕 AI 视觉质检 */
@@ -58,6 +61,8 @@ export const EMPTY_RUN: RunContext = {
   assigneeName: null,
   procedure: null,
   lotoLockNo: null,
+  permitId: null,
+  permitNo: null,
   partsUsed: [],
   qcImageUrl: null,
   qcVerdict: null,

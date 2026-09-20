@@ -9,6 +9,8 @@
  *   界面如实禁用并说明原因，不用通用台词凑数。
  * - 作业票走 `POST /safety-permits`（真实 permitNo，状态待双人会签），隔离锁走
  *   `POST /loto-locks`（服务端要求关联票存在，锁号重复 409 拒绝，原话回显）。
+ * - 接单前必须完成**双人会签**：监护节点由另一名真实账号（点检工程师/安全监护员）签署，
+ *   终审节点由当前登录账号签署，两枚签名各自落库；服务端未生效票据禁止开工的联锁不改。
  * - 接单走 `POST /work-orders/:id/claim`（dispatched → in_progress）；第 4 幕没派工就接不了单，
  *   显示服务端拒绝原因，不偷偷绕过状态机。
  * - 备件消耗沿用第 4 幕的真实出库流水，本幕不重复扣库。
@@ -17,11 +19,13 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppData } from '../../../context/AppDataContext';
+import { useAuth } from '../../../context/AuthContext';
 import { ApiError, safetyPermitApi, workOrderApi } from '../../../api';
 import type { LotoLock, MaintenanceProcedure } from '../../../types';
 import { cancelSpeech, speakChinese } from '../../digital-human/speech';
 import { findProcedureForEquipment, fetchProcedures } from '../../game/gameData';
 import { buildRepairSteps, judgeOrder, shuffledDeterministic } from '../campaignSteps';
+import { countersignPermit, pickGuardianCandidate } from '../campaignPermitSign';
 import { pickIncident } from '../campaignModel';
 import { useActClock } from '../useActClock';
 import type { ActProps } from '../actContract';
@@ -43,11 +47,15 @@ function shortTitle(title: string): string {
 export function ActRepair(props: ActProps) {
   const { run, stage, currentUser, finish, countMistake } = props;
   const { equipments } = useAppData();
+  const { allUsers } = useAuth();
   const elapsed = useActClock();
 
   const [procedure, setProcedure] = useState<MaintenanceProcedure | null>(null);
   const [procChecked, setProcChecked] = useState(false);
   const [permitNo, setPermitNo] = useState<string | null>(null);
+  const [permitId, setPermitId] = useState<string | null>(null);
+  const [permitDeadline, setPermitDeadline] = useState<string | null>(null);
+  const [signedBy, setSignedBy] = useState<{ guardian: string; supervisor: string } | null>(null);
   const [lock, setLock] = useState<LotoLock | null>(null);
   const [claimed, setClaimed] = useState(false);
   const [orderMsg, setOrderMsg] = useState<string | null>(null);
@@ -60,6 +68,8 @@ export function ActRepair(props: ActProps) {
   const [busy, setBusy] = useState(false);
 
   const operatorName = currentUser?.name ?? '';
+  /** 第二签署人：台账里真实存在的监护员账号，没有就没有双人会签，本幕不开工 */
+  const guardian = useMemo(() => pickGuardianCandidate(allUsers, currentUser?.id), [allUsers, currentUser?.id]);
   const incident = useMemo(() => run.incident ?? pickIncident(equipments), [run.incident, equipments]);
   const equipment = incident?.equipment ?? null;
   const steps = useMemo(() => buildRepairSteps({ procedure, plan: run.plan }), [procedure, run.plan]);
@@ -98,11 +108,39 @@ export function ActRepair(props: ActProps) {
     };
   }, [equipment]);
 
+  // 服务端按**设备**做开工联锁：该设备任意一张未结案作业票（待审批/已过期）都会拦住接单。
+  // 上一局中断留下的票不会自动消失，进场先查出来如实报，免得玩家对着 409 猜原因。
+  const [stalePermits, setStalePermits] = useState<string[]>([]);
+  useEffect(() => {
+    if (!equipment) return;
+    let alive = true;
+    void safetyPermitApi
+      .list({})
+      .then((list) => {
+        if (!alive || !Array.isArray(list)) return;
+        setStalePermits(
+          list
+            .filter((p) => p?.equipmentId === equipment.id && !['closed', 'rejected'].includes(String(p?.status)))
+            .map((p) => `${p.permitNo}（${p.status === 'pending_approval' ? '待会签' : p.status}）`)
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [equipment]);
+
   /** 开票 + 挂隔离锁：两步都成功才算"已隔离"，任一失败回显服务端原话 */
   const lockOut = useCallback(async () => {
     if (!equipment || !operatorName || busy) return;
     setBusy(true);
     try {
+      // 有效期必须是可 Date.parse 的 ISO 截止时间：服务端 requireValidPermit 对"当日20:00前"
+      // 这类人话直接判"有效期不明确"并拒绝开工，窗口按第 4 幕 AI 方案的预计工时给。
+      const planHours = Number(run.plan?.estimatedHours);
+      const hours = Number.isFinite(planHours) && planHours > 0 ? planHours : 4;
+      const deadline = new Date(Date.now() + hours * 3600 * 1000);
+      const deadlineText = new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(deadline);
       const permit = await safetyPermitApi.create({
         permitType: '停电检修作业票',
         riskLevel: '较大风险 (Level 2)',
@@ -111,13 +149,15 @@ export function ActRepair(props: ActProps) {
         equipmentName: equipment.name,
         workshop: equipment.workshop,
         location: equipment.location || equipment.workshop,
-        validUntil: '当日20:00前',
+        validUntil: deadline.toISOString(),
         precautions: run.plan?.safetyMeasures?.ppe ?? [],
         hazards: run.plan?.safetyMeasures?.highRiskNotes ?? [],
       });
       const no = String(permit?.permitNo ?? '');
       if (!no) throw new ApiError(500, { message: '作业票接口未返回 permitNo' });
       setPermitNo(no);
+      setPermitId(String(permit?.id ?? ''));
+      setPermitDeadline(deadlineText);
       const point = run.plan?.safetyMeasures?.lotoPoints?.[0] ?? steps[0]?.actions[0] ?? `${equipment.name} 动力电源`;
       const registered = await safetyPermitApi.registerLotoLock({
         lockNo: `LOTO-${no}`,
@@ -127,7 +167,7 @@ export function ActRepair(props: ActProps) {
         location: equipment.location || equipment.workshop,
       });
       setLock(registered);
-      pushLog(`作业票 ${no} 已提交待会签，隔离锁 ${registered?.lockNo ?? `LOTO-${no}`} 登记入册。`);
+      pushLog(`作业票 ${no} 已提交待会签（有效期 ${deadlineText}，按预计工时 ${hours}h 给窗口），隔离锁 ${registered?.lockNo ?? `LOTO-${no}`} 登记入册。`);
       void speakChinese(`隔离锁已挂上。`, { gender: 'male', maxChars: 40 });
     } catch (err) {
       setErrors((n) => n + 1);
@@ -138,7 +178,31 @@ export function ActRepair(props: ActProps) {
     }
   }, [busy, countMistake, equipment, operatorName, pushLog, run.plan, steps]);
 
-  /** 接单：dispatched → in_progress，真改工单状态 */
+  /**
+   * 双人会签：监护节点由另一名真实监护员账号签署，终审节点由当前登录账号签署。
+   * 失败只回显服务端原话，不计入操作失误（这是账号权限/环境问题，不是玩家操作错）。
+   */
+  const countersign = useCallback(async () => {
+    if (!permitId || !lock || !guardian || busy) return;
+    setBusy(true);
+    try {
+      const res = await countersignPermit({
+        permitId,
+        guardian,
+        guardianComment: `现场核实：${equipment?.name ?? ''} 动力电源已断开并挂隔离锁 ${lock.lockNo}，监护条件合格。`,
+        supervisorComment: `能量隔离与劳保措施复核通过，准许 ${operatorName} 进场开工。`,
+      });
+      setSignedBy({ guardian: res.guardianName, supervisor: res.supervisorName || operatorName });
+      pushLog(`双人会签完成：监护 ${res.guardianName} · 终审 ${res.supervisorName || operatorName}，票据状态 ${res.permitStatus}。`);
+      void speakChinese('作业票已生效，可以开工。', { gender: 'male', maxChars: 40 });
+    } catch (err) {
+      pushLog(`会签未通过：${errMsg(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, equipment, guardian, lock, operatorName, permitId, pushLog]);
+
+  /** 接单：dispatched → in_progress，真改工单状态（票据未生效时服务端直接 409） */
   const claimOrder = useCallback(async () => {
     if (!run.workOrderId || !operatorName || busy) return;
     setBusy(true);
@@ -212,6 +276,8 @@ export function ActRepair(props: ActProps) {
       {
         procedure,
         lotoLockNo: lock?.lockNo ?? null,
+        permitId,
+        permitNo,
         // 备件沿用第 4 幕真实出库流水，本幕不重复写
         partsUsed: run.partsUsed,
       }
@@ -228,10 +294,21 @@ export function ActRepair(props: ActProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <Panel title="作业许可与能量隔离" accent="rose" right={<span className="text-[10px] text-slate-500">/safety-permits · /loto-locks</span>}>
+      <Panel title="作业许可与能量隔离" accent="rose" right={<span className="text-[10px] text-slate-500">/safety-permits · /approve · /loto-locks</span>}>
         <div className="space-y-0.5">
           <div className="text-[11px]">
-            作业票：{permitNo ? <span className="font-semibold text-emerald-300">{permitNo}（待双人会签）</span> : <Missing text="未开票" />}
+            作业票：{permitNo ? (
+              signedBy ? (
+                <span className="font-semibold text-emerald-300">
+                  {permitNo} · 已生效（监护 {signedBy.guardian} / 终审 {signedBy.supervisor}）
+                </span>
+              ) : (
+                <span className="font-semibold text-amber-200">{permitNo}（待双人会签）</span>
+              )
+            ) : (
+              <Missing text="未开票" />
+            )}
+            {permitDeadline && <span className="ml-1 text-[10px] text-slate-500">有效期至 {permitDeadline}</span>}
           </div>
           <div className="text-[11px]">
             隔离锁：{lock ? <span className="font-semibold text-emerald-300">{lock.lockNo} · {lock.status}</span> : <Missing text="未登记" />}
@@ -245,25 +322,48 @@ export function ActRepair(props: ActProps) {
             <ApiNotice kind="empty" text="未登录：开票、挂锁、接单全部禁用（不代填操作人）。" />
           </div>
         )}
-        <div className="mt-1.5 flex gap-2">
+        <div className="mt-1.5 grid grid-cols-3 gap-1.5">
           <button
             type="button"
             onClick={lockOut}
             disabled={!operatorName || !!lock || busy}
-            className="flex-1 rounded-md border border-rose-400/45 bg-rose-400/12 px-2 py-1 text-[11px] font-bold text-rose-100 hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
+            className="rounded-md border border-rose-400/45 bg-rose-400/12 px-2 py-1 text-[11px] font-bold text-rose-100 hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
           >
             {lock ? '已挂隔离锁' : '开票并挂隔离锁'}
           </button>
           <button
             type="button"
+            onClick={countersign}
+            disabled={!operatorName || !lock || !!signedBy || !permitId || busy}
+            className="rounded-md border border-amber-400/45 bg-amber-400/12 px-2 py-1 text-[11px] font-bold text-amber-100 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
+          >
+            {signedBy ? '已双人会签' : '双人会签放行'}
+          </button>
+          <button
+            type="button"
             onClick={claimOrder}
-            disabled={!operatorName || !run.workOrderId || claimed || !lock || busy}
-            className="flex-1 rounded-md border border-emerald-400/45 bg-emerald-400/12 px-2 py-1 text-[11px] font-bold text-emerald-100 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
+            disabled={!operatorName || !run.workOrderId || claimed || !lock || !signedBy || busy}
+            className="rounded-md border border-emerald-400/45 bg-emerald-400/12 px-2 py-1 text-[11px] font-bold text-emerald-100 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
           >
             {claimed ? '已接单' : '接单开工'}
           </button>
         </div>
+        {!lock && operatorName && (
+          <div className="mt-1 text-[10px] leading-relaxed text-slate-500">先开票挂锁：高危作业须先做能量隔离，再走监护确认与主管终审两个节点。</div>
+        )}
+        {lock && !signedBy && (
+          <div className="mt-1 text-[10px] leading-relaxed text-amber-200/80">
+            {guardian
+              ? `监护节点须由另一名真实账户签署（本局取台账里的「${guardian.name} · ${guardian.roleTitle}」），终审由当前登录的 ${operatorName} 签；同账户签两处会被服务端拒绝。票据未生效前接单按钮保持禁用。`
+              : '用户台账里没有可用的监护员/安全总监账号：没有第二签署人就做不出真实的双人会签，接单只能被安全联锁拒绝。'}
+          </div>
+        )}
         {orderMsg && <div className="mt-1 text-[10px] leading-relaxed text-cyan-200/90">{orderMsg}</div>}
+        {stalePermits.length > 0 && (
+          <div className="mt-1 text-[10px] leading-relaxed text-rose-200/80">
+            该设备还有 {stalePermits.length} 张未结案作业票：{stalePermits.join('、')}。服务端按设备做开工联锁，任意一张待会签或已过期的票都会拦住接单，须先在"安全管理"页会签生效或驳回。
+          </div>
+        )}
         <div className="mt-1 text-[10px] leading-relaxed text-slate-500">
           隔离锁须待本台工单离开"检修中"后才允许释放（服务端安全联锁），第 7 幕完工后再办。
         </div>
