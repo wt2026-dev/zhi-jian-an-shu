@@ -1,7 +1,8 @@
-/* 下钻层间过渡（DrilldownShell 专用）：
- * 交叉淡入淡出总时长约 1.6s——旧层 0.7s 淡出，新层延迟 0.65s 后 0.95s 淡入，
- * 缓动 easeInOutCubic ≈ cubic-bezier(0.645, 0.045, 0.355, 1)；
- * 淡入带 1.045→1.0 的轻微 scale 收敛，模拟相机俯冲落位，避免硬切"跳一下"。 */
+/* 下钻层间过渡（DrilldownShell 专用）。
+ * 相机俯冲在「离开层」内部真实发生（createMapScene.diveTo，DIVE_MS=2s，easeInOutCubic），
+ * 到达最大缩放后才交接图层，所以这里的交叉淡入淡出只承担最后 0.6s 的落位衔接：
+ * 旧层 0.55s 淡出，新层延迟 0.1s 后 0.6s 淡入（自身再从高空阻尼落位）。
+ * easeInOutCubic ≈ cubic-bezier(0.645, 0.045, 0.355, 1)。 */
 
 @keyframes dd-stage-fade-out {
   from {
@@ -15,7 +16,7 @@
 @keyframes dd-stage-fade-in {
   from {
     opacity: 0;
-    transform: scale(1.045);
+    transform: scale(1.03);
   }
   to {
     opacity: 1;
@@ -24,13 +25,13 @@
 }
 
 .dd-stage-leaving {
-  animation: dd-stage-fade-out 0.7s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+  animation: dd-stage-fade-out 0.55s cubic-bezier(0.645, 0.045, 0.355, 1) forwards;
   pointer-events: none;
   z-index: 0;
 }
 
 .dd-stage-entering {
-  animation: dd-stage-fade-in 0.95s 0.65s cubic-bezier(0.645, 0.045, 0.355, 1) both;
+  animation: dd-stage-fade-in 0.6s 0.1s cubic-bezier(0.645, 0.045, 0.355, 1) both;
   z-index: 1;
 }
 
@@ -61,4 +62,99 @@
   height: 2px;
   background: linear-gradient(90deg, rgba(34, 211, 238, 0.9), rgba(34, 211, 238, 0));
   border-radius: 1px;
+}
+
+/* 统一 HUD 面板骨架：三层共用（图标标题栏 + 渐变底 + 右下科技纹角标） */
+.dd-hud-panel {
+  padding: 10px 12px;
+  overflow: hidden;
+}
+
+.dd-hud-panel::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  width: 18px;
+  height: 10px;
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0) 0%, rgba(34, 211, 238, 0.45) 100%);
+  clip-path: polygon(0 100%, 0 60%, 100% 60%, 100% 100%);
+  opacity: 0.55;
+}
+
+.dd-hud-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(103, 232, 249, 0.86);
+  white-space: nowrap;
+}
+
+.dd-hud-head svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: #22d3ee;
+}
+
+.dd-hud-head > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 面板内条形行：标签 + 数值 + 归一化占比条（区域/厂区/状态分布共用一套观感） */
+.dd-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgb(203 213 225);
+}
+
+.dd-bar-track {
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  overflow: hidden;
+}
+
+.dd-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+/* 报修趋势柱：底部对齐，高度按当日真实单数归一 */
+.dd-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 46px;
+}
+
+.dd-trend-col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  height: 100%;
+}
+
+.dd-trend-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.95) 0%, rgba(34, 211, 238, 0.25) 100%);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.35);
+}
+
+.dd-trend-bar.is-empty {
+  background: rgba(148, 163, 184, 0.22);
+  box-shadow: none;
 }
