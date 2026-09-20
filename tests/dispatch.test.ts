@@ -155,6 +155,27 @@ describe("11. 内部师傅距离调度测试 (Dispatch Suite)", () => {
     expect(mockAdmin.body.demo).toBe(true);
   });
 
+  it("演示模拟位置：重复调用不换位（种子取自师傅 ID，不随刷新抖动）", async () => {
+    const first = await request(app)
+      .post("/api/v1/dispatch/mock")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({});
+    const second = await request(app)
+      .post("/api/v1/dispatch/mock")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({});
+
+    expect(first.status).toBe(200);
+    const posOf = (res: any) =>
+      new Map<string, string>(res.body.positions.map((p: any) => [p.userId, `${p.lng},${p.lat},${p.mapX},${p.mapY}`]));
+    const a = posOf(first);
+    const b = posOf(second);
+    expect(a.size).toBeGreaterThan(0);
+    for (const [userId, pos] of a) expect(b.get(userId)).toBe(pos);
+    // 同时要保证不是全员叠在一个点上，否则就近推荐失去距离差异
+    expect(new Set(a.values()).size).toBeGreaterThanOrEqual(Math.ceil(a.size / 2));
+  });
+
   it("环境隔离守卫：生产环境下若未开启 DEMO_MODE=true，mock 接口返回 403 阻断", async () => {
     const prevNodeEnv = process.env.NODE_ENV;
     const prevDemoMode = process.env.DEMO_MODE;

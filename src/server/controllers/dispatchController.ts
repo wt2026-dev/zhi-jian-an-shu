@@ -15,6 +15,19 @@ function hasRole(user: any, roles: string[]): boolean {
   return !!user && (user.role === "admin" || roles.includes(user.role));
 }
 
+// FNV-1a：把师傅 ID 折成 32 位散列，作为演示位置的稳定种子（不换人就不换位）
+function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+// 散列区间 [-0.0008, 0.0008] 度 ≈ 厂区内 ±80m，与原随机抖动的量级一致
+const jitterFrom = (u: number) => ((u % 1601) / 1600) * 0.0016 - 0.0008;
+
 // POST /api/v1/dispatch/location —— 师傅位置上报（仅 technician/inspector）
 // 支持 { lng, lat, status }（真实经纬度，优先）与 { mapX, mapY, status }（旧平面坐标兼容）
 export const handleReportLocation = async (req: any, res: any) => {
@@ -196,9 +209,13 @@ export const handleMockLocations = async (req: any, res: any) => {
     ];
     const reportedAt = new Date().toISOString();
     const updates = technicians.map((t: any, i: number) => {
-      const anchor = anchors[Math.floor(Math.random() * anchors.length)];
-      const geoLng = Number((anchor[0] + (Math.random() - 0.5) * 0.0016).toFixed(6));
-      const geoLat = Number((anchor[1] + (Math.random() - 0.5) * 0.0016).toFixed(6));
+      // 位置由师傅 ID 散列决定，而不是 Math.random()：演示里"模拟位置"每点一次
+      // 全员就重排一次，就近推荐的距离和排序跟着随机跳（评审追问过）。种子取自 ID 后
+      // 同一批师傅永远落在同一组车间锚点上，重复调用幂等，且不同师傅之间仍然分散。
+      const seed = hashSeed(String(t.id));
+      const anchor = anchors[seed % anchors.length];
+      const geoLng = Number((anchor[0] + jitterFrom(seed >>> 8)).toFixed(6));
+      const geoLat = Number((anchor[1] + jitterFrom(seed >>> 20)).toFixed(6));
       // 平面坐标仅作降级视图点位：由经纬度相对厂区中心线性映射到 0~1000 画布
       const mapX = Math.min(990, Math.max(10, Math.round(500 + (geoLng - 113.31) * 250000)));
       const mapY = Math.min(990, Math.max(10, Math.round(500 - (geoLat - 23.12) * 250000)));
@@ -218,7 +235,7 @@ export const handleMockLocations = async (req: any, res: any) => {
       demo: true,
       updated: updates.length,
       positions: updates.map((u) => ({ userId: u.userId, lng: u.geoLng, lat: u.geoLat, mapX: u.mapX, mapY: u.mapY, status: u.status })),
-      message: "演示位置已刷新（仅演示环境使用，请勿在生产数据上频繁调用）",
+      message: "演示位置已生成（按师傅 ID 固定分布，重复调用不会换位；仅演示环境使用）",
     });
   } catch (err: any) {
     res.status(500).json({ error: "模拟位置生成失败", message: err.message });
