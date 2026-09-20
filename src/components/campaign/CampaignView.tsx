@@ -38,15 +38,23 @@ import { EMPTY_RUN, type ActComponent, type ActProps, type RunContext, type Stag
 import { ActOverview } from './acts/ActOverview';
 import { ActIncident } from './acts/ActIncident';
 import { ActDiagnose } from './acts/ActDiagnose';
+import { ActPlan } from './acts/ActPlan';
+import { ActRepair } from './acts/ActRepair';
+import { ActQc } from './acts/ActQc';
+import { ActArchive } from './acts/ActArchive';
 import { ApiNotice, ActFooter, DataRow, Panel } from './CampaignPanels';
 import '../equipment3d/equipment-industrial.css';
 import './campaign.css';
 
-/** 已实现的幕；未列出的幕在界面上如实标"待接入"，不会静默跳过也不会在结算里冒充走完 */
-const ACT_REGISTRY: Partial<Record<ActId, ActComponent>> = {
+/** 七幕全部就位：类型用 Record，缺任何一幕都编译不过 */
+const ACT_REGISTRY: Record<ActId, ActComponent> = {
   overview: ActOverview,
   incident: ActIncident,
   diagnose: ActDiagnose,
+  plan: ActPlan,
+  repair: ActRepair,
+  qc: ActQc,
+  archive: ActArchive,
 };
 
 const ACHIEVEMENT_NAME: Record<string, string> = {
@@ -238,8 +246,8 @@ export function CampaignView(props: { currentUser: UserProfile | null }) {
       setRun(nextRun);
       setOutcomes(all);
       const upcoming = nextAct(outcome.actId);
-      if (!upcoming || !ACT_REGISTRY[upcoming.id]) {
-        // 后续幕次未接入（或已走到第 7 幕）：按已走过的幕结算；没走满七幕时 applyRun 不给 XP
+      if (!upcoming) {
+        // 走到第 7 幕之后按已走过的幕结算
         settle(all, nextRun);
         return;
       }
@@ -254,7 +262,7 @@ export function CampaignView(props: { currentUser: UserProfile | null }) {
   const actDef = actOf(actId);
   const ActComp = ACT_REGISTRY[actId];
   const rank = rankFor(progress.xp);
-  const actProps: ActProps = { actId, run, stage, stations, currentUser: props.currentUser, finish: finishAct, countMistake };
+  const actProps: ActProps = { actId, run, outcomes, stage, stations, currentUser: props.currentUser, finish: finishAct, countMistake };
 
   return (
     <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#050c17] text-slate-200">
@@ -290,15 +298,9 @@ export function CampaignView(props: { currentUser: UserProfile | null }) {
               return (
                 <span
                   key={a.id}
-                  title={ACT_REGISTRY[a.id] ? `第 ${a.index} 幕 ${a.title}` : `第 ${a.index} 幕 ${a.title}（界面待接入）`}
+                  title={`第 ${a.index} 幕 ${a.title}`}
                   className={`hud-tabular-nums flex h-5 w-5 items-center justify-center rounded border text-[10px] font-bold ${
-                    done
-                      ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200'
-                      : current
-                        ? 'campaign-act-sweep border-cyan-300/70 bg-cyan-400/20 text-cyan-100'
-                        : ACT_REGISTRY[a.id]
-                          ? 'border-white/15 text-slate-400'
-                          : 'border-slate-700/70 text-slate-600'
+                    done ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200' : current ? 'campaign-act-sweep border-cyan-300/70 bg-cyan-400/20 text-cyan-100' : 'border-white/15 text-slate-400'
                   }`}
                 >
                   {a.index}
@@ -307,6 +309,12 @@ export function CampaignView(props: { currentUser: UserProfile | null }) {
             })}
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div
+              className="hud-tabular-nums rounded-md border border-rose-400/30 bg-rose-400/6 px-2 py-1 text-[10px] font-semibold text-rose-200"
+              title="本单累计失误（各幕操作错误合计）"
+            >
+              失误 {mistakes}
+            </div>
             <div
               className="rounded-md border border-violet-400/35 bg-violet-400/8 px-2 py-1 text-[10px] font-semibold text-violet-200"
               title={`经验 ${progress.xp}，下一级 ${rank.next ? `${rank.next.title}（${rank.next.minXp} XP）` : '已满级'}`}
@@ -348,31 +356,12 @@ export function CampaignView(props: { currentUser: UserProfile | null }) {
           <div className="pointer-events-auto flex min-h-0 flex-col gap-2 overflow-y-auto pr-0.5 lg:order-2">
             {isInitialLoading && <ApiNotice kind="empty" text="台账正在从后端加载，加载完成后再开始主线。" />}
             {phase === 'intro' && <IntroPanel progress={progress} rankTitle={`${rank.current.level} · ${rank.current.title}`} onStart={begin} onReset={onResetProgress} />}
-            {phase === 'running' &&
-              (ActComp ? (
-                <ActComp key={actId} {...actProps} />
-              ) : (
-                <PendingAct actId={actId} mistakes={mistakes} />
-              ))}
+            {phase === 'running' && <ActComp key={actId} {...actProps} />}
             {phase === 'settled' && settlement && <SettlePanel settlement={settlement} outcomes={outcomes} run={run} onBack={() => setPhase('intro')} />}
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-/** 界面待接入的幕：只报真实定义，不做假交互 */
-function PendingAct(props: { actId: ActId; mistakes: number }) {
-  const def = actOf(props.actId);
-  return (
-    <Panel title={`第 ${def.index} 幕 · ${def.title}`} accent="amber">
-      <p className="text-[11px] leading-relaxed text-slate-300">{def.brief}</p>
-      <div className="mt-1 text-[10px] text-slate-500">对应功能：{def.feature}</div>
-      <div className="mt-1.5">
-        <ApiNotice kind="empty" text="这一幕的界面在下一批接入。前面各幕的真实成绩可以先结算，未走满七幕不计经验。" />
-      </div>
-    </Panel>
   );
 }
 
@@ -462,7 +451,7 @@ function SettlePanel(props: { settlement: RunSettlement; outcomes: ActOutcome[];
         </div>
         {outcomes.length < ACTS.length && (
           <div className="mt-1">
-            <ApiNotice kind="empty" text={`本批接入前 ${Object.keys(ACT_REGISTRY).length} 幕，走满七幕才计"首次独立检修"与经验。`} />
+            <ApiNotice kind="empty" text={`本单只走了 ${outcomes.length} 幕（共 ${ACTS.length} 幕）：走满七幕才计"首次独立检修"与经验。`} />
           </div>
         )}
         {run.diagnosis?.summary && (

@@ -88,6 +88,8 @@ export interface StageBridge {
 export interface ActProps {
   actId: ActId;
   run: RunContext;
+  /** 前面各幕已交回的成绩（第 7 幕的复盘与工时统计要用；不含本幕自己） */
+  outcomes: ActOutcome[];
   stage: StageBridge;
   stations: StationSpec[];
   currentUser: UserProfile | null;
