@@ -2,7 +2,9 @@
 // - 布局：壳根节点为常规文档流内的 relative 容器（填充 main 内容区），
 //   三层均以 absolute inset-0 填充壳内——与其他页面一致，
 //   侧边栏与顶栏天然不被遮挡（不再使用 fixed 全屏覆盖）。
-// - 层间过渡：1.6s 交叉淡入淡出（easeInOutCubic + 轻微 scale 收敛模拟相机俯冲）。
+// - 层间过渡：俯冲是真实相机运动，发生在「离开层」内部（createMapScene.diveTo，
+//   DIVE_MS=2s、easeInOutCubic，其余光柱与标注同步淡出）；到达最大缩放后才交接图层，
+//   壳这里只承担最后 0.65s 的交叉淡入淡出，新层再自高空阻尼落位 → 全程无硬切。
 // - 面包屑：全国地图 → XX市 → XX工厂（车间/设备层级由 ProductionHUD 内部面包屑承接）。
 // 数据纪律：厂区名/城市名来自 /api/v1/factories 真实接口。
 import { useCallback, useEffect, useState } from "react";
@@ -16,8 +18,9 @@ import "./equipment-industrial.css";
 export type DrillLevel = "map" | "city" | "factory";
 
 const DEFAULT_FACTORY_ID = "factory_gz";
-/** 交叉淡入淡出总时长（ms），与 drilldown-transitions.css 的动画时序保持一致 */
-const TRANSITION_MS = 1600;
+/** 旧层淡出 + 新层淡入的收尾时长（ms），与 drilldown-transitions.css 的动画时序一致；
+ *  2s 相机俯冲在此之前于旧层内跑完，不计入本值 */
+const TRANSITION_MS = 650;
 
 function parseLevelFromUrl(): DrillLevel {
   const level = new URLSearchParams(window.location.search).get("level");
@@ -28,11 +31,11 @@ function parseLevelFromUrl(): DrillLevel {
 export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: string | null }) {
   const [level, setLevel] = useState<DrillLevel>(() => parseLevelFromUrl());
   const [factory, setFactory] = useState<FactorySummary | null>(null);
-  // 过渡状态：displayLevel 为当前渲染层；transition.from 为淡出中的旧层
+  // 过渡状态：displayLevel 为当前层；transition.from 为正在淡出的旧层（两层并行 650ms）
   const [displayLevel, setDisplayLevel] = useState<DrillLevel>(() => parseLevelFromUrl());
   const [transition, setTransition] = useState<{ from: DrillLevel } | null>(null);
 
-  // 层切换 → 交叉淡入淡出过渡（旧层淡出、新层淡入，TRANSITION_MS 后卸载旧层）
+  // 层切换 → 旧层淡出 / 新层淡入收尾（旧层的 2s 相机俯冲在此之前已跑完）
   useEffect(() => {
     if (level === displayLevel) return;
     setTransition({ from: displayLevel });
@@ -101,13 +104,16 @@ export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: 
     setLevel("factory");
   }, []);
 
-  const stageOf = (lvl: DrillLevel, keyPrefix: string) => (
-    <div key={`${keyPrefix}-${lvl}`} className="absolute inset-0">
+  /** key 只用层级名：过渡期间旧层只是换 className，不会被 React 卸载重建（避免重建 WebGL 场景） */
+  const stageOf = (lvl: DrillLevel) => (
+    <div key={lvl} className={lvl === transition?.from ? "dd-stage-leaving absolute inset-0" : transition ? "dd-stage-entering absolute inset-0" : "absolute inset-0"}>
       {lvl === "map" && <MapOverviewView onDrillCity={drillCity} />}
       {lvl === "city" && <CityOverviewView factory={factory} onEnterFactory={enterFactory} />}
       {lvl === "factory" && <Equipment3DView initialWorkOrderId={initialWorkOrderId} />}
     </div>
   );
+
+  const visibleLevels: DrillLevel[] = transition ? [transition.from, displayLevel] : [displayLevel];
 
   const crumbs: { label: string; level: DrillLevel; active: boolean }[] = [
     { label: "全国地图", level: "map", active: level === "map" },
@@ -121,12 +127,7 @@ export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: 
     <div className="relative h-full min-h-[620px] w-full">
       {/* 统一舞台：三层共用；深色科技蓝渐变底（与车间层风格一致，非纯黑） */}
       <div className="dd-sky absolute inset-0 overflow-hidden rounded-lg border border-white/10">
-        {transition && (
-          <div className="dd-stage-leaving absolute inset-0">{stageOf(transition.from, "leaving")}</div>
-        )}
-        <div className={transition ? "dd-stage-entering absolute inset-0" : "absolute inset-0"}>
-          {stageOf(displayLevel, "current")}
-        </div>
+        {visibleLevels.map((lvl) => stageOf(lvl))}
       </div>
 
       {/* 顶部面包屑（车间/设备层级由 ProductionHUD 内部面包屑承接） */}

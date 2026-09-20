@@ -1,34 +1,53 @@
-// 第二层 · 城市层（对标《智慧工业数字孪生可视化平台》：城市轮廓 + 工厂点位下钻）。
-// 数据纪律：工厂列表/设备数/运行状态来自 /api/v1/factories?city=xxx 真实接口；
-// 每城市当前实际只有 1 个厂区（多工厂扩展预留：列表与点位均为数组渲染）。
-import { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
+// 第二层 · 城市层（省域地形视图 + 该城市全部厂区光柱）。
+// 渲染：与全国层共用 createMapScene（同一套起伏材质、灯光、描边、状态光柱与 bloom），
+//       入场即从高空 2s easeInOutCubic 落位；点光柱先本地俯冲，再交给下钻壳切层。
+// 数据纪律：厂区/设备/工单全部来自 /api/v1/factories?city=xxx 与该厂设备明细，
+//       不使用 /factories 的 stats 聚合列（详见 mapStats 的 FactoryTruth 注释）。
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Activity, BellRing, Factory, MapPinned, Wrench } from "lucide-react";
 import { factoryApi, type FactorySummary } from "../../api/factoryApi";
+import { workOrderApi } from "../../api";
 import {
-  buildBorderLines,
-  buildFillMesh,
-  buildMapGround,
-  createDampedOrbit,
-  createFlowDots,
-  createLightPillar,
-  makeTextSprite,
-  projectLngLat,
-  statusDotColor,
-  statusLabel,
-  type LightPillar,
-} from "./mapGeo";
-import { PROVINCE_CODE_BY_CITY, PROVINCE_VIEW_BY_CODE, type ProvinceCode } from "./provinceViews";
+  buildMapDashboard,
+  factoryPillarStatusOf,
+  onlineRateOf,
+  statusRowsOf,
+  toFactoryTruth,
+  truthTotals,
+  type EquipmentLike,
+  type FactoryTruth,
+  type OrderLike,
+} from "./mapStats";
+import { PILLAR_PALETTE, pillarPaletteOf } from "./mapStyle";
+import { createMapScene, type MapMarkerSpec, type MapSceneHandle } from "./mapScene";
+import { PROVINCE_CODE_BY_CITY, PROVINCE_VIEW_BY_CODE } from "./provinceViews";
+import { BarRow, Dot, EmptyNote, HudPanel, Metric } from "./MapHud";
+import { statusLabel } from "./mapGeo";
 import "./equipment-industrial.css";
+import "./drilldown-transitions.css";
 
-interface HoverCard {
-  factory: FactorySummary;
-  x: number;
-  y: number;
-}
+/** 俯冲下钻落点半径：足够贴近厂区，与第三层厂区俯瞰视角衔接 */
+const CITY_CAMERA = {
+  lift: { radius: 96, phi: 0.3 },
+  frame: { radius: 30, phi: 0.62 },
+  minRadius: 8,
+  maxRadius: 110,
+  diveRadius: 9,
+};
 
-interface PillarEntry {
-  factory: FactorySummary;
-  pillar: LightPillar;
+/** 全国层 → 城市层的取景衔接：省域跨度约 13-19 世界单位，起伏幅度按跨度收敛 */
+function markerOf(row: FactoryTruth, maxCount: number): MapMarkerSpec {
+  const share = maxCount > 0 ? row.equipmentCount / maxCount : 0;
+  return {
+    key: row.id,
+    lng: row.lng,
+    lat: row.lat,
+    status: factoryPillarStatusOf(row),
+    height: 6.2 + 2.6 * share,
+    radius: row.isDemo ? 0.62 : 0.8,
+    label: row.name,
+    sub: `设备 ${row.equipmentCount} · 故障 ${row.faultCount} · 告警 ${row.alertCount}`,
+  };
 }
 
 export function CityOverviewView({
@@ -41,20 +60,56 @@ export function CityOverviewView({
   onEnterFactory: (factory: FactorySummary) => void;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const sceneRef = useRef<MapSceneHandle | null>(null);
+  const [sceneReady, setSceneReady] = useState(0);
   const city = factory?.city ?? "";
-  const [cityFactories, setCityFactories] = useState<FactorySummary[]>([]);
-  const [hover, setHover] = useState<HoverCard | null>(null);
-  const hoverRef = useRef<PillarEntry | null>(null);
-  const drillRef = useRef(onEnterFactory);
-  drillRef.current = onEnterFactory;
+  const [rows, setRows] = useState<FactoryTruth[]>([]);
+  const [devices, setDevices] = useState<{ id: string; status: string; healthScore?: number; workshop: string }[]>([]);
+  const [orders, setOrders] = useState<OrderLike[]>([]);
+  const [failed, setFailed] = useState(false);
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
+  const [hoverNdc, setHoverNdc] = useState({ x: 0, y: 0 });
 
+  const rowsRef = useRef<FactoryTruth[]>([]);
+  rowsRef.current = rows;
+  const summaryRef = useRef<Map<string, FactorySummary>>(new Map());
+  const enterRef = useRef(onEnterFactory);
+  enterRef.current = onEnterFactory;
+
+  const code = city ? PROVINCE_CODE_BY_CITY[city] : undefined;
+  const view = code ? PROVINCE_VIEW_BY_CODE[code] : undefined;
+
+  // 该城市全部厂区（列表与点位均为数组渲染，多工厂扩展天然支持）
   useEffect(() => {
     if (!city) return;
     let alive = true;
-    factoryApi
-      .list(city)
-      .then((list) => alive && setCityFactories(list))
-      .catch(() => {});
+    (async () => {
+      try {
+        const list = await factoryApi.list(city);
+        const details = await Promise.all(list.map((f) => factoryApi.getById(f.id)));
+        const wo = (await workOrderApi.list({})) as OrderLike[];
+        if (!alive) return;
+        summaryRef.current = new Map(list.map((f) => [f.id, f]));
+        setDevices(
+          details.flatMap((d) =>
+            d.equipments.map((e) => ({ id: e.id, status: e.status, healthScore: e.health_score, workshop: e.workshop }))
+          )
+        );
+        setOrders(wo);
+        setRows(
+          list.map((f, i) =>
+            toFactoryTruth(
+              f,
+              details[i].equipments.map((e) => ({ id: e.id, status: e.status, healthScore: e.health_score })),
+              wo
+            )
+          )
+        );
+        setFailed(false);
+      } catch {
+        if (alive) setFailed(true);
+      }
+    })();
     return () => {
       alive = false;
     };
@@ -62,238 +117,199 @@ export function CityOverviewView({
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || !city) return;
-    const code = PROVINCE_CODE_BY_CITY[city];
-    if (!code) return;
-    const view = PROVINCE_VIEW_BY_CODE[code];
-    let disposed = false;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(host.clientWidth, host.clientHeight);
-    host.appendChild(renderer.domElement);
-    renderer.domElement.style.display = "block";
-    renderer.domElement.style.touchAction = "none";
-
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x0c1a30, 0.016);
-    const camera = new THREE.PerspectiveCamera(55, host.clientWidth / host.clientHeight, 0.1, 600);
-
-    scene.add(buildMapGround(120));
-    const fill = buildFillMesh(view.fill, { color: 0x12283f, opacity: 0.94, center: view.center, scale: view.scale, depth: 0.55 });
-    const border = buildBorderLines(view.line, { color: 0x36d3f0, opacity: 0.55, center: view.center, scale: view.scale });
-    border.position.y = 0.6;
-    scene.add(fill, border);
-
-    // 移动光点流（人车流动画）
-    const flow = createFlowDots(10, { minX: -18, maxX: 18, minZ: -14, maxZ: 14 });
-    scene.add(flow.group);
-
-    // 开场俯冲：高空 → 城市取景
-    const orbit = createDampedOrbit(camera, renderer.domElement, {
-      theta: 0,
-      phi: 0.3,
-      radius: 90,
-      damping: 2.0,
-      minRadius: 8,
-      maxRadius: 110,
+    if (!host || !view) return;
+    const handle = createMapScene({
+      host,
+      fillRings: view.fill,
+      lineRings: view.line,
+      center: view.center,
+      scale: view.scale,
+      relief: { height: 1.5, frequency: 6.2, segX: 150, segZ: 130 },
+      camera: CITY_CAMERA,
+      flowBounds: { minX: -14, maxX: 14, minZ: -11, maxZ: 11 },
+      onHover: (key, ndc) => {
+        setHoverKey(key);
+        setHoverNdc(ndc);
+      },
+      onPick: (key) => {
+        const row = rowsRef.current.find((r) => r.id === key);
+        const summary = summaryRef.current.get(key);
+        if (!row || !summary) return;
+        sceneRef.current?.diveTo(key, () => enterRef.current(summary));
+      },
     });
-    orbit.target.radius = 30;
-    orbit.target.phi = 0.6;
-
-    // 工厂光柱 + 悬浮标签（由厂区列表驱动，多工厂扩展留口）
-    const pillarGroup = new THREE.Group();
-    const labelGroup = new THREE.Group();
-    scene.add(pillarGroup, labelGroup);
-    let pillars: PillarEntry[] = [];
-    const build = (list: FactorySummary[]) => {
-      if (disposed) return;
-      for (const f of list) {
-        const pillar = createLightPillar({ height: f.isDemo ? 4.5 : 6.5, radius: 0.7 });
-        const [px, pz] = projectLngLat(f.geo.lng, f.geo.lat, view.center, view.scale);
-        pillar.group.position.set(px, 0.55, pz);
-        pillarGroup.add(pillar.group);
-        const label = makeTextSprite(
-          f.name,
-          `设备 ${f.stats.equipmentCount} · ${statusLabel(f.status)}${f.isDemo ? " · 演示" : ""}`,
-          f.isDemo ? "#fbbf24" : "#67e8f9",
-          statusDotColor(f.status)
-        );
-        label.position.set(px, f.isDemo ? 6.8 : 9.4, pz);
-        labelGroup.add(label);
-        pillars.push({ factory: f, pillar });
-      }
-    };
-    if (cityFactories.length > 0) build(cityFactories);
-
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    let pointerDirty = false;
-    let downAt = 0;
-    let downXY = [0, 0];
-    const onPointerMove = (e: PointerEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      pointerDirty = true;
-    };
-    const onPointerDown = (e: PointerEvent) => {
-      downAt = performance.now();
-      downXY = [e.clientX, e.clientY];
-    };
-    const onPointerUp = (e: PointerEvent) => {
-      const dx = e.clientX - downXY[0];
-      const dy = e.clientY - downXY[1];
-      if (performance.now() - downAt < 600 && dx * dx + dy * dy < 36 && hoverRef.current) {
-        drillRef.current(hoverRef.current.factory);
-      }
-    };
-    renderer.domElement.addEventListener("pointermove", onPointerMove);
-    renderer.domElement.addEventListener("pointerdown", onPointerDown);
-    renderer.domElement.addEventListener("pointerup", onPointerUp);
-
-    const clock3d = new THREE.Clock();
-    let raf = 0;
-    const tick = () => {
-      if (disposed) return;
-      const dt = Math.min(clock3d.getDelta(), 0.1);
-      const t = clock3d.elapsedTime;
-      orbit.update(dt);
-      for (const p of pillars) p.pillar.update(t);
-      flow.update(dt);
-      if (pointerDirty) {
-        pointerDirty = false;
-        raycaster.setFromCamera(pointer, camera);
-        const hits = raycaster.intersectObjects(pillars.map((p) => p.pillar.hitMesh), false);
-        const hit = hits[0]?.object;
-        const entry = hit ? pillars.find((p) => p.pillar.hitMesh === hit) ?? null : null;
-        if (entry !== hoverRef.current) {
-          hoverRef.current?.pillar.setHovered(false);
-          if (entry) entry.pillar.setHovered(true);
-          hoverRef.current = entry ?? null;
-          setHover(entry ? { factory: entry.factory, x: pointer.x, y: pointer.y } : null);
-        } else if (entry) {
-          setHover({ factory: entry.factory, x: pointer.x, y: pointer.y });
-        }
-      }
-      renderer.render(scene, camera);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
-    const onResize = () => {
-      if (!host.clientWidth || !host.clientHeight) return;
-      camera.aspect = host.clientWidth / host.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(host.clientWidth, host.clientHeight);
-    };
-    const ro = new ResizeObserver(onResize);
-    ro.observe(host);
-
+    sceneRef.current = handle;
+    setSceneReady((n) => n + 1);
     return () => {
-      disposed = true;
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      renderer.domElement.removeEventListener("pointermove", onPointerMove);
-      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
-      renderer.domElement.removeEventListener("pointerup", onPointerUp);
-      orbit.dispose();
-      for (const p of pillars) p.pillar.dispose();
-      pillars = [];
-      flow.dispose();
-      labelGroup.traverse((o) => {
-        const s = o as THREE.Sprite;
-        s.material?.map?.dispose?.();
-        s.material?.dispose?.();
-      });
-      renderer.dispose();
-      host.querySelectorAll("canvas").forEach((c) => c.remove());
+      handle.dispose();
+      sceneRef.current = null;
     };
-    // cityFactories 就绪后挂载场景，保证点位一次建齐
-  }, [city, cityFactories.length]);
+    // 同一城市内厂区数据变化不重建舞台，只换点位
+  }, [view, city]);
 
-  // 城市运营聚合（真实数据）
-  const totals = cityFactories.reduce(
-    (acc, f) => ({
-      equipment: acc.equipment + f.stats.equipmentCount,
-      fault: acc.fault + f.stats.faultCount,
-      alert: acc.alert + f.stats.alertCount,
-      healthSum: acc.healthSum + f.stats.avgHealth,
-    }),
-    { equipment: 0, fault: 0, alert: 0, healthSum: 0 }
+  useEffect(() => {
+    if (sceneReady === 0) return;
+    const max = rows.reduce((m, r) => Math.max(m, r.equipmentCount), 0);
+    sceneRef.current?.setMarkers(rows.map((r) => markerOf(r, max)));
+  }, [sceneReady, rows]);
+
+  const dash = useMemo(
+    () => (rows.length > 0 ? buildMapDashboard({ factoryRows: rows, devices, orders, now: Date.now() }) : null),
+    [rows, devices, orders]
   );
-  const avgHealth = cityFactories.length > 0 ? Math.round((totals.healthSum / cityFactories.length) * 10) / 10 : 0;
+  const totals = truthTotals(rows);
+  const statusRows = statusRowsOf(devices);
+  const onlineRate = onlineRateOf(devices);
+  const maxStatusShare = statusRows.length > 0 ? statusRows[0].share : 0;
+  // 车间构成：设备明细里的 workshop 字段是真实归属，城市层不重复造层级
+  const workshopRows = useMemo(() => {
+    const groups = new Map<string, EquipmentLike[]>();
+    for (const d of devices) groups.set(d.workshop, [...(groups.get(d.workshop) ?? []), d]);
+    const list = [...groups.entries()].map(([workshop, list]) => ({
+      workshop,
+      total: list.length,
+      fault: list.filter((d) => d.status === "fault" || d.status === "overhauling").length,
+      running: list.filter((d) => d.status === "running").length,
+    }));
+    const max = list.reduce((m, r) => Math.max(m, r.total), 0);
+    return list.sort((a, b) => b.total - a.total).map((r) => ({ ...r, share: max > 0 ? r.total / max : 0 }));
+  }, [devices]);
 
-  const hoverScreen = hover
-    ? { left: `${((hover.x + 1) / 2) * 100}%`, top: `${((1 - hover.y) / 2) * 100}%` }
+  const hoverRow = hoverKey ? rows.find((r) => r.id === hoverKey) ?? null : null;
+  const hoverScreen = hoverRow
+    ? { left: `${((hoverNdc.x + 1) / 2) * 100}%`, top: `${((1 - hoverNdc.y) / 2) * 100}%` }
     : null;
 
   return (
     <div className="dd-sky absolute inset-0 overflow-hidden">
       <div ref={hostRef} className="absolute inset-0" />
       <div className="absolute inset-0 z-20 pointer-events-none select-none">
-        {/* 左侧工厂列表（leftInset 避开应用侧边栏） */}
-        <div className="absolute top-3 w-[280px]" style={{ left: leftInset + 12 }}>
-          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
-            <div className="text-[11px] tracking-widest text-cyan-300/80">{city || "—"} · 工厂列表</div>
-            <div className="mt-2 space-y-1.5">
-              {cityFactories.length === 0 && <div className="py-4 text-center text-xs text-slate-500">加载中…</div>}
-              {cityFactories.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => onEnterFactory(f)}
-                  className="flex w-full items-center justify-between rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 text-left text-xs transition-colors hover:border-cyan-400/40 hover:bg-cyan-400/5"
-                >
-                  <span className="flex items-center gap-2 text-slate-200">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: statusDotColor(f.status) }} />
-                    {f.name}
-                    {f.isDemo && <span className="rounded bg-amber-400/15 px-1 text-[10px] text-amber-300">演示</span>}
-                  </span>
-                  <span className="hud-tabular-nums text-slate-400">{f.stats.equipmentCount} 台</span>
-                </button>
-              ))}
+        {/* 左侧：城市运营统计（真实台账） */}
+        <div className="absolute top-3 bottom-3 flex w-[300px] flex-col gap-2 overflow-y-auto pb-1" style={{ left: leftInset + 12 }}>
+          <HudPanel icon={MapPinned} title={`${city || "—"} · 城市运营`} aside={`厂区 ${totals.factoryCount || "—"}`}>
+            <div className="grid grid-cols-2 gap-2">
+              <Metric label="设备总数" value={rows.length > 0 ? totals.equipmentCount : failed ? "无数据" : null} />
+              <Metric label="故障 / 检修" value={rows.length > 0 ? totals.faultCount : null} tone="rose" />
+              <Metric label="未闭环工单" value={dash?.openOrders ?? null} tone="amber" />
+              <Metric label="平均健康分" value={totals.avgHealth} tone="emerald" />
             </div>
-          </div>
+            {failed && <EmptyNote>数据服务未响应，面板暂无读数</EmptyNote>}
+          </HudPanel>
+
+          <HudPanel icon={Factory} title="厂区列表" aside="点击光柱或条目进入厂区">
+            <div className="space-y-1.5">
+              {rows.length === 0 && <EmptyNote>{city ? "加载中…" : "未指定城市"}</EmptyNote>}
+              {rows.map((f) => {
+                const palette = pillarPaletteOf(factoryPillarStatusOf(f));
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      const summary = summaryRef.current.get(f.id);
+                      if (!summary) return;
+                      sceneRef.current?.diveTo(f.id, () => enterRef.current(summary));
+                    }}
+                    className="flex w-full items-center justify-between gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 text-left text-xs transition-colors hover:border-cyan-400/40 hover:bg-cyan-400/5"
+                  >
+                    <span className="flex min-w-0 items-center gap-2 text-slate-200">
+                      <Dot color={palette.css} />
+                      <span className="truncate">{f.name}</span>
+                      {f.isDemo && <span className="rounded bg-amber-400/15 px-1 text-[10px] text-amber-300">演示</span>}
+                    </span>
+                    <span className="hud-tabular-nums flex-none text-slate-400">{f.equipmentCount} 台</span>
+                  </button>
+                );
+              })}
+            </div>
+          </HudPanel>
+
+          <HudPanel icon={Activity} title="设备运行状态分布" aside={`在线率 ${onlineRate != null ? `${onlineRate}%` : "—"}`}>
+            <div className="space-y-2">
+              {statusRows.map((s) => (
+                <BarRow key={s.key} label={s.label} value={`${s.count} 台`} share={maxStatusShare > 0 ? s.share / maxStatusShare : 0} color={s.css} />
+              ))}
+              {statusRows.length === 0 && <EmptyNote>暂无设备台账</EmptyNote>}
+            </div>
+          </HudPanel>
         </div>
 
-        {/* 右侧城市运营面板 */}
-        <div className="absolute right-3 top-3 w-[280px]">
-          <div className="pointer-events-auto hud-data-card dd-hud-card rounded-lg p-3">
-            <div className="text-[11px] tracking-widest text-cyan-300/80">{city || "—"} · 城市运营</div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <div>
-                <div className="hud-value-glow hud-tabular-nums text-2xl font-semibold text-cyan-100">{totals.equipment}</div>
-                <div className="text-[10px] text-slate-500">设备总数</div>
-              </div>
-              <div>
-                <div className="hud-value-glow hud-tabular-nums text-2xl font-semibold text-rose-300">{totals.fault}</div>
-                <div className="text-[10px] text-slate-500">故障数</div>
-              </div>
-              <div>
-                <div className="hud-value-glow hud-tabular-nums text-2xl font-semibold text-amber-200">{totals.alert}</div>
-                <div className="text-[10px] text-slate-500">告警数（进行中工单）</div>
-              </div>
-              <div>
-                <div className="hud-value-glow hud-tabular-nums text-2xl font-semibold text-emerald-300">{avgHealth || "—"}</div>
-                <div className="text-[10px] text-slate-500">平均健康分</div>
-              </div>
+        {/* 右侧：车间构成 + 城市工单闭环 */}
+        <div className="absolute right-3 top-3 bottom-3 flex w-[300px] flex-col gap-2 overflow-y-auto pb-1">
+          <HudPanel icon={Wrench} title="车间 / 工段构成" aside={`${workshopRows.length} 个`}>
+            <div className="space-y-2">
+              {workshopRows.map((w) => (
+                <BarRow
+                  key={w.workshop}
+                  label={w.workshop}
+                  value={`${w.total} 台 · ${w.fault > 0 ? `${w.fault} 故障` : `运行 ${w.running}`}`}
+                  share={w.share}
+                  color={w.fault > 0 ? PILLAR_PALETTE.fault.css : PILLAR_PALETTE.normal.css}
+                />
+              ))}
+              {workshopRows.length === 0 && <EmptyNote>暂无车间明细</EmptyNote>}
             </div>
-          </div>
+          </HudPanel>
+
+          <HudPanel icon={BellRing} title="城市告警概览" aside={`紧急 ${dash?.urgentOrders ?? "—"}`}>
+            <div className="grid grid-cols-2 gap-2">
+              <Metric label="今日新增报修" value={dash ? dash.todayOrders : null} tone="rose" />
+              <Metric label="近 24 小时" value={dash ? dash.last24hOrders : null} tone="amber" />
+              <Metric label="累计工单" value={dash?.totalOrders ?? null} tone="sky" />
+              <Metric label="本厂设备告警" value={totals.alertCount} tone="amber" />
+            </div>
+            <div className="mt-2 text-[10px] leading-relaxed text-slate-500">
+              累计/今日为全网真实读数；本厂设备告警按设备 ID 归属，只计该城市厂区名下的未闭环工单。
+            </div>
+          </HudPanel>
+
+          <HudPanel icon={MapPinned} title="城市说明">
+            <div className="space-y-1 text-[11px] leading-relaxed text-slate-400">
+              <div>省域轮廓为真实行政区划边界，底面起伏是程序化渲染效果，不代表真实高程。</div>
+              <div>光柱高度按设备台数归一，颜色取该厂真实故障/告警读数。</div>
+            </div>
+          </HudPanel>
+        </div>
+
+        {/* 底部图例 */}
+        <div
+          className="pointer-events-auto absolute bottom-3 flex items-center gap-3 rounded-lg hud-data-card dd-hud-card px-3 py-2 text-[11px] text-slate-400"
+          style={{ left: leftInset + 324, right: 324 }}
+        >
+          <span className="flex items-center gap-1.5">
+            <Dot color={PILLAR_PALETTE.normal.css} />
+            正常
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Dot color={PILLAR_PALETTE.alert.css} />
+            告警
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Dot color={PILLAR_PALETTE.fault.css} />
+            故障
+          </span>
+          <span className="text-slate-600">单击光柱俯冲进入厂区</span>
         </div>
 
         {/* hover 小卡片 */}
-        {hover && hoverScreen && (
+        {hoverRow && hoverScreen && (
           <div
-            className="pointer-events-none absolute z-30 w-52 rounded-lg border border-cyan-400/40 bg-[rgba(8,15,30,0.85)] p-3 backdrop-blur"
+            className="pointer-events-none absolute z-30 w-60 rounded-lg border border-cyan-400/40 bg-[rgba(8,15,30,0.88)] p-3 shadow-[0_0_24px_rgba(34,211,238,0.18)] backdrop-blur"
             style={{ ...hoverScreen, transform: "translate(14px, -50%)" }}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-cyan-100">{hover.factory.name}</span>
-              {hover.factory.isDemo && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-300">演示</span>}
+              <span className="text-sm font-semibold text-cyan-100">{hoverRow.name}</span>
+              {hoverRow.isDemo && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-300">演示</span>}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-300">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: statusDotColor(hover.factory.status) }} />
-              {statusLabel(hover.factory.status)} · 设备 {hover.factory.stats.equipmentCount} 台
+            <div className="mt-1 text-[11px] text-slate-300">{statusLabel(hoverRow.status)} · {hoverRow.city}</div>
+            <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+              <span className="text-slate-500">设备数</span>
+              <span className="hud-tabular-nums text-right">{hoverRow.equipmentCount} 台</span>
+              <span className="text-slate-500">故障 / 检修</span>
+              <span className="hud-tabular-nums text-right text-rose-300">{hoverRow.faultCount} 台</span>
+              <span className="text-slate-500">未闭环工单</span>
+              <span className="hud-tabular-nums text-right text-amber-200">{hoverRow.alertCount} 单</span>
+              <span className="text-slate-500">平均健康分</span>
+              <span className="hud-tabular-nums text-right text-emerald-300">{hoverRow.avgHealth ?? "—"}</span>
             </div>
           </div>
         )}
