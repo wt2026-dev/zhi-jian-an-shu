@@ -19,6 +19,7 @@ import {
   Share2,
   UserCheck,
   Gamepad2,
+  Swords,
 } from 'lucide-react';
 
 export interface NavItemConfig {
@@ -85,6 +86,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { id: 'dispatch', label: '调度大屏', icon: Route, roles: [...FIELD] },
       { id: 'procedures', label: '作业指引', icon: BookOpen }, // 全员可见
       { id: 'maintenance_game', label: '检修闯关', icon: Gamepad2 }, // 全员可见
+      { id: 'campaign', label: '庖丁检修师', icon: Swords }, // 全员可见：七幕主线＝一遍完整业务流程
       { id: 'inspections', label: '巡检作业', icon: CheckCircle2, roles: [...SAFETY_AUDIT] },
       { id: 'hazards', label: '隐患闭环', icon: AlertTriangle, roles: [...SAFETY_AUDIT] },
     ],

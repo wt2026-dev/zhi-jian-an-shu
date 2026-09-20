@@ -47,6 +47,8 @@ const DispatchBoardView = React.lazy(() => import('./components/DispatchBoardVie
 const SparePartsView = React.lazy(() => import('./components/SparePartsView').then(m => ({ default: m.SparePartsView })));
 const HazardsView = React.lazy(() => import('./components/HazardsView').then(m => ({ default: m.HazardsView })));
 const MaintenanceGameView = React.lazy(() => import('./components/game/MaintenanceGameView').then(m => ({ default: m.MaintenanceGameView })));
+// 《庖丁检修师》七幕主线：项目的可玩缩影，独立视图按需加载
+const CampaignView = React.lazy(() => import('./components/campaign/CampaignView').then(m => ({ default: m.CampaignView })));
 
 import {
   Equipment,
@@ -245,7 +247,7 @@ function AppShell() {
         if (targetEquipmentId) {
           setMobileScanEquipmentId(targetEquipmentId);
         }
-      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch', 'maintenance_game'].includes(targetView)) {
+      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch', 'maintenance_game', 'campaign'].includes(targetView)) {
         setActiveTab(targetView === 'equipment' ? 'equipments' : targetView);
       }
     } catch (e) {
@@ -574,6 +576,7 @@ function AppShell() {
           )}
           {activeTab === 'ai_reviews' && <AdminAiReviewsView onNavigate={setActiveTab} />}
           {activeTab === 'maintenance_game' && <MaintenanceGameView currentUser={currentUser} />}
+          {activeTab === 'campaign' && <CampaignView currentUser={currentUser} />}
           {activeTab === 'ai_models' && <AdminAiModelsView />}
 
           {activeTab === 'users' && (
