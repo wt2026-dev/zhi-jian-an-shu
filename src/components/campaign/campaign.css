@@ -1,0 +1,47 @@
+/* 《庖丁检修师》主线专属动画：报警呼吸 + 幕次推进的扫光。
+   深色工业风与 equipment-industrial.css 一致，只补这三条主线才有的效果。 */
+
+.campaign-alarm {
+  animation: campaign-alarm-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes campaign-alarm-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0);
+    border-color: rgba(251, 113, 133, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 18px 2px rgba(244, 63, 94, 0.32);
+    border-color: rgba(251, 113, 133, 0.75);
+  }
+}
+
+/* 幕序号推进：当前幕的标签底光从左往右扫一次，交代"剧情走到这一步了" */
+.campaign-act-sweep {
+  position: relative;
+  overflow: hidden;
+}
+
+.campaign-act-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(34, 211, 238, 0.28) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: campaign-sweep 1.25s ease-out 1;
+  pointer-events: none;
+}
+
+@keyframes campaign-sweep {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campaign-alarm,
+  .campaign-act-sweep::after {
+    animation: none;
+  }
+}

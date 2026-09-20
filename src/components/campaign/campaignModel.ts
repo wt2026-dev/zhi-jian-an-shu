@@ -15,6 +15,7 @@
  *   业务侧的工单、LOTO、备件、知识贡献全部走真实接口落库。
  */
 import type { Equipment } from "../../types";
+import type { StationSpec } from "../game/gameScene";
 import { buildHuntSpots, gradeFor, worstSpot, type Grade } from "../game/levelPlay";
 
 /* ============================ 七幕定义 ============================ */
@@ -229,6 +230,37 @@ export function factoryBoardOf(equipments: Equipment[]): FactoryBoard {
     onlineRate: Math.round((running / total) * 1000) / 10,
     avgHealth: scored.length ? Math.round((scored.reduce((s, e) => s + e.healthScore, 0) / scored.length) * 10) / 10 : null,
   };
+}
+
+/* ============================ 3D 点位排布 ============================ */
+
+/**
+ * 台账 → 关卡地图点位。**顺序必须稳定**：`GameScene` 只在挂载时建点位，
+ * 后续靠 id 改颜色，一旦每次渲染重排，相机与点位就错位了。
+ *
+ * `playable` 沿用检修闯关的口径（有可匹配规程才可进入），主线据此决定
+ * 报警设备优先从"有规程可走完第 5 幕"的台子里挑。
+ */
+export function buildStations(
+  equipments: Equipment[],
+  opts: { playableIds?: string[]; clearedIds?: string[]; bestGradeOf?: (id: string) => string | null } = {}
+): StationSpec[] {
+  const playable = new Set(opts.playableIds ?? []);
+  const cleared = new Set(opts.clearedIds ?? []);
+  return equipments.map((eq, i) => {
+    const canPlay = playable.has(eq.id);
+    return {
+      id: eq.id,
+      index: i + 1,
+      name: eq.name,
+      code: eq.code,
+      category: eq.category,
+      workshop: eq.workshop,
+      state: cleared.has(eq.id) ? "cleared" : canPlay ? "current" : "locked",
+      playable: canPlay,
+      bestGrade: opts.bestGradeOf?.(eq.id) ?? null,
+    };
+  });
 }
 
 /* ============================ 计分与评级 ============================ */

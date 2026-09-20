@@ -8,6 +8,7 @@ import {
   actScoreOf,
   achievementsUnlocked,
   ACHIEVEMENTS,
+  buildStations,
   factoryBoardOf,
   nextAct,
   pickIncident,
@@ -396,5 +397,39 @@ describe("本地进度结算", () => {
     expect(p.bestRunSeconds).toBe(900);
     for (let i = 0; i < 25; i++) p = applyRun(p, run({ finishedAt: 1789000000000 + i })).progress;
     expect(p.history).toHaveLength(20);
+  });
+});
+
+/* ============================ 3D 点位 ============================ */
+
+describe("台账 → 关卡点位", () => {
+  const pool = [equipment({ id: "a", name: "一台泵" }), equipment({ id: "b", name: "二台机" }), equipment({ id: "c", name: "三台车" })];
+
+  it("顺序与入参一致、序号从 1 递增（场景靠这个对齐相机）", () => {
+    const stations = buildStations(pool, { playableIds: ["a", "b", "c"] });
+    expect(stations.map((s) => s.id)).toEqual(["a", "b", "c"]);
+    expect(stations.map((s) => s.index)).toEqual([1, 2, 3]);
+    expect(stations[0]).toMatchObject({ name: "一台泵", code: pool[0].code, playable: true });
+  });
+
+  it("有规程=可挑战，无规程=未解锁；通关过的一律显示已通关", () => {
+    const stations = buildStations(pool, { playableIds: ["a", "b"], clearedIds: ["b"] });
+    const byId = Object.fromEntries(stations.map((s) => [s.id, s]));
+    expect(byId.a.state).toBe("current");
+    expect(byId.b.state).toBe("cleared");
+    expect(byId.c.state).toBe("locked");
+    // playable 只表达"有没有规程"，不等于"能不能进"：已通关的台子依然可重复挑战
+    expect(byId.b.playable).toBe(true);
+    expect(byId.c.playable).toBe(false);
+  });
+
+  it("最佳评级按 id 回填，没打过的为 null", () => {
+    const stations = buildStations(pool, { playableIds: ["a"], bestGradeOf: (id) => (id === "a" ? "S" : null) });
+    expect(stations[0].bestGrade).toBe("S");
+    expect(stations[1].bestGrade).toBeNull();
+  });
+
+  it("空台账返回空数组，不抛错", () => {
+    expect(buildStations([])).toEqual([]);
   });
 });
