@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { JWT_SECRET } from "../utils/config.ts";
 import { addAuditLog } from "./auditService.ts";
 import { AiModelConfigRepository } from "../../db/repositories/index.ts";
+import { logger } from "../../utils/logger.ts";
 
 export type ModelCapability = "chat" | "vision" | "video";
 
@@ -55,7 +56,7 @@ function resolveApiKey(config: { apiKeyEnv?: string | null; hasEncryptedKey?: bo
     try {
       return decryptApiKey(config.encrypted);
     } catch (e: any) {
-      console.error("[AI Model Router] 密钥解密失败:", e?.message || e);
+      logger.error("[AI Model Router] 密钥解密失败:", e?.message || e);
       return null;
     }
   }
@@ -78,7 +79,7 @@ async function getEnabledConfigs(): Promise<any[]> {
     cachedEnabled = await AiModelConfigRepository.getEnabled();
     cacheTs = Date.now();
   } catch (e: any) {
-    console.warn("[AI Model Router] 读取模型配置失败，回退环境变量:", e?.message || e);
+    logger.warn("[AI Model Router] 读取模型配置失败，回退环境变量:", e?.message || e);
     cachedEnabled = [];
   }
   return cachedEnabled;
@@ -197,7 +198,7 @@ export async function ensureAiModelSeed(): Promise<void> {
     const baseUrl = process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
     const hasKey = !!process.env.DASHSCOPE_API_KEY;
     if (!hasKey) {
-      console.log("[AI Model Router] 未检测到 DASHSCOPE_API_KEY，跳过模型配置种子（环境变量回退模式）");
+      logger.log("[AI Model Router] 未检测到 DASHSCOPE_API_KEY，跳过模型配置种子（环境变量回退模式）");
       return;
     }
     await AiModelConfigRepository.insert({
@@ -222,9 +223,9 @@ export async function ensureAiModelSeed(): Promise<void> {
       priority: 10,
       enabled: true,
     });
-    console.log("[AI Model Router] 已从 DASHSCOPE_* 环境变量初始化 2 条模型配置（chat/vision）");
+    logger.log("[AI Model Router] 已从 DASHSCOPE_* 环境变量初始化 2 条模型配置（chat/vision）");
     invalidateModelConfigCache();
   } catch (e: any) {
-    console.warn("[AI Model Router] 模型配置种子写入失败（不影响启动）:", e?.message || e);
+    logger.warn("[AI Model Router] 模型配置种子写入失败（不影响启动）:", e?.message || e);
   }
 }

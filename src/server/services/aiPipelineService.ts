@@ -13,6 +13,7 @@ import {
   runRecommendAssigneeCore,
   CapabilityResult,
 } from "./aiCapabilityService.ts";
+import { logger } from "../../utils/logger.ts";
 
 /** 场景「AI 协同诊断」的固定步骤依赖图（拓扑序 + 分组并行） */
 export const PIPELINE_STEPS = [
@@ -71,7 +72,7 @@ export async function createAndRunPipeline(params: {
   });
   // 异步执行编排，不阻塞创建请求；执行器内部自行落库与容错
   void executePipeline(taskId, params.equipmentId, params.problemDescription).catch((err) => {
-    console.error(`[AI Pipeline ${taskId}] 编排执行异常:`, err?.message || err);
+    logger.error(`[AI Pipeline ${taskId}] 编排执行异常:`, err?.message || err);
   });
   return { id: taskId };
 }

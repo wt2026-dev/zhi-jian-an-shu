@@ -10,6 +10,7 @@ import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { EquipmentRepository, WorkOrderRepository, TelemetryRepository, InspectionRepository, UserRepository } from "../../db/repositories/index.ts";
 import { runRecommendAssigneeCore } from "../services/aiCapabilityService.ts";
 import { getDb } from "../../db/db.ts";
+import { logger } from "../../utils/logger.ts";
 export const handleAiChat = async (req: any, res: any) => {
   const { message, history = [] } = req.body;
   const chatId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -42,7 +43,7 @@ export const handleAiChat = async (req: any, res: any) => {
         model: DASHSCOPE_CHAT_MODEL,
       });
     } catch (e: any) {
-      console.warn("DashScope v1 Chat error:", e?.message || e);
+      logger.warn("DashScope v1 Chat error:", e?.message || e);
     }
   }
   const reply = await generateFallbackExpertReply(message, {});
@@ -127,7 +128,7 @@ ${JSON.stringify(contextData, null, 2)}
     if (err instanceof AiUnavailableError) {
       sendEvent({ error: err.message, degraded: true });
     } else {
-      console.error("[AI:CHAT_STREAM] 调用失败:", err?.message || err);
+      logger.error("[AI:CHAT_STREAM] 调用失败:", err?.message || err);
       sendEvent({ error: `AI 流式调用失败: ${err?.message || err}` });
     }
     res.write("data: [DONE]\n\n");
@@ -430,7 +431,7 @@ ${contextCorpus}
           });
         }
       } catch (ragErr) {
-        console.error("RAG DashScope error:", ragErr);
+        logger.error("RAG DashScope error:", ragErr);
       }
     }
 
@@ -446,7 +447,7 @@ ${contextCorpus}
       })),
     });
   } catch (error: any) {
-    console.error("RAG error:", error);
+    logger.error("RAG error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 }

@@ -12,6 +12,7 @@ import { EquipmentRepository, WorkOrderRepository, AiAnalysisLogRepository } fro
 import { runMaintenancePlanCore, runFaultDiagnosisCore } from "../services/aiCapabilityService.ts";
 import { createPendingAiReview } from "../services/aiReviewService.ts";
 import { detectSafetyNotice, getPromptVersion, createInputDigest, TraceabilityInfo } from "../services/promptVersion.ts";
+import { logger } from "../../utils/logger.ts";
 
 // ---------- 功能 1：智能工单生成 ----------
 export const handleGenerateWorkOrder = async (req: any, res: any) => {
@@ -229,7 +230,7 @@ export const handleGenerateMaintenancePlan = async (req: any, res: any) => {
       reviewStatus: traceability.reviewStatus,
       safetyNotice,
       body: result.body,
-    }).catch((e) => console.warn("AiAnalysisLog record error:", e));
+    }).catch((e) => logger.warn("AiAnalysisLog record error:", e));
 
     if (result.outcome === "success") {
       addAuditLog(req, {
@@ -303,7 +304,7 @@ export const handleAiDiagnose = async (req: any, res: any) => {
       reviewStatus: traceability.reviewStatus,
       safetyNotice,
       body: result.body,
-    }).catch((e) => console.warn("AiAnalysisLog record error:", e));
+    }).catch((e) => logger.warn("AiAnalysisLog record error:", e));
 
     addAuditLog(req, {
       actionType: "AI_DIAGNOSE",
@@ -314,7 +315,7 @@ export const handleAiDiagnose = async (req: any, res: any) => {
     });
     return res.json({ ...result.body, safetyNotice, traceability });
   } catch (error: any) {
-    console.error("Diagnose error:", error);
+    logger.error("Diagnose error:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };

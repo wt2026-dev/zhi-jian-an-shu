@@ -1,5 +1,6 @@
 import { AuditLogRepository, NotificationRepository } from "../../db/repositories/index.ts";
 import { authenticateBearer } from "./authService.ts";
+import { logger } from "../../utils/logger.ts";
 
 // ==================== 生产级操作审计日志系统 (Operation Audit Log) ====================
 // 原 createApp 闭包函数模块化：auditLogHook 注入机制保持原语义
@@ -78,7 +79,7 @@ export function addAuditLog(req: any, params: AuditLogParams) {
     metadata: params.metadata,
   };
   AuditLogRepository.add(item).catch((err: any) => {
-    console.error("[AuditLog] 写入数据库失败:", err);
+    logger.error("[AuditLog] 写入数据库失败:", err);
   });
   return item;
 }
@@ -110,7 +111,7 @@ export function pushNotification(params: {
     userId: params.userId || null,
   };
   NotificationRepository.create(item).catch((err: any) => {
-    console.error("[Notification] 写入数据库失败:", err);
+    logger.error("[Notification] 写入数据库失败:", err);
   });
   return item;
 }

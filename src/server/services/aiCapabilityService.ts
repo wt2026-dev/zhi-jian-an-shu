@@ -10,6 +10,7 @@ import { findRelevantKnowledge } from "./knowledgeRetrieval.ts";
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
 import { EquipmentRepository, WorkOrderRepository, SafetyPermitRepository, UserRepository } from "../../db/repositories/index.ts";
+import { logger } from "../../utils/logger.ts";
 
 export type CapabilityOutcome = "cache" | "success" | "degraded" | "unavailable" | "failed";
 
@@ -104,7 +105,7 @@ export async function runFaultDiagnosisCore(input: {
         return { outcome: "success", body: { success: true, diagnosis: parsed, model: DASHSCOPE_CHAT_MODEL } };
       }
     } catch (aiErr: any) {
-      console.error("DashScope Diagnose Error:", aiErr?.message || aiErr);
+      logger.error("DashScope Diagnose Error:", aiErr?.message || aiErr);
     }
   }
 

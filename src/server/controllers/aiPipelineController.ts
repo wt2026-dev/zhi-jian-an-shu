@@ -2,6 +2,7 @@
 import { sseInit, sseSend } from "../services/aiClient.ts";
 import { AiTaskRepository } from "../../db/repositories/index.ts";
 import { createAndRunPipeline, PIPELINE_STEPS } from "../services/aiPipelineService.ts";
+import { logger } from "../../utils/logger.ts";
 
 // ==================== 创建并启动协同任务 ====================
 export const handleCreatePipeline = async (req: any, res: any) => {
@@ -88,7 +89,7 @@ export const handlePipelineEvents = async (req: any, res: any) => {
           res.end();
         }
       } catch (err: any) {
-        console.error("[AI Pipeline SSE] 推送异常:", err?.message || err);
+        logger.error("[AI Pipeline SSE] 推送异常:", err?.message || err);
         sseSend(res, { type: "error", message: err?.message || "推送异常" });
         cleanup();
         res.end();

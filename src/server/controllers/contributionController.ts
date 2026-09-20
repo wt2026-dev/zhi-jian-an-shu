@@ -3,6 +3,7 @@ import { getDb } from "../../db/db.ts";
 import { KnowledgeRepository } from "../../db/repositories/index.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
+import { logger } from "../../utils/logger.ts";
 
 // POST /api/v1/ai/feedback
 export const handleCreateAiFeedback = async (req: any, res: any) => {
@@ -60,7 +61,7 @@ export const handleCreateContribution = async (req: any, res: any) => {
     );
     return res.status(201).json({ success: true, id: newId, message: "已提交，待知识管理员审核" });
   } catch (err: any) {
-    console.error("Submit contribution error:", err);
+    logger.error("Submit contribution error:", err);
     return res.status(500).json({ success: false, error: "提交知识案例失败: " + err.message });
   }
 };
@@ -113,14 +114,14 @@ export const handleAdoptContribution = async (req: any, res: any) => {
     try {
       article.embedding = await createEmbedding(`${article.title}\n${article.content}`);
     } catch (embErr: any) {
-      console.warn("Embedding creation fallback during contribution adoption:", embErr?.message);
+      logger.warn("Embedding creation fallback during contribution adoption:", embErr?.message);
     }
 
     await KnowledgeRepository.create(article);
     await db.query("UPDATE ai_knowledge_contributions SET status = 'adopted' WHERE id = $1", [c.id]);
     return res.json({ success: true, article });
   } catch (err: any) {
-    console.error("Adopt contribution error:", err);
+    logger.error("Adopt contribution error:", err);
     return res.status(500).json({ error: "采纳知识贡献失败: " + err.message });
   }
 };
@@ -269,7 +270,7 @@ ${equipment ? `\n【现场关联设备】: ${equipment}` : ""}`;
           };
         }
       } catch (aiErr: any) {
-        console.error("Suggest contribution AI error:", aiErr?.message || aiErr);
+        logger.error("Suggest contribution AI error:", aiErr?.message || aiErr);
       }
     }
 
@@ -297,7 +298,7 @@ ${equipment ? `\n【现场关联设备】: ${equipment}` : ""}`;
         suggestion.id = id;
         suggestion.chatId = chatId;
       } catch (dbErr: any) {
-        console.error("Save suggestion to DB error:", dbErr?.message || dbErr);
+        logger.error("Save suggestion to DB error:", dbErr?.message || dbErr);
       }
     }
 
@@ -306,7 +307,7 @@ ${equipment ? `\n【现场关联设备】: ${equipment}` : ""}`;
       suggestion,
     });
   } catch (err: any) {
-    console.error("Suggest contribution handler error:", err);
+    logger.error("Suggest contribution handler error:", err);
     return res.json({
       success: true,
       suggestion: {

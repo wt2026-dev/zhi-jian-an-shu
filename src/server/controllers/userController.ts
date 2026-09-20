@@ -6,6 +6,7 @@ import { getDb } from "../../db/db.ts";
 import { UserRepository } from "../../db/repositories/index.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { UPLOADS_DIR } from "../utils/config.ts";
+import { logger } from "../../utils/logger.ts";
 
 // ==================== 15.6 用户头像上传与持久化 (小程序 /api/v1/user/avatar) ====================
 export async function handleUploadAvatar(req: any, res: any) {
@@ -59,7 +60,7 @@ export async function handleUploadAvatar(req: any, res: any) {
       const db = await getDb();
       await db.query(`UPDATE users SET avatar = $1 WHERE id = $2;`, [url, req.currentUser.id]);
     } catch (e) {
-      console.warn("[Avatar] 头像 URL 落库失败（仅内存生效）:", (e as any)?.message);
+      logger.warn("[Avatar] 头像 URL 落库失败（仅内存生效）:", (e as any)?.message);
     }
     // req.currentUser 即 authService 用户缓存中的对象引用，更新其 avatar 等价于原 dbUsers[idx].avatar = url 的缓存同步
     req.currentUser.avatar = url;

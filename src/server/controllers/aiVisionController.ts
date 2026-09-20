@@ -3,6 +3,7 @@ import { getAiClient, extractAiJson } from "../services/aiClient.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
 import { findRelevantKnowledge } from "../services/knowledgeRetrieval.ts";
+import { logger } from "../../utils/logger.ts";
 
 // 阿里云 DashScope / 通义千问 Qwen-VL 工业视觉缺陷深度识别链路
 export const handleVisionDefectDetect = async (req: any, res: any) => {
@@ -71,7 +72,7 @@ export const handleVisionDefectDetect = async (req: any, res: any) => {
         });
       }
     } catch (dsErr: any) {
-      console.warn("DashScope Vision call error:", dsErr?.message || dsErr);
+      logger.warn("DashScope Vision call error:", dsErr?.message || dsErr);
     }
   }
 
@@ -209,7 +210,7 @@ export async function handleAiMultimodalSearch(req: any, res: any) {
           visionDescription = rawText;
         }
       } catch (visErr: any) {
-        console.error("Multimodal vision error:", visErr?.message || visErr);
+        logger.error("Multimodal vision error:", visErr?.message || visErr);
       }
     }
 
@@ -329,7 +330,7 @@ export async function handleAiMultimodalSearch(req: any, res: any) {
       cases: rankedCases,
     });
   } catch (err: any) {
-    console.error("Multimodal search handler error:", err);
+    logger.error("Multimodal search handler error:", err);
     return res.json({
       success: true,
       visionDescription: "识别失败",

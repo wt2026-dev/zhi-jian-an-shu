@@ -2,6 +2,7 @@
 // 写入失败时记日志并返回 null（fail-open），生成接口照常返回，仅缺少 reviewId。
 import { randomUUID } from "crypto";
 import { AiGenerationReviewRepository } from "../../db/repositories/index.ts";
+import { logger } from "../../utils/logger.ts";
 
 export type AiReviewSourceType = "maintenance_plan" | "safety_risk" | "report" | "work_order_draft";
 
@@ -28,7 +29,7 @@ export async function createPendingAiReview(params: {
     return id;
   } catch (err: any) {
     // 审核台不可用不影响 AI 生成主流程（约束：审核只是加一道闸）
-    console.error("[AI Review] 待审核记录写入失败（fail-open）:", err?.message || err);
+    logger.error("[AI Review] 待审核记录写入失败（fail-open）:", err?.message || err);
     return null;
   }
 }

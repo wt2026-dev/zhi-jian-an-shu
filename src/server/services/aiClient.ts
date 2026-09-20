@@ -2,6 +2,7 @@ import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { DASHSCOPE_CHAT_MODEL, isAiBudgetEnabled, getAiDailyBudget } from "../utils/config.ts";
 import { addAuditLog } from "./auditService.ts";
 import { resolveCandidates, clientFor, markHealth, isFailoverEligible } from "./aiModelRouter.ts";
+import { logger } from "../../utils/logger.ts";
 
 // ==================== AI 每日预算记账（最小化实现，不改动各 controller） ====================
 // 在 lazyModelRouter 唯一出口拦截：成功返回后累计 usage，超限抛 AiUnavailableError。
@@ -134,7 +135,7 @@ function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRoute
               return response;
             } catch (err: any) {
               lastError = err;
-              console.error(`[AI Model Router] ${cand.displayName}(${cand.modelName}) 调用失败:`, err?.message || err);
+              logger.error(`[AI Model Router] ${cand.displayName}(${cand.modelName}) 调用失败:`, err?.message || err);
               void markHealth(cand.configId, "unhealthy");
               if (i < ordered.length - 1 && isFailoverEligible(err)) {
                 addAuditLog(undefined, {
@@ -254,7 +255,7 @@ export async function handleAiRouteError(res: any, err: any, actionType: string,
     }
     return res.status(200).json({ success: false, message: err.message, degraded: true });
   }
-  console.error(`[AI:${actionType}] 调用失败:`, err?.message || err);
+  logger.error(`[AI:${actionType}] 调用失败:`, err?.message || err);
   if (req) {
     addAuditLog(req, {
       actionType,
@@ -269,7 +270,7 @@ export async function handleAiRouteError(res: any, err: any, actionType: string,
       const body = await degradedBuilder(err);
       return res.status(200).json(body);
     } catch (be: any) {
-      console.error(`[AI:${actionType}] 规则引擎降级也失败:`, be?.message || be);
+      logger.error(`[AI:${actionType}] 规则引擎降级也失败:`, be?.message || be);
     }
   }
   return res
@@ -358,7 +359,7 @@ export async function streamAiStructured(
       metadata: { model: DASHSCOPE_CHAT_MODEL, replyLength: full.length },
     });
   } catch (err: any) {
-    console.error(`[AI:${opts.actionType}] 流式调用失败:`, err?.message || err);
+    logger.error(`[AI:${opts.actionType}] 流式调用失败:`, err?.message || err);
     if (ctx && typeof opts.buildDegraded === "function") {
       try {
         const deg = opts.buildDegraded(ctx);
@@ -373,7 +374,7 @@ export async function streamAiStructured(
         });
         return;
       } catch (de: any) {
-        console.error(`[AI:${opts.actionType}] 规则降级失败:`, de?.message || de);
+        logger.error(`[AI:${opts.actionType}] 规则降级失败:`, de?.message || de);
       }
     }
     sseSend(res, { type: "error", message: `AI 流式调用失败: ${String(err?.message || err).slice(0, 160)}` });

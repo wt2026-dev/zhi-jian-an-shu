@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logger } from "../../utils/logger.ts";
 
 // ==================== DashScope Embedding 服务（OpenAI 兼容模式） ====================
 // 模型：text-embedding-v3（默认），维度 1024。
@@ -73,14 +74,14 @@ export async function embed(text: string): Promise<number[] | null> {
     const vector = resp?.data?.[0]?.embedding;
     if (!isValidVector(vector)) {
       // 维度/类型不符视为脏数据：拒绝返回，交由调用方走关键词降级
-      console.warn(
+      logger.warn(
         `[Embedding] 维度校验失败（期望 ${EMBEDDING_DIMS} 维，实际 ${Array.isArray(vector) ? vector.length : "非数组"}），拒绝写入`
       );
       return null;
     }
     return vector;
   } catch (err: any) {
-    console.warn("[Embedding] 调用失败（降级为不可用）:", err?.message || err);
+    logger.warn("[Embedding] 调用失败（降级为不可用）:", err?.message || err);
     return null;
   }
 }
@@ -117,13 +118,13 @@ export async function embedBatch(texts: string[]): Promise<(number[] | null)[]> 
         const globalIdx = idxs[localIdx];
         if (globalIdx === undefined) continue;
         if (!isValidVector(d.embedding)) {
-          console.warn(`[Embedding] 批量结果第 ${globalIdx} 项维度校验失败，该条置空拒绝写入`);
+          logger.warn(`[Embedding] 批量结果第 ${globalIdx} 项维度校验失败，该条置空拒绝写入`);
           continue;
         }
         results[globalIdx] = d.embedding;
       }
     } catch (err: any) {
-      console.warn(`[Embedding] 批量调用失败（${batchInputs.length} 条置空）:`, err?.message || err);
+      logger.warn(`[Embedding] 批量调用失败（${batchInputs.length} 条置空）:`, err?.message || err);
     }
   }
   return results;

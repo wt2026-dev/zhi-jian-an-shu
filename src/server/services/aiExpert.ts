@@ -1,4 +1,5 @@
 import { findRelevantKnowledge } from "./knowledgeRetrieval.ts";
+import { logger } from "../../utils/logger.ts";
 
 // ==================== 工业检修总工 AI 人设与规则引擎降级 ====================
 
@@ -10,7 +11,7 @@ export async function generateFallbackExpertReply(message: string, contextData: 
   try {
     kbDocs = await findRelevantKnowledge(keywords.length ? keywords : ["设备", "检修", "安全"], 3);
   } catch (err) {
-    console.warn("Fallback kb lookup error:", err);
+    logger.warn("Fallback kb lookup error:", err);
   }
 
   let text = `> ⚠️ **【系统提示】** AI 智能服务暂不可用，已自动切换为知识库检索降级模式。\n\n`;
@@ -41,7 +42,7 @@ export async function generateFallbackDiagnosis(name: string, symptoms: string, 
   try {
     kbDocs = await findRelevantKnowledge(keywords.length ? keywords : ["故障", "检修", "安全"], 3);
   } catch (err) {
-    console.warn("Fallback diagnosis kb lookup error:", err);
+    logger.warn("Fallback diagnosis kb lookup error:", err);
   }
 
   const rawHits = kbDocs.map((k: any) => ({

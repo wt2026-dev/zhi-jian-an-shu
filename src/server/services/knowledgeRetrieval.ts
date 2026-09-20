@@ -5,6 +5,7 @@ import {
   getVectorStoreMode,
   searchSimilar,
 } from "../../db/vectorStore.ts";
+import { logger } from "../../utils/logger.ts";
 
 // ==================== 知识库混合检索（向量 RAG + 关键词融合） ====================
 // 混合流程：
@@ -62,7 +63,7 @@ export async function findRelevantKnowledge(keywords: string[], limit = 5) {
         }
       } catch (err: any) {
         // 向量存储不可用：优雅降级为纯关键词路径
-        console.warn("[RAG] 向量检索失败（回退关键词路径）:", err?.message || err);
+        logger.warn("[RAG] 向量检索失败（回退关键词路径）:", err?.message || err);
       }
     }
   }
@@ -105,7 +106,7 @@ export async function findRelevantKnowledge(keywords: string[], limit = 5) {
       const pending = await countPending();
       const mode = await getVectorStoreMode();
       if (pending > 0) {
-        console.warn(
+        logger.warn(
           `[RAG] 混合检索当前仅命中关键词路（向量库模式: ${mode}）。` +
             `检测到 ${pending} 篇 approved 文章尚未生成 embedding，` +
             `请运行 \`npx tsx scripts/embed-knowledge.ts\` 回填后启用语义召回。`

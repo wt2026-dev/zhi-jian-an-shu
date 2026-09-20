@@ -1,5 +1,6 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
 import { WorkOrderRepository, WorkOrderLogRepository, ComplianceCheckRepository } from "../../db/repositories/index.ts";
+import { logger } from "../../utils/logger.ts";
 
 // 工单状态标签表（原 createApp 闭包内常量，工单子域共用，逻辑保持原样）
 export const STATUS_LABELS: Record<string, string> = {
@@ -42,7 +43,7 @@ export function pushWorkOrderLog(log: {
     dbWorkOrderLogs.length = MAX_MEMORY_WORK_ORDER_LOGS;
   }
   void WorkOrderLogRepository.add(fullLog).catch((err: any) => {
-    console.error("[WorkOrderLog] 落库失败（不影响主流程）:", err?.message || err);
+    logger.error("[WorkOrderLog] 落库失败（不影响主流程）:", err?.message || err);
   });
 }
 
