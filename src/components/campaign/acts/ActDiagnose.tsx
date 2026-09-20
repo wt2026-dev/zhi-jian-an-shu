@@ -88,7 +88,8 @@ export function ActDiagnose(props: ActProps) {
             (abnormalLine.length ? ` 超限测点：${abnormalLine.join('、')}。` : ' 各阈值测点读数均在限值内。') +
             (incident ? ` 台账状态：${incident.faultType}。` : ''),
           telemetry,
-          errorCodes: [equipment.status],
+          // 服务端 schema 是 string 而非数组：给数组会被 Zod 判 400，第 3 幕直接失败
+          errorCodes: [equipment.status, ...abnormalLine].join('、'),
         }),
       });
       const data = await res.json();
