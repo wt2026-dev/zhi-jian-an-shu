@@ -55,13 +55,14 @@ function simulate(
   world: WorldLayout,
   inputAt: (t: number, p: PlayerState) => Input,
   seconds: number,
-  start = createPlayer(120, world.groundY)
+  start = createPlayer(120, world.groundY),
+  dt = DT
 ): PlayerState[] {
-  const frames = Math.round(seconds / DT);
+  const frames = Math.round(seconds / dt);
   const trail: PlayerState[] = [start];
   let p = start;
   for (let i = 0; i < frames; i++) {
-    p = stepPlayer(p, inputAt(i * DT, p), world, DT);
+    p = stepPlayer(p, inputAt(i * dt, p), world, dt);
     trail.push(p);
   }
   return trail;
@@ -548,6 +549,22 @@ describe("检修大师 · 关卡设计必须与跳跃能力自洽（最重要的
     expect(apex - MAX_RISE).toBeGreaterThanOrEqual(8); // 落脚余量
     expect(MAX_GAP).toBeLessThan(horizontalReach);
     expect(horizontalReach - MAX_GAP).toBeGreaterThanOrEqual(40); // 助跑余量
+  });
+
+  it("跳跃高度随帧率变化，但最差帧率下也够得着所有栈桥（沙箱软渲染只有 ~1fps）", () => {
+    // 半隐式欧拉会让跳跃高度随 dt 变化：dt 越大过冲越多。
+    // 实测 1/60 → 128.3px、0.05（dt 上限）→ 140px，而 dt→0 的理论极限是 122.5px。
+    // 也就是说**最低**的跳跃高度是 122.5px —— 关卡设计必须按这个下限来留余量。
+    const world = flatWorld();
+    const rises = [1 / 120, 1 / 60, 1 / 30, 1 / 20, 0.05].map((dt) =>
+      riseOf(world, simulate(world, () => right(true), 1.5, createPlayer(120, world.groundY), dt))
+    );
+    for (const r of rises) {
+      expect(r).toBeGreaterThan(MAX_RISE + 8);
+      expect(r).toBeLessThan(JUMP_HEIGHT + 20);
+    }
+    // 帧率越低跳得越高（过冲），但差别要可控（不能高到破坏关卡难度）
+    expect(Math.max(...rises) - Math.min(...rises)).toBeLessThan(24);
   });
 
   it("所有栈桥都够高，玩家能直接从下面跑过去（否则关卡会变成必须跳，容易卡住）", () => {

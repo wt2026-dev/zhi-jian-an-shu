@@ -41,6 +41,7 @@ import {
   type LevelStep,
 } from './levelPlay';
 import { fetchProcedures, findProcedureForEquipment } from './gameData';
+import { MasterGameView } from './MasterGameView';
 
 type Mode = 'map' | 'hunt';
 type Phase = 'map' | 'playing' | 'result';
@@ -87,7 +88,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 /* ============================ 主组件 ============================ */
 
-export function MaintenanceGameView({ currentUser }: { currentUser?: { name?: string } | null }) {
+function MapGameView({ currentUser }: { currentUser?: { name?: string } | null }) {
   const { equipments } = useAppData();
   const [mode, setMode] = useState<Mode>('map');
   const [procs, setProcs] = useState<Awaited<ReturnType<typeof fetchProcedures>>>([]);
@@ -756,6 +757,64 @@ function OrderBoard(props: {
     </div>
   );
 }
+
+/* ============================ 页面外壳 ============================ */
+
+type PlayMode = 'master' | 'map';
+
+/**
+ * 「检修闯关」页面外壳 —— 两种玩法可切换：
+ * - 《检修大师》（默认）：2D 横版跑酷闯关，跑动 / 跳跃 / 点设备检修，4 关 + 职称晋升；
+ * - 3D 关卡地图：车间俯视地图上逐台设备挑战（保留，作为另一种入口）。
+ *
+ * 两者共用同一套数据红线：题目全部来自真实检修规程与真实遥测读数，无规程的设备不可挑战。
+ */
+export function MaintenanceGameView({ currentUser }: { currentUser?: { name?: string } | null }) {
+  const [playMode, setPlayMode] = useState<PlayMode>('master');
+  /** 关卡进度托管在页面层：切到 3D 地图再切回来不会掉回第 1 关 */
+  const [levelIndex, setLevelIndex] = useState(0);
+
+  const tab = (mode: PlayMode, label: string) => (
+    <button
+      type="button"
+      onClick={() => setPlayMode(mode)}
+      className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+        playMode === mode ? 'bg-cyan-400/20 text-cyan-100' : 'text-slate-400 hover:text-slate-200'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="flex h-full w-full flex-col bg-[#040a14]">
+      {/* 顶部模式条：独立占位，避免与两种玩法各自的 HUD 互相压叠 */}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-3 py-1.5">
+        <div className="flex items-center gap-2">
+          <Gamepad2 size={14} className="text-cyan-300" />
+          <span className="text-xs font-semibold text-slate-200">检修闯关</span>
+          <span className="hidden text-[11px] text-slate-500 sm:inline">
+            · {playMode === 'master' ? '《检修大师》2D 横版跑酷闯关' : '3D 车间关卡地图'}
+          </span>
+        </div>
+        <div className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
+          {tab('master', '检修大师')}
+          {tab('map', '3D 地图')}
+        </div>
+      </div>
+
+      <div className="relative min-h-0 flex-1">
+        {playMode === 'master' ? (
+          <MasterGameView levelIndex={levelIndex} onLevelIndexChange={setLevelIndex} />
+        ) : (
+          <MapGameView currentUser={currentUser} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================ 工具 ============================ */
 
 /** 打乱顺序，但同一关卡内保持稳定（按内容做种子，避免每次渲染都重排） */
 function shuffleMemo(items: string[]): string[] {
