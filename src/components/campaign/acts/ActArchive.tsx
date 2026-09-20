@@ -10,6 +10,11 @@
  * - 验收结论默认沿用第 6 幕 AI 判定；AI 没给结论时由玩家二选一，界面标明是谁的结论。
  * - 隔离锁释放走 `POST /loto-locks/:id/release`，服务端安全联锁会在工单仍"检修中"时拒绝，
  *   这一幕把拒绝原因如实显示，不假装解锁成功。
+ * - 作业票注销走 `POST /safety-permits/:id/close`：设备仍有 in_progress 工单、或关联锁未
+ *   全部释放并填写现场说明时，服务端拒绝注销。票必须在本幕结掉——服务端按设备维度做开工
+ *   联锁，一张过期未注销的票会让该设备以后每次都开不了工。
+ * - 实测得到的动作顺序是硬约束：完工上报 → 释放隔离锁 → 注销作业票 → 验收签字。
+ *   `/accept` 前设备若还有未注销的票，服务端直接 409，所以四个按钮按这条链依次放行。
  * - 知识沉淀写 `/ai/contributions`（待审核），不直接改知识库正文；文案只用本单真实数据拼。
  * - 复盘面板的每个数字都来自本局已发生的真实调用与本地成绩，不补任何估算值。
  */
@@ -42,6 +47,7 @@ export function ActArchive(props: ActProps) {
   const [score, setScore] = useState(5);
   const [lock, setLock] = useState<LotoLock | null>(null);
   const [lockReleased, setLockReleased] = useState(false);
+  const [permitClosed, setPermitClosed] = useState(false);
   const [contributed, setContributed] = useState<string | null>(null);
 
   const operatorName = currentUser?.name ?? '';
@@ -158,6 +164,28 @@ export function ActArchive(props: ActProps) {
     }
   }, [busy, countMistake, lock, operatorName, pushLog, run.orderNo]);
 
+  /**
+   * 注销作业票 = LOTO 闭环的最后一步。服务端两道联锁：设备不得有 in_progress 工单、
+   * 关联锁必须全部已释放且填了现场释放说明，任一不满足就直接拒绝，界面回显原话。
+   */
+  const closePermit = useCallback(async () => {
+    if (!run.permitId || !operatorName || busy || permitClosed) return;
+    setBusy(true);
+    try {
+      const res = await safetyPermitApi.close(run.permitId, {
+        closeRemark: `《庖丁检修师》主线第 7 幕：${run.orderNo ?? '本单'} 工完料净场地清，隔离锁 ${run.lotoLockNo ?? '无'} 已释放，作业票注销闭环。`,
+      });
+      setPermitClosed(true);
+      pushLog(`作业票 ${run.permitNo ?? ''} 已注销（服务端状态 ${res?.status ?? 'closed'}）。`);
+    } catch (err) {
+      setErrors((n) => n + 1);
+      countMistake();
+      pushLog(`注销作业票被拒绝：${errMsg(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, countMistake, operatorName, permitClosed, pushLog, run.lotoLockNo, run.orderNo, run.permitId, run.permitNo]);
+
   const deposit = useCallback(async () => {
     if (!equipment || !operatorName || busy || contributed) return;
     setBusy(true);
@@ -196,7 +224,7 @@ export function ActArchive(props: ActProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <Panel title="工单闭环" accent="emerald" right={<span className="text-[10px] text-slate-500">/work-orders/:id/complete · /accept</span>}>
+      <Panel title="工单闭环" accent="emerald" right={<span className="text-[10px] text-slate-500">/complete · /accept · /loto-locks/release · /safety-permits/close</span>}>
         <DataRow label="工单" value={run.orderNo ?? (run.workOrderId ? '已取得 id' : '未开单')} tone={run.orderNo ? 'good' : 'bad'} />
         <DataRow label="设备" value={equipment?.name ?? '未选定'} />
         <DataRow label="主修人" value={run.assigneeName ?? '未派工'} />
@@ -209,7 +237,23 @@ export function ActArchive(props: ActProps) {
           >
             {completed ? '已完工上报' : '完工上报（技师）'}
           </button>
-          <div className="flex items-center gap-1 text-[10px] text-slate-400">
+          <button
+            type="button"
+            onClick={releaseLock}
+            disabled={!lock || lockReleased || !operatorName || !completed || busy}
+            className="rounded-md border border-rose-400/45 bg-rose-400/12 px-2 py-1 text-[11px] font-bold text-rose-100 hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
+          >
+            {lockReleased ? '隔离锁已释放' : run.lotoLockNo ? `释放隔离锁 ${run.lotoLockNo}` : '本幕未登记隔离锁，无需释放'}
+          </button>
+          <button
+            type="button"
+            onClick={closePermit}
+            disabled={!run.permitId || !operatorName || permitClosed || (!!lock && !lockReleased) || busy}
+            className="rounded-md border border-amber-400/45 bg-amber-400/12 px-2 py-1 text-[11px] font-bold text-amber-100 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
+          >
+            {permitClosed ? '作业票已注销' : run.permitNo ? `注销作业票 ${run.permitNo}` : '本单没有真实作业票可注销'}
+          </button>
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
             <span>验收结论</span>
             <button
               type="button"
@@ -245,19 +289,35 @@ export function ActArchive(props: ActProps) {
           <button
             type="button"
             onClick={acceptOrder}
-            disabled={!run.workOrderId || !operatorName || !completed || accepted || busy}
+            disabled={
+              !run.workOrderId ||
+              !operatorName ||
+              !completed ||
+              (!!lock && !lockReleased) ||
+              (!!run.permitId && !permitClosed) ||
+              accepted ||
+              busy
+            }
             className="rounded-md border border-cyan-400/45 bg-cyan-400/12 px-2 py-1 text-[11px] font-bold text-cyan-100 hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
           >
             {accepted ? '已验收签字' : '质检验收签字（质检员）'}
           </button>
-          <button
-            type="button"
-            onClick={releaseLock}
-            disabled={!lock || lockReleased || !operatorName || busy}
-            className="rounded-md border border-rose-400/45 bg-rose-400/12 px-2 py-1 text-[11px] font-bold text-rose-100 hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:border-slate-600/50 disabled:bg-slate-700/20 disabled:text-slate-500"
-          >
-            {lockReleased ? '隔离锁已释放' : run.lotoLockNo ? `释放隔离锁 ${run.lotoLockNo}` : '本幕未登记隔离锁，无需释放'}
-          </button>
+          {!accepted && (
+            <div className="text-[10px] text-slate-500">
+              {completed && !!lock && !lockReleased
+                ? '服务端联锁：隔离锁未释放不得验收。'
+                : completed && !!run.permitId && !permitClosed
+                  ? '服务端联锁：作业票未注销不得验收归档，先结清现场收尾两步。'
+                  : '验收是闭环最后一步：完工 → 释放隔离锁 → 注销作业票 → 验收签字。'}
+            </div>
+          )}
+          {run.permitId && !permitClosed && (
+            <div className="text-[10px] text-slate-500">
+              {!!lock && !lockReleased
+                ? '先释放隔离锁再注销：服务端要求票关联的锁全部解锁并填写现场说明。'
+                : '作业票不结清，该设备下一次开工会被"未生效/已过期的作业票"联锁拦住。'}
+            </div>
+          )}
           {!run.lotoLockNo && (
             <ApiNotice kind="empty" text="第 5 幕没有挂上真实隔离锁：这一幕就没有解锁动作，LOTO 台账里也不会有本单记录。" />
           )}
