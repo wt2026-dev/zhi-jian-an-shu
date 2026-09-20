@@ -314,6 +314,8 @@ export function createMapScene(opts: MapSceneOptions): MapSceneHandle {
         }
         for (const child of geoLabelGroup.children) (child as THREE.Sprite).material.opacity = 1 - 0.9 * e;
         (ground.material as THREE.Material).opacity = 0.28 * (1 - 0.8 * e);
+        terrain.group.scale.setScalar(1 + 0.08 * e);
+        border.scale.setScalar(1 + 0.08 * e);
         flow.group.visible = e < 0.85;
       }
       if (t >= 1) {

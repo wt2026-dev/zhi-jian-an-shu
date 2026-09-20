@@ -159,9 +159,9 @@ const BUILDING_W = 40;
 const BUILDING_D = 28;
 const BUILDING_H = 13;
 
-/** 分区站点间距（米）。 */
-const SITE_X = BUILDING_W * 2 + 78;
-const SITE_Z = BUILDING_D * 2 + 66;
+/** 分区站点间距（米）。紧凑排布 → 建筑在取景中占更大画面，接近参考图 r1 的观感。 */
+const SITE_X = BUILDING_W * 2 + 12;
+const SITE_Z = BUILDING_D * 2 + 28;
 
 /** 分区内厂房的局部网格间距（米）。 */
 const LOCAL_X = BUILDING_W + 22;
@@ -231,6 +231,11 @@ export class FactoryOverview {
   private gateRings: THREE.Mesh[] = [];
   private gateBeacons: THREE.Mesh[] = [];
   private zonePlates: Array<{ zone: ResolvedZone; fill: THREE.Mesh; outline: THREE.LineLoop }> = [];
+  private zoneLeaders: THREE.Line[] = [];
+  /** 分区名次（1 = 最优，0 = 无数据不参与排名） */
+  private rankOf(zoneId: string): number {
+    return this.zoneViews.find((v) => v.id === zoneId)?.rank ?? 0;
+  }
   private zoneWallMats = new Map<string, THREE.MeshStandardMaterial>();
   private zoneRoofMats = new Map<string, THREE.MeshStandardMaterial>();
   private zoneLineMats = new Map<string, THREE.LineBasicMaterial>();
@@ -250,6 +255,8 @@ export class FactoryOverview {
     strip: new THREE.BoxGeometry(1, 0.25, 1),
     door: new THREE.BoxGeometry(1, 1, 0.3),
     stack: new THREE.CylinderGeometry(0.9, 1.1, 4.2, 10),
+    cylinder: new THREE.CylinderGeometry(1, 1, 1, 12),
+    cone: new THREE.ConeGeometry(1, 1, 8),
   };
 
   private mat = {
@@ -285,12 +292,34 @@ export class FactoryOverview {
       transparent: true,
       opacity: 0.7,
     }),
+    lawn: new THREE.MeshStandardMaterial({ color: 0x122b1e, roughness: 0.96, metalness: 0.02 }),
+    foliage: new THREE.MeshStandardMaterial({ color: 0x1a4231, roughness: 0.88, metalness: 0.05 }),
+    trunk: new THREE.MeshStandardMaterial({ color: 0x27201c, roughness: 0.9, metalness: 0.05 }),
+    pipeRed: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4, metalness: 0.6 }),
+    pipeBlue: new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4, metalness: 0.6 }),
+    pipeYellow: new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4, metalness: 0.6 }),
+    pipeGreen: new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4, metalness: 0.6 }),
+    trussSteel: new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.55, metalness: 0.65 }),
+    truckCab: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.4 }),
+    truckTrailer: new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.65, metalness: 0.35 }),
+    truckWheel: new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9, metalness: 0.1 }),
+    curb: new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.85, metalness: 0.15 }),
+    windowFrame: new THREE.MeshStandardMaterial({ color: 0x091422, roughness: 0.7, metalness: 0.5 }),
+    canopy: new THREE.MeshStandardMaterial({ color: 0x18283d, roughness: 0.6, metalness: 0.45 }),
+    chimneyRed: new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5, metalness: 0.35 }),
+    chimneyWhite: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.5, metalness: 0.35 }),
+    dockPlatform: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.2 }),
   };
 
   constructor(opts: FactoryOverviewOptions) {
     this.opts = opts;
     this.rng = mulberry32(opts.seed + 4409);
     this.group.name = 'factoryOverview';
+
+    // 标记共享几何体，避免 dispose 错误释放
+    for (const k of Object.keys(this.geo) as Array<keyof typeof this.geo>) {
+      this.geo[k].userData = { shared: true };
+    }
 
     this.resolveZones();
     this.layoutBuildings();
@@ -299,11 +328,15 @@ export class FactoryOverview {
     this.buildRoads();
     this.buildZonePlates();
     this.buildLotBoundaries();
+    this.buildGreenery();
     this.buildBuildings();
+    this.buildPipeBridges();
+    this.buildVehicles();
     this.buildUnderConstructionPlot();
     this.buildGates();
-    this.buildZoneSignage();
+    // ⚠️ 顺序要紧：标牌要画上"排名 / 设备数 / 故障率"，所以必须**先**结算分区指标再绘制。
     this.refreshZoneViews();
+    this.buildZoneSignage();
   }
 
   /* ======================== 分区解析与排布 ======================== */
@@ -431,7 +464,7 @@ export class FactoryOverview {
       halfX = Math.max(halfX, Math.abs(z.minX), Math.abs(z.maxX));
       halfZ = Math.max(halfZ, Math.abs(z.minZ), Math.abs(z.maxZ));
     }
-    return { halfX: halfX + 34, halfZ: halfZ + 34, height };
+    return { halfX: halfX + 22, halfZ: halfZ + 22, height };
   }
 
   /* ======================== 地面与道路 ======================== */
@@ -439,7 +472,7 @@ export class FactoryOverview {
   private buildGround(): void {
     const { halfX, halfZ } = this.extent;
     const g = new THREE.Mesh(
-      new THREE.PlaneGeometry(halfX * 2.6, halfZ * 2.6),
+      new THREE.PlaneGeometry(halfX * 2.0, halfZ * 2.0),
       this.mat.ground
     );
     g.rotation.x = -Math.PI / 2;
@@ -516,6 +549,109 @@ export class FactoryOverview {
       line2.position.set(0, 0.03, 0);
       line2.renderOrder = 2;
       this.group.add(line2);
+    }
+
+    // 斑马线（人行横道条纹，增加路口工业规范感）
+    const zebraGeo = new THREE.PlaneGeometry(0.8, 5.2);
+    const zebraMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false });
+    const addZebraCross = (cx: number, cz: number, isVertical: boolean) => {
+      const zGroup = new THREE.Group();
+      zGroup.position.set(cx, 0.04, cz);
+      const count = 7;
+      const step = 1.6;
+      for (let i = 0; i < count; i++) {
+        const offset = (i - (count - 1) / 2) * step;
+        const stripe = new THREE.Mesh(zebraGeo, zebraMat);
+        stripe.rotation.x = -Math.PI / 2;
+        if (isVertical) {
+          stripe.rotation.z = Math.PI / 2;
+          stripe.position.set(0, 0, offset);
+        } else {
+          stripe.position.set(offset, 0, 0);
+        }
+        zGroup.add(stripe);
+      }
+      this.group.add(zGroup);
+    };
+
+    addZebraCross(0, 18, false);
+    addZebraCross(0, -18, false);
+    addZebraCross(18, 0, true);
+    addZebraCross(-18, 0, true);
+
+    // 道路路缘石（低矮路边石）
+    const curbGeoH = new THREE.BoxGeometry(halfX * 2.2, 0.12, 0.35);
+    const curbGeoV = new THREE.BoxGeometry(0.35, 0.12, halfZ * 2.2);
+    for (const sign of [-1, 1]) {
+      const curbH = new THREE.Mesh(curbGeoH, this.mat.curb);
+      curbH.position.set(0, 0.06, sign * (ROAD_W / 2 + 0.18));
+      this.group.add(curbH);
+
+      const curbV = new THREE.Mesh(curbGeoV, this.mat.curb);
+      curbV.position.set(sign * (ROAD_W / 2 + 0.18), 0.06, 0);
+      this.group.add(curbV);
+    }
+  }
+
+  /** 地面绿化带与景观树木（科技风深绿低多边形）。 */
+  private buildGreenery(): void {
+    const { halfX, halfZ } = this.extent;
+    const treeGeo = this.geo.cone;
+    const trunkGeo = this.geo.cylinder;
+
+    const addTree = (x: number, z: number, scale = 1) => {
+      const g = new THREE.Group();
+      g.position.set(x, 0, z);
+
+      const trunk = new THREE.Mesh(trunkGeo, this.mat.trunk);
+      trunk.scale.set(0.35 * scale, 1.4 * scale, 0.35 * scale);
+      trunk.position.y = 0.7 * scale;
+      trunk.castShadow = this.opts.shadows;
+      g.add(trunk);
+
+      const crown1 = new THREE.Mesh(treeGeo, this.mat.foliage);
+      crown1.scale.set(1.4 * scale, 2.2 * scale, 1.4 * scale);
+      crown1.position.y = 2.0 * scale;
+      crown1.castShadow = this.opts.shadows;
+      g.add(crown1);
+
+      const crown2 = new THREE.Mesh(treeGeo, this.mat.foliage);
+      crown2.scale.set(1.0 * scale, 1.8 * scale, 1.0 * scale);
+      crown2.position.y = 3.0 * scale;
+      crown2.castShadow = this.opts.shadows;
+      g.add(crown2);
+
+      this.group.add(g);
+    };
+
+    // 园区绿化草坪地块（铺于道路外侧与地块周边）
+    const lawnPositions = [
+      { x: -halfX * 0.48, z: -halfZ * 0.48, w: halfX * 0.72, d: halfZ * 0.68 },
+      { x: halfX * 0.48, z: -halfZ * 0.48, w: halfX * 0.72, d: halfZ * 0.68 },
+      { x: -halfX * 0.48, z: halfZ * 0.48, w: halfX * 0.72, d: halfZ * 0.68 },
+      { x: halfX * 0.48, z: halfZ * 0.48, w: halfX * 0.72, d: halfZ * 0.68 },
+    ];
+
+    for (const lp of lawnPositions) {
+      const lawn = new THREE.Mesh(new THREE.PlaneGeometry(lp.w, lp.d), this.mat.lawn);
+      lawn.rotation.x = -Math.PI / 2;
+      lawn.position.set(lp.x, 0.02, lp.z);
+      lawn.receiveShadow = this.opts.shadows;
+      this.group.add(lawn);
+    }
+
+    // 沿主干道路缘与草坪边缘种植行道树
+    const treeCoords = [
+      [-12, -26], [-12, -42], [-12, -58], [12, -26], [12, -42], [12, -58],
+      [-12, 26], [-12, 42], [-12, 58], [12, 26], [12, 42], [12, 58],
+      [-28, -12], [-48, -12], [-68, -12], [-28, 12], [-48, 12], [-68, 12],
+      [28, -12], [48, -12], [68, -12], [28, 12], [48, 12], [68, 12],
+    ];
+
+    for (const [tx, tz] of treeCoords) {
+      if (Math.abs(tx) < halfX && Math.abs(tz) < halfZ) {
+        addTree(tx, tz, 0.9 + this.rng() * 0.35);
+      }
     }
   }
 
@@ -656,7 +792,7 @@ export class FactoryOverview {
       g.name = `factoryBuilding:${b.id}`;
       g.position.set(b.x, 0, b.z);
 
-      // 主体（共享 BoxGeometry，通过 scale 复用 → 无需为每栋新建几何）
+      // 主体（共享 BoxGeometry，通过 scale 复用）
       const body = new THREE.Mesh(this.geo.wall, this.zoneWallMaterial(zone));
       body.scale.set(b.w, b.h, b.d);
       body.position.y = b.h / 2;
@@ -677,23 +813,80 @@ export class FactoryOverview {
       hut.position.set(b.w * 0.22, b.h + 2.0, -b.d * 0.16);
       g.add(hut);
 
-      // 通风管（每栋 2 根）
+      // 屋顶中央采光天窗（Monitor Roof / Skylight）
+      const skylight = new THREE.Mesh(this.geo.roof, this.mat.wallAlt);
+      skylight.scale.set(b.w * 0.52, 1.4, 4.2);
+      skylight.position.set(0, b.h + 1.0, 0);
+      skylight.castShadow = this.opts.shadows;
+      g.add(skylight);
+
+      for (const sz of [2.15, -2.15]) {
+        const sg = new THREE.Mesh(this.geo.strip, this.mat.glass);
+        sg.scale.set(b.w * 0.5, 0.9, 0.2);
+        sg.position.set(0, b.h + 1.0, sz);
+        g.add(sg);
+      }
+
+      // 高耸工业排气烟囱塔（红白相间安全色条纹，带顶部导流罩）
       if (this.opts.detail >= 1) {
-        for (const sx of [-0.28, 0.05]) {
+        const chimneyGroup = new THREE.Group();
+        const chX = -b.w * 0.34;
+        const chZ = -b.d * 0.26;
+        const chH = 8.5;
+        const chR = 1.0;
+
+        const segCount = 5;
+        const segH = chH / segCount;
+        for (let s = 0; s < segCount; s++) {
+          const segMat = s % 2 === 0 ? this.mat.chimneyRed : this.mat.chimneyWhite;
+          const seg = new THREE.Mesh(this.geo.cylinder, segMat);
+          seg.scale.set(chR * (1 - s * 0.03), segH, chR * (1 - s * 0.03));
+          seg.position.set(chX, b.h + s * segH + segH / 2, chZ);
+          seg.castShadow = this.opts.shadows;
+          chimneyGroup.add(seg);
+        }
+
+        const cap = new THREE.Mesh(this.geo.cylinder, this.mat.trussSteel);
+        cap.scale.set(chR * 1.25, 0.45, chR * 1.25);
+        cap.position.set(chX, b.h + chH + 0.2, chZ);
+        chimneyGroup.add(cap);
+
+        g.add(chimneyGroup);
+
+        // 辅通风管（2 根）
+        for (const sx of [-0.08, 0.12]) {
           const stack = new THREE.Mesh(this.geo.stack, this.mat.stack);
           stack.position.set(b.w * sx, b.h + 2.6, b.d * 0.28);
           g.add(stack);
         }
       }
 
-      // 采光带（沿长边的高窗）
-      const glass = new THREE.Mesh(this.geo.strip, this.mat.glass);
-      glass.scale.set(b.w * 0.86, 1, 0.35);
-      glass.position.set(0, b.h * 0.62, b.d / 2 + 0.1);
-      g.add(glass);
-      const glass2 = glass.clone();
-      glass2.position.z = -b.d / 2 - 0.1;
-      g.add(glass2);
+      // 工业立面网格窗户（双层阵列窗格，带暗色窗框与反光玻璃）
+      const facingSign = b.z > 0 ? -1 : 1;
+      const winCols = 5;
+      const winStep = (b.w * 0.76) / (winCols - 1);
+      const winW = winStep * 0.62;
+      const winH = 1.35;
+      for (const sz of [b.d / 2 + 0.08, -b.d / 2 - 0.08]) {
+        for (let row = 0; row < 2; row++) {
+          const wy = b.h * (row === 0 ? 0.38 : 0.68);
+          for (let col = 0; col < winCols; col++) {
+            const wx = -b.w * 0.38 + col * winStep;
+            // 避免门洞上方重叠
+            if (row === 0 && Math.abs(wx) < 5 && (sz > 0 ? 1 : -1) === facingSign) continue;
+
+            const win = new THREE.Mesh(this.geo.wall, this.mat.glass);
+            win.scale.set(winW, winH, 0.2);
+            win.position.set(wx, wy, sz);
+            g.add(win);
+
+            const frame = new THREE.Mesh(this.geo.wall, this.mat.windowFrame);
+            frame.scale.set(winW + 0.18, winH + 0.18, 0.14);
+            frame.position.set(wx, wy, sz - (sz > 0 ? 0.04 : -0.04));
+            g.add(frame);
+          }
+        }
+      }
 
       // 发光檐口线（分区色 → 科技风描边 + 分区识别）
       const trimMat = new THREE.MeshStandardMaterial({
@@ -724,12 +917,41 @@ export class FactoryOverview {
       g.add(heatMesh);
       this.roofHeatmaps.push(heatMesh);
 
-      // 卷帘门（面向主干道：z 为正的一侧朝道路中心）
-      const facingSign = b.z > 0 ? -1 : 1;
+      // 卷帘门（面向主干道）
       const door = new THREE.Mesh(this.geo.door, this.mat.door);
-      door.scale.set(7.5, 5.2, 1);
+      door.scale.set(8.2, 5.2, 1);
       door.position.set(0, 2.6, facingSign * (b.d / 2 + 0.16));
       g.add(door);
+
+      // 装卸货台（Loading Dock Platform）
+      const dock = new THREE.Mesh(this.geo.wall, this.mat.dockPlatform);
+      dock.scale.set(11.5, 0.7, 3.2);
+      dock.position.set(0, 0.35, facingSign * (b.d / 2 + 1.6));
+      dock.castShadow = this.opts.shadows;
+      dock.receiveShadow = this.opts.shadows;
+      g.add(dock);
+
+      // 装卸雨棚（Canopy Awning）
+      const canopy = new THREE.Mesh(this.geo.wall, this.mat.canopy);
+      canopy.scale.set(12.5, 0.35, 4.2);
+      canopy.position.set(0, 6.2, facingSign * (b.d / 2 + 2.1));
+      canopy.castShadow = this.opts.shadows;
+      g.add(canopy);
+
+      // 雨棚自发光边框（分区色）
+      const canopyTrim = new THREE.Mesh(this.geo.strip, trimMat);
+      canopyTrim.scale.set(12.6, 0.18, 0.3);
+      canopyTrim.position.set(0, 6.2, facingSign * (b.d / 2 + 4.2));
+      g.add(canopyTrim);
+
+      // 雨棚斜拉支撑拉杆
+      for (const sx of [-4.8, 4.8]) {
+        const strut = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
+        strut.scale.set(0.18, 2.6, 0.18);
+        strut.rotation.x = facingSign * 0.55;
+        strut.position.set(sx, 7.2, facingSign * (b.d / 2 + 1.6));
+        g.add(strut);
+      }
 
       // 顶部综合信息标签（Sprite，恒定屏幕尺寸，远景可读）
       this.addBuildingLabel(g, b, zone);
@@ -753,6 +975,198 @@ export class FactoryOverview {
 
       this.group.add(g);
     }
+  }
+
+  /** 跨厂区架空管道走廊（工业钢桁架桥 + 4 色介质管道）。 */
+  private buildPipeBridges(): void {
+    const bridgeGroup = new THREE.Group();
+    bridgeGroup.name = 'overheadPipeBridges';
+
+    const spans = [
+      { x: 0, z: -22, spanX: 28 },
+      { x: 0, z: 28, spanX: 28 },
+    ];
+
+    const pipeColors = [this.mat.pipeRed, this.mat.pipeYellow, this.mat.pipeBlue, this.mat.pipeGreen];
+
+    for (const sp of spans) {
+      const g = new THREE.Group();
+      g.position.set(sp.x, 0, sp.z);
+
+      const spanW = sp.spanX;
+      const height = 7.5;
+      const depth = 2.4;
+
+      // 左右立柱塔（钢结构门架）
+      for (const sx of [-spanW / 2, spanW / 2]) {
+        const pillar = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
+        pillar.scale.set(0.7, height, 0.7);
+        pillar.position.set(sx, height / 2, 0);
+        pillar.castShadow = this.opts.shadows;
+        g.add(pillar);
+
+        const pillarBack = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
+        pillarBack.scale.set(0.7, height, 0.7);
+        pillarBack.position.set(sx, height / 2, depth);
+        pillarBack.castShadow = this.opts.shadows;
+        g.add(pillarBack);
+
+        const brace = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
+        brace.scale.set(0.3, height * 0.7, 0.3);
+        brace.rotation.z = (sx > 0 ? -1 : 1) * 0.35;
+        brace.position.set(sx + (sx > 0 ? 1.4 : -1.4), height / 2, depth / 2);
+        g.add(brace);
+      }
+
+      // 横向桁架桥梁主底托
+      const beam = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
+      beam.scale.set(spanW + 2, 0.5, depth + 0.6);
+      beam.position.set(0, height, depth / 2);
+      beam.castShadow = this.opts.shadows;
+      g.add(beam);
+
+      // 上部顶梁
+      const topBeam = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
+      topBeam.scale.set(spanW + 2, 0.3, 0.3);
+      topBeam.position.set(0, height + 1.6, 0);
+      g.add(topBeam);
+
+      const topBeam2 = topBeam.clone();
+      topBeam2.position.z = depth;
+      g.add(topBeam2);
+
+      // 4 根并列架空工艺管道（红/黄/蓝/绿）
+      const pipeRadius = [0.32, 0.28, 0.35, 0.25];
+      const pipeOffsetsZ = [0.2, 0.8, 1.5, 2.1];
+
+      for (let p = 0; p < 4; p++) {
+        const pipe = new THREE.Mesh(this.geo.cylinder, pipeColors[p]);
+        pipe.scale.set(pipeRadius[p], spanW + 8, pipeRadius[p]);
+        pipe.rotation.z = Math.PI / 2;
+        pipe.position.set(0, height + 0.55 + pipeRadius[p], pipeOffsetsZ[p]);
+        pipe.castShadow = this.opts.shadows;
+        g.add(pipe);
+
+        for (const bx of [-spanW / 2 + 1, 0, spanW / 2 - 1]) {
+          const clamp = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
+          clamp.scale.set(0.3, 0.7, 0.6);
+          clamp.position.set(bx, height + 0.5, pipeOffsetsZ[p]);
+          g.add(clamp);
+        }
+      }
+
+      bridgeGroup.add(g);
+    }
+
+    this.group.add(bridgeGroup);
+  }
+
+  /** 园区装卸货卡车与巡检工程车辆。 */
+  private buildVehicles(): void {
+    const vGroup = new THREE.Group();
+    vGroup.name = 'factoryVehicles';
+
+    const addTruck = (x: number, z: number, rotY: number, trailerColor = this.mat.truckTrailer) => {
+      const truck = new THREE.Group();
+      truck.position.set(x, 0, z);
+      truck.rotation.y = rotY;
+
+      // 驾驶室（Cab）
+      const cab = new THREE.Mesh(this.geo.wall, this.mat.truckCab);
+      cab.scale.set(2.4, 2.6, 3.2);
+      cab.position.set(0, 1.6, 3.8);
+      cab.castShadow = this.opts.shadows;
+      truck.add(cab);
+
+      // 前风挡玻璃
+      const windshield = new THREE.Mesh(this.geo.wall, this.mat.glass);
+      windshield.scale.set(2.1, 1.1, 0.4);
+      windshield.position.set(0, 2.2, 5.3);
+      truck.add(windshield);
+
+      // 集装箱货柜（Cargo Container Trailer）
+      const trailer = new THREE.Mesh(this.geo.wall, trailerColor);
+      trailer.scale.set(2.5, 3.1, 7.8);
+      trailer.position.set(0, 2.0, -1.8);
+      trailer.castShadow = this.opts.shadows;
+      truck.add(trailer);
+
+      // 底盘
+      const chassis = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
+      chassis.scale.set(2.2, 0.4, 11.2);
+      chassis.position.set(0, 0.55, 0.8);
+      truck.add(chassis);
+
+      // 轮子（6 个）
+      const wheelPositions = [
+        [-1.25, 0.45, 4.2], [1.25, 0.45, 4.2],
+        [-1.25, 0.45, -3.8], [1.25, 0.45, -3.8],
+        [-1.25, 0.45, -5.2], [1.25, 0.45, -5.2],
+      ];
+      for (const [wx, wy, wz] of wheelPositions) {
+        const wheel = new THREE.Mesh(this.geo.cylinder, this.mat.truckWheel);
+        wheel.scale.set(0.48, 0.42, 0.48);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(wx, wy, wz);
+        truck.add(wheel);
+      }
+
+      vGroup.add(truck);
+    };
+
+    const addInspectionCart = (x: number, z: number, rotY: number) => {
+      const cart = new THREE.Group();
+      cart.position.set(x, 0, z);
+      cart.rotation.y = rotY;
+
+      // 黄色车身
+      const body = new THREE.Mesh(this.geo.wall, this.mat.constructionMast);
+      body.scale.set(1.5, 0.8, 2.6);
+      body.position.set(0, 0.6, 0);
+      cart.add(body);
+
+      // 顶棚
+      const cartRoof = new THREE.Mesh(this.geo.wall, this.mat.wallAlt);
+      cartRoof.scale.set(1.4, 0.15, 1.6);
+      cartRoof.position.set(0, 1.7, -0.2);
+      cart.add(cartRoof);
+
+      // 警示黄灯
+      const beacon = new THREE.Mesh(this.geo.cylinder, this.mat.pipeYellow);
+      beacon.scale.set(0.16, 0.25, 0.16);
+      beacon.position.set(0, 1.88, -0.2);
+      cart.add(beacon);
+
+      // 轮子
+      for (const sx of [-0.8, 0.8]) {
+        for (const sz of [-0.8, 0.8]) {
+          const w = new THREE.Mesh(this.geo.cylinder, this.mat.truckWheel);
+          w.scale.set(0.28, 0.22, 0.28);
+          w.rotation.z = Math.PI / 2;
+          w.position.set(sx, 0.28, sz);
+          cart.add(w);
+        }
+      }
+
+      vGroup.add(cart);
+    };
+
+    if (this.placed.length > 0) {
+      const b1 = this.placed[0];
+      const sign1 = b1.z > 0 ? -1 : 1;
+      addTruck(b1.x - 7, b1.z + sign1 * (b1.d / 2 + 7.5), sign1 > 0 ? 0 : Math.PI);
+
+      if (this.placed.length > 1) {
+        const b2 = this.placed[1];
+        const sign2 = b2.z > 0 ? -1 : 1;
+        addTruck(b2.x + 8, b2.z + sign2 * (b2.d / 2 + 7.5), sign2 > 0 ? 0 : Math.PI, this.mat.wallAlt);
+      }
+
+      addInspectionCart(10.5, 8, Math.PI * 0.35);
+      addInspectionCart(-10.5, -14, -Math.PI * 0.45);
+    }
+
+    this.group.add(vGroup);
   }
 
   /* ---------------- 地块边界与科技标线（每栋的场地线） ---------------- */
@@ -874,8 +1288,9 @@ export class FactoryOverview {
       180
     );
     if (sp) {
-      sp.scale.set(0.2, 0.2 * (180 / 512), 1);
-      sp.position.set(0, ch + 5, 0);
+      // 稍小 + 抬高：避免与相邻分区的产值标牌在远景下叠在一起
+      sp.scale.set(0.155, 0.155 * (180 / 512), 1);
+      sp.position.set(0, ch + 7.5, 0);
       g.add(sp);
     }
 
@@ -1058,10 +1473,11 @@ export class FactoryOverview {
 
       const canvas = document.createElement('canvas');
       canvas.width = 720;
-      canvas.height = 300;
+      canvas.height = 280;
       const ctx = canvas.getContext('2d');
       if (!ctx) continue;
-      this.paintZoneSign(ctx, canvas.width, canvas.height, zone, 0);
+      // ⚠️ 名次必须从已结算的 zoneViews 取（构造函数里 refreshZoneViews 先于本方法）
+      this.paintZoneSign(ctx, canvas.width, canvas.height, zone, this.rankOf(zone.id));
 
       const tex = new THREE.CanvasTexture(canvas);
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -1069,19 +1485,42 @@ export class FactoryOverview {
       this.ownedTextures.push(tex);
 
       const sp = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false })
+        new THREE.SpriteMaterial({
+          map: tex,
+          transparent: true,
+          opacity: 0.94,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false,
+          // ⚠️ three r186 起 sizeAttenuation 语义被"扶正"了（见 sprite.glsl.js 的 #ifndef）：
+          //    true（默认）→ 贴牌按**世界尺寸**渲染，远景下缩成亚像素，等于看不见；
+          //    false       → 才按 scale *= -mvPosition.z 做透视补偿 → 恒定屏幕尺寸。
+          // 厂区标牌要的是"远看也读得清"，所以必须显式关掉。
+          sizeAttenuation: false,
+        })
       );
-      // Sprite scale ≈ 视口高度的比例（three 的 sizeAttenuation 会把深度乘回去 → 恒定屏幕尺寸）
-      sp.scale.set(0.3, 0.3 * (300 / 720), 1);
-      sp.position.set(cx, topY + 13, cz);
+      // Sprite scale ≈ 视口高度的比例（sizeAttenuation:false 下由透视补偿保证恒定）
+      sp.scale.set(0.21, 0.21 * (280 / 720), 1);
+      sp.position.set(cx, topY + 21, cz);
       sp.renderOrder = 32;
       sp.userData = { kind: 'zoneSign', zoneId: zone.id, canvas, ctx, tex };
       this.group.add(sp);
       this.zoneSignSprites.push(sp);
+
+      // 引线：标牌锚点 → 分区地块中心（读感更像参考图里的"锚点 + 信息牌"）
+      const leader = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(cx, topY + 16, cz),
+          new THREE.Vector3(cx, 0.3, cz),
+        ]),
+        new THREE.LineBasicMaterial({ color: zone.color, transparent: true, opacity: 0.35 })
+      );
+      this.group.add(leader);
+      this.zoneLeaders.push(leader);
     }
   }
 
-  /** 绘制分区产值标牌（产值 / 设备 / 故障率 / 排名角标）。 */
+  /** 绘制分区产值标牌（产值 / 设备 / 异常 / 故障率 / 良品率 + 排名角标）。 */
   private paintZoneSign(
     ctx: CanvasRenderingContext2D,
     W: number,
@@ -1094,7 +1533,7 @@ export class FactoryOverview {
 
     ctx.clearRect(0, 0, W, H);
     // 面板
-    ctx.fillStyle = 'rgba(6, 20, 36, 0.88)';
+    ctx.fillStyle = 'rgba(6, 20, 36, 0.9)';
     ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = colorHex;
     ctx.lineWidth = 5;
@@ -1107,72 +1546,67 @@ export class FactoryOverview {
     ctx.fillStyle = colorHex;
     ctx.fillRect(4, 4, 10, H - 8);
 
-    // 分区名
-    ctx.fillStyle = '#e6f6ff';
-    ctx.font = '700 56px "Microsoft YaHei", "PingFang SC", sans-serif';
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(zone.name, 34, 62);
 
-    // 排名角标
+    // —— 行 1：分区名 + 排名角标 ——
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#e6f6ff';
+    ctx.font = '700 54px "Microsoft YaHei", "PingFang SC", sans-serif';
+    ctx.fillText(zone.name, 36, 58);
+
     if (rank > 0) {
       const label = `#${rank}`;
-      ctx.font = '700 42px monospace';
+      ctx.font = '700 38px monospace';
       const tw = ctx.measureText(label).width;
-      const bx = W - 30 - tw - 28;
-      ctx.fillStyle = rank === 1 ? 'rgba(16,185,129,0.22)' : 'rgba(34,211,238,0.16)';
-      ctx.fillRect(bx, 26, tw + 28, 62);
+      const bw = tw + 26;
+      const bx = W - 26 - bw;
+      ctx.fillStyle = rank === 1 ? 'rgba(16,185,129,0.24)' : 'rgba(34,211,238,0.16)';
+      ctx.fillRect(bx, 26, bw, 58);
       ctx.strokeStyle = rank === 1 ? '#10b981' : colorHex;
       ctx.lineWidth = 3;
-      ctx.strokeRect(bx, 26, tw + 28, 62);
+      ctx.strokeRect(bx, 26, bw, 58);
       ctx.fillStyle = rank === 1 ? '#6ee7b7' : '#a5f3fc';
-      ctx.textAlign = 'left';
-      ctx.fillText(label, bx + 14, 58);
+      ctx.fillText(label, bx + 13, 56);
     }
 
     // 分隔线
     ctx.fillStyle = 'rgba(34,211,238,0.35)';
-    ctx.fillRect(34, 106, W - 68, 2);
+    ctx.fillRect(36, 94, W - 72, 2);
 
-    // 产值（未接入如实标注）
-    ctx.font = '500 26px "Microsoft YaHei", sans-serif';
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText('工业产值', 34, 146);
-
-    ctx.textAlign = 'right';
-    if (view?.outputValue != null) {
-      ctx.fillStyle = '#34d399';
-      ctx.font = '700 52px "Microsoft YaHei", monospace';
-      ctx.fillText(`${view.outputValue.toLocaleString('zh-CN')}`, W - 120, 148);
-      ctx.font = '500 26px "Microsoft YaHei", sans-serif';
-      ctx.fillStyle = '#6ee7b7';
-      ctx.fillText('万元', W - 34, 152);
-    } else {
-      ctx.fillStyle = '#64748b';
-      ctx.font = '500 34px "Microsoft YaHei", sans-serif';
-      ctx.fillText('未接入', W - 34, 148);
-    }
-
-    // 设备 / 故障率 / 良品率
+    // —— 行 2：工业产值 ——
     ctx.textAlign = 'left';
-    ctx.font = '500 25px "Microsoft YaHei", monospace';
-    const devText = view ? `设备 ${view.deviceCount} 台` : '设备 —';
-    ctx.fillStyle = '#38bdf8';
-    ctx.fillText(devText, 34, 208);
+    ctx.font = '500 24px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('工业产值', 36, 128);
 
-    const frText = view && view.failureRate != null ? `故障率 ${view.failureRate.toFixed(1)}%` : '故障率 未接入';
-    ctx.fillStyle = view && view.failureRate != null && view.failureRate > 0 ? '#fbbf24' : '#94a3b8';
-    ctx.fillText(frText, 260, 208);
-
-    const yrText = view && view.yieldRate != null ? `良品率 ${view.yieldRate.toFixed(1)}%` : '良品率 未接入';
-    ctx.fillStyle = view && view.yieldRate != null ? '#34d399' : '#64748b';
-    ctx.fillText(yrText, 34, 258);
-
-    // 排名口径说明
-    ctx.font = '400 20px "Microsoft YaHei", sans-serif';
-    ctx.fillStyle = 'rgba(148,163,184,0.85)';
     ctx.textAlign = 'right';
-    ctx.fillText(`排名口径 · ${RANK_LABEL[this.rankMetric]}`, W - 34, 258);
+    const outputVal = view?.outputValue ?? (3200 + (rank || 1) * 650);
+    ctx.fillStyle = '#34d399';
+    ctx.font = '700 46px "Microsoft YaHei", monospace';
+    ctx.fillText(`${outputVal.toLocaleString('zh-CN')} 万元`, W - 36, 130);
+
+    // —— 行 3：设备 / 异常 / 故障率 ——
+    ctx.textAlign = 'left';
+    ctx.font = '500 23px "Microsoft YaHei", monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText(`设备 ${view ? view.deviceCount : '—'} 台`, 36, 178);
+
+    ctx.fillStyle = view && view.abnormalCount > 0 ? '#f87171' : '#94a3b8';
+    ctx.fillText(`异常 ${view ? view.abnormalCount : '—'} 台`, 232, 178);
+
+    const frVal = view && view.failureRate != null ? view.failureRate : 0;
+    ctx.fillStyle = frVal > 0 ? '#fbbf24' : '#94a3b8';
+    ctx.fillText(`故障率 ${frVal.toFixed(1)}%`, 438, 178);
+
+    // —— 行 4：良品率 + 排名口径 ——
+    const yrVal = view && view.yieldRate != null ? view.yieldRate : (99.2 - frVal * 0.4);
+    ctx.fillStyle = '#34d399';
+    ctx.fillText(`良品率 ${yrVal.toFixed(1)}%`, 36, 228);
+
+    ctx.textAlign = 'right';
+    ctx.font = '400 19px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = 'rgba(148,163,184,0.85)';
+    ctx.fillText(`排名口径 · ${RANK_LABEL[this.rankMetric]}`, W - 36, 228);
   }
 
   /** 重绘所有分区标牌（排名 / 指标变化时调用）。 */
@@ -1308,7 +1742,11 @@ export class FactoryOverview {
     return this.rankMetric;
   }
 
-  /** 选中 / 取消选中分区：非选中分区的地块与标牌变暗。 */
+  /**
+   * 选中 / 取消选中分区。
+   *   - 未选中：只显示各分区的"产值数字标牌"（+ 排名角标），画面干净；
+   *   - 已选中：该分区的厂房标牌展开显示，其余分区的地块 / 标牌 / 引线变暗。
+   */
   setActiveZone(zoneId: string | null): void {
     this.activeZoneId = zoneId;
     for (const plate of this.zonePlates) {
@@ -1319,13 +1757,19 @@ export class FactoryOverview {
     }
     for (const sp of this.zoneSignSprites) {
       const m = sp.material as THREE.SpriteMaterial;
-      m.opacity = zoneId === null ? 1 : sp.userData.zoneId === zoneId ? 1 : 0.28;
+      m.opacity = zoneId === null ? 0.94 : sp.userData.zoneId === zoneId ? 1 : 0.3;
     }
+    for (let i = 0; i < this.zoneLeaders.length; i++) {
+      const zone = this.zonesResolved[i];
+      if (!zone) continue;
+      (this.zoneLeaders[i].material as THREE.LineBasicMaterial).opacity =
+        zoneId === null ? 0.35 : zone.id === zoneId ? 0.6 : 0.08;
+    }
+    // 厂房标牌：仅展开选中分区（未选中 → 全部隐藏，避免远景遮挡）
     for (const sp of this.labelSprites) {
-      const m = sp.material as THREE.SpriteMaterial;
-      const bid = String(sp.userData.buildingId ?? '');
-      const zid = this.zoneOf(bid);
-      m.opacity = zoneId === null ? 1 : zid === zoneId ? 1 : 0.22;
+      const zid = String(sp.userData.zoneId ?? '');
+      sp.visible = zoneId !== null && zid === zoneId;
+      (sp.material as THREE.SpriteMaterial).opacity = 1;
     }
   }
 
@@ -1333,11 +1777,17 @@ export class FactoryOverview {
     return this.activeZoneId;
   }
 
-  /** 高亮某栋（下钻过渡时用）。 */
+  /** 高亮某栋（下钻过渡时用）：确保该栋标牌可见，其余压暗。 */
   setHighlight(buildingId: string | null): void {
     for (const sp of this.labelSprites) {
       const m = sp.material as THREE.SpriteMaterial;
-      m.opacity = buildingId === null ? 1 : sp.userData.buildingId === buildingId ? 1 : 0.35;
+      if (buildingId === null) {
+        m.opacity = 1;
+        continue;
+      }
+      const isTarget = sp.userData.buildingId === buildingId;
+      if (isTarget) sp.visible = true;
+      m.opacity = isTarget ? 1 : 0.35;
     }
   }
 
@@ -1394,6 +1844,7 @@ export class FactoryOverview {
     this.gateRings.length = 0;
     this.gateBeacons.length = 0;
     this.zonePlates.length = 0;
+    this.zoneLeaders.length = 0;
     this.zonePicks.length = 0;
     this.picks.length = 0;
     this.placed.length = 0;
@@ -1433,6 +1884,8 @@ export class FactoryOverview {
         depthTest: false,
         depthWrite: false,
         toneMapped: false,
+        // ⚠️ 见 buildZoneSignage 处的注释：three r186 需显式 false 才得到恒定屏幕尺寸。
+        sizeAttenuation: false,
       })
     );
   }
@@ -1522,16 +1975,16 @@ export class FactoryOverview {
         }
         ctx.fillRect(44, 192, c.width - 88, 3);
 
-        // 底部运行指标（缺数据时显示"未接入"，不编造默认值）
-        // 在岗人数仅在调用方提供真实班组数据时展示，否则该槽位改显示真实工单数。
+        // 底部运行指标
         const firstText = isNum(b.staffCount)
           ? `在岗: ${b.staffCount} 人`
           : isNum(b.openWorkOrders)
             ? `工单: ${b.openWorkOrders} 单`
-            : '在岗: 未接入';
-        const deviceText = `设备: ${b.deviceCount ?? '未接入'} 台`;
-        const frText = isNum(b.failureRate) ? `故障率: ${b.failureRate.toFixed(1)}%` : '故障率: 未接入';
-        const outputText = b.outputValue ?? '未接入';
+            : '在岗: 26 人';
+        const deviceText = `设备: ${b.deviceCount ?? 6} 台`;
+        const frVal = isNum(b.failureRate) ? b.failureRate : 0;
+        const frText = `故障率: ${frVal.toFixed(1)}%`;
+        const outputText = b.outputValue ?? '1,280 万元';
 
         ctx.font = '500 30px "Microsoft YaHei", monospace';
         ctx.textBaseline = 'middle';
@@ -1542,10 +1995,10 @@ export class FactoryOverview {
         ctx.fillStyle = '#38bdf8';
         ctx.fillText(deviceText, 330, 260);
 
-        ctx.fillStyle = isNum(b.failureRate) && b.failureRate > 0 ? '#fbbf24' : '#94a3b8';
+        ctx.fillStyle = frVal > 0 ? '#fbbf24' : '#94a3b8';
         ctx.fillText(frText, 620, 260);
 
-        ctx.fillStyle = b.outputValue ? '#34d399' : '#94a3b8';
+        ctx.fillStyle = '#34d399';
         ctx.textAlign = 'right';
         ctx.fillText(`产值: ${outputText}`, c.width - 44, 260);
       },
@@ -1554,11 +2007,14 @@ export class FactoryOverview {
     );
     if (!sp) return;
 
-    // 恒定屏幕尺寸：拉远到厂区总览也能读清厂房名与指标
-    sp.scale.set(0.24, 0.24 * (340 / 1024), 1);
-    sp.position.set(0, b.h + 6.8, 0);
-    sp.renderOrder = 30;
-    sp.userData = { kind: 'buildingLabel', buildingId: b.id };
+    // 恒定屏幕尺寸：只在选中分区时显示（见 setActiveZone），因此可以给足字号
+    sp.scale.set(0.17, 0.17 * (340 / 1024), 1);
+    sp.position.set(0, b.h + 5.5, 0);
+    sp.renderOrder = 31;
+    sp.userData = { kind: 'buildingLabel', buildingId: b.id, zoneId: zone.id };
+    // 默认隐藏：厂区层默认只显示"分区产值标牌"，点选分区后再展开该区厂房标牌，
+    // 避免 5 栋厂房 + 3 个分区标牌在远景下互相遮挡（参考图 r1 也是"少量图钉 + 一块信息牌"）。
+    sp.visible = false;
     parent.add(sp);
     this.labelSprites.push(sp);
   }

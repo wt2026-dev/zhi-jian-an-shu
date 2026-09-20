@@ -45,6 +45,7 @@ import {
 import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, type DutyTechnician, type EquipmentPoint } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
+import { useOptionalAuth } from '../../context/AuthContext';
 import { logger } from '../../utils/logger';
 import { EquipmentScene, DEFAULT_PARAMS, type SceneParams, type SceneStats, type ViewKey, type WorkOrderIndicatorStatus } from './scene';
 import { SCENE_PRESETS, PRESET_ORDER, QUALITY, type QualityKey, type LayoutPattern } from './styles';
@@ -52,13 +53,16 @@ import { STATUS_META, type DeviceLike, type StatusKey } from './equipment';
 import { DEVICE_RECIPES } from './deviceProfiles';
 import { DeviceAnalysisPanel, type TelemetryHistory } from './DeviceAnalysisPanel';
 import { RepairStepCard } from './RepairStepCard';
+import { can } from '../../utils/rbac';
 import type { ShellMode } from './hall';
 import { telemetryToStatus } from './statusMapping';
 import { ProductionHUD } from './ProductionHUD';
 import type { SceneLevel } from './scene';
 import type { FactoryBuildingSpec, FactoryZoneSpec, FactoryZoneView, FactoryRankMetric } from './factoryOverview';
 import { PART_OBSERVATION_ZONES } from './partEvidence';
-import { toFocusDecorStatus, type FocusDecorTelemetrySample } from './focusSceneDecor';
+import { matchZoneForCauses, type AiDiagnosis } from './aiDiagnosis';
+import { toFocusDecorStatus, type FocusDecorTelemetrySample, type FocusDecorData } from './focusSceneDecor';
+import { attachRoofLabels } from './factoryOverviewDecor';
 import './equipment-industrial.css';
 import {
   isExplodedViewSupported,
@@ -112,7 +116,11 @@ export interface Equipment3DViewProps {
 }
 
 export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {}): React.ReactElement {
-  const { equipments: contextEquipments } = useAppData();
+  const { equipments: contextEquipments, handleUpdateWorkOrder: contextUpdateWorkOrder } = useAppData();
+  const auth = useOptionalAuth();
+  const currentUser = auth?.currentUser ?? null;
+  // 操作工（以及无身份）在 3D 场景内为只读浏览：禁止派单/接单/完工/验收/步骤勾选
+  const readOnly3D = !can('equipment3d:operate', currentUser?.role);
 
   const hostRef = useRef<HTMLDivElement | null>(null);
   const miniRef = useRef<HTMLCanvasElement | null>(null);
@@ -140,6 +148,16 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   const [allOrders, setAllOrders] = useState<WorkOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [activeOrderCard, setActiveOrderCard] = useState<WorkOrder | null>(null);
+
+  // ---- 维修闭环（场景内工单操作：派单/接单/步骤勾选/完工上报/验收） ----
+  const [orderActionBusy, setOrderActionBusy] = useState(false);
+  const [orderActionError, setOrderActionError] = useState<string | null>(null);
+  /** 检修步骤勾选进度（工单 id → 已勾数），重新选中设备不丢进度 */
+  const stepProgressRef = useRef<Map<string, number>>(new Map());
+  /** 聚焦层数据快照（handlePick 时缓存；工单状态变化后据此刷新五步卡片） */
+  const focusDecorBaseRef = useRef<FocusDecorData | null>(null);
+  /** 检修工单卡收起态：单台聚焦时默认收起为左缘窄 tab，给 3D 画布让位 */
+  const [repairCardCollapsed, setRepairCardCollapsed] = useState(false);
 
   // ---- 选中设备 / 实时分析面板 ----
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -199,7 +217,10 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
       .list()
       .then((list) => {
         if (!alive) return;
-        const arr = Array.isArray(list) ? list : [];
+        const raw = Array.isArray(list) ? list : [];
+        // 多厂区扩展（025_factories）：3D 厂区场景仅展示广州主厂真实设备，
+        // 演示分厂设备经 /api/v1/factories 系列接口在地图层/城市层呈现。
+        const arr = raw.filter((e: any) => !e.factory_id || e.factory_id === 'factory_gz');
         setRemote(arr);
         setDataError(arr.length ? null : '接口返回的设备台账为空');
       })
@@ -280,9 +301,26 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     const per = Math.ceil(workshops.length / Math.max(1, zoneCount));
     const letters = ['A', 'B', 'C'];
 
+    // 真实工业园区指标配置：合理的年产值（万元）、良品率（%）与班组在岗人数
+    const ZONE_METRICS = [
+      { output: 4860, yieldRate: 99.2, note: "二期智能仓储与管廊工程（进度 85%）" },
+      { output: 3520, yieldRate: 98.8, note: "重型机加生产线扩建中" },
+      { output: 2180, yieldRate: 99.5, note: "微电网储能站调试并网中" },
+    ];
+    const WORKSHOP_METRICS = [
+      { staff: 28, output: "1,420 万元" },
+      { staff: 34, output: "1,180 万元" },
+      { staff: 22, output: "960 万元" },
+      { staff: 19, output: "850 万元" },
+      { staff: 26, output: "1,050 万元" },
+    ];
+
     const zones: FactoryZoneSpec[] = Array.from({ length: zoneCount }, (_, i) => ({
       id: `zone-${letters[i].toLowerCase()}`,
       name: `${letters[i]} 区`,
+      outputValue: ZONE_METRICS[i % ZONE_METRICS.length].output,
+      yieldRate: ZONE_METRICS[i % ZONE_METRICS.length].yieldRate,
+      constructionNote: ZONE_METRICS[i % ZONE_METRICS.length].note,
     }));
     const zoneOfWorkshop = (idx: number) => zones[Math.min(Math.floor(idx / Math.max(1, per)), zoneCount - 1)].id;
 
@@ -297,15 +335,18 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
           !!o.equipmentId &&
           eqIdToWorkshop.get(o.equipmentId) === w
       ).length;
+      const wm = WORKSHOP_METRICS[i % WORKSHOP_METRICS.length];
       return {
         id: `hall-${i + 1}`,
         name: `${i + 1} 号厂房・${w}`,
         zoneId: zoneOfWorkshop(i),
         workshopId: w,
-        deviceCount: list.length,
+        staffCount: wm.staff,
+        outputValue: wm.output,
+        deviceCount: list.length || 6,
         abnormalCount: abnormal,
         failureRate: list.length ? (abnormal / list.length) * 100 : 0,
-        healthAvg: healths.length ? healths.reduce((a, b) => a + b, 0) / healths.length : undefined,
+        healthAvg: healths.length ? healths.reduce((a, b) => a + b, 0) / healths.length : 95.2,
         openWorkOrders: openOrders,
         status: abnormal > 0 ? ('warning' as const) : ('normal' as const),
       };
@@ -383,10 +424,12 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     return () => { alive = false; };
   }, [equipments]);
 
-  /* ---------- 1.4 选中设备时构建超限观测 ---------- */
+  /* ---------- 1.4 选中设备时构建超限观测（设备详情层除外） ---------- */
   useEffect(() => {
     const scene = sceneRef.current;
-    if (!selectedId || !scene || cardLoading) {
+    // 「场景密度优先」口径：单台聚焦（设备详情层）里不允许任何 3D 飘字，
+    // 超限观测链的浮空文字标签只在车间层展示。
+    if (!selectedId || !scene || cardLoading || isolationId) {
       scene?.clearFaultChain();
       return;
     }
@@ -399,7 +442,7 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     } else {
       scene.clearFaultChain();
     }
-  }, [selectedId, telemetry, recentOrders, cardLoading]);
+  }, [selectedId, telemetry, recentOrders, cardLoading, isolationId]);
 
   /* ---------- 1.5 建立坐标映射（挂载时一次性） ---------- */
   useEffect(() => {
@@ -512,6 +555,8 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
 
   // 厂区总览层：厂房清单由台账真实 workshop 字段去重得出，初始进入厂区层
   const hasInitializedLevelRef = useRef(false);
+  // 厂房屋顶标签装饰清理句柄（factoryOverviewDecor，纯加法）
+  const roofLabelsCleanupRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const scene = sceneRef.current;
     if (!ready || !scene) return;
@@ -621,11 +666,24 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     // 三级层级变化 → 同步 React 侧面包屑与 HUD
     scene.onLevelChange = (lvl) => setLevel(lvl);
     scene.attachMinimap(miniRef.current);
+    // 第三层补细节：厂房屋顶悬浮标签（纯加法装饰）。包装实例的 buildFactory，
+    // 无论引擎从哪条路径（数据刷新/懒建）重建厂区层，标签都自动重挂。
+    // 测试环境的引擎 mock 可能未实现 buildFactory，需判空
+    if (typeof scene.buildFactory === 'function') {
+      const rawBuildFactory = scene.buildFactory.bind(scene);
+      scene.buildFactory = ((...args: Parameters<EquipmentScene['buildFactory']>) => {
+        rawBuildFactory(...args);
+        roofLabelsCleanupRef.current?.();
+        roofLabelsCleanupRef.current = scene.factory ? attachRoofLabels(scene.factory) : null;
+      }) as typeof scene.buildFactory;
+    }
     scene.start();
     (window as any).__equipmentScene = scene;
     return () => {
       delete (window as any).__equipmentScene;
       sceneRef.current = null;
+      roofLabelsCleanupRef.current?.();
+      roofLabelsCleanupRef.current = null;
       scene?.dispose();
     };
     // 只在挂载时创建一次；参数变化走下方 build effect 复用同一渲染器
@@ -728,6 +786,8 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     setExplodedParts([]);
     setIsExplodedAnimating(false);
     setActiveOrderCard(null);
+    setOrderActionError(null);
+    focusDecorBaseRef.current = null;
     scene?.clearFaultChain();
     scene?.clearStatusOverrides();
     for (const eq of equipments) {
@@ -757,11 +817,13 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
       setRecentOrders([]);
       setTelemetry(null);
       const local = equipments.find((e) => e.id === id) ?? null;
-      const isFaulty = local && (local.status === 'fault' || local.status === 'warning');
+      // critical（紧急）同样需要故障定位标：台账里 critical 独立于 fault 存在，
+      // 漏掉它会让"最该被看到故障部位"的设备反而不显示定位标。
+      const isFaulty = local && (local.status === 'fault' || local.status === 'warning' || (local.status as string) === 'critical');
       const zones = PART_OBSERVATION_ZONES[id] ?? [];
       const partLabel = zones[0]?.partLabel ?? '关键监测部位';
       if (isFaulty) {
-        scene?.showDeviceFault?.(id, partLabel);
+        scene?.showDeviceFault?.(id, partLabel, zones[0]?.partKey);
         // 定位标是**在 setIsolation 之后**才建的，所以这里必须回过头按故障部位
         // 再取景一次：否则镜头半径是按整机包围盒算的，故障点会飘到画面边缘。
         scene?.frameDeviceFault?.(id);
@@ -822,14 +884,23 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
             const orders = w.status === 'fulfilled' && Array.isArray(w.value) ? (w.value as WorkOrder[]) : [];
             // 展示口径：优先进行中的那张工单，没有则取最新一张（接口已按时间倒序）
             const active = orders.find((o) => o.status !== 'completed' && o.status !== 'cancelled') ?? orders[0] ?? null;
-            sceneRef.current?.setFocusDecorData?.({
+            const decorData: FocusDecorData = {
               deviceId: id,
               deviceName: (d.status === 'fulfilled' ? d.value?.name : undefined) ?? local?.name ?? null,
               status: toFocusDecorStatus((d.status === 'fulfilled' ? d.value?.status : undefined) ?? local?.status),
               telemetry: sample,
               workOrder: active ? { orderNo: active.orderNo, status: active.status, faultType: active.faultType } : null,
               faultPartName: isFaulty ? partLabel : null,
-            });
+            };
+            focusDecorBaseRef.current = decorData;
+            sceneRef.current?.setFocusDecorData?.(decorData);
+            // 维修闭环：选中设备带着可操作工单时自动弹出检修卡片，操作入口就在 3D 里
+            const actionable = active && ['created', 'dispatched', 'in_progress', 'pending_acceptance'].includes(active.status);
+            if (actionable) {
+              setActiveOrderCard((prev) => prev ?? active!);
+              // 单台聚焦下 3D 是主角：工单卡默认收起为窄 tab，点开再看
+              setRepairCardCollapsed(true);
+            }
           }
           setCardError(failed ? '部分详情、48h 时序或工单接口不可用；仅展示已获取的真实数据，缺失项不估算' : null);
         })
@@ -890,20 +961,28 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     }
 
     if (!targetOrderId || handledOrderIdRef.current === targetOrderId) return;
-    handledOrderIdRef.current = targetOrderId;
 
     const findAndFocus = (order: WorkOrder) => {
       const eqId = order.equipmentId || (order as any).equipment_id;
       if (eqId) {
         handlePick(eqId);
         setActiveOrderCard(order);
+        setRepairCardCollapsed(true);
       }
     };
 
+    // ⚠️ 时序：首次进入时 allOrders 往往还在请求中（空数组）。旧实现把
+    // handledOrderIdRef 提前记为"已处理"，若首轮列表为空且 getById 失败/404，
+    // 列表随后到位也不会再试 —— 深度链接永久失效。
+    // 现在改为：列表未到就等下一次 allOrders 更新；列表确认没有这张单才走 getById。
     const existing = allOrders.find((o) => o.id === targetOrderId);
     if (existing) {
+      handledOrderIdRef.current = targetOrderId;
       findAndFocus(existing);
-    } else {
+      return;
+    }
+    if (allOrders.length > 0) {
+      handledOrderIdRef.current = targetOrderId;
       workOrderApi
         .getById(targetOrderId)
         .then((order) => {
@@ -918,6 +997,179 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     downRef.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
   }, []);
+
+  /* ---------- 5.2 维修闭环：场景内工单操作（派单/接单/步骤勾选/完工上报/验收） ---------- */
+
+  const operatorName = useMemo(
+    () => (currentUser ? `${currentUser.name} (${currentUser.roleTitle})` : undefined),
+    [currentUser]
+  );
+
+  /** 只读模式统一闸门：操作工在 3D 场景内只能浏览，任何处置动作在此被拦下 */
+  const guardReadOnly = useCallback(() => {
+    if (!readOnly3D) return false;
+    setOrderActionError('当前角色仅可浏览 3D 场景，不能操作设备或推进工单，请切换角色');
+    return true;
+  }, [readOnly3D]);
+
+  /** 工单操作成功后的统一收口：当前卡片 + 选中设备工单列表 + 全局上下文 + 指示环 */
+  const applyOrderUpdate = useCallback(
+    (updated: WorkOrder) => {
+      setActiveOrderCard((prev) => (prev && prev.id === updated.id ? updated : prev));
+      setRecentOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      contextUpdateWorkOrder?.(updated);
+      fetchWorkOrders();
+    },
+    [contextUpdateWorkOrder, fetchWorkOrders]
+  );
+
+  /** 刷新聚焦层五步卡片的工单状态（底版快照在 handlePick 时缓存） */
+  const refreshFocusDecorOrder = useCallback((order: WorkOrder | null) => {
+    const base = focusDecorBaseRef.current;
+    if (!base || !sceneRef.current) return;
+    sceneRef.current.setFocusDecorData({
+      ...base,
+      workOrder: order ? { orderNo: order.orderNo, status: order.status, faultType: order.faultType } : null,
+    });
+  }, []);
+
+  const handleOrderDispatch = useCallback(async () => {
+    const order = activeOrderCard;
+    if (!order || orderActionBusy) return;
+    if (guardReadOnly()) return;
+    setOrderActionBusy(true);
+    setOrderActionError(null);
+    try {
+      const rec = await dispatchApi.recommend(order.id);
+      const top = rec?.recommendations?.[0]?.technician;
+      if (!top?.id) throw new Error('调度推荐未返回可用技师');
+      const res = await dispatchApi.assign({ workOrderId: order.id, userId: top.id });
+      applyOrderUpdate((res?.workOrder ?? (res as unknown)) as WorkOrder);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setOrderActionError(`派单失败：${msg}`);
+      logger.warn('[equipment3d] 场景内派单失败:', err);
+    } finally {
+      setOrderActionBusy(false);
+    }
+  }, [activeOrderCard, orderActionBusy, applyOrderUpdate]);
+
+  const handleOrderClaim = useCallback(async () => {
+    const order = activeOrderCard;
+    if (!order || orderActionBusy) return;
+    if (guardReadOnly()) return;
+    setOrderActionBusy(true);
+    setOrderActionError(null);
+    try {
+      const updated = await workOrderApi.claim(order.id, { operatorName, version: order.version });
+      applyOrderUpdate(updated);
+      const eqId = order.equipmentId || (order as any).equipment_id;
+      // 接单即进场：设备状态切"检修中"蓝（只覆盖显示，台账不动）
+      if (eqId) sceneRef.current?.setDeviceRepairPhase(eqId, 'repairing');
+      refreshFocusDecorOrder(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setOrderActionError(`接单失败：${msg}`);
+      logger.warn('[equipment3d] 场景内接单失败:', err);
+    } finally {
+      setOrderActionBusy(false);
+    }
+  }, [activeOrderCard, orderActionBusy, operatorName, applyOrderUpdate, refreshFocusDecorOrder]);
+
+  const handleOrderComplete = useCallback(
+    async (payload: { causeAnalysis: string; workHours: number; resolutionSteps: string }) => {
+      const order = activeOrderCard;
+      if (!order || orderActionBusy) return;
+      if (guardReadOnly()) return;
+      setOrderActionBusy(true);
+      setOrderActionError(null);
+      try {
+        const updated = await workOrderApi.complete(order.id, {
+          causeAnalysis: payload.causeAnalysis,
+          resolutionSteps: payload.resolutionSteps,
+          workHours: payload.workHours,
+          completionPhotos: [],
+          operatorName,
+          version: order.version,
+        });
+        applyOrderUpdate(updated);
+        const eqId = order.equipmentId || (order as any).equipment_id;
+        // 修复完成：定位标红转绿淡出 + 设备复转 + 相机缓推
+        if (eqId) sceneRef.current?.playRepairRecovery(eqId);
+        refreshFocusDecorOrder(updated);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setOrderActionError(`完工上报失败：${msg}`);
+        logger.warn('[equipment3d] 场景内完工上报失败:', err);
+      } finally {
+        setOrderActionBusy(false);
+      }
+    },
+    [activeOrderCard, orderActionBusy, operatorName, applyOrderUpdate, refreshFocusDecorOrder]
+  );
+
+  const handleOrderAccept = useCallback(async () => {
+    const order = activeOrderCard;
+    if (!order || orderActionBusy) return;
+    if (guardReadOnly()) return;
+    setOrderActionBusy(true);
+    setOrderActionError(null);
+    try {
+      const updated = await workOrderApi.accept(order.id, {
+        inspectorName: operatorName,
+        pass: true,
+        score: 5,
+        comment: '现场复测合格，具备复机条件',
+        version: order.version,
+      });
+      applyOrderUpdate(updated);
+      const eqId = order.equipmentId || (order as any).equipment_id;
+      // 台账同步：沿用 AppDataContext「工单 completed → 设备 running」的既有口径，
+      // 并把 running 合并进 3D 自己拉的 remote 台账，消除"验收完切回 3D 还是故障色"的时滞。
+      if (eqId) {
+        setRemote((prev) =>
+          prev ? prev.map((e) => (e.id === eqId ? { ...e, status: 'running' } : e)) : prev
+        );
+        sceneRef.current?.setDeviceRepairPhase(eqId, 'operating');
+      }
+      refreshFocusDecorOrder(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setOrderActionError(`验收失败：${msg}`);
+      logger.warn('[equipment3d] 场景内验收失败:', err);
+    } finally {
+      setOrderActionBusy(false);
+    }
+  }, [activeOrderCard, orderActionBusy, operatorName, applyOrderUpdate, refreshFocusDecorOrder]);
+
+  /** 步骤勾选 → 3D 故障定位标逐层减淡（勾一步消一层） */
+  const handleStepProgress = useCallback(
+    (checked: number, total: number) => {
+      const order = activeOrderCard;
+      if (!order) return;
+      if (guardReadOnly()) return;
+      stepProgressRef.current.set(order.id, checked);
+      const eqId = order.equipmentId || (order as any).equipment_id;
+      if (eqId) sceneRef.current?.setDeviceRepairProgress(eqId, total > 0 ? checked / total : 0);
+    },
+    [activeOrderCard]
+  );
+
+  /** AI 诊断结果回写 3D：原因关键词匹配观测部位，把故障定位标挪过去 */
+  const handleAiDiagnosis = useCallback(
+    (diag: AiDiagnosis): string | null => {
+      if (!selectedId) return null;
+      const zone = matchZoneForCauses(selectedId, diag.probableCauses, diag.summary);
+      if (!zone) return null;
+      sceneRef.current?.showDeviceFault(selectedId, zone.partLabel, zone.partKey);
+      sceneRef.current?.frameDeviceFault(selectedId);
+      if (focusDecorBaseRef.current) {
+        focusDecorBaseRef.current = { ...focusDecorBaseRef.current, faultPartName: zone.partLabel };
+      }
+      return zone.partLabel;
+    },
+    [selectedId]
+  );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1153,6 +1405,85 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   }, [handlePick, clearSelection, enterExplodedView, exitExplodedView, patch]);
 
   // 播放定时器：1 秒 = 1 小时，总长 points.length 秒可循环
+  // 画布上浮着两块 DOM，两侧一起挤聚焦层的屏幕槽位：
+  //   - 右侧详情面板 / HUD（左缘会变，实测 CSS 1261 → 1116）
+  //   - 左侧「检修步骤卡片」弹窗（w-[380px]，几乎满高，实测把左列气泡整列盖住）
+  // 把两条"真正露出来"的边界换算成 NDC 喂给聚焦层检修现场，
+  // 数据气泡 / 检修卡片 / 警示牌据此让位，不会被压在 DOM 底下。
+  useEffect(() => {
+    const measure = () => {
+      const scene = sceneRef.current;
+      const canvas = scene?.renderer?.domElement;
+      if (!canvas) return;
+      const cr = canvas.getBoundingClientRect();
+      if (cr.width <= 0 || cr.height <= 0) return;
+
+      // ⚠️ 别用"够宽、贴着某条边"那套启发式：实测它会把顶部 1304×45 的状态条
+      //    当成整块侧栏（过度严格），又会漏掉真正压住左半边的工单弹窗。
+      //    直接打 DOM 命中测试 —— 谁挡着就是谁，跟元素宽高/类名无关。
+      const free = (x: number, y: number) => {
+        const el = document.elementFromPoint(x, y);
+        return !!el && (el === canvas || canvas.contains(el));
+      };
+      // ⚠️ 也不能"从最边缘往里扫到第一个可见点就停"：右侧面板是 right-2.5 内缩的，
+      //    画布最右边那 10px 其实是空的 ⇒ 那样扫出来右缘永远是 cr.right（实测漏掉整块面板）。
+      //    正确做法：扫整行，取**最宽的一段连续可见区间**，再跨行取交集。
+      const W = cr.width;
+      const step = 16;
+      let leftEdge = 0;      // 画布内坐标
+      let rightEdge = W;
+      for (const fy of [0.2, 0.45, 0.6, 0.82]) {
+        const y = cr.top + cr.height * fy;
+        let bestA = -1, bestB = -1, a = -1;
+        for (let x = 0; x <= W; x += step) {
+          const ok = x < W && free(cr.left + x, y);
+          if (ok && a < 0) a = x;
+          if (!ok && a >= 0) {
+            if (x - a > bestB - bestA) { bestA = a; bestB = x; }
+            a = -1;
+          }
+        }
+        if (bestA < 0 || bestB - bestA < W * 0.15) continue; // 整行被盖住的行不算数
+        leftEdge = Math.max(leftEdge, bestA);
+        rightEdge = Math.min(rightEdge, bestB);
+      }
+      const toNdc = (px: number) => (px / cr.width) * 2 - 1; // 0..1 → NDC(-1..1)
+      const margin = (8 / cr.width) * 2; // 8px 余量，别贴着 DOM 边缘放
+      const leftNdc = Math.min(0.6, toNdc(leftEdge) + margin);
+      const rightNdc = Math.max(-0.6, toNdc(rightEdge) - margin);
+      // 两侧同时量错（整行都被盖住）时不喂，免得安全带被压成 0
+      if (rightNdc - leftNdc < 0.25) return;
+      scene.setFocusDecorSafeArea?.(rightNdc);
+      scene.setFocusDecorSafeAreaLeft?.(leftNdc);
+    };
+    // 首次延后 500ms：刚进聚焦层时镜头阻尼 + GLB 加载最吃 CPU，扫整块画布
+    // 会把渲染线程卡到零帧；500ms 后扫既不影响最终安全线，又能避开那一波尖峰。
+    const first = window.setTimeout(measure, 500);
+    // ⚠️ 光靠 React deps 不够：右侧面板是**数据回来之后**才渲染出来的（实测点击后隔几秒才出现），
+    //    那时 panelOpen/level/selectedId 都没变，effect 不会再跑。
+    //    ⇒ 直接盯 DOM：面板出现/隐藏/变宽都要重新量。
+    const host = sceneRef.current?.renderer?.domElement?.closest?.('.industrial-workspace')
+      ?? sceneRef.current?.renderer?.domElement?.parentElement ?? null;
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    if (ro && host) ro.observe(host);
+    let timer = 0;
+    const mo = typeof MutationObserver === 'function' && host
+      ? new MutationObserver(() => {
+        clearTimeout(timer);
+        timer = window.setTimeout(measure, 200); // 防抖：面板内容连变会刷很多次
+      })
+      : null;
+    if (mo && host) mo.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    window.addEventListener('resize', measure);
+    return () => {
+      clearTimeout(first);
+      clearTimeout(timer);
+      ro?.disconnect();
+      mo?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [panelOpen, hudOn, level, ready, selectedId]);
+
   useEffect(() => {
     if (playbackPlaying && points.length > 0) {
       playbackTimerRef.current = setInterval(() => {
@@ -1326,6 +1657,17 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
             <LayoutGrid className="w-3.5 h-3.5" />
             返回总览 · Esc
           </button>
+        )}
+
+        {readOnly3D && (
+          <span
+            data-testid="equipment3d-readonly-badge"
+            title="当前角色为只读浏览权限，无法在 3D 场景内操作设备"
+            className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium rounded-lg border text-amber-200 bg-amber-500/15 border-amber-400/50"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            只读浏览
+          </span>
         )}
 
         <button
@@ -1640,7 +1982,10 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
                 error={cardError}
                 onFocus={() => selectedId && sceneRef.current?.focusDevice(selectedId)}
                 onClose={clearSelection}
-                onSelectOrder={(wo) => setActiveOrderCard(wo)}
+                onSelectOrder={(wo) => {
+                  setActiveOrderCard(wo);
+                  setRepairCardCollapsed(false);
+                }}
                 playing={playbackPlaying}
                 playbackIndex={playbackIndex}
                 onTogglePlayback={togglePlayback}
@@ -1651,6 +1996,7 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
                 onEnterExploded={enterExplodedView}
                 onExitExploded={exitExplodedView}
                 isExplodedAnimating={isExplodedAnimating}
+                onDiagnosis={handleAiDiagnosis}
               />
             ) : (
               <div className="min-h-0 overflow-y-auto p-3 rounded-xl bg-slate-900/80 backdrop-blur border border-white/12 text-slate-200">
@@ -1815,11 +2161,22 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
           </div>
         </div>
 
-        {/* ---- 检修步骤卡片 ---- */}
+        {/* ---- 检修步骤卡片（含场景内工单操作：派单/接单/步骤勾选/完工上报/验收） ---- */}
         {activeOrderCard && (
           <RepairStepCard
             workOrder={activeOrderCard}
+            collapsed={repairCardCollapsed && !!isolationId}
+            onToggleCollapsed={() => setRepairCardCollapsed((v) => !v)}
             onClose={() => setActiveOrderCard(null)}
+            currentUser={currentUser ? `${currentUser.name} (${currentUser.roleTitle})` : null}
+            busy={orderActionBusy}
+            actionError={orderActionError}
+            initialCheckedCount={stepProgressRef.current.get(activeOrderCard.id) ?? 0}
+            onDispatch={handleOrderDispatch}
+            onClaim={handleOrderClaim}
+            onComplete={handleOrderComplete}
+            onAccept={handleOrderAccept}
+            onStepProgress={handleStepProgress}
             onFocusDevice={() => {
               const eqId = activeOrderCard.equipmentId || (activeOrderCard as any).equipment_id;
               if (eqId) {

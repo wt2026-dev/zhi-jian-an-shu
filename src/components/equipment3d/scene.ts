@@ -13,6 +13,22 @@
  *   除此之外没有用到任何 r186 新增 API，因此升级/降级到 r160 也能跑。
  */
 
+/**
+ * ── scene.ts 拆解路线图（CameraRig 化进行中）─────────────────────────────
+ * 本文件曾是 3200 行上帝类。拆解原则：每抽一个子系统，类方法退化为薄委托，
+ * 既有调用方（含 Object.create 测试替身）零感知。进度：
+ *
+ *   ✅ cameraFraming.ts   取景数学纯函数（computeIsolatedFraming，带单测）
+ *   ✅ deviceDetailEnv.ts 聚焦层工业环境（地面/立柱/管道/物料/工人/灯光）
+ *   ✅ faultLocator.ts    故障定位标（红线框 + 减淡/恢复动画）
+ *   ⬜ CameraRig          orbit 状态 + 滚轮/双指 + userZoomRange + update() 相机段
+ *                         （最大一块：this.orbit 在本文件被引用 ~40 处，需一次性机械替换）
+ *   ⬜ FaultChainLayer    buildFaultChain/createFaultLabel/animateFaultPropagation
+ *                         （测试替身 stub 了 createFaultLabel，需 labelFactory 注入）
+ *   ⬜ WorkerFlowLayer    buildWorkers/animateWorkers（依赖 coordMap/trajectory）
+ *   ⬜ FocusEnvironment   applyDeviceMood + DeviceDetailEnv 生命周期
+ *                         （该区当前由另一会话活跃调参，等收敛后移动）
+ */
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -49,6 +65,7 @@ import {
 } from './factoryOverview';
 import { FaultLocator, type FaultAnchor } from './faultLocator';
 import { DeviceDetailEnv, type DeviceDetailEnvBox } from './deviceDetailEnv';
+import { computeIsolatedFraming } from './cameraFraming';
 import {
   FocusSceneDecor,
   type FocusDecorData,
@@ -324,13 +341,13 @@ export class EquipmentScene {
   // ---- 相机轨道（自研，带阻尼） ----
   private orbit = {
     target: new THREE.Vector3(0, 6, 0),
-    sTarget: new THREE.Vector3(0, 6, 0),
+    sTarget: new THREE.Vector3(0, 80, 0),
     theta: Math.PI * 0.72,
     sTheta: Math.PI * 0.72,
     phi: 0.95,
-    sPhi: 0.95,
+    sPhi: 0.36,
     radius: 130,
-    sRadius: 130,
+    sRadius: 280,
     minPhi: 0.06,
     maxPhi: 1.52,
     // 下限放到 4 米：单台特写需要贴近观察（原来 10 米对 3 米高的设备太远）
@@ -2238,81 +2255,31 @@ export class EquipmentScene {
    * 对俯角、设备朝向、透视都成立。
    */
   private frameIsolated(box: DeviceBoxInfo, preserveAngles = false, targetY?: number): void {
-    const o = this.orbit;
-    const cam = this.camera;
-    const vHalf = (cam.fov * Math.PI) / 360;
-    const tanV = Math.tan(vHalf);
-    const tanH = tanV * Math.max(0.001, cam.aspect);
-    // FILL 是"包围盒占画面的比例"的目标值。
-    // 「场景密度优先」口径：完整设备约占视锥高度 55%（NDC 角点 ≤ FILL ≈ 0.9），
-    // 周围工具车/管道/工人随取景一起可见；用户滚轮拉远上限由 userZoomCap 封在雾内。
-    const FILL = 0.9;
-    const denomV = FILL * tanV;
-    const denomH = FILL * tanH;
-
-    // 与 update() 里的相机位置公式保持同一套参数
-    const phi = preserveAngles ? o.phi : clamp(1.0, o.minPhi, o.maxPhi);
-    const theta = preserveAngles ? o.theta : (this.slots[box.index]?.angle ?? 0) + 0.6;
-    const sinPhi = Math.sin(phi);
-    const cosPhi = Math.cos(phi);
-    // u = 目标 → 相机 的单位向量
-    const ux = sinPhi * Math.sin(theta);
-    const uy = cosPhi;
-    const uz = sinPhi * Math.cos(theta);
-    // 相机基向量（与 three.js lookAt(worldUp=(0,1,0)) 一致）
-    let rx = uz;
-    let rz = -ux;
-    const rl = Math.hypot(rx, rz) || 1;
-    rx /= rl;
-    rz /= rl;
-    const ry = 0;
-    const upx = uy * rz - uz * ry;
-    const upy = uz * rx - ux * rz;
-    const upz = ux * ry - uy * rx;
-
-    // 包围盒 8 个角（世界坐标；设备绕 Y 轴按槽位角度旋转，底面在 box.y）
-    const a = this.slots[box.index]?.angle ?? 0;
-    const ca = Math.cos(a);
-    const sa = Math.sin(a);
-    const hw = box.w / 2;
-    const hd = box.d / 2;
-    const yMid = box.h / 2;
-    // 取景中心相对包围盒中心的竖直偏移。
-    // 对准故障部位时 targetY 会高于盒心，此时**必须把角点也按新中心折算**，
-    // 否则沿用"整机居中"的半径会让设备下半截掉出画面（用户反馈"设备被裁一半"）。
-    const baseCenterY = box.centerY ?? box.y + yMid;
-    const dy = targetY === undefined ? 0 : targetY - baseCenterY;
-    let need = 0;
-    for (const lx of [-hw, hw]) {
-      for (const ly of [0, box.h]) {
-        for (const lz of [-hd, hd]) {
-          // 槽位旋转 → 相对目标的偏移
-          const px = lx * ca + lz * sa;
-          const pz = -lx * sa + lz * ca;
-          const py = ly - yMid - dy;
-          const pU = px * ux + py * uy + pz * uz;
-          const pR = px * rx + pz * rz;
-          const pUp = px * upx + py * upy + pz * upz;
-          const r = pU + Math.max(Math.abs(pR) / denomH, Math.abs(pUp) / denomV);
-          if (r > need) need = r;
-        }
-      }
-    }
-
-    // 聚焦层目标点**固定为设备包围盒中心**：对准故障点会把镜头怼到零件上（"贴脸"），
-    // 故障红标（depthTest:false）穿壳可见，无需镜头迁就。
-    o.target.set(box.centerX ?? box.x, baseCenterY + dy, box.centerZ ?? box.z);
-    o.minRadius = Math.max(cam.near * 2, Math.min(box.w, box.h, box.d) * 0.6);
-    o.maxRadius = Math.max(need * 3, o.minRadius * 4);
-    // 轨道半径限位：保持在包围盒外接球半径的 1.8~2.5 倍之间（转一圈设备不出画）。
-    // 下限是硬约束（防贴脸）；上限只在自动取景本身偏近时生效，
-    // 窄纵横比需要更远的 need 时以取景为准（雾外不可见，视觉无损）。
-    const rSphere = 0.5 * Math.sqrt(box.w * box.w + box.h * box.h + box.d * box.d);
-    o.radius = clamp(Math.max(need, rSphere * 1.8), o.minRadius, o.maxRadius);
-    o.phi = phi;
-    o.theta = theta;
+    // 取景数学已抽到 cameraFraming.ts（纯函数，可单测）—— 本方法只剩状态回写。
+    // 目标点固定为设备包围盒中心（聚焦机位居中口径）；故障红标 depthTest:false 穿壳可见。
+    const f = computeIsolatedFraming(
+      box,
+      { fov: this.camera.fov, aspect: this.camera.aspect, near: this.camera.near },
+      {
+        slotAngle: this.slots?.[box.index]?.angle ?? 0,
+        targetY,
+        preserveAngles,
+        currentPhi: this.orbit.phi,
+        currentTheta: this.orbit.theta,
+        minPhi: this.orbit.minPhi,
+        maxPhi: this.orbit.maxPhi,
+        fill: 0.9, // 设备约占视锥高度 55%，周围检修物件随取景可见
+      },
+    );
+    this.orbit.target.copy(f.target);
+    this.orbit.minRadius = f.minRadius;
+    this.orbit.maxRadius = f.maxRadius;
+    this.orbit.radius = f.radius;
+    this.orbit.phi = f.phi;
+    this.orbit.theta = f.theta;
     this.dirty = true;
   }
+
   /* ========================= 三级层级：厂区 / 车间 / 单设备 ========================= */
 
   /**
@@ -2386,7 +2353,7 @@ export class EquipmentScene {
   }
 
   /** 进入厂区总览。相机拉远到建筑群（阻尼插值 → 平滑过渡，非跳变）。 */
-  enterFactoryLevel(): boolean {
+  enterFactoryLevel(diveFromSky = false): boolean {
     if (!this.factory) this.buildFactory();
     if (!this.factory) return false;
     this.level = 'factory';
@@ -2396,6 +2363,11 @@ export class EquipmentScene {
     const box = active ? this.factory.boxOfZone(active) : null;
     if (box) this.frameZone(box);
     else this.frameFactory();
+    if (diveFromSky) {
+      this.orbit.sRadius = 280;
+      this.orbit.sPhi = 0.36;
+      this.orbit.sTarget.set(0, 80, 0);
+    }
     this.onLevelChange?.('factory', this.activeBuildingId);
     return true;
   }

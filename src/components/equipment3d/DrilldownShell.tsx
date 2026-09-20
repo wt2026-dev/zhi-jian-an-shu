@@ -20,7 +20,7 @@ export type DrillLevel = "map" | "city" | "factory";
 const DEFAULT_FACTORY_ID = "factory_gz";
 /** 旧层淡出 + 新层淡入的收尾时长（ms），与 drilldown-transitions.css 的动画时序一致；
  *  2s 相机俯冲在此之前于旧层内跑完，不计入本值 */
-const TRANSITION_MS = 650;
+const TRANSITION_MS = 800;
 
 function parseLevelFromUrl(): DrillLevel {
   const level = new URLSearchParams(window.location.search).get("level");

@@ -236,14 +236,25 @@ export function MapOverviewView({
                 {dash?.factoryRows.map((f) => {
                   const palette = pillarPaletteOf(factoryPillarStatusOf(f));
                   return (
-                    <BarRow
+                    <button
                       key={f.id}
-                      label={f.name}
-                      tag={f.isDemo ? <span className="rounded bg-amber-400/15 px-1 text-[9px] text-amber-300">演示</span> : null}
-                      value={`${f.equipmentCount} 台 · ${f.alertCount} 告警`}
-                      share={f.share}
-                      color={palette.css}
-                    />
+                      type="button"
+                      onClick={() => {
+                        const summary = summaryRef.current.get(f.id);
+                        if (!summary) return;
+                        sceneRef.current?.diveTo(f.id, () => drillRef.current(summary));
+                      }}
+                      className="w-full text-left rounded p-1 transition-colors hover:bg-cyan-500/10 cursor-pointer pointer-events-auto"
+                      title="点击进入城市层俯冲视角"
+                    >
+                      <BarRow
+                        label={f.name}
+                        tag={f.isDemo ? <span className="rounded bg-amber-400/15 px-1 text-[9px] text-amber-300">演示</span> : null}
+                        value={`${f.equipmentCount} 台 · ${f.alertCount} 告警`}
+                        share={f.share}
+                        color={palette.css}
+                      />
+                    </button>
                   );
                 })}
               </div>
@@ -309,7 +320,17 @@ export function MapOverviewView({
             {(dash?.factoryRows ?? []).map((f) => {
               const color = pillarPaletteOf(factoryPillarStatusOf(f)).css;
               return (
-                <div key={f.id} className="min-w-0 flex-1">
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => {
+                    const summary = summaryRef.current.get(f.id);
+                    if (!summary) return;
+                    sceneRef.current?.diveTo(f.id, () => drillRef.current(summary));
+                  }}
+                  className="min-w-0 flex-1 text-left rounded p-1 transition-colors hover:bg-cyan-500/10 cursor-pointer"
+                  title="点击进入城市层俯冲视角"
+                >
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="truncate text-[11px] text-slate-300">{f.name}</span>
                     <span className="hud-tabular-nums flex-none text-[11px] text-slate-400">{f.equipmentCount} 台</span>
@@ -320,7 +341,7 @@ export function MapOverviewView({
                       style={{ width: `${Math.max(3, Math.min(1, f.share) * 100)}%`, background: color, boxShadow: `0 0 6px ${color}66` }}
                     />
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
