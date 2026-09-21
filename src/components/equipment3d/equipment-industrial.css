@@ -41,6 +41,10 @@
 .industrial-render-settings {
   position: relative;
   color: #cbd5e1;
+  /* 顶栏是 flex-wrap 容器，<details> 作为 flex item 默认可收缩。中文没有断词边界，
+     挤满一行时按钮文字会被逐字截断（「可视化图层」→「可视化图…」）。
+     按钮宽度交给文字，不参与收缩，宁可换行也不截字。 */
+  flex: 0 0 auto;
 }
 
 .industrial-render-settings > summary {
@@ -53,6 +57,7 @@
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.85);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .industrial-render-settings > summary:hover {

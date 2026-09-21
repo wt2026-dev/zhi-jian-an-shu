@@ -233,9 +233,11 @@ function RingGauge({ percent, label, color }: { percent: number | null; label: s
           />
         </svg>
         {percent == null ? (
-          <span className="absolute text-[9px] font-mono text-cyan-200 font-bold hud-tabular-nums">98.5%</span>
+          <span className="absolute text-[9px] font-mono text-slate-400 whitespace-nowrap">未接入</span>
         ) : (
-          <span className="absolute text-[10px] font-mono font-bold text-cyan-100 hud-tabular-nums hud-value-glow">{percent}%</span>
+          <span className="absolute text-[9px] font-mono font-bold text-cyan-100 hud-tabular-nums hud-value-glow whitespace-nowrap">
+            {percent.toFixed(1)}%
+          </span>
         )}
       </div>
       <span className="text-[9px] text-slate-400 font-sans tracking-tight">{label}</span>
@@ -695,8 +697,11 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
 
   return (
     <div className="absolute inset-0 z-20 pointer-events-none select-none">
-      {/* ---------- 顶部主标题栏（科技感数字孪生大屏导航条） ---------- */}
-      <div className="absolute top-2 left-3 right-3 pointer-events-auto flex items-center justify-between z-30 rounded-lg hud-main-header px-3 py-1.5 min-h-[42px]">
+      {/* ---------- 顶部主标题栏（科技感数字孪生大屏导航条） ----------
+          外层工具栏（设备数/故障数/可视化图层）与视口紧邻，上一版这一栏只留 8px，
+          两条栏视觉上粘成一条。下移 56px 后两栏之间有明确留白，
+          随之左右两栏面板整体下移到 110px 起（56 + 本栏 42 高 + 12 间距）。 */}
+      <div className="absolute top-14 left-3 right-3 pointer-events-auto flex items-center justify-between z-30 rounded-lg hud-main-header px-3 py-1.5 min-h-[42px]">
         {/* 左侧：层级面包屑胶囊 */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-cyan-200">
@@ -808,7 +813,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
             leftCollapsed ? (
               <button
                 onClick={() => setLeftCollapsed(false)}
-                className="absolute left-2.5 top-14 px-1.5 py-3 rounded-r-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
+                className="absolute left-2.5 top-[110px] px-1.5 py-3 rounded-r-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
                 title="展开车间分布"
               >
                 <Factory className="w-3.5 h-3.5" />
@@ -816,7 +821,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                 <ChevronRight className="w-3 h-3" />
               </button>
             ) : (
-              <div className="absolute left-2.5 top-14 flex flex-col gap-2 pointer-events-auto w-[240px] max-h-[calc(100%-130px)] z-20">
+              <div className="absolute left-2.5 top-[110px] flex flex-col gap-2 pointer-events-auto w-[240px] max-h-[calc(100%-184px)] z-20">
                 {/* 分区工厂分布列表（分区 → 该区厂房，点击分区选中 / 点击厂房下钻） */}
                 <div
                   className="rounded-lg hud-sci-fi-panel p-2.5 flex flex-col gap-2 min-h-0 overflow-hidden relative"
@@ -895,10 +900,10 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                                   {z.abnormalCount}
                                 </strong>
                               </span>
-                              <span className="hud-tabular-nums text-slate-400">
+                              <span className="hud-tabular-nums text-slate-400 truncate">
                                 {z.outputValue != null
-                                  ? `${z.outputValue.toLocaleString('zh-CN')} 万元`
-                                  : '2,860 万元'}
+                                  ? `${formatWan(z.outputValue)} 万元`
+                                  : '产值未接入'}
                               </span>
                             </div>
 
@@ -1006,7 +1011,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
             rightCollapsed ? (
               <button
                 onClick={() => setRightCollapsed(false)}
-                className="absolute right-2.5 top-14 px-1.5 py-3 rounded-l-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
+                className="absolute right-2.5 top-[110px] px-1.5 py-3 rounded-l-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
                 title="展开指标看板"
               >
                 <TrendingUp className="w-3.5 h-3.5" />
@@ -1014,7 +1019,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                 <ChevronLeft className="w-3 h-3" />
               </button>
             ) : (
-              <div className="absolute right-2.5 top-14 flex flex-col gap-2 pointer-events-auto w-[240px] max-h-[calc(100%-130px)] z-20">
+              <div className="absolute right-2.5 top-[110px] flex flex-col gap-2 pointer-events-auto w-[240px] max-h-[calc(100%-184px)] z-20">
                 <div
                   className="rounded-lg hud-sci-fi-panel p-2.5 flex flex-col gap-2 flex-1 overflow-y-auto relative"
                 >
@@ -1118,7 +1123,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                           <div className="text-[8px] text-slate-400">设备健康分</div>
                           <div className="mt-0.5 text-[11px] font-mono font-bold hud-tabular-nums">
                             <span className="text-cyan-200 hud-value-glow">
-                              {(activeZone.healthAvg ?? 96.5).toFixed(1)}
+                              {activeZone.healthAvg == null ? '未接入' : activeZone.healthAvg.toFixed(1)}
                             </span>
                           </div>
                           <div className="text-[7px] text-slate-400 font-mono">
@@ -1306,33 +1311,40 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
               </button>
             ) : (
               <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 pointer-events-auto z-20 max-w-[95vw]">
-                <div className="flex flex-wrap items-center justify-center gap-2 relative">
+                {/* 间距 16px（gap-4）+ 三卡等高：容器用 items-stretch，卡片给 90px 最小高
+                    兜住最矮的那块，最高的「交付与检修达成」（环形表盘 48px + 标签）决定实际
+                    行高，因此三块视觉上严格等高，而不会像写死固定高那样把表盘标签裁掉。 */}
+                <div className="flex flex-wrap items-stretch justify-center gap-4 relative">
                   {/* 1. 各工序实时达成（工序完成率卡片） */}
-                  <div className="rounded-xl hud-sci-fi-panel px-3 py-2 flex flex-col gap-1 relative min-w-[210px]">
+                  <div className="rounded-xl hud-sci-fi-panel px-3 py-2 flex flex-col gap-1 relative min-w-[210px] min-h-[90px]">
                     <TechCornerMark />
                     <div className="text-[9px] font-bold text-cyan-200 flex items-center gap-1 pr-4">
                       <span className="hud-title-bar-indicator" />
                       <BarChart3 className="w-3 h-3 text-cyan-400 ml-0.5" />
                       <span className="hud-title-text">各车间设备可动率</span>
                     </div>
-                    <div className="flex items-end justify-between gap-2.5 h-10 pt-1 font-mono text-[7px] text-slate-400">
+                    {/* 列高 = 数值 12 + 间距 4 + 柱 24 + 间距 4 + 名称 12 ≈ 56px；
+                        上一版容器只有 h-10(40px)，数值与名称两行文字挤在柱子上沿。 */}
+                    <div className="flex items-end justify-between gap-2.5 h-[56px] pt-1 font-mono text-[9px] text-slate-400">
                       {workshopUptime.map((proc) => (
-                        <div key={proc.name} className="flex flex-col items-center gap-0.5 group">
-                          <span className="text-[7px] hud-tabular-nums text-slate-300">{proc.rate.toFixed(1)}%</span>
+                        <div key={proc.name} className="flex flex-col items-center gap-1 group min-w-0">
+                          <span className="text-[9px] hud-tabular-nums text-slate-300 whitespace-nowrap">
+                            {proc.rate.toFixed(1)}%
+                          </span>
                           <div className="w-3 bg-slate-900/80 rounded-t h-6 relative flex items-end border-b border-cyan-500/30">
                             <div
                               className="w-full bg-gradient-to-t from-cyan-600 to-cyan-300 rounded-t shadow-[0_0_6px_rgba(34,211,238,0.4)] transition-all group-hover:brightness-125"
                               style={{ height: `${(proc.rate / 100) * 24}px` }}
                             />
                           </div>
-                          <span className="text-slate-400">{proc.name}</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[40px]">{proc.name}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
                   {/* 2. 交付与质检达成（订单交付 / 物料齐套 / 质检达标表盘卡片） */}
-                  <div className="rounded-xl hud-sci-fi-panel px-3 py-2 flex flex-col gap-1 relative min-w-[220px]">
+                  <div className="rounded-xl hud-sci-fi-panel px-3 py-2 flex flex-col gap-1 relative min-w-[220px] min-h-[90px]">
                     <TechCornerMark />
                     <div className="text-[9px] font-bold text-cyan-200 flex items-center gap-1 pr-4">
                       <span className="hud-title-bar-indicator" />
@@ -1346,8 +1358,8 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     </div>
                   </div>
 
-                  {/* 3. 不良品异常根因分布卡片 */}
-                  <div className="rounded-xl hud-sci-fi-panel px-3 py-2 flex flex-col gap-1 relative min-w-[150px]">
+                  {/* 3. 不良品异常根因分布卡片（数字字号与另两块卡片统一为 9px） */}
+                  <div className="rounded-xl hud-sci-fi-panel px-3 py-2 flex flex-col gap-1 relative min-w-[150px] min-h-[90px]">
                     <TechCornerMark />
                     <div className="text-[9px] font-bold text-cyan-200 flex items-center justify-between pr-4">
                       <span className="flex items-center gap-1">
@@ -1357,17 +1369,17 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                       </span>
                       <span className="text-[8px] font-mono text-cyan-400/70">按设备类别</span>
                     </div>
-                    <div className="space-y-1 text-[8px] font-mono pt-1">
+                    <div className="space-y-1 text-[9px] font-mono pt-1">
                       {abnormalByCategory.length === 0 ? (
-                        <div className="flex justify-between items-center text-slate-300">
+                        <div className="flex justify-between items-center gap-2 text-slate-300">
                           <span>当前台账</span>
-                          <span className="text-emerald-400">无异常台</span>
+                          <span className="text-emerald-400 whitespace-nowrap">无异常台</span>
                         </div>
                       ) : (
                         abnormalByCategory.map((c) => (
-                          <div key={c.name} className="flex justify-between items-center text-slate-300">
-                            <span>{c.name}</span>
-                            <span className="text-cyan-300">
+                          <div key={c.name} className="flex justify-between items-center gap-2 text-slate-300 min-w-0">
+                            <span className="truncate">{c.name}</span>
+                            <span className="text-cyan-300 hud-tabular-nums whitespace-nowrap">
                               {c.count} 台 · {c.share.toFixed(0)}%
                             </span>
                           </div>
@@ -1398,7 +1410,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
               {level === 'device' && deviceMenuCollapsed ? (
                 <button
                   onClick={() => setDeviceMenuCollapsed(false)}
-                  className="absolute left-2.5 top-14 px-1.5 py-3 rounded-r-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
+                  className="absolute left-2.5 top-[110px] px-1.5 py-3 rounded-r-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
                   title="展开功能菜单与设备列表"
                 >
                   <ListTree className="w-3.5 h-3.5" />
@@ -1406,7 +1418,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                   <ChevronRight className="w-3 h-3" />
                 </button>
               ) : (
-              <div className="absolute left-2.5 top-14 bottom-3 flex flex-col gap-1.5 pointer-events-auto">
+              <div className="absolute left-2.5 top-[110px] bottom-3 flex flex-col gap-1.5 pointer-events-auto">
                 <div
                   className="rounded-lg hud-sci-fi-panel p-1.5 w-[108px] relative"
                 >
@@ -1480,7 +1492,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
               )}
 
               {/* ---------- 右侧标签页 ---------- */}
-              <div className="absolute right-2.5 top-14 bottom-3 flex flex-col gap-1.5 pointer-events-auto w-[252px]">
+              <div className="absolute right-2.5 top-[110px] bottom-3 flex flex-col gap-1.5 pointer-events-auto w-[252px]">
                 <div
                   className="rounded-lg hud-sci-fi-panel overflow-hidden flex flex-col min-h-0 relative flex-1"
                 >
