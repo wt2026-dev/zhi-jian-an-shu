@@ -122,21 +122,20 @@ export const AiAssistantPanel: React.FC = () => {
       const clampedDy = Math.min(Math.max(rawDy, minDy), maxDy);
       setOffset({ dx: clampedDx, dy: clampedDy });
     };
-    const handleMouse = (e: MouseEvent) => onMove(e.clientX, e.clientY);
-    const handleTouch = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (t) onMove(t.clientX, t.clientY);
-    };
     const stop = () => setDragging(false);
-    window.addEventListener('mousemove', handleMouse);
-    window.addEventListener('mouseup', stop);
-    window.addEventListener('touchmove', handleTouch);
-    window.addEventListener('touchend', stop);
+    // ★ 一律用 Pointer Events，不用 mousemove/touchmove。
+    //   踩过的坑：检修闯关页的球压在 Godot iframe 上，指针一旦划进 iframe，
+    //   父 window 的 mousemove 直接断流（iframe 是独立 document，事件不冒上来），
+    //   表现为"拖两下就卡住"。配合 onPointerDown 里的 setPointerCapture，
+    //   后续 pointermove 会被强制重定向到发起拖拽的元素，跨 iframe 也不丢。
+    const handlePointer = (e: PointerEvent) => onMove(e.clientX, e.clientY);
+    window.addEventListener('pointermove', handlePointer);
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
     return () => {
-      window.removeEventListener('mousemove', handleMouse);
-      window.removeEventListener('mouseup', stop);
-      window.removeEventListener('touchmove', handleTouch);
-      window.removeEventListener('touchend', stop);
+      window.removeEventListener('pointermove', handlePointer);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
     };
   }, [dragging]);
 
@@ -164,10 +163,16 @@ export const AiAssistantPanel: React.FC = () => {
             if (dragMovedRef.current) return;
             chat.openPanel();
           }}
-          onMouseDown={(e) => onDragStart(e.clientX, e.clientY)}
-          onTouchStart={(e) => {
-            const t = e.touches[0];
-            if (t) onDragStart(t.clientX, t.clientY);
+          onPointerDown={(e) => {
+            // ★ 关键：捕获指针。iframe 是独立 document，指针划过它时父 window
+            //   收不到任何 mouse/pointer 事件（拖拽会当场卡死）。setPointerCapture
+            //   把后续 pointermove/pointerup 强制重定向到本按钮，跨 iframe 也不断流。
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId);
+            } catch {
+              /* 老浏览器没有 PointerCapture，退化成 window 监听 */
+            }
+            onDragStart(e.clientX, e.clientY);
           }}
           title="拖动可移动位置 · 点击打开 AI 数字人助手"
           // 用 inline style 而不是 className 的 bottom-6 right-6：拖动后要跟 panel 共用同一份偏移
@@ -202,10 +207,14 @@ export const AiAssistantPanel: React.FC = () => {
         >
           {/* 头部：数字人形象区（可拖拽） */}
           <div
-            onMouseDown={(e) => onDragStart(e.clientX, e.clientY)}
-            onTouchStart={(e) => {
-              const t = e.touches[0];
-              if (t) onDragStart(t.clientX, t.clientY);
+            onPointerDown={(e) => {
+              // 同悬浮球：跨 iframe 拖拽必须捕获指针，否则划过 iframe 就断流
+              try {
+                e.currentTarget.setPointerCapture(e.pointerId);
+              } catch {
+                /* noop */
+              }
+              onDragStart(e.clientX, e.clientY);
             }}
             className="shrink-0 cursor-move select-none border-b border-slate-200/40"
             style={{ background: 'rgba(248, 250, 252, 0.7)' }}
