@@ -63,6 +63,7 @@ import { PART_OBSERVATION_ZONES } from './partEvidence';
 import { matchZoneForCauses, type AiDiagnosis } from './aiDiagnosis';
 import { toFocusDecorStatus, type FocusDecorTelemetrySample, type FocusDecorData } from './focusSceneDecor';
 import { attachRoofLabels } from './factoryOverviewDecor';
+import { attachPerimeterDecor, type PerimeterDecor } from './factoryPerimeterDecor';
 import './equipment-industrial.css';
 import {
   isExplodedViewSupported,
@@ -669,12 +670,17 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     // 第三层补细节：厂房屋顶悬浮标签（纯加法装饰）。包装实例的 buildFactory，
     // 无论引擎从哪条路径（数据刷新/懒建）重建厂区层，标签都自动重挂。
     // 测试环境的引擎 mock 可能未实现 buildFactory，需判空
+    let perimeterDecor: PerimeterDecor | null = null;
     if (typeof scene.buildFactory === 'function') {
       const rawBuildFactory = scene.buildFactory.bind(scene);
       scene.buildFactory = ((...args: Parameters<EquipmentScene['buildFactory']>) => {
         rawBuildFactory(...args);
         roofLabelsCleanupRef.current?.();
         roofLabelsCleanupRef.current = scene.factory ? attachRoofLabels(scene.factory) : null;
+        // 围墙/门卫道闸/路灯/罐区/停车划线/行人与过路车辆：厂区层的外围细节。
+        // 动画走 FactoryOverview.addUpdater，由场景主循环驱动，不改 scene.ts。
+        perimeterDecor?.dispose();
+        perimeterDecor = scene.factory ? attachPerimeterDecor(scene.factory) : null;
       }) as typeof scene.buildFactory;
     }
     scene.start();
@@ -682,6 +688,8 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     return () => {
       delete (window as any).__equipmentScene;
       sceneRef.current = null;
+      perimeterDecor?.dispose();
+      perimeterDecor = null;
       roofLabelsCleanupRef.current?.();
       roofLabelsCleanupRef.current = null;
       scene?.dispose();

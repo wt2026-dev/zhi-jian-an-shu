@@ -255,6 +255,8 @@ export class FactoryOverview {
   private zoneLineMats = new Map<string, THREE.LineBasicMaterial>();
   /** 地面网格呼吸用的扫描环（P3） */
   private scanRing: THREE.Mesh | null = null;
+  /** 外挂装饰模块的每帧回调（行人/车辆动画等），由 addUpdater 注册 */
+  private updaters = new Set<(dt: number, t: number) => void>();
   private constructionGroup: THREE.Group | null = null;
   private zonesResolved: ResolvedZone[] = [];
   private zoneViews: FactoryZoneView[] = [];
@@ -1828,7 +1830,7 @@ export class FactoryOverview {
     this.paused = paused;
   }
 
-  update(_dt: number, t: number): void {
+  update(dt: number, t: number): void {
     if (this.paused) return;
     if (this.scanRing) {
       const m = this.scanRing.material as THREE.MeshBasicMaterial;
@@ -1854,6 +1856,17 @@ export class FactoryOverview {
       const m = this.gateBeacons[i].material as THREE.MeshBasicMaterial;
       m.opacity = 0.1 + (Math.sin(t * 1.2 + i * 0.9) * 0.5 + 0.5) * 0.14;
     }
+    // 外挂装饰模块的每帧回调（围墙外的行人、车辆等由 addUpdater 注册）
+    for (const fn of this.updaters) fn(dt, t);
+  }
+
+  /**
+   * 注册一个每帧更新回调（由本类的 update 驱动，装饰模块因此不必改 scene.ts）。
+   * 返回注销函数；本实例 dispose 后注册表清空。
+   */
+  addUpdater(fn: (dt: number, t: number) => void): () => void {
+    this.updaters.add(fn);
+    return () => this.updaters.delete(fn);
   }
 
   dispose(): void {
@@ -1887,6 +1900,7 @@ export class FactoryOverview {
     this.zoneWallMats.clear();
     this.zoneRoofMats.clear();
     this.zoneLineMats.clear();
+    this.updaters.clear();
     this.constructionGroup = null;
     this.group.clear();
   }
