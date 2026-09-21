@@ -48,7 +48,7 @@ export interface BuildingTypeInput {
 
 /** 关键词按"真实台账里出现过的车间名"整理；每组都带裸字兜底（成品库 / 总装车间）。 */
 const POWER_RE = /动力|公用|能源|配电|变电|锅炉|水泵|风机|压缩|空压|制氧|燃气/;
-const HEAVY_RE = /重型|热轧|冷轧|轧钢|烧结|炼铁|炼钢|铸造|锻|机加|machining/i;
+const HEAVY_RE = /重型|热轧|冷轧|轧钢|烧结|炼铁|炼钢|铸|锻|机加|machining/i;
 const STORAGE_RE = /仓库|库房|仓储|库|物流|堆场|办公|综合楼|食堂|中心机房/;
 const LIGHT_RE = /装配|总装|组装|包装|精整|电子|仪表|轻|线束|涂|注塑/;
 

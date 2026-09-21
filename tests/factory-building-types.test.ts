@@ -188,6 +188,26 @@ describe('resolveBuildingType：外观类型与边界', () => {
 });
 
 describe('整园区可读性', () => {
+  /** 台账里真实出现过的车间名（grep src/db 与 mock 数据得来），逐个必须有明确归属。 */
+  const REAL_WORKSHOPS: Array<[string, string]> = [
+    ['动力一车间', 'power'],
+    ['公用工程车间', 'power'],
+    ['烧结车间', 'heavy'],
+    ['重型热轧车间', 'heavy'],
+    ['热轧重型车间', 'heavy'],
+    ['冷轧精整车间', 'heavy'],
+    ['连铸车间', 'heavy'],
+    ['机加工车间', 'heavy'],
+    ['智能装配车间', 'light'],
+    ['物流装运车间', 'storage'],
+  ];
+
+  it('真实台账车间名全部命中关键词，不走兜底轮转', () => {
+    for (const [name, role] of REAL_WORKSHOPS) {
+      expect(roleOfWorkshop(name, 2, 2)).toBe(role);
+    }
+  });
+
   it('典型混合园区里四类角色全部出现', () => {
     const workshops = ['动力一车间', '重型热轧车间', '电子装配车间', '成品仓库', '总装车间'];
     const roles = new Set(
