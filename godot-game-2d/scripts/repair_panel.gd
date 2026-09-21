@@ -119,6 +119,8 @@ func _build() -> void:
 	_next_btn.visible = false
 	_next_btn.pressed.connect(_on_next)
 	_root.add_child(_next_btn)
+	# 面板是在运行时挂到 GameHUD(CanvasLayer) 下的，theme 传不过来 ⇒ 直接 override。
+	CJKFont.apply(self)
 
 
 func _card_style() -> StyleBoxFlat:
@@ -245,6 +247,8 @@ func _show_step() -> void:
 			_build_order(s.get("items", []))
 		_:
 			_prompt.text = "未知题型：%s" % kind
+	# 每小关的按钮/标签都是这一帧 new 出来的，打乱后必须重新挂一次字体。
+	CJKFont.apply(_body)
 
 
 ## 选项打乱：每次都重新洗，避免"第一个永远是答案"

@@ -71,6 +71,17 @@ var _settle_at := 0
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("#0b1220"))
 
+	# 把 Noto Sans SC 显式塞到 viewport 的 theme 上。
+	# 踩过的坑：只设 project.godot 的 `gui/theme/default_font` 时，挂到 CanvasLayer 下的
+	# Control（HUD / 检修面板 / 设备标签）拿不到这个主题，Chinese 全部渲染成豆腐块。
+	# 在 viewport 上 set_theme 是唯一稳定能覆盖全 UI 的入口。
+	var f: FontFile = load("res://assets/fonts/NotoSansSC.otf")
+	if f != null:
+		var t := Theme.new()
+		t.default_font = f
+		t.default_font_size = 16
+		get_viewport().theme = t
+
 	world = Node2D.new()
 	world.name = "World"
 	add_child(world)
@@ -620,6 +631,10 @@ func _post_state() -> void:
 		"deviceCount": device_markers.size(),
 		"deviceXs": _device_xs(),
 		"overlay": hud.overlay_state(),
+		# 字体自检：Web 导出的中文是不是豆腐块，看这三个值就能定位
+		# （没加载？= fontLoaded=false / TextServer 不对？= 类名含 Fallback 或 Dummy /
+		#   字形没进栅格化器？= sampleWidth 远小于 64）
+		"font": CJKFont.diag,
 		"rank": _rank_name(),
 		"grade": "" if phase != Phase.SETTLE else _grade_for(mistakes, float(first_try) / maxf(1.0, float(step_total))),
 	})

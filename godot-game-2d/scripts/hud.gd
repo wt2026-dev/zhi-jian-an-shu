@@ -41,6 +41,8 @@ func _ready() -> void:
 	_build_hint()
 	_build_brief()
 	_build_settle()
+	# 建完再打字体：theme 传播在 CanvasLayer 这层不可靠，直接给每个 Control override。
+	CJKFont.apply(root)
 
 
 func _build_top() -> void:

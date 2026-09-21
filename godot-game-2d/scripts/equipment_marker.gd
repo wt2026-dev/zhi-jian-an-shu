@@ -44,6 +44,9 @@ func _ready() -> void:
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_label.add_theme_font_size_override("font_size", 16)
 	add_child(_label)
+	# 设备标签是 Node2D 下的裸 Label，既不在 theme 传播链上也不是 CanvasLayer 的子节点，
+	# 必须显式挂字体，否则设备名全是 □。
+	CJKFont.apply(_label)
 
 	set_process(false)
 

@@ -12,6 +12,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 
 GameInput="*res://scripts/game_input.gd"
+CJKFont="*res://scripts/cjk_font.gd"
 
 [display]
 
