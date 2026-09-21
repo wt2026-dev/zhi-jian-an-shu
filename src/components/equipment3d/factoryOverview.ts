@@ -26,6 +26,8 @@
 
 import * as THREE from 'three';
 import { mulberry32, clamp } from './rand';
+import { resolveBuildingType, type BuildingType } from './factoryBuildingTypes';
+import { decorateBuilding, roofRise, type BuildingDecorKit, type BuildingShape } from './factoryBuildingDetails';
 
 /* ============================ 数据契约 ============================ */
 
@@ -136,6 +138,8 @@ interface PlacedBuilding extends FactoryBuildingSpec {
   d: number;
   h: number;
   zoneId: string;
+  /** 外观类型（由车间名 + 分区/分区内序号解析，只决定画成什么样） */
+  type: BuildingType;
 }
 
 interface ResolvedZone extends FactoryZoneSpec {
@@ -209,6 +213,16 @@ function hexOf(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`;
 }
 
+/**
+ * 从厂房标签反解车间名（"3 号厂房・机加工车间" → "机加工车间"）。
+ * 调用方没传 workshopId 时的兜底，只用于外观类型判定，不参与任何数值口径。
+ */
+function workshopFromLabel(label: string): string {
+  const s = String(label ?? '');
+  const i = s.lastIndexOf('・');
+  return i >= 0 ? s.slice(i + 1) : s;
+}
+
 /* ============================ 主体 ============================ */
 
 export class FactoryOverview {
@@ -257,6 +271,8 @@ export class FactoryOverview {
     stack: new THREE.CylinderGeometry(0.9, 1.1, 4.2, 10),
     cylinder: new THREE.CylinderGeometry(1, 1, 1, 12),
     cone: new THREE.ConeGeometry(1, 1, 8),
+    /** 四棱锥：四坡屋顶（按 w/d 非等比缩放即为矩形四水坡） */
+    pyramid: new THREE.ConeGeometry(1, 1, 4),
   };
 
   private mat = {
@@ -309,7 +325,41 @@ export class FactoryOverview {
     chimneyRed: new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5, metalness: 0.35 }),
     chimneyWhite: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.5, metalness: 0.35 }),
     dockPlatform: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.2 }),
+    // 行车（吊车）安全色黄 + 屋面工艺管道（与厂区管廊同色相，保持深色工业风）
+    crane: new THREE.MeshStandardMaterial({
+      color: 0xca8a04,
+      roughness: 0.45,
+      metalness: 0.5,
+      emissive: new THREE.Color(0x7c5304),
+      emissiveIntensity: 0.35,
+    }),
+    duct: new THREE.MeshStandardMaterial({ color: 0x5b7186, roughness: 0.5, metalness: 0.6 }),
   };
+
+  /** 厂房外观细节模块用的共享资源表（几何与材质全部复用，不随楼栋膨胀）。 */
+  private get decorKit(): BuildingDecorKit {
+    return {
+      geo: {
+        box: this.geo.wall,
+        strip: this.geo.strip,
+        cylinder: this.geo.cylinder,
+        pyramid: this.geo.pyramid,
+      },
+      mat: {
+        roof: this.mat.roof,
+        roofAlt: this.mat.wallAlt,
+        glass: this.mat.glass,
+        windowFrame: this.mat.windowFrame,
+        trussSteel: this.mat.trussSteel,
+        crane: this.mat.crane,
+        chimneyLight: this.mat.chimneyWhite,
+        chimneyBand: this.mat.chimneyRed,
+        duct: this.mat.duct,
+      },
+      shadows: this.opts.shadows,
+      detail: this.opts.detail,
+    };
+  }
 
   constructor(opts: FactoryOverviewOptions) {
     this.opts = opts;
@@ -404,6 +454,7 @@ export class FactoryOverview {
     });
 
     for (const zone of this.zonesResolved) {
+      const zoneIndex = this.zonesResolved.indexOf(zone);
       const items = buckets.get(zone.id) ?? [];
       const cols = items.length <= 1 ? 1 : 2;
       const rows = Math.ceil(items.length / cols);
@@ -414,14 +465,22 @@ export class FactoryOverview {
         const lx = (c - (rowCount - 1) / 2) * LOCAL_X;
         const lz = (r - (rows - 1) / 2) * LOCAL_Z;
         const jitterH = 1 + this.rng() * 0.18;
+        // ⚠️ rng 调用次序保持原样（先高、再宽、再深），否则既有布局会整体漂移
+        const type = resolveBuildingType({
+          zoneIndex,
+          zoneName: zone.name,
+          workshopName: b.workshopId || workshopFromLabel(b.name),
+          indexInZone: i,
+        });
         const placed: PlacedBuilding = {
           ...b,
+          type,
           zoneId: zone.id,
           x: zone.siteX + lx,
           z: zone.siteZ + lz,
-          w: BUILDING_W * (0.94 + this.rng() * 0.12),
+          w: BUILDING_W * (0.94 + this.rng() * 0.12) * type.widthScale,
           d: BUILDING_D * (0.94 + this.rng() * 0.12),
-          h: BUILDING_H * jitterH,
+          h: BUILDING_H * jitterH * type.heightScale,
         };
         zone.buildings.push(placed);
         this.placed.push(placed);
@@ -800,91 +859,47 @@ export class FactoryOverview {
       body.receiveShadow = this.opts.shadows;
       g.add(body);
 
-      // 女儿墙 / 屋顶压顶
-      const roof = new THREE.Mesh(this.geo.roof, this.zoneRoofMaterial(zone));
-      roof.scale.set(b.w * 1.03, 0.7, b.d * 1.03);
-      roof.position.y = b.h + 0.35;
-      roof.castShadow = this.opts.shadows;
-      g.add(roof);
+      // 主立面朝向 + 外观类型细节（屋顶形式 / 窗带 / 烟囱 / 行车门廊）
+      const facingSign: 1 | -1 = b.z > 0 ? -1 : 1;
+      const shape: BuildingShape = { w: b.w, h: b.h, d: b.d, facingSign };
+      const deco = decorateBuilding(g, shape, b.type, this.decorKit);
+      const isFlatRoof = b.type.roofStyle === 'flat';
+      const roofTop = b.h + deco.rise;
 
-      // 屋顶设备房（小体块，增加剪影层次）
+      if (isFlatRoof) {
+        // 平屋顶：女儿墙压顶 + 中央采光天窗（动力站房一类才有的板式屋面轮廓）
+        const roof = new THREE.Mesh(this.geo.roof, this.zoneRoofMaterial(zone));
+        roof.scale.set(b.w * 1.03, 0.7, b.d * 1.03);
+        roof.position.y = b.h + 0.35;
+        roof.castShadow = this.opts.shadows;
+        g.add(roof);
+
+        const skylight = new THREE.Mesh(this.geo.roof, this.mat.wallAlt);
+        skylight.scale.set(b.w * 0.52, 1.4, 4.2);
+        skylight.position.set(0, b.h + 1.0, 0);
+        skylight.castShadow = this.opts.shadows;
+        g.add(skylight);
+
+        for (const sz of [2.15, -2.15]) {
+          const sg = new THREE.Mesh(this.geo.strip, this.mat.glass);
+          sg.scale.set(b.w * 0.5, 0.9, 0.2);
+          sg.position.set(0, b.h + 1.0, sz);
+          g.add(sg);
+        }
+      }
+
+      // 屋顶设备房（小体块，增加剪影层次；坡屋面要抬到举高之上）
       const hut = new THREE.Mesh(this.geo.wall, this.mat.wallAlt);
       hut.scale.set(b.w * 0.22, 2.6, b.d * 0.2);
-      hut.position.set(b.w * 0.22, b.h + 2.0, -b.d * 0.16);
+      hut.position.set(b.w * 0.22, roofTop + (isFlatRoof ? 2.0 : 1.3), -b.d * 0.16);
       g.add(hut);
 
-      // 屋顶中央采光天窗（Monitor Roof / Skylight）
-      const skylight = new THREE.Mesh(this.geo.roof, this.mat.wallAlt);
-      skylight.scale.set(b.w * 0.52, 1.4, 4.2);
-      skylight.position.set(0, b.h + 1.0, 0);
-      skylight.castShadow = this.opts.shadows;
-      g.add(skylight);
-
-      for (const sz of [2.15, -2.15]) {
-        const sg = new THREE.Mesh(this.geo.strip, this.mat.glass);
-        sg.scale.set(b.w * 0.5, 0.9, 0.2);
-        sg.position.set(0, b.h + 1.0, sz);
-        g.add(sg);
-      }
-
-      // 高耸工业排气烟囱塔（红白相间安全色条纹，带顶部导流罩）
-      if (this.opts.detail >= 1) {
-        const chimneyGroup = new THREE.Group();
-        const chX = -b.w * 0.34;
-        const chZ = -b.d * 0.26;
-        const chH = 8.5;
-        const chR = 1.0;
-
-        const segCount = 5;
-        const segH = chH / segCount;
-        for (let s = 0; s < segCount; s++) {
-          const segMat = s % 2 === 0 ? this.mat.chimneyRed : this.mat.chimneyWhite;
-          const seg = new THREE.Mesh(this.geo.cylinder, segMat);
-          seg.scale.set(chR * (1 - s * 0.03), segH, chR * (1 - s * 0.03));
-          seg.position.set(chX, b.h + s * segH + segH / 2, chZ);
-          seg.castShadow = this.opts.shadows;
-          chimneyGroup.add(seg);
-        }
-
-        const cap = new THREE.Mesh(this.geo.cylinder, this.mat.trussSteel);
-        cap.scale.set(chR * 1.25, 0.45, chR * 1.25);
-        cap.position.set(chX, b.h + chH + 0.2, chZ);
-        chimneyGroup.add(cap);
-
-        g.add(chimneyGroup);
-
-        // 辅通风管（2 根）
+      // 屋面排气立管（坡屋面两侧的短烟斗，与主烟囱形成工艺层次）
+      if (this.opts.detail >= 1 && b.type.chimneys > 0) {
         for (const sx of [-0.08, 0.12]) {
           const stack = new THREE.Mesh(this.geo.stack, this.mat.stack);
-          stack.position.set(b.w * sx, b.h + 2.6, b.d * 0.28);
+          stack.position.set(b.w * sx, roofTop + 1.9, b.d * 0.28);
           g.add(stack);
-        }
-      }
-
-      // 工业立面网格窗户（双层阵列窗格，带暗色窗框与反光玻璃）
-      const facingSign = b.z > 0 ? -1 : 1;
-      const winCols = 5;
-      const winStep = (b.w * 0.76) / (winCols - 1);
-      const winW = winStep * 0.62;
-      const winH = 1.35;
-      for (const sz of [b.d / 2 + 0.08, -b.d / 2 - 0.08]) {
-        for (let row = 0; row < 2; row++) {
-          const wy = b.h * (row === 0 ? 0.38 : 0.68);
-          for (let col = 0; col < winCols; col++) {
-            const wx = -b.w * 0.38 + col * winStep;
-            // 避免门洞上方重叠
-            if (row === 0 && Math.abs(wx) < 5 && (sz > 0 ? 1 : -1) === facingSign) continue;
-
-            const win = new THREE.Mesh(this.geo.wall, this.mat.glass);
-            win.scale.set(winW, winH, 0.2);
-            win.position.set(wx, wy, sz);
-            g.add(win);
-
-            const frame = new THREE.Mesh(this.geo.wall, this.mat.windowFrame);
-            frame.scale.set(winW + 0.18, winH + 0.18, 0.14);
-            frame.position.set(wx, wy, sz - (sz > 0 ? 0.04 : -0.04));
-            g.add(frame);
-          }
         }
       }
 
@@ -913,19 +928,37 @@ export class FactoryOverview {
       });
       const heatMesh = new THREE.Mesh(new THREE.PlaneGeometry(b.w * 0.96, b.d * 0.96), heatMat);
       heatMesh.rotation.x = -Math.PI / 2;
-      heatMesh.position.set(0, b.h + 0.72, 0);
+      heatMesh.position.set(0, roofTop + 0.75, 0);
       g.add(heatMesh);
       this.roofHeatmaps.push(heatMesh);
 
-      // 卷帘门（面向主干道）
+      // 卷帘门（面向主干道；宽度按厂房角色：重型车间是宽跨门洞，仓库只留小门）
+      const doorW = Math.min(b.type.doorWidth, b.w * 0.5);
+      const doorH = Math.min(b.h * 0.46, b.type.role === 'heavy' ? 7.6 : 5.2);
       const door = new THREE.Mesh(this.geo.door, this.mat.door);
-      door.scale.set(8.2, 5.2, 1);
-      door.position.set(0, 2.6, facingSign * (b.d / 2 + 0.16));
+      door.scale.set(doorW, doorH, 1);
+      door.position.set(0, doorH / 2, facingSign * (b.d / 2 + 0.16));
       g.add(door);
+
+      // 门楣安全色带（洞口上沿一条分区色，俯瞰时能认出"哪里能进车"）
+      const lintel = new THREE.Mesh(this.geo.strip, trimMat);
+      lintel.scale.set(doorW + 1.2, 0.34, 0.42);
+      lintel.position.set(0, doorH + 0.3, facingSign * (b.d / 2 + 0.24));
+      g.add(lintel);
+
+      // 侧墙小门（人员出入口，与主卷帘门错开）
+      const personnelDoor = new THREE.Mesh(this.geo.door, this.mat.door);
+      personnelDoor.scale.set(1.6, 2.6, 1);
+      personnelDoor.position.set(
+        doorW / 2 + 2.4,
+        1.3,
+        facingSign * (b.d / 2 + 0.16)
+      );
+      g.add(personnelDoor);
 
       // 装卸货台（Loading Dock Platform）
       const dock = new THREE.Mesh(this.geo.wall, this.mat.dockPlatform);
-      dock.scale.set(11.5, 0.7, 3.2);
+      dock.scale.set(doorW + 3.3, 0.7, 3.2);
       dock.position.set(0, 0.35, facingSign * (b.d / 2 + 1.6));
       dock.castShadow = this.opts.shadows;
       dock.receiveShadow = this.opts.shadows;
@@ -933,23 +966,23 @@ export class FactoryOverview {
 
       // 装卸雨棚（Canopy Awning）
       const canopy = new THREE.Mesh(this.geo.wall, this.mat.canopy);
-      canopy.scale.set(12.5, 0.35, 4.2);
-      canopy.position.set(0, 6.2, facingSign * (b.d / 2 + 2.1));
+      canopy.scale.set(doorW + 4.3, 0.35, 4.2);
+      canopy.position.set(0, doorH + 1.1, facingSign * (b.d / 2 + 2.1));
       canopy.castShadow = this.opts.shadows;
       g.add(canopy);
 
       // 雨棚自发光边框（分区色）
       const canopyTrim = new THREE.Mesh(this.geo.strip, trimMat);
-      canopyTrim.scale.set(12.6, 0.18, 0.3);
-      canopyTrim.position.set(0, 6.2, facingSign * (b.d / 2 + 4.2));
+      canopyTrim.scale.set(doorW + 4.4, 0.18, 0.3);
+      canopyTrim.position.set(0, doorH + 1.1, facingSign * (b.d / 2 + 4.2));
       g.add(canopyTrim);
 
       // 雨棚斜拉支撑拉杆
-      for (const sx of [-4.8, 4.8]) {
+      for (const sx of [-(doorW / 2 + 0.7), doorW / 2 + 0.7]) {
         const strut = new THREE.Mesh(this.geo.wall, this.mat.trussSteel);
         strut.scale.set(0.18, 2.6, 0.18);
         strut.rotation.x = facingSign * 0.55;
-        strut.position.set(sx, 7.2, facingSign * (b.d / 2 + 1.6));
+        strut.position.set(sx, doorH + 2.1, facingSign * (b.d / 2 + 1.6));
         g.add(strut);
       }
 
@@ -2009,7 +2042,8 @@ export class FactoryOverview {
 
     // 恒定屏幕尺寸：只在选中分区时显示（见 setActiveZone），因此可以给足字号
     sp.scale.set(0.17, 0.17 * (340 / 1024), 1);
-    sp.position.set(0, b.h + 5.5, 0);
+    // 坡屋面的举高会把剪影抬高，标牌要跟上去，否则锯齿跨/四坡顶会压住牌面
+    sp.position.set(0, b.h + 5.5 + roofRise(b.type, { w: b.w, h: b.h, d: b.d, facingSign: 1 }), 0);
     sp.renderOrder = 31;
     sp.userData = { kind: 'buildingLabel', buildingId: b.id, zoneId: zone.id };
     // 默认隐藏：厂区层默认只显示"分区产值标牌"，点选分区后再展开该区厂房标牌，
