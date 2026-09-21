@@ -47,6 +47,10 @@ const DispatchBoardView = React.lazy(() => import('./components/DispatchBoardVie
 const SparePartsView = React.lazy(() => import('./components/SparePartsView').then(m => ({ default: m.SparePartsView })));
 const HazardsView = React.lazy(() => import('./components/HazardsView').then(m => ({ default: m.HazardsView })));
 const MaintenanceGameView = React.lazy(() => import('./components/game/MaintenanceGameView').then(m => ({ default: m.MaintenanceGameView })));
+
+// 检修闯关 = Godot 4 Web 导出（iframe + postMessage 双向通信）
+// 旧 Canvas 版 `MaintenanceGameView` 文件保留为降级 fallback，但不再被引用
+const GodotGameView = React.lazy(() => import('./components/game/GodotGameView').then(m => ({ default: m.GodotGameView })));
 // 《庖丁检修师》七幕主线：项目的可玩缩影，独立视图按需加载
 const CampaignView = React.lazy(() => import('./components/campaign/CampaignView').then(m => ({ default: m.CampaignView })));
 
@@ -575,7 +579,7 @@ function AppShell() {
             />
           )}
           {activeTab === 'ai_reviews' && <AdminAiReviewsView onNavigate={setActiveTab} />}
-          {activeTab === 'maintenance_game' && <MaintenanceGameView currentUser={currentUser} />}
+          {activeTab === 'maintenance_game' && <GodotGameView currentUser={currentUser} />}
           {activeTab === 'campaign' && <CampaignView currentUser={currentUser} />}
           {activeTab === 'ai_models' && <AdminAiModelsView />}
 
