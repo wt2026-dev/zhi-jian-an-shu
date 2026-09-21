@@ -45,6 +45,14 @@ import type { Equipment, WorkOrder } from '../../types';
 import type { TelemetryHistory, TelemetryPoint } from './DeviceAnalysisPanel';
 import type { SceneLevel } from './scene';
 import type { FactoryRankMetric, FactoryZoneView } from './factoryOverview';
+import {
+  ESTIMATE_NOTE,
+  estimateDeviceEnergyPerDay,
+  estimateDeviceOutput,
+  estimateWorkshopMetrics,
+  formatWan,
+} from './factoryMetrics';
+import { roleOfWorkshop } from './factoryBuildingTypes';
 import { telemetryToStatus } from './statusMapping';
 import './equipment-industrial.css';
 
@@ -321,26 +329,108 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
       item.devices.push(d);
       if (isAbnormal(d)) item.abnormalCount++;
     }
-    // 产值口径：系统未接入车间产值数据源，不展示 mock 金额，统一显示"未接入"
+    // 产值口径：台账无产值字段 → 走 factoryMetrics 的角色定员估算（带 estimated
+    // 标记，UI 必须标注估算），不展示写死金额；估算口径算不出时为"未接入"。
     const entries = Array.from(map.entries());
     // 台账为空时**返回空数组**，由 UI 显示"台账无数据"。
     // 曾经这里返回一份写死的占位清单（设备 4/4/3/3/2、其中一处异常数 1），
     // 那是把编造的数字当成实测值展示 —— 与"禁止模拟数据"的约束直接冲突，已移除。
-    return entries.map(([name, data], idx) => ({
-      id: `hall-${idx + 1}`,
-      name,
-      count: data.devices.length,
-      abnormalCount: data.abnormalCount,
-      output: `${(1180 + idx * 240).toLocaleString('zh-CN')} 万元`,
-      status: (data.abnormalCount > 0 ? 'warning' : 'normal') as 'normal' | 'warning',
-    }));
+    return entries.map(([name, data], idx) => {
+      const m = estimateWorkshopMetrics({
+        workshopName: name,
+        devices: data.devices,
+        indexInZone: idx,
+        isAbnormal,
+      });
+      return {
+        id: `hall-${idx + 1}`,
+        name,
+        count: data.devices.length,
+        abnormalCount: data.abnormalCount,
+        output: m.outputValue != null ? `${formatWan(m.outputValue)} 万元` : '未接入',
+        estimated: m.estimated,
+        status: (data.abnormalCount > 0 ? 'warning' : 'normal') as 'normal' | 'warning',
+      };
+    });
   }, [devices]);
+
+  /**
+   * 选中设备的三张经营指标卡。台账里没有"单机产量/良率/能耗"字段，口径为：
+   * 产值 = factoryMetrics 的角色×重要度×工时×健康估算；良率 = 同车间估算；
+   * 能耗 = 真实遥测电压电流按 √3·U·I·cosφ 折算。全部标注估算，缺读数写未接入。
+   */
+  const selectedEstimate = useMemo(() => {
+    if (!selected) return null;
+    const role = roleOfWorkshop(selected.workshop || '');
+    const peers = devices.filter((d) => (d.workshop || '机加车间') === (selected.workshop || '机加车间'));
+    const ws = estimateWorkshopMetrics({
+      workshopName: selected.workshop || '',
+      devices: peers,
+      role,
+      isAbnormal,
+    });
+    const energy = estimateDeviceEnergyPerDay(selected.telemetry);
+    return {
+      output: `${formatWan(Math.round(estimateDeviceOutput(selected, role)))} 万元`,
+      yieldRate: ws.yieldRate != null ? `${ws.yieldRate.toFixed(1)}%` : '未接入',
+      energy: energy != null ? `${Math.round(energy)}` : '未接入',
+    };
+  }, [selected, devices]);
 
   const runningRate = useMemo(() => {
     if (devices.length === 0) return 0;
     const running = devices.filter((d) => d.status === 'running' || d.status === 'standby').length;
     return (running / devices.length) * 100;
   }, [devices]);
+
+  /**
+   * 「各工序完成率」柱组：原来写死 机加99.1/冲压98.6/焊接99.4/涂装98.9/总装99.5，
+   * 与台账无关。改为按真实车间算设备可动率 = 100 − 故障率（故障率来自台账异常台数）。
+   */
+  const workshopUptime = useMemo(
+    () =>
+      workshopSummaries.slice(0, 5).map((ws) => ({
+        name: ws.name.replace(/车间|工段|站房?/g, '').slice(0, 2) || ws.name.slice(0, 2),
+        rate: ws.count > 0 ? 100 - (ws.abnormalCount / ws.count) * 100 : 0,
+      })),
+    [workshopSummaries]
+  );
+
+  /** 「交付与质检达成」三环：全部由工单状态与台账健康分实算，不用写死百分比 */
+  const deliveryGauges = useMemo(() => {
+    const closed = workOrders.filter((w) => w.status === 'completed').length;
+    const cancelled = workOrders.filter((w) => w.status === 'cancelled').length;
+    const inFlow = workOrders.length - cancelled;
+    const awaitingAccept = workOrders.filter((w) => w.status === 'pending_acceptance').length;
+    const healths = devices.map((d) => d.healthScore).filter((v) => typeof v === 'number');
+    return [
+      {
+        percent: inFlow > 0 ? (closed / inFlow) * 100 : null,
+        label: '工单闭环率',
+        color: '#10b981',
+      },
+      {
+        percent: closed + awaitingAccept > 0 ? (closed / (closed + awaitingAccept)) * 100 : null,
+        label: '验收通过率',
+        color: '#f59e0b',
+      },
+      {
+        percent: healths.length ? healths.reduce((a, b) => a + b, 0) / healths.length : null,
+        label: '台账健康分',
+        color: '#06b6d4',
+      },
+    ];
+  }, [workOrders, devices]);
+
+  /** 「异常台数构成」：按设备类别统计台账里的异常台，替代原来写死的两行公差/润滑文案 */
+  const abnormalByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of faultDevices) map.set(d.category, (map.get(d.category) ?? 0) + 1);
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count, share: (count / Math.max(1, faultDevices.length)) * 100 }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+  }, [faultDevices]);
 
   /* ---------- 厂区总览：分区视图（由 3D 引擎按真实台账聚合，含排名与在建工程） ---------- */
   const zones = useMemo(() => factoryZones ?? [], [factoryZones]);
@@ -408,9 +498,9 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
 
           <div className="grid grid-cols-3 gap-1.5">
             {[
-              { k: '产量', v: '1,420', n: '今日件数' },
-              { k: '良率', v: '99.4%', n: '综合良率' },
-              { k: '能耗', v: '438', n: 'kWh/日' },
+              { k: '产值', v: selectedEstimate?.output ?? '—', n: '年·估算口径' },
+              { k: '良率', v: selectedEstimate?.yieldRate ?? '—', n: '车间·估算口径' },
+              { k: '能耗', v: selectedEstimate?.energy ?? '—', n: 'kWh/日·按实测UI' },
             ].map((x) => (
               <div key={x.k} className="rounded hud-data-card px-1.5 py-1">
                 <div className="text-[9px] text-slate-400">{x.k}</div>
@@ -861,7 +951,10 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                                 />
                                 <span className="truncate">{ws.name}</span>
                               </div>
-                              <span className="text-[10px] font-mono font-bold text-slate-400 hud-tabular-nums">{ws.output}</span>
+                              <span className="text-[10px] font-mono font-bold text-slate-400 hud-tabular-nums">
+                                {ws.output}
+                                {ws.estimated && <span className="ml-0.5 text-[8px] text-amber-300/80">估</span>}
+                              </span>
                             </div>
 
                             <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
@@ -982,8 +1075,15 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                           <div className="text-[8px] text-slate-400">工业产值</div>
                           <div className="mt-0.5 text-[11px] font-mono font-bold hud-tabular-nums">
                             <span className="text-emerald-400 hud-value-glow-emerald">
-                              {(activeZone.outputValue ?? 3520).toLocaleString('zh-CN')}
-                              <span className="text-[8px] font-normal text-slate-400 ml-0.5">万元</span>
+                              {activeZone.outputValue != null
+                                ? formatWan(activeZone.outputValue)
+                                : '未接入'}
+                              <span className="text-[8px] font-normal text-slate-400 ml-0.5">
+                                {activeZone.outputValue != null ? '万元' : ''}
+                              </span>
+                              {activeZone.estimated && activeZone.outputValue != null && (
+                                <span className="text-[8px] font-normal text-amber-300/80 ml-0.5">估</span>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -991,7 +1091,9 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                           <div className="text-[8px] text-slate-400">生产良品率</div>
                           <div className="mt-0.5 text-[11px] font-mono font-bold hud-tabular-nums">
                             <span className="text-emerald-400 hud-value-glow-emerald">
-                              {(activeZone.yieldRate ?? 99.1).toFixed(1)}%
+                              {activeZone.yieldRate != null
+                                ? `${activeZone.yieldRate.toFixed(1)}%${activeZone.estimated ? ' 估' : ''}`
+                                : '未接入'}
                             </span>
                           </div>
                         </div>
@@ -1109,7 +1211,9 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                       <div className="text-[9px] text-slate-400">生产良品率</div>
                       <div className="mt-0.5 flex items-baseline gap-1">
                         <span className="text-xs font-mono font-bold text-emerald-400 hud-tabular-nums hud-value-glow-emerald">
-                          {activeZone?.yieldRate ? `${activeZone.yieldRate.toFixed(1)}%` : '99.2%'}
+                          {activeZone?.yieldRate != null
+                            ? `${activeZone.yieldRate.toFixed(1)}%${activeZone.estimated ? ' 估' : ''}`
+                            : '未接入'}
                         </span>
                       </div>
                     </div>
@@ -1209,18 +1313,12 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     <div className="text-[9px] font-bold text-cyan-200 flex items-center gap-1 pr-4">
                       <span className="hud-title-bar-indicator" />
                       <BarChart3 className="w-3 h-3 text-cyan-400 ml-0.5" />
-                      <span className="hud-title-text">各工序完成率</span>
+                      <span className="hud-title-text">各车间设备可动率</span>
                     </div>
                     <div className="flex items-end justify-between gap-2.5 h-10 pt-1 font-mono text-[7px] text-slate-400">
-                      {[
-                        { name: '机加', rate: 99.1 },
-                        { name: '冲压', rate: 98.6 },
-                        { name: '焊接', rate: 99.4 },
-                        { name: '涂装', rate: 98.9 },
-                        { name: '总装', rate: 99.5 },
-                      ].map((proc) => (
+                      {workshopUptime.map((proc) => (
                         <div key={proc.name} className="flex flex-col items-center gap-0.5 group">
-                          <span className="text-[7px] hud-tabular-nums text-slate-300">{proc.rate}%</span>
+                          <span className="text-[7px] hud-tabular-nums text-slate-300">{proc.rate.toFixed(1)}%</span>
                           <div className="w-3 bg-slate-900/80 rounded-t h-6 relative flex items-end border-b border-cyan-500/30">
                             <div
                               className="w-full bg-gradient-to-t from-cyan-600 to-cyan-300 rounded-t shadow-[0_0_6px_rgba(34,211,238,0.4)] transition-all group-hover:brightness-125"
@@ -1239,12 +1337,12 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     <div className="text-[9px] font-bold text-cyan-200 flex items-center gap-1 pr-4">
                       <span className="hud-title-bar-indicator" />
                       <ShieldCheck className="w-3 h-3 text-cyan-400 ml-0.5" />
-                      <span className="hud-title-text">交付与质检达成</span>
+                      <span className="hud-title-text">交付与检修达成</span>
                     </div>
                     <div className="flex items-center justify-around gap-2 pt-0.5">
-                      <RingGauge percent={98.8} label="订单交付" color="#10b981" />
-                      <RingGauge percent={99.4} label="物料齐套" color="#f59e0b" />
-                      <RingGauge percent={99.6} label="质检达标" color="#06b6d4" />
+                      {deliveryGauges.map((g) => (
+                        <RingGauge key={g.label} percent={g.percent} label={g.label} color={g.color} />
+                      ))}
                     </div>
                   </div>
 
@@ -1255,19 +1353,26 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                       <span className="flex items-center gap-1">
                         <span className="hud-title-bar-indicator" />
                         <PieChart className="w-3 h-3 text-cyan-400 ml-0.5" />
-                        <span className="hud-title-text">不良根因分布</span>
+                        <span className="hud-title-text">异常台数构成</span>
                       </span>
-                      <span className="text-[8px] font-mono text-cyan-400/70">本周</span>
+                      <span className="text-[8px] font-mono text-cyan-400/70">按设备类别</span>
                     </div>
                     <div className="space-y-1 text-[8px] font-mono pt-1">
-                      <div className="flex justify-between items-center text-slate-300">
-                        <span>装配公差</span>
-                        <span className="text-emerald-400">±0.02mm</span>
-                      </div>
-                      <div className="flex justify-between items-center text-slate-300">
-                        <span>轴承润滑</span>
-                        <span className="text-cyan-300">VG32合格</span>
-                      </div>
+                      {abnormalByCategory.length === 0 ? (
+                        <div className="flex justify-between items-center text-slate-300">
+                          <span>当前台账</span>
+                          <span className="text-emerald-400">无异常台</span>
+                        </div>
+                      ) : (
+                        abnormalByCategory.map((c) => (
+                          <div key={c.name} className="flex justify-between items-center text-slate-300">
+                            <span>{c.name}</span>
+                            <span className="text-cyan-300">
+                              {c.count} 台 · {c.share.toFixed(0)}%
+                            </span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -1425,7 +1530,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-none">
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg hud-sci-fi-panel text-[9px] text-slate-300 font-mono">
                 <Activity className="w-3 h-3 text-cyan-400" />
-                产量/良率/能耗：边缘物联工业传感器实时采集与分析中
+                能耗按实测电压电流折算；产值/良率{ESTIMATE_NOTE}
               </div>
             </div>
           )}
