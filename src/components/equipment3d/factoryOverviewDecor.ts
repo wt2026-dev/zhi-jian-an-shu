@@ -1,9 +1,12 @@
 // 第三层 · 厂区俯瞰补细节：厂房屋顶悬浮标签（纯加法装饰模块）。
 // 只读 FactoryOverview 的公开字段（placed/group），不侵入既有厂区构建逻辑；
-// 标签标题 = 真实台账 workshop 名，副标题 = 由名称关键词派生的厂房类型
-// （动力站房/仓库/生产车间/办公大楼），与对标视频 0:45/1:15 帧的屋顶标牌对应。
+// 标签标题 = 真实台账 workshop 名，副标题 = 该栋厂房的**外观类型**（直接取
+// 厂区已解析出的 role，不再另写一套关键词判断，避免出现第二套口径），
+// 与对标视频 0:45/1:15 帧的屋顶标牌对应。
 import * as THREE from "three";
 import { makeTextSprite } from "./mapGeo";
+import { roleLabel, roleOfWorkshop, type BuildingType, type FactoryRole } from "./factoryBuildingTypes";
+import { roofRise } from "./factoryBuildingDetails";
 
 export interface RoofLabelTarget {
   name: string;
@@ -12,19 +15,26 @@ export interface RoofLabelTarget {
   w: number;
   d: number;
   h: number;
-}
-
-/** 由真实车间名派生厂房类型标签（关键词匹配，未命中归为生产车间） */
-export function buildingTypeLabel(workshopName: string): string {
-  if (/动力|公用|能源|配电|锅炉|水泵|风机/.test(workshopName)) return "动力站房";
-  if (/仓库|包装|成品|原料|存储|库房/.test(workshopName)) return "仓库";
-  if (/办公|综合|行政|管理/.test(workshopName)) return "办公大楼";
-  return "生产车间";
+  /** 厂区已解析的外观类型；缺省时退回按车间名判定（合成测试数据用） */
+  type?: BuildingType;
 }
 
 export interface RoofLabelHost {
   placed: RoofLabelTarget[];
   group: THREE.Group;
+}
+
+/** 副标题口径唯一来源：有已解析的 role 用它，没有才按车间名现判。 */
+export function buildingTypeLabel(b: Pick<RoofLabelTarget, "name" | "type">): string {
+  const role: FactoryRole = b.type?.role ?? roleOfWorkshop(b.name);
+  return roleLabel(role);
+}
+
+/** 标牌锚点：坡/锯齿/四坡顶会把剪影抬高，标签要跟到屋脊之上，否则埋进屋顶。 */
+function labelHeight(b: RoofLabelTarget): number {
+  if (!b.type) return b.h + 3.4;
+  const rise = roofRise(b.type, { w: b.w, h: b.h, d: b.d, facingSign: 1 });
+  return b.h + rise + 3.4;
 }
 
 /**
@@ -35,8 +45,8 @@ export function attachRoofLabels(factory: RoofLabelHost): () => void {
   const sprites: THREE.Sprite[] = [];
   for (const b of factory.placed) {
     if (!b.name) continue;
-    const sprite = makeTextSprite(b.name, buildingTypeLabel(b.name), "#a5f3fc");
-    sprite.position.set(b.x, b.h + 3.4, b.z);
+    const sprite = makeTextSprite(b.name, buildingTypeLabel(b), "#a5f3fc");
+    sprite.position.set(b.x, labelHeight(b), b.z);
     factory.group.add(sprite);
     sprites.push(sprite);
   }

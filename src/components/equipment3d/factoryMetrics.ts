@@ -122,6 +122,31 @@ export type AbnormalPredicate = (d: LedgerDevice) => boolean;
 export const statusAbnormal: AbnormalPredicate = (d) =>
   d.status === 'fault' || d.status === 'warning';
 
+/** 单台设备的年产能估算（万元/台·年）：角色系数 × 实动工时 × 健康折损。 */
+export function estimateDeviceOutput(d: LedgerDevice, role: FactoryRole): number {
+  const unit = UNIT_OUTPUT[role][criticalityLevel(d.criticality)];
+  const runtime = RUNTIME_BY_STATUS[String(d.status ?? '')] ?? RUNTIME_DEFAULT;
+  const h = num(d.healthScore);
+  const healthFactor = h === null ? 0.95 : clamp(0.8 + 0.2 * (h / 100), 0.6, 1);
+  return unit * runtime * healthFactor;
+}
+
+/** 三相电机典型功率因数；台账没有 cosφ 字段，作为口径假设显式写在这里。 */
+export const POWER_FACTOR = 0.85;
+
+/**
+ * 单台日耗电（kWh/日）= √3 × U × I × cosφ × 24h。
+ * 电压/电流是真实遥测读数，只有功率因数是假设值；缺读数 → null，不猜。
+ */
+export function estimateDeviceEnergyPerDay(
+  t: { voltage?: number | null; current?: number | null } | null | undefined
+): number | null {
+  const u = num(t?.voltage);
+  const i = num(t?.current);
+  if (u === null || i === null || u <= 0 || i <= 0) return null;
+  return (Math.sqrt(3) * u * i * POWER_FACTOR * 24) / 1000;
+}
+
 export interface WorkshopMetricsInput {
   workshopName: string;
   devices: LedgerDevice[];
@@ -165,16 +190,9 @@ export function estimateWorkshopMetrics(input: WorkshopMetricsInput): WorkshopMe
     };
   }
 
-  // 产值：逐台累加，健康分越低、停机越久，该台贡献越小
-  const unitByRole = UNIT_OUTPUT[role];
+  // 产值：逐台累加，健康分越低、停机越久，该台贡献越小（与设备级同一套公式）
   let output = 0;
-  for (const d of devices) {
-    const unit = unitByRole[criticalityLevel(d.criticality)];
-    const runtime = RUNTIME_BY_STATUS[String(d.status ?? '')] ?? RUNTIME_DEFAULT;
-    const h = num(d.healthScore);
-    const healthFactor = h === null ? 0.95 : clamp(0.8 + 0.2 * (h / 100), 0.6, 1);
-    output += unit * runtime * healthFactor;
-  }
+  for (const d of devices) output += estimateDeviceOutput(d, role);
 
   const failureRate = (abnormalCount / deviceCount) * 100;
   const healthPenalty = healthAvg === null ? 0.6 : Math.max(0, 95 - healthAvg) * 0.06;

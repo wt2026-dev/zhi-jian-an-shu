@@ -7,7 +7,8 @@
  *   3. 倍率边界 —— 任何输入都不能把厂房拉出相机取景框（clamp 生效）；
  *   4. 屋顶降级 —— 矮厂房不做锯齿采光带；
  *   5. 行车门廊 —— 只有"重型 + 宽门洞"才挂行车；
- *   6. 分区可读性 —— 一个典型园区（动力/重型/轻型/仓储混合）四类齐活。
+ *   6. 分区可读性 —— 一个典型园区（动力/重型/轻型/仓储混合）四类齐活；
+ *   7. 厂区取栋 —— 台账开头全是动力/重型时，选出的 5 栋仍覆盖到轻型厂房。
  */
 
 import { describe, it, expect } from 'vitest';
@@ -15,6 +16,8 @@ import {
   resolveBuildingType,
   roleOfWorkshop,
   roleLabel,
+  selectHallWorkshops,
+  HALL_LIMIT,
   type BuildingTypeInput,
 } from '../src/components/equipment3d/factoryBuildingTypes';
 
@@ -231,5 +234,43 @@ describe('整园区可读性', () => {
     const labels = (['power', 'heavy', 'light', 'storage'] as const).map(roleLabel);
     expect(new Set(labels).size).toBe(4);
     expect(labels).toContain('动力站房');
+  });
+});
+
+describe('厂区取栋口径 selectHallWorkshops', () => {
+  /** 2026-09-21 真实台账的 12 个车间名（前五个全是动力/重型） */
+  const LEDGER = [
+    '动力一车间',
+    '重型热轧车间',
+    '公用工程车间',
+    '冷轧精整车间',
+    '烧结车间',
+    '机加工车间',
+    '智能装配车间',
+    '连铸车间',
+    '成品包装线',
+    '成都分厂·动力站',
+    '南京分厂·公用工程泵房',
+    '武汉分厂·锅炉给水间',
+  ];
+  const rolesOf = (list: string[]) => new Set(list.map((n) => roleOfWorkshop(n)));
+
+  it('台账开头全是动力/重型时，取出的 5 栋里仍有标准轻钢车间', () => {
+    // 朴素口径（取前 5 个）只会得到两种厂房，C 区永远看不到轻钢锯齿屋顶
+    expect(rolesOf(LEDGER.slice(0, 5)).size).toBe(2);
+    const picked = selectHallWorkshops(LEDGER);
+    expect(picked.length).toBe(HALL_LIMIT);
+    expect(rolesOf(picked)).toEqual(new Set(['power', 'heavy', 'light']));
+    expect(picked).toContain('智能装配车间');
+  });
+
+  it('同输入必同输出，且不超过地块标定的栋数', () => {
+    expect(selectHallWorkshops(LEDGER)).toEqual(selectHallWorkshops(LEDGER));
+    expect(selectHallWorkshops(LEDGER, 3).length).toBe(3);
+    // 车间比上限少时全量保留，并按台账原顺序（不为了多样性瞎排）
+    const few = ['动力一车间', '重型热轧车间'];
+    expect(selectHallWorkshops(few)).toEqual(few);
+    // 空台账 → 空数组，交由调用方显示"未接入"
+    expect(selectHallWorkshops([])).toEqual([]);
   });
 });

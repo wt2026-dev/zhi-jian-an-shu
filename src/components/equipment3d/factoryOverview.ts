@@ -28,6 +28,7 @@ import * as THREE from 'three';
 import { mulberry32, clamp } from './rand';
 import { resolveBuildingType, type BuildingType } from './factoryBuildingTypes';
 import { decorateBuilding, roofRise, type BuildingDecorKit, type BuildingShape } from './factoryBuildingDetails';
+import { ESTIMATE_NOTE } from './factoryMetrics';
 
 /* ============================ 数据契约 ============================ */
 
@@ -42,6 +43,8 @@ export interface FactoryZoneSpec {
   outputValue?: number;
   /** 良品率 %。数据源未接入 → undefined */
   yieldRate?: number;
+  /** outputValue / yieldRate 为台账派生估算口径 → 标牌打「估算」角标 */
+  estimated?: boolean;
   /** 在建工程位置说明（真实项目信息由调用方提供） */
   constructionNote?: string;
 }
@@ -54,10 +57,12 @@ export interface FactoryBuildingSpec {
   zoneId?: string;
   /** 下钻目标车间标识（透传给调用方，本模块不解释） */
   workshopId?: string;
-  /** 在岗人员数（来自真实台账/班组数据或由调用方提供） */
+  /** 在岗人数。台账未给出 → undefined → 标牌如实显示"未接入" */
   staffCount?: number;
-  /** 产值文案（沿用既有字符串口径；分区数字口径走 zone.outputValue） */
-  outputValue?: string;
+  /** 年产值（万元）。未接入 → undefined；字符串口径已废弃，避免标牌兜底编数 */
+  outputValue?: number;
+  /** staffCount / outputValue 为台账派生估算口径 → 标牌打「估算」角标 */
+  estimated?: boolean;
   /** 车间内设备数量 */
   deviceCount?: number;
   /** 异常设备台数（真实台账 + 遥测派生） */
@@ -111,6 +116,8 @@ export interface FactoryZoneView {
   outputValue: number | null;
   /** 良品率 %（未接入 → null） */
   yieldRate: number | null;
+  /** 产值 / 良率 / 在岗为台账派生估算 → HUD 打「估算」角标 */
+  estimated: boolean;
   /** 名次（1 = 最优，按 rankMetric 口径） */
   rank: number;
   rankMetric: FactoryRankMetric;
@@ -1612,13 +1619,19 @@ export class FactoryOverview {
     ctx.textAlign = 'left';
     ctx.font = '500 24px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText('工业产值', 36, 128);
+    ctx.fillText(view?.estimated ? '工业产值(估算)' : '工业产值', 36, 128);
 
     ctx.textAlign = 'right';
-    const outputVal = view?.outputValue ?? (3200 + (rank || 1) * 650);
-    ctx.fillStyle = '#34d399';
-    ctx.font = '700 46px "Microsoft YaHei", monospace';
-    ctx.fillText(`${outputVal.toLocaleString('zh-CN')} 万元`, W - 36, 130);
+    // 未接入就写未接入：这里原来兜底了一个按名次编的产值数字
+    if (view && view.outputValue != null) {
+      ctx.fillStyle = '#34d399';
+      ctx.font = '700 46px "Microsoft YaHei", monospace';
+      ctx.fillText(`${Math.round(view.outputValue).toLocaleString('zh-CN')} 万元`, W - 36, 130);
+    } else {
+      ctx.fillStyle = '#64748b';
+      ctx.font = '500 30px "Microsoft YaHei", sans-serif';
+      ctx.fillText('未接入', W - 36, 130);
+    }
 
     // —— 行 3：设备 / 异常 / 故障率 ——
     ctx.textAlign = 'left';
@@ -1634,9 +1647,19 @@ export class FactoryOverview {
     ctx.fillText(`故障率 ${frVal.toFixed(1)}%`, 438, 178);
 
     // —— 行 4：良品率 + 排名口径 ——
-    const yrVal = view && view.yieldRate != null ? view.yieldRate : (99.2 - frVal * 0.4);
-    ctx.fillStyle = '#34d399';
-    ctx.fillText(`良品率 ${yrVal.toFixed(1)}%`, 36, 228);
+    // 同样去掉兜底：原来无良率数据时会算一个 99.2 − 故障率×0.4 的假数
+    ctx.textAlign = 'left';
+    if (view && view.yieldRate != null) {
+      ctx.fillStyle = '#34d399';
+      ctx.fillText(
+        `良品率 ${view.yieldRate.toFixed(1)}%${view.estimated ? '(估算)' : ''}`,
+        36,
+        228
+      );
+    } else {
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('良品率 未接入', 36, 228);
+    }
 
     ctx.textAlign = 'right';
     ctx.font = '400 19px "Microsoft YaHei", sans-serif';
@@ -1677,6 +1700,13 @@ export class FactoryOverview {
 
       const failureRate = hasDevice && deviceCount > 0 ? (abnormalCount / deviceCount) * 100 : null;
       const healthAvg = healths.length ? sum(healths) / healths.length : null;
+      // 分区产值：调用方直接给分区口径；只给到车间级时按台聚合，两者都缺 → null
+      const buildingOutputs = list.map((b) => b.outputValue).filter(isNum);
+      const outputValue = isNum(zoneSpec.outputValue)
+        ? zoneSpec.outputValue
+        : buildingOutputs.length
+          ? sum(buildingOutputs)
+          : null;
       const status: FactoryZoneView['status'] =
         list.some((b) => b.status === 'fault') && list.every((b) => b.status !== 'normal')
           ? 'fault'
@@ -1696,8 +1726,9 @@ export class FactoryOverview {
         healthAvg,
         staffCount: staffs.length ? sum(staffs) : null,
         openWorkOrders: orders.length ? sum(orders) : null,
-        outputValue: isNum(zoneSpec.outputValue) ? zoneSpec.outputValue : null,
+        outputValue,
         yieldRate: isNum(zoneSpec.yieldRate) ? zoneSpec.yieldRate : null,
+        estimated: !!zoneSpec.estimated || list.some((b) => b.estimated),
         rank: 0,
         rankMetric: this.rankMetric,
         status,
@@ -2022,16 +2053,18 @@ export class FactoryOverview {
         }
         ctx.fillRect(44, 192, c.width - 88, 3);
 
-        // 底部运行指标
+        // 底部运行指标（三条兜底假数已去掉：台账没给就是"未接入"）
         const firstText = isNum(b.staffCount)
           ? `在岗: ${b.staffCount} 人`
           : isNum(b.openWorkOrders)
             ? `工单: ${b.openWorkOrders} 单`
-            : '在岗: 26 人';
-        const deviceText = `设备: ${b.deviceCount ?? 6} 台`;
+            : '在岗: 未接入';
+        const deviceText = isNum(b.deviceCount) ? `设备: ${b.deviceCount} 台` : '设备: 未接入';
         const frVal = isNum(b.failureRate) ? b.failureRate : 0;
         const frText = `故障率: ${frVal.toFixed(1)}%`;
-        const outputText = b.outputValue ?? '1,280 万元';
+        const outputText = isNum(b.outputValue)
+          ? `${Math.round(b.outputValue).toLocaleString('zh-CN')} 万元`
+          : '未接入';
 
         ctx.font = '500 30px "Microsoft YaHei", monospace';
         ctx.textBaseline = 'middle';
@@ -2048,6 +2081,14 @@ export class FactoryOverview {
         ctx.fillStyle = '#34d399';
         ctx.textAlign = 'right';
         ctx.fillText(`产值: ${outputText}`, c.width - 44, 260);
+
+        // 估算口径脚注：产值/在岗不是采集读数时，必须在同一块牌上说明白
+        if (b.estimated) {
+          ctx.textAlign = 'left';
+          ctx.font = '400 21px "Microsoft YaHei", sans-serif';
+          ctx.fillStyle = 'rgba(148,163,184,0.78)';
+          ctx.fillText(`· ${ESTIMATE_NOTE}`, 44, 306);
+        }
       },
       1024,
       340

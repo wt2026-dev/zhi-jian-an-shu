@@ -9,7 +9,9 @@
  *   5. 细节模块不 new 材质/几何（全部复用调用方的共享资源表），否则厂区材质数会
  *      随楼栋线性膨胀；
  *   6. 接进 FactoryOverview 后，同一园区的多栋厂房轮廓**互不相同**（不再是同一个
- *      盒子复制五份）。
+ *      盒子复制五份）；
+ *   7. 厂房角色只由车间名决定，与随机种子/分区顺序无关 —— 产值与定员估算走同一个
+ *      role，两侧不会各说各话。
  */
 
 import { describe, it, expect } from 'vitest';
@@ -24,7 +26,7 @@ import {
   type BuildingDecorKit,
   type BuildingShape,
 } from '../src/components/equipment3d/factoryBuildingDetails';
-import { resolveBuildingType, type BuildingType } from '../src/components/equipment3d/factoryBuildingTypes';
+import { resolveBuildingType, roleOfWorkshop, type BuildingType } from '../src/components/equipment3d/factoryBuildingTypes';
 import { FactoryOverview, type FactoryBuildingSpec } from '../src/components/equipment3d/factoryOverview';
 
 const typeOf = (workshopName: string, indexInZone = 0, zoneIndex = 0): BuildingType =>
@@ -33,7 +35,7 @@ const typeOf = (workshopName: string, indexInZone = 0, zoneIndex = 0): BuildingT
 const shape: BuildingShape = { w: 40, h: 13, d: 28, facingSign: 1 };
 
 /** 共享资源表：几何与材质都只有一份，测试用它们做"不许新建资源"的基准。 */
-function makeKit(): BuildingDecorKit & { geoIds: Set<number>; matIds: Set<number> } {
+function makeKit(): BuildingDecorKit & { geoIds: Set<string>; matIds: Set<string> } {
   const geo = {
     box: new THREE.BoxGeometry(1, 1, 1),
     strip: new THREE.BoxGeometry(1, 0.25, 1),
@@ -56,8 +58,8 @@ function makeKit(): BuildingDecorKit & { geoIds: Set<number>; matIds: Set<number
     mat,
     shadows: false,
     detail: 2,
-    geoIds: new Set(Object.values(geo).map((g) => g.id)),
-    matIds: new Set(Object.values(mat).map((m) => m.id)),
+    geoIds: new Set(Object.values(geo).map((g) => g.uuid)),
+    matIds: new Set(Object.values(mat).map((m) => (m as THREE.Material).uuid)),
   };
 }
 
@@ -217,14 +219,14 @@ describe('资源复用与总量', () => {
     const kit = makeKit();
     const g = new THREE.Group();
     decorateBuilding(g, shape, typeOf('重型热轧车间'), kit);
-    const seenGeo = new Set<number>();
-    const seenMat = new Set<number>();
+    const seenGeo = new Set<string>();
+    const seenMat = new Set<string>();
     g.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.geometry) return;
-      seenGeo.add(mesh.geometry.id);
+      seenGeo.add(mesh.geometry.uuid);
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const m of mats) if (m) seenMat.add((m as THREE.Material).id);
+      for (const m of mats) if (m) seenMat.add((m as THREE.Material).uuid);
     });
     for (const id of seenGeo) expect(kit.geoIds.has(id)).toBe(true);
     for (const id of seenMat) expect(kit.matIds.has(id)).toBe(true);
@@ -293,5 +295,69 @@ describe('FactoryOverview 接入类型化细节', () => {
     expect(names.has('stackShafts')).toBe(true);
     expect(names.has('windowGlass')).toBe(true);
     fo.dispose();
+  });
+
+  it('角色判定只认车间名关键词，与分区/楼栋序号无关（估算口径与几何共用一套输入）', () => {
+    const rolesOf = (seed: number) => {
+      const fo = new FactoryOverview({
+        seed,
+        buildings: specs,
+        zones: [
+          { id: 'zone-a', name: 'A 区' },
+          { id: 'zone-b', name: 'B 区' },
+          { id: 'zone-c', name: 'C 区' },
+        ],
+        shadows: false,
+        detail: 2,
+      });
+      const roles = fo.placed.map((p) => p.type.role);
+      fo.dispose();
+      return roles;
+    };
+    // 同 seed 可重放：厂房轮廓不会因为重建而换一种画法
+    expect(rolesOf(20260921)).toEqual(rolesOf(20260921));
+    // 与 HUD/估算侧同一口径：台账车间名命中关键词时角色即定，分区顺序变化不影响。
+    expect(rolesOf(999)).toEqual(specs.map((s) => roleOfWorkshop(String(s.workshopId))));
+  });
+
+  it('厂区层资源预算：五栋带细节的厂房仍在预算内，且 detail=0 真的更省', () => {
+    // 只统计 Mesh/InstancedMesh：贴牌 Sprite 在 node/jsdom 下不一定生成，计入会让阈值随环境漂移。
+    const cost = (group: THREE.Object3D) => {
+      let draws = 0;
+      let triangles = 0;
+      group.traverse((o) => {
+        const mesh = o as THREE.InstancedMesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+        draws += 1;
+        const g = mesh.geometry;
+        const n = g.index ? g.index.count / 3 : (g.attributes.position?.count ?? 0) / 3;
+        triangles += n * (mesh.isInstancedMesh ? mesh.count : 1);
+      });
+      return { draws, triangles };
+    };
+    const build = (detail: 0 | 1 | 2) => {
+      const fo = new FactoryOverview({
+        seed: 20260921,
+        buildings: specs,
+        zones: [
+          { id: 'zone-a', name: 'A 区' },
+          { id: 'zone-b', name: 'B 区' },
+          { id: 'zone-c', name: 'C 区' },
+        ],
+        shadows: false,
+        detail,
+      });
+      const c = cost(fo.group);
+      fo.dispose();
+      return c;
+    };
+    const full = build(2);
+    // 实测（2026-09-21，headless）：349 Draw Call / 10,978 三角面。阈值留了一倍余量，
+    // 新增细节把厂区层推到 800 次提交以上时这里会红，而不是等到现场掉帧才发现。
+    expect(full.draws).toBeLessThanOrEqual(800);
+    expect(full.triangles).toBeLessThanOrEqual(60000);
+    const lite = build(0);
+    expect(lite.draws).toBeLessThan(full.draws);
+    expect(lite.triangles).toBeLessThan(full.triangles);
   });
 });

@@ -166,3 +166,39 @@ export function roleLabel(role: FactoryRole): string {
   if (role === 'light') return '标准轻钢车间';
   return '仓储/办公';
 }
+
+/** 厂区一次最多画几栋：地块间距（SITE_X / SITE_Z）按这个规模标定，超出会互相挤靠。 */
+export const HALL_LIMIT = 5;
+
+/** 角色轮转的固定次序：保证同一批车间名在任何调用方都得到同一组结果。 */
+const ROLE_ORDER: FactoryRole[] = ['power', 'heavy', 'light', 'storage'];
+
+/**
+ * 从台账车间名里挑出厂区层要画的厂房。
+ *
+ * 按**角色轮转**取（动力 → 重型 → 轻型 → 仓储，再回到动力），而不是取前 N 个：
+ * 真实台账开头常常全是动力/重型车间，取前 5 个会让 C 区永远画不出标准轻钢厂房，
+ * 四类厂房的区分度等于白做。同一角色内保持台账原顺序。
+ */
+export function selectHallWorkshops(workshopNames: string[], limit = HALL_LIMIT): string[] {
+  const buckets = new Map<FactoryRole, string[]>();
+  for (const name of workshopNames) {
+    const role = roleOfWorkshop(name);
+    const bucket = buckets.get(role);
+    if (bucket) bucket.push(name);
+    else buckets.set(role, [name]);
+  }
+  const picked: string[] = [];
+  for (let round = 0; picked.length < limit; round += 1) {
+    let tookOne = false;
+    for (const role of ROLE_ORDER) {
+      if (picked.length >= limit) break;
+      const name = buckets.get(role)?.[round];
+      if (!name) continue;
+      picked.push(name);
+      tookOne = true;
+    }
+    if (!tookOne) break;
+  }
+  return picked;
+}

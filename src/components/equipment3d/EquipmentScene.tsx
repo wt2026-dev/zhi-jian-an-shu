@@ -64,6 +64,8 @@ import { matchZoneForCauses, type AiDiagnosis } from './aiDiagnosis';
 import { toFocusDecorStatus, type FocusDecorTelemetrySample, type FocusDecorData } from './focusSceneDecor';
 import { attachRoofLabels } from './factoryOverviewDecor';
 import { attachPerimeterDecor, type PerimeterDecor } from './factoryPerimeterDecor';
+import { estimateWorkshopMetrics, aggregateZoneMetrics } from './factoryMetrics';
+import { resolveBuildingType, selectHallWorkshops } from './factoryBuildingTypes';
 import './equipment-industrial.css';
 import {
   isExplodedViewSupported,
@@ -97,6 +99,16 @@ const SHELL_OPTIONS: Array<{ key: ShellMode; label: string; hint: string }> = [
   { key: 'full', label: '完整', hint: '完整墙顶，适合看厂房外观' },
   { key: 'ghost', label: '半透明', hint: '墙顶半透明，默认：既能看见厂房体量也能看见内部设备' },
   { key: 'none', label: '隐藏', hint: '只留柱网与桁架，纯粹观察内部布局' },
+];
+
+/**
+ * 分区"在建工程"标牌文案——对应厂区层里那台真实画出来的塔吊+脚手架，
+ * 只是位置说明文案，不参与任何指标计算。
+ */
+const ZONE_NOTES = [
+  '二期智能仓储与管廊工程（进度 85%）',
+  '重型机加生产线扩建中',
+  '微电网储能站调试并网中',
 ];
 
 function hex(n: number): string {
@@ -271,13 +283,16 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   /**
    * 厂区总览的厂房清单 + 分区定义。
    *
-   * 全部指标由**真实台账 / 工单**派生，本处不产生任何业务数值：
-   *   deviceCount  该车间设备台数
+   * 台账可直接算的（本处不产生任何业务数值）：
+   *   deviceCount   该车间设备台数
    *   abnormalCount 异常台数（台账 status ∈ {warning,fault}，或遥测阈值派生）
-   *   failureRate  设备故障率 % = 异常台数 / 设备总数（真实可算）
-   *   healthAvg    平均健康分
+   *   failureRate   设备故障率 % = 异常台数 / 设备总数
+   *   healthAvg     平均健康分
    *   openWorkOrders 该车间未闭环工单数
-   * 产值 / 良品率：系统未接入数据源 → 保持 undefined，标牌如实显示"未接入"。
+   * 台账里没有字段的经营指标（产值 / 良品率 / 在岗）：走 factoryMetrics 的
+   * **估算口径**——由台数 × 厂房角色 × 运行状态与健康分测算，并置 `estimated`，
+   * 标牌同步显示"按台账规模与角色定员测算，非采集读数"。台账为空的车间返回
+   * null，标牌退回"未接入"，不写常量顶数。
    *
    * 分区（zone）只是**空间分组**视图概念，按车间顺序连续切分，名称用中性编号
    * （A 区 / B 区 / C 区），不臆造"精密制造区"这类业务含义。
@@ -297,38 +312,49 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     const eqIdToWorkshop = new Map<string, string>();
     for (const e of equipments) if (e.workshop) eqIdToWorkshop.set(e.id, e.workshop);
 
-    const workshops = names.slice(0, 5);
+    /**
+     * 厂区地块按 5 栋标定，真实台账有十几个车间 —— 挑哪几栋画成厂房走
+     * `selectHallWorkshops`（按厂房角色轮转取，见 factoryBuildingTypes）。
+     */
+    const workshops = selectHallWorkshops(names);
     const zoneCount = Math.min(workshops.length, 3);
     const per = Math.ceil(workshops.length / Math.max(1, zoneCount));
     const letters = ['A', 'B', 'C'];
+    const zoneIndexOf = (i: number) => Math.min(Math.floor(i / Math.max(1, per)), zoneCount - 1);
+    /** 与 FactoryOverview 的几何外观同一套角色判定，避免估算口径和厂房画法分家 */
+    const roleOf = (workshopName: string, zoneIndex: number, indexInZone: number) =>
+      resolveBuildingType({
+        zoneIndex,
+        zoneName: `${letters[zoneIndex]} 区`,
+        workshopName,
+        indexInZone,
+      }).role;
 
-    // 真实工业园区指标配置：合理的年产值（万元）、良品率（%）与班组在岗人数
-    const ZONE_METRICS = [
-      { output: 4860, yieldRate: 99.2, note: "二期智能仓储与管廊工程（进度 85%）" },
-      { output: 3520, yieldRate: 98.8, note: "重型机加生产线扩建中" },
-      { output: 2180, yieldRate: 99.5, note: "微电网储能站调试并网中" },
-    ];
-    const WORKSHOP_METRICS = [
-      { staff: 28, output: "1,420 万元" },
-      { staff: 34, output: "1,180 万元" },
-      { staff: 22, output: "960 万元" },
-      { staff: 19, output: "850 万元" },
-      { staff: 26, output: "1,050 万元" },
-    ];
+    // 逐车间：台账可算项 + 经营指标估算，一次算清后按分区聚合
+    const workshopMetrics = workshops.map((w, i) => {
+      const zoneIndex = zoneIndexOf(i);
+      return estimateWorkshopMetrics({
+        workshopName: w,
+        devices: equipments.filter((e) => e.workshop === w),
+        role: roleOf(w, zoneIndex, i - zoneIndex * per),
+        isAbnormal,
+      });
+    });
 
-    const zones: FactoryZoneSpec[] = Array.from({ length: zoneCount }, (_, i) => ({
-      id: `zone-${letters[i].toLowerCase()}`,
-      name: `${letters[i]} 区`,
-      outputValue: ZONE_METRICS[i % ZONE_METRICS.length].output,
-      yieldRate: ZONE_METRICS[i % ZONE_METRICS.length].yieldRate,
-      constructionNote: ZONE_METRICS[i % ZONE_METRICS.length].note,
-    }));
-    const zoneOfWorkshop = (idx: number) => zones[Math.min(Math.floor(idx / Math.max(1, per)), zoneCount - 1)].id;
+    const zones: FactoryZoneSpec[] = Array.from({ length: zoneCount }, (_, zi) => {
+      const agg = aggregateZoneMetrics(workshopMetrics.filter((_, i) => zoneIndexOf(i) === zi));
+      return {
+        id: `zone-${letters[zi].toLowerCase()}`,
+        name: `${letters[zi]} 区`,
+        outputValue: agg.outputValue ?? undefined,
+        yieldRate: agg.yieldRate ?? undefined,
+        estimated: agg.estimated,
+        constructionNote: ZONE_NOTES[zi % ZONE_NOTES.length],
+      };
+    });
 
-    const specs: FactoryBuildingSpec[] = workshops.map((w, i) => {
-      const list = equipments.filter((e) => e.workshop === w);
-      const abnormal = list.filter(isAbnormal).length;
-      const healths = list.map((e) => e.healthScore).filter((v): v is number => typeof v === 'number');
+    const specs: FactoryBuildingSpec[] = workshopMetrics.map((m, i) => {
+      const w = m.workshop;
       const openOrders = allOrders.filter(
         (o) =>
           o.status !== 'completed' &&
@@ -336,20 +362,20 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
           !!o.equipmentId &&
           eqIdToWorkshop.get(o.equipmentId) === w
       ).length;
-      const wm = WORKSHOP_METRICS[i % WORKSHOP_METRICS.length];
       return {
         id: `hall-${i + 1}`,
         name: `${i + 1} 号厂房・${w}`,
-        zoneId: zoneOfWorkshop(i),
+        zoneId: zones[zoneIndexOf(i)].id,
         workshopId: w,
-        staffCount: wm.staff,
-        outputValue: wm.output,
-        deviceCount: list.length || 6,
-        abnormalCount: abnormal,
-        failureRate: list.length ? (abnormal / list.length) * 100 : 0,
-        healthAvg: healths.length ? healths.reduce((a, b) => a + b, 0) / healths.length : 95.2,
+        staffCount: m.staffCount ?? undefined,
+        outputValue: m.outputValue ?? undefined,
+        estimated: m.estimated,
+        deviceCount: m.deviceCount,
+        abnormalCount: m.abnormalCount,
+        failureRate: m.failureRate ?? undefined,
+        healthAvg: m.healthAvg ?? undefined,
         openWorkOrders: openOrders,
-        status: abnormal > 0 ? ('warning' as const) : ('normal' as const),
+        status: m.abnormalCount > 0 ? ('warning' as const) : ('normal' as const),
       };
     });
 
