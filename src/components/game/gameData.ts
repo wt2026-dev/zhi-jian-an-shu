@@ -187,3 +187,47 @@ export function buildGameLevel(proc: MaintenanceProcedure, allProcs: Maintenance
 export function hasPlayableLevel(level: GameLevel | null): boolean {
   return !!level && level.steps.length > 0 && level.steps.every((s) => s.games.length > 0);
 }
+
+/** 小关顺序：选工具 → 安全判断 → 排序题（Godot 版面板也按这个顺序出题） */
+export const MINI_GAME_ORDER: MiniGame['kind'][] = ['tool', 'safety', 'order'];
+
+/**
+ * 把一条真实规程压成"一台设备三道小关"：选工具 / 安全判断 / 排序题。
+ *
+ * 为什么不直接取 `buildGameLevel` 的第 0 步：那一步只有 `[tool, safety]`，
+ * 排序关是每 3 步才出现一次（见 `buildGameLevel` 里 `(idx+1) % 3` 那段），
+ * 所以直接从全部步骤里按 kind 去重取首个，才能稳定拿到三种题型。
+ *
+ * 规程步数不足 3 导致没有排序关时，用**真实步骤名**兜底（而不是编动作），
+ * 凑不出 3 项就干脆不给排序关 —— 宁可少一关，也不造假。
+ */
+export function buildDeviceMiniGames(
+  proc: MaintenanceProcedure,
+  allProcs: MaintenanceProcedure[]
+): MiniGame[] {
+  const out: MiniGame[] = [];
+  const seen = new Set<string>();
+  for (const step of buildGameLevel(proc, allProcs).steps) {
+    for (const game of step.games) {
+      if (seen.has(game.kind)) continue;
+      seen.add(game.kind);
+      out.push(game);
+    }
+  }
+  if (!seen.has('order')) {
+    const items = proc.steps.map((s) => s.name).filter((n): n is string => !!n).slice(0, 4);
+    if (items.length >= 3) out.push({ kind: 'order', items });
+  }
+  return out.sort((a, b) => MINI_GAME_ORDER.indexOf(a.kind) - MINI_GAME_ORDER.indexOf(b.kind));
+}
+
+/** 设备类别 → Godot 侧设备图标种类（图标形状由 Godot 程序化绘制） */
+export function iconKindForCategory(category: string): string {
+  if (category.includes('泵')) return 'pump';
+  if (category.includes('电机')) return 'motor';
+  if (category.includes('压缩')) return 'compressor';
+  if (category.includes('减速') || category.includes('传动')) return 'gearbox';
+  if (category.includes('机床') || category.includes('机器人')) return 'machine';
+  if (category.includes('换热') || category.includes('容器')) return 'vessel';
+  return 'motor';
+}
