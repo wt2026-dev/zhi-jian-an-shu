@@ -1,0 +1,73 @@
+<Slide style={{ width: '1280px', height: '720px', padding: '40px 56px', backgroundColor: '#0b1220' }}>
+    <Box style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
+      <Text style={{ fontSize: '14px', color: '#06b6d4', letterSpacing: '3px' }}>BACKGROUND & PAIN POINTS</Text>
+      <Box style={{ flex: 1, height: '1px', backgroundColor: '#1e293b', marginLeft: '20px' }} />
+    </Box>
+
+    <Text style={{
+      fontSize: '36px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '8px',
+    }}>
+      传统设备维修的<span style={{ color: '#f43f5e' }}>三大痛点</span>
+    </Text>
+    <Text style={{ fontSize: '16px', color: '#94a3b8', marginBottom: '40px' }}>
+      流程制造企业普遍存在的共性问题，制约维修效率与质量
+    </Text>
+
+    <Box style={{ display: 'flex', gap: '20px', height: '420px' }}>
+      {[
+        {
+          num: '1', title: '信息孤岛',
+          sym: '◇',
+          desc: '工单 / 巡检 / 知识 / 备件 / 安全模块独立运行',
+          impact: '数据互不相通，维修人员需切换 5+ 系统',
+          color: '#06b6d4',
+        },
+        {
+          num: '2', title: '流程断裂',
+          sym: '◇',
+          desc: '报修 → 派工 → 作业票 → LOTO → 验收',
+          impact: '纸质单据 + 微信群通知，关键节点丢失',
+          color: '#f59e0b',
+        },
+        {
+          num: '3', title: '知识流失',
+          sym: '◇',
+          desc: '老师傅经验靠口口相传',
+          impact: '人员流动即知识流失，故障反复发生',
+          color: '#f43f5e',
+        },
+      ].map((p, i) => (
+        <Box key={i} style={{
+          flex: 1, padding: '32px', backgroundColor: '#0f172a', borderRadius: '8px',
+          borderTop: `3px solid ${p.color}`,
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <Box style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+            <Box style={{
+              width: '48px', height: '48px', borderRadius: '50%',
+              backgroundColor: p.color, display: 'flex',
+              justifyContent: 'center', alignItems: 'center', marginRight: '12px',
+            }}>
+              <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#0b1220' }}>{p.num}</Text>
+            </Box>
+            <Text style={{ fontSize: '24px', fontWeight: 'bold', color: '#e2e8f0' }}>{p.title}</Text>
+          </Box>
+          <Text style={{ fontSize: '16px', color: '#cbd5e1', lineHeight: '1.7', marginBottom: '16px' }}>
+            {p.desc}
+          </Text>
+          <Box style={{ marginTop: 'auto', padding: '16px', backgroundColor: '#1e293b', borderRadius: '6px' }}>
+            <Text style={{ fontSize: '12px', color: p.color, letterSpacing: '1px', marginBottom: '4px' }}>
+              影响
+            </Text>
+            <Text style={{ fontSize: '14px', color: '#e2e8f0', lineHeight: '1.6' }}>
+              {p.impact}
+            </Text>
+          </Box>
+        </Box>
+      ))}
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: '20px', right: '56px' }}>
+      <Text style={{ fontSize: '12px', color: '#475569' }}>03 / 12</Text>
+    </Box>
+  </Slide>

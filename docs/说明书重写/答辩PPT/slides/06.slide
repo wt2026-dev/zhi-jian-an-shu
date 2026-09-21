@@ -1,0 +1,56 @@
+<Slide style={{ width: '1280px', height: '720px', padding: '40px 56px', backgroundColor: '#0b1220' }}>
+    <Box style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+      <Text style={{ fontSize: '14px', color: '#06b6d4', letterSpacing: '3px' }}>RBAC & ACCESS CONTROL</Text>
+      <Box style={{ flex: '1', height: '1px', backgroundColor: '#1e293b', marginLeft: '20px' }} />
+    </Box>
+
+    <Text style={{
+      fontSize: '32px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '6px',
+    }}>
+      <span style={{ color: '#06b6d4' }}>7 角色 RBAC</span> · 单一真源
+    </Text>
+    <Text style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '24px' }}>
+      权限码格式 module:action · 唯一真源 src/utils/rbac.ts · 前端 can() + 后端 globalAuthGuard 双重校验
+    </Text>
+
+    <Box style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+      {[
+        { name: 'admin', role: '系统管理员', perms: '全部权限 (*)', color: '#06b6d4' },
+        { name: 'manager', role: '车间主任', perms: '工单审批 · 作业票审批 · 报表', color: '#06b6d4' },
+        { name: 'tech1', role: '检修工 - 主修', perms: '接单 · 执行 · AI 诊断 · 签名', color: '#f59e0b' },
+        { name: 'tech2', role: '检修工 - 副修', perms: '执行 · 副签', color: '#f59e0b' },
+        { name: 'inspector', role: '巡检员', perms: '巡检 · 创建报修', color: '#10b981' },
+        { name: 'operator', role: '操作工', perms: '报修 · 创建作业票', color: '#10b981' },
+        { name: 'archivist', role: '知识管理员', perms: '知识 CRUD · RAG 检索', color: '#8b5cf6' },
+      ].map((r, i) => (
+        <Box key={i} style={{
+          width: 'calc((100% - 30px) / 4)', padding: '14px',
+          backgroundColor: '#0f172a', borderRadius: '6px',
+          borderLeft: `3px solid ${r.color}`,
+        }}>
+          <Box style={{ display: 'flex', alignItems: 'baseline', marginBottom: '4px' }}>
+            <Text style={{ fontSize: '18px', fontWeight: 'bold', color: r.color, marginRight: '8px', fontFamily: 'monospace' }}>
+              {r.name}
+            </Text>
+            <Text style={{ fontSize: '12px', color: '#64748b' }}>{r.role}</Text>
+          </Box>
+          <Text style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.5' }}>
+            {r.perms}
+          </Text>
+        </Box>
+      ))}
+    </Box>
+
+    <Box style={{ marginTop: '16px', padding: '14px', backgroundColor: '#1e293b', borderRadius: '6px' }}>
+      <Text style={{ fontSize: '13px', color: '#06b6d4' }}>
+        <span style={{ fontWeight: 'bold' }}>RBAC 关键约束：</span>
+        <span style={{ color: '#cbd5e1' }}>
+          {' '}admin 角色恒放行（permissions 含 '*'） · 菜单口径 navConfig.ts 唯一 · 后端 JWT 全局守卫
+        </span>
+      </Text>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: '20px', right: '56px' }}>
+      <Text style={{ fontSize: '12px', color: '#475569' }}>06 / 12</Text>
+    </Box>
+  </Slide>

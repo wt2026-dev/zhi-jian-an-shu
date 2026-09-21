@@ -1,0 +1,51 @@
+<Slide style={{ width: '1280px', height: '720px', padding: '40px 56px', backgroundColor: '#0b1220' }}>
+    <Box style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+      <Text style={{ fontSize: '14px', color: '#06b6d4', letterSpacing: '4px', marginBottom: '16px' }}>
+        SUMMARY & ACKNOWLEDGEMENTS
+      </Text>
+      <Text style={{
+        fontSize: '60px', fontWeight: 'bold', color: '#e2e8f0', lineHeight: '1.2',
+        textAlign: 'center', marginBottom: '12px',
+      }}>
+        <span style={{ color: '#06b6d4' }}>谢谢聆听</span>
+      </Text>
+      <Text style={{ fontSize: '18px', color: '#94a3b8', textAlign: 'center', marginBottom: '36px' }}>
+        工业设备智能检修一体化平台 · 期待您的提问
+      </Text>
+
+      <Box style={{ display: 'flex', justifyContent: 'center', gap: '32px', marginBottom: '32px' }}>
+        {[
+          { num: '31', unit: '张业务表', color: '#06b6d4' },
+          { num: '25', unit: '个迁移', color: '#06b6d4' },
+          { num: '24', unit: '项 AI', color: '#f59e0b' },
+          { num: '7', unit: '个角色', color: '#10b981' },
+          { num: '12', unit: '个分镜', color: '#06b6d4' },
+          { num: '88', unit: '个测试', color: '#8b5cf6' },
+        ].map((d, i) => (
+          <Box key={i} style={{ textAlign: 'center' }}>
+            <Text style={{ fontSize: '36px', fontWeight: 'bold', color: d.color, lineHeight: '1' }}>
+              {d.num}
+            </Text>
+            <Text style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+              {d.unit}
+            </Text>
+          </Box>
+        ))}
+      </Box>
+
+      <Box style={{
+        padding: '16px 32px', backgroundColor: '#0f172a', borderRadius: '8px',
+        borderTop: '3px solid #06b6d4',
+      }}>
+        <Text style={{ fontSize: '14px', color: '#cbd5e1', textAlign: 'center', lineHeight: '1.7' }}>
+          <span style={{ color: '#06b6d4', fontWeight: 'bold' }}>后续展望：</span>
+          接入更多 AI 模型（Claude / GPT） · 移动端 PWA · 工业硬件对接（PLC / SCADA）
+          {'\n'}知识图谱自动构建 · 数字孪生实时联动 · 国际化（英文 / 阿拉伯文）
+        </Text>
+      </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: '20px', right: '56px' }}>
+      <Text style={{ fontSize: '12px', color: '#475569' }}>12 / 12</Text>
+    </Box>
+  </Slide>

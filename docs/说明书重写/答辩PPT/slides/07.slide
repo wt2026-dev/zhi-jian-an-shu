@@ -1,0 +1,56 @@
+<Slide style={{ width: '1280px', height: '720px', padding: '40px 56px', backgroundColor: '#0b1220' }}>
+    <Box style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
+      <Text style={{ fontSize: '14px', color: '#06b6d4', letterSpacing: '3px' }}>LIVE DEMO · 5 SCENES</Text>
+      <Box style={{ flex: '1', height: '1px', backgroundColor: '#1e293b', marginLeft: '20px' }} />
+    </Box>
+
+    <Text style={{
+      fontSize: '36px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '8px',
+    }}>
+      现场演示 · <span style={{ color: '#f59e0b' }}>五场景串联</span>
+    </Text>
+    <Text style={{ fontSize: '16px', color: '#94a3b8', marginBottom: '32px' }}>
+      从一线操作工到检修工，到车间主任 + 安全员，AI 助手全程在线
+    </Text>
+
+    <Box style={{ display: 'flex', gap: '12px', height: '420px' }}>
+      {[
+        { num: '01', role: '操作工', scene: '报修创建', detail: '扫码 + 选设备 + 选故障类型\n15 分钟防重复命中', icon: '报', color: '#06b6d4' },
+        { num: '02', role: '车间主任', scene: '作业票审批', detail: '6 类许可证 + 双人会签\nLOTO 自动登记', icon: '票', color: '#f59e0b' },
+        { num: '03', role: 'AI 助手', scene: '诊断流式输出', detail: 'POST /chat/stream\n按 token 逐字渲染', icon: 'AI', color: '#06b6d4' },
+        { num: '04', role: '数字人', scene: '跨页面拖拽', detail: 'Pointer Capture\n跨 iframe 不卡', icon: '人', color: '#f59e0b' },
+        { num: '05', role: '检修闯关', scene: 'Godot 2D', detail: 'A/D 移动 + 空格跳跃\n3 关 × 3 小关键盘作答', icon: '游', color: '#06b6d4' },
+      ].map((s, i) => (
+        <Box key={i} style={{
+          flex: 1, padding: '20px', backgroundColor: '#0f172a', borderRadius: '6px',
+          borderTop: `3px solid ${s.color}`,
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <Text style={{ fontSize: '13px', color: s.color, letterSpacing: '1px' }}>
+            {s.num}
+          </Text>
+          <Text style={{ fontSize: '18px', fontWeight: 'bold', color: '#e2e8f0', marginTop: '6px', marginBottom: '4px' }}>
+            {s.role}
+          </Text>
+          <Text style={{ fontSize: '15px', color: s.color, marginBottom: '12px' }}>
+            {s.scene}
+          </Text>
+          <Text style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+            {s.detail}
+          </Text>
+          <Box style={{
+            marginTop: 'auto', padding: '12px', backgroundColor: '#1e293b', borderRadius: '4px',
+            textAlign: 'center',
+          }}>
+            <Text style={{ fontSize: '22px', color: s.color, fontWeight: 'bold' }}>
+              {s.icon}
+            </Text>
+          </Box>
+        </Box>
+      ))}
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: '20px', right: '56px' }}>
+      <Text style={{ fontSize: '12px', color: '#475569' }}>07 / 12</Text>
+    </Box>
+  </Slide>
