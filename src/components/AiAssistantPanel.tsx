@@ -62,6 +62,9 @@ export const AiAssistantPanel: React.FC = () => {
   const [offset, setOffset] = useState({ dx: 0, dy: 0 });
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; bx: number; by: number } | null>(null);
+  // 点击 vs 拖拽的分流：mousedown→mousemove 累计位移超过 4px 时视为拖拽，
+  // 避免「按了想拖、没拖动却误触展开」；也避免「想点却拖动一点距离、不展开」。
+  const dragMovedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [personaId, setPersonaId] = useState<string>(() => {
     try {
@@ -94,6 +97,7 @@ export const AiAssistantPanel: React.FC = () => {
   /* ---------------- 拖拽移动（带视口边界约束，防止移出屏幕） ---------------- */
   const onDragStart = (clientX: number, clientY: number) => {
     dragRef.current = { sx: clientX, sy: clientY, bx: offset.dx, by: offset.dy };
+    dragMovedRef.current = false;
     setDragging(true);
   };
 
@@ -102,6 +106,10 @@ export const AiAssistantPanel: React.FC = () => {
     const onMove = (x: number, y: number) => {
       const d = dragRef.current;
       if (!d) return;
+      // 累计位移阈值：4px 算"真在拖"，避免点击和拖拽互相干扰
+      if (!dragMovedRef.current && Math.abs(x - d.sx) + Math.abs(y - d.sy) > 4) {
+        dragMovedRef.current = true;
+      }
       const rawDx = d.bx + (x - d.sx);
       const rawDy = d.by + (y - d.sy);
       // 允许自由拖拽到页面任意位置，仅防止完全拖出视口
@@ -147,13 +155,28 @@ export const AiAssistantPanel: React.FC = () => {
 
   return (
     <>
-      {/* ---------- 悬浮球 ---------- */}
+      {/* ---------- 悬浮球（也是可拖动的锚点） ---------- */}
       {!chat.panelOpen && (
         <button
           data-onboarding="ai-ball"
-          onClick={() => chat.openPanel()}
-          title="打开 AI 数字人助手"
-          className="fixed bottom-6 right-6 z-[9999] w-14 h-14 rounded-full bg-white border border-blue-200 shadow-md flex items-center justify-center cursor-pointer transition-all hover:scale-105 hover:shadow-lg p-1"
+          onClick={() => {
+            // 拖过了就不算点击：避免「想拖结果只挪了 1px 反而把面板打开」
+            if (dragMovedRef.current) return;
+            chat.openPanel();
+          }}
+          onMouseDown={(e) => onDragStart(e.clientX, e.clientY)}
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            if (t) onDragStart(t.clientX, t.clientY);
+          }}
+          title="拖动可移动位置 · 点击打开 AI 数字人助手"
+          // 用 inline style 而不是 className 的 bottom-6 right-6：拖动后要跟 panel 共用同一份偏移
+          className="fixed z-[9999] w-14 h-14 rounded-full bg-white border border-blue-200 shadow-md flex items-center justify-center cursor-pointer transition-all hover:scale-105 hover:shadow-lg p-1"
+          style={{
+            right: `calc(24px - ${offset.dx}px)`,
+            bottom: `calc(24px - ${offset.dy}px)`,
+            touchAction: 'none', // 阻止触摸滚动抢手势
+          }}
         >
           <MiniDigitalHuman isSpeaking={chat.isSpeaking} isListening={chat.isRecording} personaId={personaId} />
         </button>
