@@ -213,6 +213,27 @@ const QUADRANTS = [
   { sx: 1, sz: 1 },
 ];
 
+/**
+ * 三块分区立牌的锚点样式，按分区序号循环：A 地块西北角 / B 东南角 / C 东北角+最高带。
+ * fx/fz 是地块半宽的倍数（±1 = 地块边缘），band 是"高出本区最高屋顶"的米数。
+ *
+ * 为什么不能都悬在各自地块正上方：这些牌子是**恒定屏幕尺寸**
+ * （sizeAttenuation:false，见 makeBillboard 的注释），远景下世界坐标挪二十米
+ * 只平移十几个像素，三块 267×104 的牌 + 四块出入口牌 + 在建牌一旦与相机视线同轴
+ * 就叠成一片 —— 上一轮验收的 "南门牌压 C 区牌 58px" 就是这么来的。
+ * 尤其园区远端（+Z 一侧）角度压缩最厉害，横向几乎挤不动，只能靠高度带拉开。
+ *
+ * 这九个数字全部由 scratch/label-overlap-probe.ts 按 scene.frameFactory() 的取景
+ * 相机反解投影试出来：1920×1080 下 13 块贴牌两两零重叠、八块大字牌净距 ≥80px；
+ * 1024×768 / 860×800 窄屏因为贴牌按视口高度定尺寸、相对更大，退到 ≥58px 零重叠。
+ * 改取景参数须重跑该探针 + tests/factory-label-decollision.test.ts。
+ */
+const ZONE_SIGN_ANCHORS: Array<{ fx: number; fz: number; band: number }> = [
+  { fx: -0.98, fz: -0.75, band: 34 },
+  { fx: 0.36, fz: 0.34, band: 13 },
+  { fx: 0.55, fz: 0.44, band: 74 },
+];
+
 /** 深色科技风分区调色板：青 / 紫 / 琥珀 / 翠。 */
 const ZONE_PALETTE = [0x22d3ee, 0x8b5cf6, 0xf59e0b, 0x10b981];
 
@@ -1394,6 +1415,21 @@ export class FactoryOverview {
       person: '人流口',
       buffer: '周转口',
     };
+    /**
+     * 出口立牌的落位旋钮（世界系）：out=沿"园区中心→门"外推米数，
+     * side=沿道路横向的倍数（正=绕 Y 逆时针让开），band=离地高度带。
+     * 三个值都是拿 scratch/label-overlap-probe.ts 按真实取景相机投影试出来的：
+     * 目的只有一个 —— 16:9 与窄屏下都不与分区牌 / 在建牌 / 厂房屋顶名叠字。
+     */
+    const DEFAULT_GATE_SIGN_OFFSET = { out: 15, side: 0, band: 12.5 };
+    const GATE_SIGN_OFFSET: Record<string, { out: number; side: number; band: number }> = {
+      'gate-north': { out: 15, side: 0, band: 12.5 },
+      'gate-east': { out: 15, side: 0, band: 12.5 },
+      // 南门与 C 区同在 x=0 视线上：沿道路横向让开 27m，落到 C 区牌下方的高度带
+      'gate-south': { out: 15, side: -1.8, band: 9 },
+      // 西门正对在建工程牌：外推 24m 并抬到 60m 带，从在建牌与 A 区牌中间穿过去
+      'gate-west': { out: 24, side: 1.1, band: 60 },
+    };
 
     for (const d of defs) {
       const gate: FactoryGate = { ...d };
@@ -1479,7 +1515,23 @@ export class FactoryOverview {
       );
       if (sp) {
         sp.scale.set(0.15, 0.15 * (130 / 560), 1);
-        sp.position.set(0, 8.4, 0);
+        // 标牌停在"道路端点外侧"：沿出入口→园区外的方向外推一段，再沿道路横向让开，
+        // 并抬到各自的高度带。四道门里有两道正落在 C 区牌的视线轴上（南/北门与 C 区同在
+        // x=0），贴着闸机立牌就会和分区牌叠成一条；西门则与在建工程牌同高。
+        // ⚠️ 位移在**世界系**里算（闸机组各自 rotation.y 不同，写局部轴会随朝向翻转）。
+        const off = GATE_SIGN_OFFSET[gate.id] ?? DEFAULT_GATE_SIGN_OFFSET;
+        const dist = Math.hypot(gate.x, gate.z) || 1;
+        const ox = (gate.x / dist) * off.out;
+        const oz = (gate.z / dist) * off.out;
+        // 横向 = 外向向量绕 Y 转 90°（世界系）
+        const sx = -oz * off.side;
+        const sz = ox * off.side;
+        const wx = ox + sx;
+        const wz = oz + sz;
+        // 世界偏移 → 闸机局部：再绕 Y 反转正对 heading
+        const c = Math.cos(gate.heading);
+        const s = Math.sin(gate.heading);
+        sp.position.set(wx * c - wz * s, off.band, wx * s + wz * c);
         g.add(sp);
         this.gateSprites.push(sp);
       }
@@ -1506,12 +1558,20 @@ export class FactoryOverview {
   private buildZoneSignage(): void {
     if (typeof document === 'undefined') return;
     for (const zone of this.zonesResolved) {
+      const zoneIndex = this.zonesResolved.indexOf(zone);
+      const anchor = ZONE_SIGN_ANCHORS[zoneIndex % ZONE_SIGN_ANCHORS.length];
       const topY = Math.max(
         zone.buildings.length ? Math.max(...zone.buildings.map((b) => b.h)) : 12,
         12
       );
       const cx = (zone.minX + zone.maxX) / 2;
       const cz = (zone.minZ + zone.maxZ) / 2;
+      const w = zone.maxX - zone.minX;
+      const d = zone.maxZ - zone.minZ;
+      // 锚点离开地块中心：横向到边角、纵向分带，三块牌子互成三角
+      const ax = cx + anchor.fx * (w / 2);
+      const az = cz + anchor.fz * (d / 2);
+      const signY = topY + anchor.band;
 
       const canvas = document.createElement('canvas');
       canvas.width = 720;
@@ -1543,7 +1603,7 @@ export class FactoryOverview {
       );
       // Sprite scale ≈ 视口高度的比例（sizeAttenuation:false 下由透视补偿保证恒定）
       sp.scale.set(0.21, 0.21 * (280 / 720), 1);
-      sp.position.set(cx, topY + 21, cz);
+      sp.position.set(ax, signY, az);
       sp.renderOrder = 32;
       sp.userData = { kind: 'zoneSign', zoneId: zone.id, canvas, ctx, tex };
       this.group.add(sp);
@@ -1552,7 +1612,7 @@ export class FactoryOverview {
       // 引线：标牌锚点 → 分区地块中心（读感更像参考图里的"锚点 + 信息牌"）
       const leader = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(cx, topY + 16, cz),
+          new THREE.Vector3(ax, signY - 5, az),
           new THREE.Vector3(cx, 0.3, cz),
         ]),
         new THREE.LineBasicMaterial({ color: zone.color, transparent: true, opacity: 0.35 })
