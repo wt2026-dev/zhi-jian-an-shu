@@ -40,4 +40,5 @@ godot-game/.godot/
 godot-game/_preview/
 # 俯视迷宫版（godot-game-maze/）同理；data/maze_payload.json 是真实台账快照，要入库
 godot-game-maze/.godot/
-godot-game-maze/_preview/
+godot-game-maze/_preview/*
+!godot-game-maze/_preview/.gdignore
