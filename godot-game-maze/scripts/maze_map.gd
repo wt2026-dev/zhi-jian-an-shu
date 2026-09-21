@@ -394,15 +394,22 @@ func passable(t: Vector2i, keys_available: int = 0) -> bool:
 
 
 ## 迷雾归属：房间没进过就是黑的；门格两侧只要有一侧探开就露出来，
-## 否则玩家会在已探明的房间门口看到一块莫名其妙全黑的格子。
+## 否则玩家会在已探明的房间门口看到一块莫名其妙全黑的格子；墙格同理。
 func tile_explored(t: Vector2i) -> bool:
 	var r := room_of_tile(t)
 	if r != null:
 		return r.explored
 	var d := door_at(t)
-	if d == null:
-		return false
-	return (rooms[d.a] as Room).explored or (rooms[d.b] as Room).explored
+	if d != null:
+		return (rooms[d.a] as Room).explored or (rooms[d.b] as Room).explored
+	# 墙砖本身不属于任何房间：贴着任意一间已探开的房就露出来。
+	# 不这么做的话"墙面浅灰蓝"这条永远看不到 —— 亮着的房间四周仍然是黑洞，
+	# 房间轮廓反而糊在一起，看起来像九块地砖浮在黑水里。
+	for off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var near := room_of_tile(t + off)
+		if near != null and near.explored:
+			return true
+	return false
 
 
 func explored_ratio() -> float:

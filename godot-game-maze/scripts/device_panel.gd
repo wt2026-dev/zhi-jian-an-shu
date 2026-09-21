@@ -47,8 +47,13 @@ func _build() -> void:
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	# 让开右侧线索面板（292px）：卡片正中的话会盖住"我到底该修哪台"的唯一提示
-	center.position = Vector2(-150, 0)
+	# 让开四边固定件：左边小地图、右边线索面板、上下顶栏与提示条。
+	# 用 offset 而不是 position —— 锚点是 0/1 全拉伸，写 position 会连锚点一起被改写，
+	# 结果卡片跑到屏幕外（截图里验收出来的就是那个）。
+	center.offset_left = 286
+	center.offset_top = 60
+	center.offset_right = -312
+	center.offset_bottom = -56
 	add_child(center)
 
 	_card = PanelContainer.new()

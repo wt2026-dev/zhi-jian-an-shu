@@ -14,6 +14,7 @@ var device_layer: DeviceLayer
 var engineer: EngineerLayer
 var hud: GameHud
 var panel: DevicePanel
+var panel_layer: CanvasLayer
 var overlay: GameOverlay
 
 var _has_data := false
@@ -45,7 +46,14 @@ func _ready() -> void:
 	panel = DevicePanel.new()
 	panel.name = "DevicePanel"
 	panel.game = game
-	add_child(panel)
+	# 必须挂在 CanvasLayer 上：直接挂在 Node2D 下的话它是**世界坐标**控件，
+	# 相机一平移面板就跟着跑出屏幕（截图里它整块躲到了左边界外面）。
+	# layer 20 < HUD 的 30，所以读数时顶栏/小地图/线索还看得见。
+	panel_layer = CanvasLayer.new()
+	panel_layer.name = "PanelLayer"
+	panel_layer.layer = 20
+	add_child(panel_layer)
+	panel_layer.add_child(panel)
 	panel.repair_requested.connect(_on_repair_requested)
 	panel.part_pressed.connect(_on_part_pressed)
 	panel.close_requested.connect(_on_panel_closed)
@@ -97,8 +105,8 @@ func _on_payload(msg: Dictionary) -> void:
 	apply_payload(msg)
 
 
-## 供 Capture/自检在没有 Web 桥时直接喂数据（测试数据在 test_payload.gd 里，
-## 生产场景不会走到这条路 —— 没收到 maze-data 就一直停在等待屏）。
+## 也给 Capture 场景直接喂数据用（`res://data/maze_payload.json` 是真实台账快照）。
+## 生产场景不走这条路：Web 里没收到 `maze-data` 就一直停在等待屏，不自己编设备。
 func apply_payload(msg: Dictionary) -> void:
 	_payload = msg
 	if not game.setup(msg):
@@ -211,6 +219,7 @@ func _on_game_event(kind: String, data: Dictionary) -> void:
 			hud.toast("捡到门禁卡", MazeArt.C_CYAN)
 		"device_picked":
 			SoundManager.play_click()
+			hud.clear_toast()
 			panel.open_device()
 		"arrived":
 			map_view.refresh()

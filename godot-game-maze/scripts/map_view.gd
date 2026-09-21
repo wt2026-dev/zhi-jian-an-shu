@@ -51,9 +51,9 @@ func _build_tile_set() -> void:
 	for i in range(MazeArt.TILE_COUNT):
 		src.create_tile(Vector2i(i, 0))
 	ts.add_source(src)
-	# 换关时旧的 tile_set 还挂在 layer 上，直接覆盖会留着上一关的图
-	if ground.tile_set != null and ground.tile_set != ts:
-		ground.tile_set.free()
+	# 换关时整份 TileSet 重建。TileSet 是 RefCounted：调 `.free()` 会抛
+	# "Can't free a RefCounted object" 并中断本函数（第 2 关起每次换关都报）。
+	# 赋值本身就是替换 —— 旧的那份没人引用了，引擎自己回收。
 	ground.tile_set = ts
 
 

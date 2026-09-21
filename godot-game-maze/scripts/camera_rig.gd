@@ -3,7 +3,10 @@ extends Camera2D
 ## 斜俯视"上帝视角"的相机：**WASD 是平移地图，不是控制角色走路**（产品口径第一条）。
 ## 角色由点击驱动走位，键盘只负责看地图 —— 这两件事分开，才不像横版跑酷。
 
-const ZOOM_MIN := 0.55
+## 下限按第 4 关反推：9×9 = 73 格宽 × 44px = 3212px，1280 宽的屏幕要装下整张图
+## 需要 0.40，留一点边距取 0.34。原来写 0.55 的后果是"上帝视角"名不副实 ——
+## 开局只看得见四间房，玩家以为地图坏了。
+const ZOOM_MIN := 0.34
 const ZOOM_MAX := 1.9
 const ZOOM_STEP := 0.12
 ## 世界像素/秒。除以 zoom 才是屏幕上的移动速度：拉近了自然就走得慢，手感才一致。
@@ -18,9 +21,14 @@ func _ready() -> void:
 	position_smoothing_enabled = false
 
 
-## 地图铺好后按真实尺寸限制相机范围（不限制的话能一路平移到全是黑的地方的外面）
+## 地图铺好后按真实尺寸限制相机范围（不限制的话能一路平移到全是黑的地方的外面），
+## 并且**开局就缩到能看见整张图** —— 俯视迷宫的第一眼应该是"厂区全貌 + 哪里是黑的"。
 func fit(rect: Rect2) -> void:
 	bounds = rect.grow(120.0)
+	var view := get_viewport_rect().size
+	var span := rect.size.max(Vector2(1.0, 1.0))
+	var k := minf(view.x / span.x, view.y / span.y) * 0.98
+	zoom = Vector2.ONE * clampf(k, ZOOM_MIN, ZOOM_MAX)
 	global_position = rect.get_center()
 	_clamp()
 

@@ -20,6 +20,7 @@ var _lives_label: Label
 var _score_label: Label
 var _time_label: Label
 var _keys_label: Label
+var _minimap_panel: Control
 var _minimap: Minimap
 var _clue_title: Label
 var _clue_body: RichTextLabel
@@ -51,8 +52,12 @@ func _build() -> void:
 	_toast.add_theme_font_size_override("font_size", 20)
 	_toast.add_theme_color_override("font_color", MazeArt.C_CYAN)
 	_toast.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_toast.position = Vector2(0, 96)
-	_toast.size = Vector2(1280, 30)
+	# TOP_WIDE 的左右锚点本来就是 0/1，这里只能写 offset；写 size 会被 Godot 覆盖
+	# 并甩一条 "non-equal opposite anchors" 警告（警告多了以后，真错就淹在里面了）。
+	_toast.offset_left = 0
+	_toast.offset_top = 96
+	_toast.offset_right = 0
+	_toast.offset_bottom = 126
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toast.visible = false
@@ -114,6 +119,7 @@ func _minimap_box() -> Control:
 	p.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	p.position = Vector2(14, 62)
 	p.custom_minimum_size = Vector2(252, 208)
+	_minimap_panel = p
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
 	p.add_child(col)
@@ -125,13 +131,26 @@ func _minimap_box() -> Control:
 	return p
 
 
+## 小地图按关卡边长收尺寸：第 1 关只有 3×3，还占着 252×208 的话，
+## 开局那间"入口大厅"正好整块压在面板底下（名牌也被吃掉）。
+func _layout_minimap(grid: int) -> void:
+	if _minimap == null or _minimap_panel == null:
+		return
+	var cell := minf(44.0, 228.0 / float(maxi(1, grid)))
+	var w := cell * float(grid)
+	var h := cell * 0.66 * float(grid)
+	_minimap.custom_minimum_size = Vector2(w, h)
+	# 12+12 内容边距、20 标题、4 间隔
+	_minimap_panel.custom_minimum_size = Vector2(w + 24.0, h + 44.0)
+
+
 # ---------------- 右侧线索面板 ----------------
 
 func _clue_box() -> Control:
 	var p := _panel(Vector2(0, 0))
 	p.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	p.position = Vector2(-306, 62)
-	p.custom_minimum_size = Vector2(292, 380)
+	p.custom_minimum_size = Vector2(292, 462)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
 	p.add_child(col)
@@ -141,7 +160,7 @@ func _clue_box() -> Control:
 	_clue_body.bbcode_enabled = true
 	_clue_body.fit_content = false
 	_clue_body.scroll_active = true
-	_clue_body.custom_minimum_size = Vector2(266, 320)
+	_clue_body.custom_minimum_size = Vector2(266, 402)
 	_clue_body.add_theme_font_override("normal_font", _font)
 	_clue_body.add_theme_font_override("bold_font", _font)
 	col.add_child(_clue_body)
@@ -181,6 +200,7 @@ func refresh() -> void:
 	_keys_label.text = "门禁卡 %d" % int(s.keys)
 	_hint_label.text = Txt.s(s.hint)
 	_clue_body.text = _clues(s)
+	_layout_minimap(int(game.map.grid_rooms))
 	_minimap.queue_redraw()
 
 
@@ -285,6 +305,13 @@ func toast(text: String, color: Color = MazeArt.C_CYAN, seconds: float = 1.6) ->
 	_toast.add_theme_color_override("font_color", color)
 	_toast.visible = true
 	_toast_left = seconds
+
+
+## 读数面板一开就把飘字收掉：Toast 正落在卡片标题那一行上，
+## "探开：泵房区"压在设备名上面，看上去像面板写错了。
+func clear_toast() -> void:
+	_toast_left = 0.0
+	_toast.visible = false
 
 
 func _process(delta: float) -> void:

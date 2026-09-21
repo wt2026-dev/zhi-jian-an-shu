@@ -185,6 +185,19 @@ func _check_fog() -> void:
 	_check(map.tile_explored(spawn_room.center_tile()), "已探房间内地格是亮的")
 	var far: MazeMap.Room = map.rooms[map.rooms.size() - 1]
 	_check(not map.tile_explored(far.center_tile()), "未探房间内地格是黑的")
+	# 墙砖跟着相邻房间亮：不这么做的话亮着的房间四周仍然是黑洞，美术口径里
+	# "墙面浅灰蓝"永远看不见（第一轮截图验收抓到的就是这条）。
+	var wall_lit := false
+	var wall_dark := false
+	for y in range(map.tile_h):
+		for x in range(map.tile_w):
+			if int(map.tiles[y][x]) != MazeMap.Tile.WALL:
+				continue
+			if map.tile_explored(Vector2i(x, y)):
+				wall_lit = true
+			else:
+				wall_dark = true
+	_check(wall_lit and wall_dark, "贴着已探房间的墙露出来、远处的墙还在迷雾里")
 	var was_dark := not far.explored
 	_check(map.explore_room(far.id) and was_dark, "走进陌生房间会点亮它")
 	_check(not map.explore_room(far.id), "重复进入不再生效（开门声不会连响）")
