@@ -1,6 +1,6 @@
 <Slide style={{ width: '1280px', height: '720px', padding: '40px 56px', backgroundColor: '#0b1220' }}>
     <Box style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-      <Text style={{ fontSize: '14px', color: '#06b6d4', letterSpacing: '3px' }}>DATABASE · 31 TABLES · 25 MIGRATIONS</Text>
+      <Text style={{ fontSize: '14px', color: '#06b6d4', letterSpacing: '3px' }}>DATABASE · 30 TABLES · 25 MIGRATIONS</Text>
       <Box style={{ flex: '1', height: '1px', backgroundColor: '#1e293b', marginLeft: '20px' }} />
     </Box>
 
@@ -16,11 +16,11 @@
         borderTop: '3px solid #06b6d4',
       }}>
         <Text style={{ fontSize: '64px', fontWeight: 'bold', color: '#06b6d4', lineHeight: '1' }}>
-          31
+          30
         </Text>
         <Text style={{ fontSize: '14px', color: '#94a3b8', marginTop: '6px' }}>张业务表</Text>
         <Text style={{ fontSize: '11px', color: '#64748b', marginTop: '8px', lineHeight: '1.5' }}>
-          10 张 AI/知识 · 9 张核心业务 · 5 张存储 · 7 张运营支撑
+          10 张 AI/知识 · 9 张核心业务 · 5 张存储 · 6 张运营支撑
         </Text>
       </Box>
       <Box style={{

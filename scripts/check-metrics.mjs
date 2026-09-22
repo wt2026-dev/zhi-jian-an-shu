@@ -104,6 +104,74 @@ function scan() {
   return findings;
 }
 
+// ── 表数口径（第二类指标）────────────────────────────────────────────────────
+// 真值来自迁移 SQL：只认「CREATE TABLE [IF NOT EXISTS] <name> (」这种**建表语句**。
+// ⚠️ 注释散文里也会出现 "CREATE TABLE IF NOT EXISTS，可重复执行" —— 若不要求后面跟 `(`，
+//    就会把 `IF` 数成一张表，于是得出 31（真实 30）。这个错真的发生过一次，
+//    并且顺着抄进了 README / 说明书 / 答辩 PPT。
+// ⚠️ `024_video_progress.sql` 是 ALTER TABLE（只加两列），**不建表** —— 它不贡献表数，
+//    早期文档却据此虚构了一张 `video_progress` 表。
+const TABLE_PATTERNS = [/(\d{1,3})\s*张\s*(?:业务)?表/g];
+
+function realTables() {
+  const files = [];
+  const migDir = path.join(ROOT, "src/db/migrations");
+  for (const f of fs.readdirSync(migDir)) {
+    if (f.endsWith(".sql")) files.push(path.join(migDir, f));
+  }
+  const vs = path.join(ROOT, "src/db/vectorStore.ts"); // knowledge_embeddings 的另一份建表（JSONB / vector 二选一）
+  if (fs.existsSync(vs)) files.push(vs);
+
+  const names = new Set();
+  const re = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?([a-zA-Z_][a-zA-Z0-9_]*)["`]?\s*\(/gi;
+  for (const f of files) {
+    for (const m of fs.readFileSync(f, "utf8").matchAll(re)) {
+      names.add(m[1].toLowerCase());
+    }
+  }
+  return { count: names.size, names: [...names].sort() };
+}
+
+function scanTables() {
+  const findings = [];
+  for (const rel of walk(ROOT)) {
+    if (HISTORICAL.has(rel)) continue;
+    const lines = fs.readFileSync(path.join(ROOT, rel), "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (line.includes(HISTORICAL_LINE_MARK)) return;
+      for (const re of TABLE_PATTERNS) {
+        for (const m of line.matchAll(new RegExp(re.source, "g"))) {
+          findings.push({ file: rel, line: i + 1, count: Number(m[1]), text: line.trim() });
+        }
+      }
+    });
+  }
+  return findings;
+}
+
+/** 校验「N 张(业务)表」声明；打印报告并返回需修正清单。 */
+function checkTables(real) {
+  const findings = scanTables();
+  const isCanonical = (f) => CANONICAL_FILES.includes(f.file);
+  const failures = findings.filter(
+    (f) => f.count !== real.count && (f.count > real.count || isCanonical(f)),
+  );
+  const historical = findings.filter((f) => f.count < real.count && !isCanonical(f));
+
+  console.log(`\n表数守卫：实测 ${real.count} 张业务表（迁移 SQL 逐条统计）。`);
+  console.log(
+    `  扫描到 ${findings.length} 处「N 张表」声明 —— 一致 ${
+      findings.length - failures.length - historical.length
+    } 处 / 历史快照 ${historical.length} 处 / 需修正 ${failures.length} 处`,
+  );
+  for (const f of failures) {
+    const why = f.count > real.count ? "超报" : "权威文件过期";
+    console.log(`  ✗ [${why}] ${f.file}:${f.line}  声明 ${f.count} 张  →  应为 ${real.count} 张`);
+    console.log(`      ${f.text.slice(0, 120)}`);
+  }
+  return failures;
+}
+
 function main() {
   const args = process.argv.slice(2);
   const doFix = args.includes("--fix");
@@ -141,7 +209,9 @@ function main() {
   console.log(`  历史快照（低于实测，正常留存）：${historical.length} 处`);
   console.log(`  需修正：${failures.length} 处`);
 
-  if (failures.length === 0) {
+  const tableFailures = checkTables(realTables());
+
+  if (failures.length === 0 && tableFailures.length === 0) {
     console.log("\n✓ 口径一致（无过期主张、无超报）。");
     if (historical.length) {
       console.log("  历史快照文件：");
@@ -151,11 +221,13 @@ function main() {
     return;
   }
 
-  console.log("");
-  for (const f of failures) {
-    const why = f.tests > real.tests ? "超报" : "权威文件过期";
-    console.log(`  ✗ [${why}] ${f.file}:${f.line}  声明 ${f.files} 文件 / ${f.tests} 用例  →  应为 ${real.files} / ${real.tests}`);
-    console.log(`      ${f.text.slice(0, 120)}`);
+  if (failures.length > 0) {
+    console.log("");
+    for (const f of failures) {
+      const why = f.tests > real.tests ? "超报" : "权威文件过期";
+      console.log(`  ✗ [${why}] ${f.file}:${f.line}  声明 ${f.files} 文件 / ${f.tests} 用例  →  应为 ${real.files} / ${real.tests}`);
+      console.log(`      ${f.text.slice(0, 120)}`);
+    }
   }
 
   if (doFix) {

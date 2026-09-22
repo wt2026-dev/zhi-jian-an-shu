@@ -15,7 +15,7 @@
 
       <Box style={{ display: 'flex', justifyContent: 'center', gap: '32px', marginBottom: '32px' }}>
         {[
-          { num: '31', unit: '张业务表', color: '#06b6d4' },
+          { num: '30', unit: '张业务表', color: '#06b6d4' },
           { num: '25', unit: '个迁移', color: '#06b6d4' },
           { num: '24', unit: '项 AI', color: '#f59e0b' },
           { num: '7', unit: '个角色', color: '#10b981' },

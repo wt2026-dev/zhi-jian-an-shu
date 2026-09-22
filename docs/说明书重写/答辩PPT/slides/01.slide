@@ -30,7 +30,7 @@
     {/* C 关键数据 4 列 */}
     <Box style={{ display: 'flex', justifyContent: 'space-between', marginTop: '32px' }}>
       {[
-        { num: '31', unit: '张业务表', color: '#06b6d4' },
+        { num: '30', unit: '张业务表', color: '#06b6d4' },
         { num: '25', unit: '个幂等迁移', color: '#06b6d4' },
         { num: '24', unit: '项 AI 能力', color: '#f59e0b' },
         { num: '88', unit: '个测试文件', color: '#06b6d4' },
