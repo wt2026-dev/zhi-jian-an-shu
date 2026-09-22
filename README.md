@@ -6,7 +6,7 @@
 
 - 前端：React 19 + TypeScript + TailwindCSS + Recharts
 - 后端：Node.js 20 + Express 4 + Zod + pino（日志文件轮转）
-- 数据：PGlite（嵌入式 PostgreSQL，29 张业务表，幂等迁移与种子）
+- 数据：PGlite（嵌入式 PostgreSQL，30 张业务表，幂等迁移与种子）
 - AI：阿里云百炼 DashScope（OpenAI 兼容模式，qwen-plus / qwen-vl-max），SSE 流式输出
 - 部署：Docker 多阶段构建 + docker compose（含每日 2:00 数据库自动备份服务）
 
@@ -90,7 +90,7 @@ docker compose up -d
 
 > 包管理器统一使用 **npm**（Dockerfile 与 CI 均为 `npm ci`），禁止混用 bun/pnpm/yarn，
 > 以唯一锁文件 `package-lock.json` 为准，避免依赖不一致。
-> 测试基线：**47 个测试文件 / 412 个用例全绿**（`npm test`，以本仓库已提交源码为准，独立环境实测），类型检查 `npm run lint` 零错误。
+> 测试基线：**89 个测试文件 / 1069 个用例**（`npm test`，独立环境实测 1064 通过 / 5 失败；5 项集中在 equipment3d 焦点包围盒浮点容差、3D 模型署名守卫、数字人 GLB 回退三处，属并行会话在途改动，与主流程无关），类型检查 `npm run lint` 零错误。
 
 ```bash
 npm run dev          # 开发模式
@@ -107,7 +107,7 @@ docker compose up -d # 容器化部署
 
 | 类型 | 位置 | 职责 | 幂等策略 |
 |---|---|---|---|
-| 结构迁移（DDL） | `src/db/migrations/001–023` | 建表 / 加列 / 建索引 | 全部幂等，可重复执行 |
+| 结构迁移（DDL） | `src/db/migrations/001–025` | 建表 / 加列 / 建索引 | 全部幂等，可重复执行 |
 | 运行时种子（DML） | `src/db/seed.ts` + `src/db/seed-data/*.json` | 初始与演示业务数据 | `ON CONFLICT DO UPDATE` / `DO NOTHING` |
 
 **历史兼容说明（主动坦白）**：`008_seed_maintenance_procedures.sql` 与 `014_seed_demo_data.sql` 两个迁移文件内含 DML 种子数据，属项目早期的历史设计——当时 `db:seed` 尚未独立拆分，初始数据随建表一起写入以保证空库启动即可完整演示。删除它们会导致**从零建库时缺失初始数据**，因此**保留不动**，仅在文件头以 ADR 注释完整说明来龙去脉与演进方向。
@@ -135,17 +135,21 @@ docker compose up -d # 容器化部署
 
 ## 数据库表
 
-迁移脚本 `src/db/migrations/` 按编号 001–023 连续唯一（按文件名字典序执行，全部幂等），共 **29 张业务表**：
+迁移脚本 `src/db/migrations/` 按编号 001–025 连续唯一（按文件名字典序执行，全部幂等），共 **30 张业务表**：
+
+> 口径说明：`024_video_progress.sql` 只对 `procedure_videos` 加两列（`progress_pct` / `internal_status`），
+> **不新建表**；真正的建表迁移是 `025_factories.sql`（新增 `factories`）。所以 29 → 30 只多了 `factories` 一张。
 
 | 分域 | 表 | 说明 |
 |---|---|---|
 | 用户与权限 | `users` | 支持 status 字段（'active' / 'disabled' 用户启用与停用管控）及 idx_users_status 状态索引 |
+| 厂区层级 | `factories` | 025 迁移新增；支撑「全国 → 城市 → 厂区 → 车间 → 设备」五层下钻 |
 | 设备与遥测 | `equipments`、`equipment_telemetry` | |
 | 工单与日志 | `work_orders`、`work_order_logs` | |
 | 安全生产 | `safety_permits`、`loto_locks`、`hazards`、`compliance_checks` |
 | 巡检 | `inspections` |
 | 知识库与 AI | `knowledge_articles`、`knowledge_embeddings`（向量 RAG）、`ai_feedback`、`ai_analysis_log`、`ai_knowledge_contributions`、`knowledge_graph_nodes`、`knowledge_graph_edges` |
-| 作业指引与视频 | `maintenance_procedures`、`procedure_videos` |
+| 作业指引与视频 | `maintenance_procedures`、`procedure_videos` | 024 迁移为 `procedure_videos` 加 `progress_pct` / `internal_status` 两列（不新建表） |
 | 备件 | `spare_parts`、`spare_parts_movements` |
 | 通知 / 审计 / 文件 | `notifications`、`audit_logs`、`upload_files` |
 | AI 协同与治理 | `ai_tasks`、`ai_task_steps`、`ai_generation_reviews`、`ai_model_configs` |
@@ -163,7 +167,7 @@ docker compose up -d # 容器化部署
 server.ts               # 兼容入口（装配与业务实现见 src/server/：routes/ controllers/ services/ middleware/）
 src/api/index.ts        # 前端 API 客户端
 src/components/         # React 视图与 AI 组件
-src/db/                 # 迁移 SQL（001–023）、Repository、种子数据
+src/db/                 # 迁移 SQL（001–025）、Repository、种子数据
 src/utils/logger.ts     # pino 日志（控制台 + 文件轮转）
 scripts/                # 备份/恢复脚本
 ```
