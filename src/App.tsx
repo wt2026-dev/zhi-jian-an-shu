@@ -50,7 +50,8 @@ const MaintenanceGameView = React.lazy(() => import('./components/game/Maintenan
 
 // 检修闯关 = Godot 4 Web 导出（iframe + postMessage 双向通信）
 // 旧 Canvas 版 `MaintenanceGameView` 文件保留为降级 fallback，但不再被引用
-const GodotGameView = React.lazy(() => import('./components/game/GodotGameView').then(m => ({ default: m.GodotGameView })));
+// 检修闯关模块已下线：不再挂载（组件文件保留 —— `mazeLevels.ts` 仍引用其 `GodotStepDTO` 类型）。
+// const GodotGameView = React.lazy(() => import('./components/game/GodotGameView').then(m => ({ default: m.GodotGameView })));
 // 《故障侦探 · 俯视迷宫》：同一套 Godot↔React 桥，另一份导出（public/godot-maze/）与另一份关卡表（maze-data）
 const MazeGameView = React.lazy(() => import('./components/game/MazeGameView').then(m => ({ default: m.MazeGameView })));
 // 《庖丁检修师》七幕主线：项目的可玩缩影，独立视图按需加载
@@ -253,7 +254,7 @@ function AppShell() {
         if (targetEquipmentId) {
           setMobileScanEquipmentId(targetEquipmentId);
         }
-      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch', 'maintenance_game', 'maintenance_maze', 'campaign'].includes(targetView)) {
+      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch', 'maintenance_maze', 'campaign'].includes(targetView)) {
         setActiveTab(targetView === 'equipment' ? 'equipments' : targetView);
       }
     } catch (e) {
@@ -581,7 +582,7 @@ function AppShell() {
             />
           )}
           {activeTab === 'ai_reviews' && <AdminAiReviewsView onNavigate={setActiveTab} />}
-          {activeTab === 'maintenance_game' && <GodotGameView currentUser={currentUser} />}
+          {/* {activeTab === 'maintenance_game' && <GodotGameView currentUser={currentUser} />} —— 检修闯关模块已下线，恢复时取消注释 */}
           {activeTab === 'maintenance_maze' && <MazeGameView currentUser={currentUser} />}
           {activeTab === 'campaign' && <CampaignView currentUser={currentUser} />}
           {activeTab === 'ai_models' && <AdminAiModelsView />}

@@ -18,7 +18,7 @@ import {
   Search,
   Share2,
   UserCheck,
-  Gamepad2,
+  // Gamepad2, // 检修闯关模块已下线：图标随菜单项一并注释，恢复时取消注释即可
   Compass,
   Swords,
 } from 'lucide-react';
@@ -86,7 +86,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { id: 'work_orders', label: '检修工单', icon: Wrench }, // 全员可见
       { id: 'dispatch', label: '调度大屏', icon: Route, roles: [...FIELD] },
       { id: 'procedures', label: '作业指引', icon: BookOpen }, // 全员可见
-      { id: 'maintenance_game', label: '检修闯关', icon: Gamepad2 }, // 全员可见
+      // { id: 'maintenance_game', label: '检修闯关', icon: Gamepad2 }, // 全员可见 —— 模块已下线，恢复时取消本行注释
       { id: 'maintenance_maze', label: '故障侦探', icon: Compass }, // 全员可见：俯视角工业迷宫
       { id: 'campaign', label: '庖丁检修师', icon: Swords }, // 全员可见：七幕主线＝一遍完整业务流程
       { id: 'inspections', label: '巡检作业', icon: CheckCircle2, roles: [...SAFETY_AUDIT] },
