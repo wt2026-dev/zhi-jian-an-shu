@@ -172,12 +172,22 @@ function checkTables(real) {
   return failures;
 }
 
+/** 判定规则（测试基线）。抽成函数是为了在「疑似假红」时能用新基准重判一次。 */
+function judge(findings, real) {
+  const isCanonical = (f) => CANONICAL_FILES.includes(f.file);
+  const failures = findings.filter(
+    (f) => (f.files !== real.files || f.tests !== real.tests) && (f.tests > real.tests || isCanonical(f)),
+  );
+  const historical = findings.filter((f) => f.tests < real.tests && !isCanonical(f));
+  return { failures, historical };
+}
+
 function main() {
   const args = process.argv.slice(2);
   const doFix = args.includes("--fix");
   const noRun = args.includes("--no-run");
 
-  const real = noRun ? claimFromReadme() : realCounts();
+  let real = noRun ? claimFromReadme() : realCounts();
   if (!real) {
     console.error("✗ 无法确定基准：README.md 中找不到「N 个测试文件 / M 个用例」声明");
     process.exit(1);
@@ -196,13 +206,22 @@ function main() {
   //    恒为 false，于是 README/CHANGELOG 永远进不了 failures、被静默归入「历史快照」，
   //    脚本照样打印「✓ 口径一致」。守卫自身失效是完全无声的，改动此处请务必用
   //    `npm run metrics:check` 反证一次：把 README 的基线故意写错，它必须报红。
-  const isCanonical = (f) => CANONICAL_FILES.includes(f.file);
-  const failures = findings.filter(
-    (f) => (f.files !== real.files || f.tests !== real.tests) && (f.tests > real.tests || isCanonical(f))
-  );
-  const historical = findings.filter(
-    (f) => f.tests < real.tests && !isCanonical(f)
-  );
+  let { failures, historical } = judge(findings, real);
+
+  // 并发会话正在改 tests/ 时，某个测试文件处于「半写」状态会让 vitest 少收用例，
+  // 实测值**瞬降** ⇒ 本来正确的声明被判成「超报」假红。文件半写只会让用例数变小、
+  // 不会凭空变多，所以复核一次、取较高值重判即可消除这类假红。
+  if (failures.length > 0 && !noRun) {
+    const again = realCounts();
+    if (again.tests > real.tests || again.files !== real.files) {
+      console.log(
+        `\n⚠️ 复核：两次实测不一致（${real.files}/${real.tests} → ${again.files}/${again.tests}）——` +
+          " tests/ 很可能正在被其它会话编辑，取较高值重判。",
+      );
+      if (again.tests > real.tests) real = again;
+      ({ failures, historical } = judge(findings, real));
+    }
+  }
 
   console.log(`\n扫描到 ${findings.length} 处基线声明。`);
   console.log(`  一致：${findings.length - failures.length - historical.length} 处`);
