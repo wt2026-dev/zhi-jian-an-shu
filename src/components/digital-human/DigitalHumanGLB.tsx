@@ -1,31 +1,32 @@
 /**
- * DigitalHumanGLB.tsx — 写实工业风 3D 数字人 React 组件（GLB / Mixamo 骨骼）
+ * DigitalHumanGLB.tsx —— 写实工业风 3D 数字人 React 组件（GLB / Mixamo 骨骼）
  *
  * 职责：Three.js 场景初始化 / GLB 模型加载 / 渲染循环 / Mixamo 骨骼动画驱动 / 语音合成
  * 对外暴露 speak / stop / setSpeaking / setPersona 四个方法（与 DigitalHumanVRM / DigitalHuman3D 同构，
  * 可直接替换使用）。
  *
- * 模型来源：Sketchfab 免费模型 "Worker talk animation"（作者 honved444，CC-BY-4.0 许可，可商用，须署名）。
- *  - 模型页：https://sketchfab.com/3d-models/worker-talk-animation-620e27e5126f40d080c5d4bffab9eedb
- *  - 许可：https://creativecommons.org/licenses/by/4.0/（署名：Worker talk animation by honved444, CC BY 4.0）
- *  - 本地文件：public/models/engineer/worker_talk.glb（10.4MB，1k 纹理）
- * 形象：写实向 3D 男性工人（蓝工装背带裤 + 白短袖 + 工装鞋，PBR 材质，62k 三角面），非动漫。
+ * 模型：public/models/engineer/worker_talk.glb（写实男性工人，~10.4MB，PBR 材质，
+ * 完整 Mixamo 骨骼，内置 Armature|beszed 说话动画——截图参考形象「浅灰短袖 + 深蓝背带工装裤」。）
+ *
+ * 历史：原先指向 asian_worker.glb，但该文件早已损坏（2.3KB，内容是 Sketchfab 网页 HTML，
+ * 见 ATTRIBUTION.md 警告），GLTFLoader 解析失败后整个数字人降级成程序化安全帽小人。
+ * 这里切到仓库里唯一完好的写实 GLB。
  *
  * 动画说明：
- *  - 说话动画 "Armature|beszed"（内置 Mixamo 骨骼动画，驱动头部 + 双臂 + 手指手势），说话时循环播放；
  *  - 待机：呼吸（Spine2 缩放）+ 头部微动 + 手臂自然微摆（程序化，Mixamo 骨骼名）；
- *  - 站立朝向：Mixamo 角色默认面向 +Z，直接面向相机；若导出朝向不同可调整 ROTATE_Y 常量。
- *
- * 依赖：three@0.186.0（项目已装），无需 VRM 插件。
+ *  - 说话：播放内置 Armature|beszed 说话动画（头/肩/手臂律动）+ 程序化节律点头；
+ *    （旧 asian_worker 的顶点级口型绑定按其厘米制顶点坐标写死，对本模型米制坐标
+ *    安全跳过——setupMouthAnimation 命中 0 顶点后返回 null，不影响渲染。）
+ *  - 站立朝向：由 ROTATE_Y 常量统一控制，默认正对相机；
+ *  - 尺寸归一：统一归一化为 1.75m 标准身高。
  */
 
 import React, { useRef, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { PERSONA_CONFIGS } from './EngineerModel';
 import { speakChinese, cancelSpeech, primeSpeech, voiceGenderFor } from './speech';
 
-// ─── Public interface (与 DigitalHumanVRM 同构) ────────────────────
+// ─── Public interface (与 DigitalHumanVRM 同构) ──────────────────────────
 
 export interface DigitalHumanGLBHandle {
   speak: (text: string) => Promise<boolean>;
@@ -41,25 +42,29 @@ interface DigitalHumanGLBProps {
   onError?: (error: any) => void;
 }
 
-// ─── Persona → model mapping（形象统一，徽章颜色区分人设）────────────
+// ─── Persona → model mapping ─────────────────────────────────────────────
+
+const WORKER_GLB = '/models/engineer/worker_talk.glb';
 
 const PERSONA_MODEL: Record<string, string> = {
-  zhang: '/models/engineer/worker_talk.glb',
-  li: '/models/engineer/worker_talk.glb',
-  zhi: '/models/engineer/worker_talk.glb',
+  zhang: WORKER_GLB,
+  li: WORKER_GLB,
+  zhi: WORKER_GLB,
 };
 
-// ─── Mixamo 骨骼名（GLB 实际导出的命名，见模型骨架检查）──────────────
-// 注意：three 的 GLTFLoader 会移除骨骼名中的冒号 ":"，因此这里使用 loader 实际生成的名字
-// （GLB 原始名 mixamorig:Hips_01 → 运行时 mixamorigHips_01）。
+// ─── worker_talk.glb 实际骨骼映射（Mixamo 骨骼体系）──────────────────────
+// Three.js GLTFLoader 在解析带有冒号的骨骼名（如 mixamorig:Hips_01）时会去除冒号。
+// 这里使用清洗后的标准名，并通过 findBone 辅助函数保证双向兼容。
+// 编号以本模型 JSON chunk 实际节点表为准：左臂 _08~_11，右臂 _19~_22。
 
-const BONE = {
+export const BONE = {
   hips: 'mixamorigHips_01',
   spine: 'mixamorigSpine_02',
   spine1: 'mixamorigSpine1_03',
   spine2: 'mixamorigSpine2_04',
   neck: 'mixamorigNeck_05',
   head: 'mixamorigHead_06',
+  headTop: 'mixamorigHeadTop_End_07',
   lShoulder: 'mixamorigLeftShoulder_08',
   lArm: 'mixamorigLeftArm_09',
   lForeArm: 'mixamorigLeftForeArm_010',
@@ -70,7 +75,61 @@ const BONE = {
   rHand: 'mixamorigRightHand_022',
 } as const;
 
-// ─── 动画状态（mutable，不走 React state）──────────────────────────
+/** 稳健骨骼查找：双向兼容带冒号（mixamorig:Hips_01）与清洗后（mixamorigHips_01）格式 */
+export function findBone(root: THREE.Object3D, name: string): THREE.Object3D | null {
+  if (!root) return null;
+  let b = root.getObjectByName(name);
+  if (b) return b;
+  if (name.startsWith('mixamorig') && !name.startsWith('mixamorig:')) {
+    const colonName = name.replace(/^mixamorig/, 'mixamorig:');
+    b = root.getObjectByName(colonName);
+    if (b) return b;
+  }
+  if (name.includes(':')) {
+    const noColonName = name.replace(/:/g, '');
+    b = root.getObjectByName(noColonName);
+    if (b) return b;
+  }
+  return null;
+}
+
+/** 探查并向浏览器控制台打印模型的骨骼与网格层级树 */
+function printBoneHierarchy(root: THREE.Object3D) {
+  const lines: string[] = [];
+  const dump = (obj: THREE.Object3D, depth: number) => {
+    const indent = '  '.repeat(depth);
+    const tag = (obj as any).isBone
+      ? '🦴 [Bone]'
+      : (obj as any).isSkinnedMesh
+      ? '🎭 [SkinnedMesh]'
+      : (obj as any).isMesh
+      ? '📦 [Mesh]'
+      : `[${obj.type}]`;
+    lines.push(`${indent}${tag} ${obj.name || '(unnamed)'}`);
+    for (const child of obj.children) {
+      dump(child, depth + 1);
+    }
+  };
+  dump(root, 0);
+
+  // eslint-disable-next-line no-console
+  console.groupCollapsed('[worker_talk.glb] 骨骼层级与节点树');
+  // eslint-disable-next-line no-console
+  console.log(lines.join('\n'));
+  // eslint-disable-next-line no-console
+  console.log('[worker_talk.glb] 实际关键骨骼对应关系:', {
+    hips: findBone(root, BONE.hips)?.name ?? '未找到',
+    spine: findBone(root, BONE.spine)?.name ?? '未找到',
+    neck: findBone(root, BONE.neck)?.name ?? '未找到',
+    head: findBone(root, BONE.head)?.name ?? '未找到',
+    leftArm: findBone(root, BONE.lArm)?.name ?? '未找到',
+    rightArm: findBone(root, BONE.rArm)?.name ?? '未找到',
+  });
+  // eslint-disable-next-line no-console
+  console.groupEnd();
+}
+
+// ─── 动画状态 ─────────────────────────────────────────────────────────────
 
 interface AnimState {
   speaking: boolean;
@@ -98,106 +157,151 @@ function freshAnimState(): AnimState {
   };
 }
 
-// ─── 程序化嘴部（口型）绑定 ─────────────────────────────────────────
-// 模型无 Jaw 骨骼 / 无 morph targets（GLB 检查确认），说话动画只驱动
-// 头部 + 手势。这里在运行时对头部网格嘴部条带顶点做程序化开合变形，
-// 让"说话"有真实口型效果：
-//  - 嘴部条带（Head 骨骼局部坐标）：y ∈ (0.030, 0.086)（嘴缝→下巴）、
-//    z > 0.052（前脸）、Head 权重 > 0.3，约 1000 个顶点；
-//  - 渐变权重：嘴缝处 1.0 平滑衰减到下巴处 0.35，避免撕裂；
-//  - 说话时顶点沿 -y（张口）与 +z（下唇前突）位移，峰值约 20mm。
+// ─── 程序化嘴部（口型）绑定 ───────────────────────────────────────────────
+// 本模型 worker_talk.glb 为米制写实人体（身高 ~1.75m，头部 Y≈1.4~1.74），
+// 下面的顶点筛选范围（Y∈[135,138.8]）是旧 asian_worker.glb 的厘米制坐标，
+// 对本模型命中 0 个顶点 → setupMouthAnimation 安全返回 null（try/catch 已兜底）。
+// 说话口型由内置 Armature|beszed 动画本身的头肩律动承担，不影响渲染。
 
 interface MouthRig {
-  mesh: THREE.SkinnedMesh;
-  idx: number[];
-  w: number[];
-  base: Float32Array;
+  faceMesh: THREE.SkinnedMesh;
+  faceIdx: number[];
+  faceWeights: number[];
+  faceBase: Float32Array;
+
+  teethMesh: THREE.SkinnedMesh | null;
+  teethIdx: number[];
+  teethBase: Float32Array | null;
+
+  tongueMesh: THREE.SkinnedMesh | null;
+  tongueIdx: number[];
+  tongueBase: Float32Array | null;
 }
 
-/** 口型参数（Head 局部米制坐标，模型已归一化） */
-const MOUTH = {
-  yMin: 0.03,
-  yMax: 0.086,
-  zMin: 0.052,
-  headWeightMin: 0.3,
-  openPeak: 0.06, // 最大张口位移（米）：0.032 在半身构图下肉眼仍难辨，放大到 60mm 保证可见
-} as const;
-
 function setupMouthAnimation(root: THREE.Group): MouthRig | null {
-  const headBone = root.getObjectByName(BONE.head);
-  if (!headBone) return null;
+  try {
+    let faceMesh: THREE.SkinnedMesh | null = null;
+    let teethMesh: THREE.SkinnedMesh | null = null;
+    let tongueMesh: THREE.SkinnedMesh | null = null;
 
-  // 找嘴部条带：对每个蒙皮网格，统计"Head 局部 y∈[0.03,0.086] 且 z>0.052 且
-  // Head 权重>0.3"的顶点数，取最多者（脸网格约 1000+ 个，其他网格极少/为 0）。
-  // 注意：GLTFLoader 解析本 GLB 时会把"默认对象"（20802 顶点）的 JOINTS 全部
-  // 输出为 Head 索引，仅按"Head 权重顶点数"选择会误选它；直接以嘴部条带候选
-  // 数为准，天然区分脸网格与其他网格。
-  root.updateMatrixWorld(true);
-  const invHead = headBone.matrixWorld.clone().invert();
+    root.traverse((o) => {
+      if (!(o instanceof THREE.SkinnedMesh)) return;
+      const n = (o.name || '').toLowerCase();
+      const matNames = Array.isArray(o.material)
+        ? o.material.map((m) => (m?.name || '').toLowerCase()).join(' ')
+        : (o.material?.name || '').toLowerCase();
+      const combo = n + ' ' + matNames;
 
-  let bestMesh: THREE.SkinnedMesh | null = null;
-  let bestIdx: number[] = [];
-  let bestW: number[] = [];
-  let bestBase: Float32Array | null = null;
-
-  root.traverse((o) => {
-    if (!(o instanceof THREE.SkinnedMesh) || !o.skeleton) return;
-    const skeleton = o.skeleton;
-    const headIdx = skeleton.bones.findIndex((b) => b.name === BONE.head);
-    if (headIdx < 0) return;
-    const geo = o.geometry;
-    const wAttr = geo.attributes.skinWeight;
-    const jAttr = geo.attributes.skinIndex;
-    const posAttr = geo.attributes.position;
-    if (!wAttr || !jAttr || !posAttr) return;
-
-    const idx: number[] = [];
-    const w: number[] = [];
-    const v = new THREE.Vector3();
-    for (let i = 0; i < posAttr.count; i++) {
-      let wHead = 0;
-      const js = [jAttr.getX(i), jAttr.getY(i), jAttr.getZ(i), jAttr.getW(i)];
-      const ws = [wAttr.getX(i), wAttr.getY(i), wAttr.getZ(i), wAttr.getW(i)];
-      for (let k = 0; k < 4; k++) {
-        if (Math.round(js[k]) === headIdx) wHead = Math.max(wHead, ws[k]);
+      if (combo.includes('muscle') || combo.includes('high-poly') || o.name === 'Object_94') {
+        faceMesh = o;
+      } else if (combo.includes('teeth') || o.name === 'Object_92') {
+        teethMesh = o;
+      } else if (combo.includes('tongue') || o.name === 'Object_88') {
+        tongueMesh = o;
       }
-      if (wHead > MOUTH.headWeightMin) {
-        v.fromBufferAttribute(posAttr, i).applyMatrix4(invHead);
-        if (v.y > MOUTH.yMin && v.y < MOUTH.yMax && v.z > MOUTH.zMin) {
-          const u = (v.y - MOUTH.yMin) / (MOUTH.yMax - MOUTH.yMin); // 0 下巴 .. 1 嘴缝
-          idx.push(i);
-          w.push(0.35 + 0.65 * u * u);
+    });
+
+    // 兜底：若未按名字命中 faceMesh，选取顶点数最多的 SkinnedMesh
+    if (!faceMesh) {
+      let maxCount = 0;
+      root.traverse((o) => {
+        if (o instanceof THREE.SkinnedMesh && o.geometry?.attributes?.position) {
+          const count = o.geometry.attributes.position.count;
+          if (count > maxCount) {
+            maxCount = count;
+            faceMesh = o;
+          }
+        }
+      });
+    }
+
+    if (!faceMesh) return null;
+
+    const fPos = faceMesh.geometry.attributes.position;
+    const faceIdx: number[] = [];
+    const faceWeights: number[] = [];
+
+    // 下唇与下巴顶点范围（几何坐标系中 Y ∈ [135.0, 138.8], Z > 11.5, |X| < 2.5）
+    for (let i = 0; i < fPos.count; i++) {
+      const x = fPos.getX(i);
+      const y = fPos.getY(i);
+      const z = fPos.getZ(i);
+      if (Math.abs(x) < 2.5 && y >= 135.0 && y <= 138.8 && z > 11.5) {
+        const xDist = Math.abs(x) / 2.5; // 0..1
+        const yDist = (y - 135.0) / (138.8 - 135.0); // 0 下巴底部 .. 1 下唇边缘
+        const zDist = Math.max(0, Math.min(1, (z - 11.5) / 3.0));
+        // 权重：下唇中心最大，向嘴角和下巴自然递减
+        const w = Math.pow(1 - xDist, 1.5) * (0.3 + 0.7 * yDist) * zDist;
+        if (w > 0.05) {
+          faceIdx.push(i);
+          faceWeights.push(w);
         }
       }
     }
-    if (idx.length > bestIdx.length) {
-      bestIdx = idx;
-      bestW = w;
-      bestMesh = o;
-      bestBase = new Float32Array(posAttr.array);
+
+    if (faceIdx.length < 10) return null;
+    const faceBase = new Float32Array(fPos.array);
+
+    // 下牙顶点索引（Y < 137.8 为下齿）
+    let teethIdx: number[] = [];
+    let teethBase: Float32Array | null = null;
+    if (teethMesh) {
+      const tPos = teethMesh.geometry.attributes.position;
+      teethBase = new Float32Array(tPos.array);
+      for (let i = 0; i < tPos.count; i++) {
+        if (tPos.getY(i) < 137.8) {
+          teethIdx.push(i);
+        }
+      }
     }
-  });
 
-  if (!bestMesh || bestIdx.length < 100) return null;
+    // 舌头顶点索引
+    let tongueIdx: number[] = [];
+    let tongueBase: Float32Array | null = null;
+    if (tongueMesh) {
+      const tgPos = tongueMesh.geometry.attributes.position;
+      tongueBase = new Float32Array(tgPos.array);
+      for (let i = 0; i < tgPos.count; i++) {
+        tongueIdx.push(i);
+      }
+    }
 
-  const base = bestBase as Float32Array;
-  return { mesh: bestMesh, idx: bestIdx, w: bestW, base };
+    return {
+      faceMesh,
+      faceIdx,
+      faceWeights,
+      faceBase,
+      teethMesh,
+      teethIdx,
+      teethBase,
+      tongueMesh,
+      tongueIdx,
+      tongueBase,
+    };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[DigitalHumanGLB] 口型绑定初始化异常:', err);
+    return null;
+  }
 }
 
-// ─── Constants ────────────────────────────────────────────────────
+// ─── 尺寸、朝向与相机构图常量 ─────────────────────────────────────────────
 
-// 相机半身构图（聚焦面部与说话手势）
+// 相机半身构图（聚焦写实人脸与上半身手势）
 const CAM_POS = new THREE.Vector3(0, 1.24, 1.72);
 const CAM_TARGET = new THREE.Vector3(0, 1.18, 0);
 const FOV = 38;
 
-// 目标身高（米）：无论模型原始单位（米/厘米）都归一到 1.75m 工业人像比例
+// 目标身高（米）：归一化为 1.75m 真实工业人像标准
 const TARGET_HEIGHT = 1.75;
 
-// 说话动画名（GLB 内置，匈牙利语 beszéd = 说话）
+// 模型水平旋转偏角（弧度）：0 保持默认正对相机；可调整此常量
+const ROTATE_Y = 0;
+
+// 说话动画候选名（仅播放匹配的说话/手势动画，过滤死亡倒地动作）
 const SPEAK_CLIP_NAME = 'Armature|beszed';
 
-// ─── Component ────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────
 
 export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLBProps>(
   ({ personaId, isSpeaking = false, className = '', onError }, ref) => {
@@ -219,11 +323,10 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       lastTime: number;
       disposed: boolean;
       personaId: string;
-      /** 当前朗读句柄的取消函数（切换/打断时调用） */
       cancelSpeak: (() => void) | null;
     } | null>(null);
 
-    // ── Load GLB model ──────────────────────────────────────────
+    // ── Load GLB model ──────────────────────────────────────────────────────
 
     const loadGLB = useCallback((url: string, ctx: NonNullable<typeof sceneRef.current>): Promise<void> => {
       return new Promise<void>((resolve, reject) => {
@@ -256,16 +359,16 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           }
           ctx.scene.add(root);
 
-          // 归一化：统一到 1.75m（Sketchfab GLB 或为厘米单位，双保险）
+          // 1. 模型尺寸归一化：按身高缩放至 1.75m
           const box = new THREE.Box3().setFromObject(root);
           const size = box.getSize(new THREE.Vector3());
-          const center = box.getCenter(new THREE.Vector3());
           const h = size.y;
-          if (Number.isFinite(h) && h > 0.01 && Math.abs(h - TARGET_HEIGHT) > 0.05) {
+          if (Number.isFinite(h) && h > 0.01 && Math.abs(h - TARGET_HEIGHT) > 0.02) {
             root.scale.setScalar(TARGET_HEIGHT / h);
             root.updateMatrixWorld(true);
           }
-          // 脚底归零 + x/z 居中
+
+          // 2. 位置调整：脚底置于 y=0 平面，水平 X/Z 轴居中
           const box2 = new THREE.Box3().setFromObject(root);
           const min2 = box2.min;
           const center2 = box2.getCenter(new THREE.Vector3());
@@ -275,29 +378,58 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
             root.position.z -= center2.z;
           }
 
-          // 动画混音器 + 说话动画
+          // 3. 模型朝向调整：正对相机
+          root.rotation.y = ROTATE_Y;
+          root.updateMatrixWorld(true);
+
+          // 4. 打印新模型骨骼层级与映射关系
+          try {
+            printBoneHierarchy(root);
+          } catch {}
+
+          // 5. 动画混音器：仅当找到合法说话/手势动画时才播放，过滤无关动作
           let mixer: THREE.AnimationMixer | null = null;
           let speakAction: THREE.AnimationAction | null = null;
           if (gltf.animations && gltf.animations.length > 0) {
-            mixer = new THREE.AnimationMixer(root);
-            const clip =
-              gltf.animations.find((a) => a.name === SPEAK_CLIP_NAME) || gltf.animations[0];
-            speakAction = mixer.clipAction(clip);
-            speakAction.setLoop(THREE.LoopRepeat, Infinity);
-            speakAction.setEffectiveWeight(0);
-            speakAction.clampWhenFinished = true;
+            const talkClip = gltf.animations.find((a) => {
+              const cn = (a.name || '').toLowerCase();
+              return cn === SPEAK_CLIP_NAME.toLowerCase() || cn.includes('talk') || cn.includes('speak') || cn.includes('beszed');
+            });
+            if (talkClip) {
+              mixer = new THREE.AnimationMixer(root);
+              speakAction = mixer.clipAction(talkClip);
+              speakAction.setLoop(THREE.LoopRepeat, Infinity);
+              speakAction.setEffectiveWeight(0);
+              speakAction.clampWhenFinished = true;
+            }
           }
           ctx.mixer = mixer;
           ctx.speakAction = speakAction;
 
-          // 程序化口型绑定（模型无 Jaw/morph，说话时驱动嘴部条带顶点开合）
+          // 6. 程序化口型绑定
           try {
             ctx.mouth = setupMouthAnimation(root);
           } catch (e) {
+            // eslint-disable-next-line no-console
             console.warn('[DigitalHumanGLB] 口型绑定失败:', e);
             ctx.mouth = null;
           }
 
+          // 7. 材质保持写实双面渲染
+          root.traverse((o) => {
+            if (o instanceof THREE.Mesh) {
+              const mats = Array.isArray(o.material) ? o.material : [o.material];
+              mats.forEach((m) => {
+                if (m) {
+                  m.side = THREE.DoubleSide;
+                  m.needsUpdate = true;
+                }
+              });
+            }
+          });
+
+          // 调试钩子
+          (window as any).__dhScene = root;
           ctx.root = root;
           ctx.anim = freshAnimState();
           resolve();
@@ -307,7 +439,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       });
     }, []);
 
-    // ── Scene lifecycle ─────────────────────────────────────────
+    // ── Scene lifecycle ─────────────────────────────────────────────────────
 
     useEffect(() => {
       const container = containerRef.current;
@@ -349,7 +481,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       }
       scene.add(grid);
 
-      // 灯光（工业科技风，同 VRM 版）
+      // 灯光配置
       const mainLight = new THREE.DirectionalLight(0xf0f6ff, 1.65);
       mainLight.position.set(2.2, 3.2, 3.5);
       scene.add(mainLight);
@@ -385,6 +517,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       const modelUrl = PERSONA_MODEL[personaId] || PERSONA_MODEL.zhang;
       loadGLB(modelUrl, ctx).catch((err) => {
         if (!ctx.disposed) {
+          // eslint-disable-next-line no-console
           console.warn('[DigitalHumanGLB] 模型加载失败:', err);
           onErrorRef.current?.(err);
         }
@@ -416,10 +549,9 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           return;
         }
 
-        // 动画混音器推进（说话动画）
+        // 动画混音器推进（若有说话动画动作）
         if (ctx.mixer) {
           ctx.mixer.update(dt / 1000);
-          // 说话权重平滑（0 ↔ 1）
           if (ctx.speakAction) {
             const target = a.speaking ? 1 : 0;
             a.speakWeight += (target - a.speakWeight) * 0.1;
@@ -429,39 +561,36 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           }
         }
 
-        const findBone = (name: string): THREE.Object3D | null =>
-          root.getObjectByName(name) || null;
-
-        // ── 待机：呼吸（Spine2 缩放）──
+        // ── 待机：胸腔呼吸（Spine2 细微缩放）──
         const breathPhase = (t * Math.PI * 2) / 4000;
-        const spine2 = findBone(BONE.spine2);
+        const spine2 = findBone(root, BONE.spine2);
         if (spine2) {
           const bs = 1 + 0.012 * Math.sin(breathPhase);
           spine2.scale.set(bs, bs, bs);
         }
 
-        // ── 待机：头部微动（说话动画也驱动头部，这里仅待机叠加轻微活体感）──
-        const head = findBone(BONE.head);
+        // ── 待机：头部自然微动 ──
+        const head = findBone(root, BONE.head);
         if (head && !a.speaking) {
           head.rotation.y = 0.03 * Math.sin((t * Math.PI * 2) / 7000) + 0.02 * Math.sin((t * Math.PI * 2) / 11000);
           head.rotation.z = 0.012 * Math.sin((t * Math.PI * 2) / 5000);
         }
 
-        // ── 待机：手臂自然微摆（说话时交给 beszed 手势动画，避免叠加冲突）──
+        // ── 待机：手臂自然微摆 ──
         if (!a.speaking) {
           const swingT = t / 1000;
           const swingZ = 0.05 * Math.sin(swingT * 1.8 + a.phaseL);
-          const lArm = findBone(BONE.lArm);
-          const rArm = findBone(BONE.rArm);
+          const lArm = findBone(root, BONE.lArm);
+          const rArm = findBone(root, BONE.rArm);
           if (lArm) lArm.rotation.z = 0.1 + swingZ;
           if (rArm) rArm.rotation.z = -0.1 - swingZ;
-          const lFore = findBone(BONE.lForeArm);
-          const rFore = findBone(BONE.rForeArm);
+          const lFore = findBone(root, BONE.lForeArm);
+          const rFore = findBone(root, BONE.rForeArm);
           if (lFore) lFore.rotation.x = -0.1;
           if (rFore) rFore.rotation.x = -0.1;
         }
 
-        // ── 说话：头部轻点头（在 beszed 基础上叠加轻微点头）──
+        // ── 说话：节律性轻点头 ──
         if (a.nodProgress >= 0 && head) {
           a.nodProgress += dt / 400;
           if (a.nodProgress >= 1) {
@@ -472,35 +601,82 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           }
         }
 
-        // ── 说话：程序化口型（嘴部条带顶点开合）──
+        // ── 说话：程序化嘴部开合与联动形变 ──
         const mouth = ctx.mouth;
         if (mouth) {
           const target = a.speaking ? 1 : 0;
-          a.mouthOpen += (target - a.mouthOpen) * 0.08;
-          const posAttr = mouth.mesh.geometry.attributes.position;
-          const arr = posAttr.array as Float32Array;
+          a.mouthOpen += (target - a.mouthOpen) * 0.15;
           if (a.mouthOpen > 0.002) {
-            // 2.9Hz + 4.9Hz 双正弦叠加（口型节奏），峰值 ~20mm
             const sec = t / 1000;
-            const open =
-              MOUTH.openPeak *
-              a.mouthOpen *
-              (0.5 + 0.3 * Math.sin(sec * 18.2) + 0.2 * Math.sin(sec * 31.4 + 1.3));
-            for (let i = 0; i < mouth.idx.length; i++) {
-              const vi = mouth.idx[i] * 3;
-              const w = mouth.w[i];
-              arr[vi + 1] = mouth.base[vi + 1] - open * w;
-              arr[vi + 2] = mouth.base[vi + 2] + open * 0.4 * w;
+            // 真实说话时口型节奏：主频约 2.9Hz + 辅频 5Hz 震荡
+            const rhythm = 0.5 + 0.3 * Math.sin(sec * 18.2) + 0.2 * Math.sin(sec * 31.4 + 1.3);
+            const deltaY = 0.42 * a.mouthOpen * rhythm;
+            const deltaZ = 0.06 * a.mouthOpen * rhythm;
+
+            // 1. 面部下唇与下巴形变
+            const fPos = mouth.faceMesh.geometry.attributes.position;
+            const fArr = fPos.array as Float32Array;
+            for (let k = 0; k < mouth.faceIdx.length; k++) {
+              const vi = mouth.faceIdx[k] * 3;
+              const w = mouth.faceWeights[k];
+              fArr[vi + 1] = mouth.faceBase[vi + 1] - deltaY * w;
+              fArr[vi + 2] = mouth.faceBase[vi + 2] + deltaZ * w;
             }
-            posAttr.needsUpdate = true;
+            fPos.needsUpdate = true;
+
+            // 2. 下齿联动下移
+            if (mouth.teethMesh && mouth.teethBase) {
+              const tPos = mouth.teethMesh.geometry.attributes.position;
+              const tArr = tPos.array as Float32Array;
+              const teethDelta = deltaY * 0.8;
+              for (let k = 0; k < mouth.teethIdx.length; k++) {
+                const vi = mouth.teethIdx[k] * 3;
+                tArr[vi + 1] = mouth.teethBase[vi + 1] - teethDelta;
+              }
+              tPos.needsUpdate = true;
+            }
+
+            // 3. 舌头联动微移
+            if (mouth.tongueMesh && mouth.tongueBase) {
+              const tgPos = mouth.tongueMesh.geometry.attributes.position;
+              const tgArr = tgPos.array as Float32Array;
+              const tgDelta = deltaY * 0.5;
+              for (let k = 0; k < mouth.tongueIdx.length; k++) {
+                const vi = mouth.tongueIdx[k] * 3;
+                tgArr[vi + 1] = mouth.tongueBase[vi + 1] - tgDelta;
+              }
+              tgPos.needsUpdate = true;
+            }
           } else if (a.mouthOpen !== 0) {
-            // 完全闭合时恢复原始顶点
-            for (let i = 0; i < mouth.idx.length; i++) {
-              const vi = mouth.idx[i] * 3;
-              arr[vi + 1] = mouth.base[vi + 1];
-              arr[vi + 2] = mouth.base[vi + 2];
+            // 完全闭合时精确恢复原始顶点
+            const fPos = mouth.faceMesh.geometry.attributes.position;
+            const fArr = fPos.array as Float32Array;
+            for (let k = 0; k < mouth.faceIdx.length; k++) {
+              const vi = mouth.faceIdx[k] * 3;
+              fArr[vi + 1] = mouth.faceBase[vi + 1];
+              fArr[vi + 2] = mouth.faceBase[vi + 2];
             }
-            posAttr.needsUpdate = true;
+            fPos.needsUpdate = true;
+
+            if (mouth.teethMesh && mouth.teethBase) {
+              const tPos = mouth.teethMesh.geometry.attributes.position;
+              const tArr = tPos.array as Float32Array;
+              for (let k = 0; k < mouth.teethIdx.length; k++) {
+                const vi = mouth.teethIdx[k] * 3;
+                tArr[vi + 1] = mouth.teethBase[vi + 1];
+              }
+              tPos.needsUpdate = true;
+            }
+
+            if (mouth.tongueMesh && mouth.tongueBase) {
+              const tgPos = mouth.tongueMesh.geometry.attributes.position;
+              const tgArr = tgPos.array as Float32Array;
+              for (let k = 0; k < mouth.tongueIdx.length; k++) {
+                const vi = mouth.tongueIdx[k] * 3;
+                tgArr[vi + 1] = mouth.tongueBase[vi + 1];
+              }
+              tgPos.needsUpdate = true;
+            }
             a.mouthOpen = 0;
           }
         }
@@ -553,7 +729,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ── Sync personaId → badge color（形象统一，徽章颜色区分）──
+    // ── Sync personaId ───────────────────────────────────────────────────────
     useEffect(() => {
       const ctx = sceneRef.current;
       if (!ctx || ctx.disposed || ctx.personaId === personaId) return;
@@ -561,13 +737,14 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       const modelUrl = PERSONA_MODEL[personaId] || PERSONA_MODEL.zhang;
       loadGLB(modelUrl, ctx).catch((err) => {
         if (!ctx.disposed) {
+          // eslint-disable-next-line no-console
           console.warn('[DigitalHumanGLB] 切换人设模型失败:', err);
           onErrorRef.current?.(err);
         }
       });
     }, [personaId, loadGLB]);
 
-    // ── Sync isSpeaking prop ──
+    // ── Sync isSpeaking prop ─────────────────────────────────────────────────
     useEffect(() => {
       const ctx = sceneRef.current;
       if (ctx) {
@@ -583,7 +760,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
       }
     }, [isSpeaking]);
 
-    // ── Imperative handle ──────────────────────────────────────
+    // ── Imperative handle ───────────────────────────────────────────────────
 
     const triggerNod = useCallback((dir: number) => {
       const ctx = sceneRef.current;
@@ -606,12 +783,9 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
             .trim();
           if (!clean) return false;
 
-          // 视觉播报时长（口型/手势）：至少 2.5s，按文本长度最多 9s。
-          // 真实语音时长由 speech.ts 的 onEnd 决定，这里只作为"没声音时也要嘴动"的兜底。
           const startT = Date.now();
           const estMs = Math.min(Math.max(clean.length * 150, 2500), 9000);
 
-          // 打断上一次朗读
           try {
             ctx.cancelSpeak?.();
           } catch {}
@@ -630,7 +804,6 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
             }, Math.max(0, remain));
           };
 
-          // 统一走 speech.ts：确定性选中文音色 + 真实事件 + 看门狗兜底
           primeSpeech();
           const handle = speakChinese(clean, {
             gender: voiceGenderFor(ctx.personaId),
@@ -640,7 +813,6 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           });
           ctx.cancelSpeak = handle.cancel;
 
-          // 等真实语音结束，但视觉状态至少维持 estMs（口型不会因为 TTS 秒退而闪一下）
           return new Promise<boolean>((resolve) => {
             handle.promise
               .then((spoken) => release(spoken, resolve))
@@ -677,6 +849,7 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           ctx.personaId = id;
           loadGLB(modelUrl, ctx).catch((err) => {
             if (!ctx.disposed) {
+              // eslint-disable-next-line no-console
               console.warn('[DigitalHumanGLB] setPersona 模型加载失败:', err);
             }
           });
