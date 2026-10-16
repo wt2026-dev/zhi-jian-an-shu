@@ -1,5 +1,5 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样（speech-to-text 含指派的最小修复，见响应处注释）。
-import { getVisionClient, extractAiJson } from "../services/aiClient.ts";
+import { getVisionClient, extractAiJson, looksLikeUpstreamEcho } from "../services/aiClient.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
 import { findRelevantKnowledge } from "../services/knowledgeRetrieval.ts";
@@ -53,6 +53,11 @@ export const handleVisionDefectDetect = async (req: any, res: any) => {
       // 路由器会按候选配置改写 model 并重排降级，实际应答方未必是 DASHSCOPE_VISION_MODEL；
       // 归属必须照实上报，否则界面上会把别家模型的输出标成 "DashScope qwen-vl-max"。
       const usedModel = String(completion.model || DASHSCOPE_VISION_MODEL);
+      // 正文级异常检测：上游把网关错误当正文返回时，它不是对这张图片的分析，不能带
+      // success:true + modelEngine 冒充质检结论；抛出后落既有的诚实降级分支。
+      if (looksLikeUpstreamEcho(rawContent)) {
+        throw new Error(`上游返回自身异常提示，已拦截: ${rawContent.slice(0, 60)}`);
+      }
       let parsedResult: any = null;
       try {
         const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
@@ -205,6 +210,11 @@ export async function handleAiMultimodalSearch(req: any, res: any) {
         });
 
         const rawText = response.choices?.[0]?.message?.content?.trim() || "";
+        // 正文级异常检测：网关错误话术不能写进 visionDescription（那会被当成"图片里看到了什么"
+        // 拿去检索案例）。抛出后由下面的 catch 保持空描述，落既有的"服务暂不可用"诚实分支。
+        if (looksLikeUpstreamEcho(rawText)) {
+          throw new Error(`上游返回自身异常提示，已拦截: ${rawText.slice(0, 60)}`);
+        }
         const parsed = extractAiJson(rawText);
         if (parsed) {
           visionDescription = String(parsed.visionDescription || "").trim();

@@ -3,7 +3,7 @@
 // dbKnowledgeArticles（仅 2 篇硬编码种子），与 KnowledgeRepository（数据库 14+ 篇）不一致，
 // 导致前端列表与 AI RAG 检索口径割裂、重启后新建文章从列表消失。
 // 现已删除内存数组，列表/检索/图谱统一以 knowledge_articles 表为唯一数据源。
-import { getVisionClient, callDashScopeJson, createEmbedding, cosineSimilarity } from "../services/aiClient.ts";
+import { getVisionClient, callDashScopeJson, createEmbedding, cosineSimilarity, looksLikeUpstreamEcho } from "../services/aiClient.ts";
 import { getDb } from "../../db/db.ts";
 import { KnowledgeRepository } from "../../db/repositories/index.ts";
 import { DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
@@ -104,6 +104,11 @@ export const handleSearchKnowledge = async (req: any, res: any) => {
     try {
       const vision: any = await ai.chat.completions.create({ model: DASHSCOPE_VISION_MODEL, messages: [{ role: "user", content: [{ type: "text", text: "识别图中的工业设备型号、部件和故障现象；只返回用于知识检索的中文关键词，50字以内。" }, { type: "image_url", image_url: { url: imageBase64 } }] }] } as any);
       imageRecognition = String(vision.choices?.[0]?.message?.content || "").trim();
+      // 正文级异常检测：网关错误话术若被拼进 query，会让"接口异常/请稍后重试"变成检索关键词。
+      // 视同图片识别失败，走下面既有的 502（未执行检索），不拿脏词表冒充识别结果。
+      if (looksLikeUpstreamEcho(imageRecognition)) {
+        throw new Error("图片识别未返回有效内容（上游返回了它自身的异常提示），本次未执行检索");
+      }
       query = `${query} ${imageRecognition}`.trim();
     } catch (err: any) { return res.status(502).json({ error: "图片识别失败，未执行检索", message: err.message }); }
   }

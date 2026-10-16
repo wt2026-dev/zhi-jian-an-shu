@@ -1,5 +1,5 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
-import { getAiClient, AiUnavailableError, callDashScopeJson, handleAiRouteError } from "../services/aiClient.ts";
+import { getAiClient, AiUnavailableError, callDashScopeJson, handleAiRouteError, looksLikeUpstreamEcho, UPSTREAM_ECHO_NOTICE } from "../services/aiClient.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { AI_EXPERT_SYSTEM, generateFallbackExpertReply } from "../services/aiExpert.ts";
 import { DASHSCOPE_CHAT_MODEL, DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
@@ -36,12 +36,18 @@ export const handleAiChat = async (req: any, res: any) => {
         messages,
         temperature: 0.7,
       });
-      return res.json({
-        success: true,
-        chatId,
-        reply: response.choices?.[0]?.message?.content || "",
-        model: DASHSCOPE_CHAT_MODEL,
-      });
+      const reply = String(response.choices?.[0]?.message?.content || "");
+      // 上游抖动时会把它自己的网关错误话术当作正文返回（实测 "注：Agnes 接口异常，请稍后重试。"）。
+      // 这类文本不是对问题的回答，不能带 success:true 发出去，也不该进专家纠错队列——落到下面的规则引擎降级。
+      if (!looksLikeUpstreamEcho(reply)) {
+        return res.json({
+          success: true,
+          chatId,
+          reply,
+          model: DASHSCOPE_CHAT_MODEL,
+        });
+      }
+      logger.warn("[AI:CHAT] 上游返回自身异常提示，按未配置降级处理:", reply.slice(0, 80));
     } catch (e: any) {
       logger.warn("DashScope v1 Chat error:", e?.message || e);
     }
@@ -113,6 +119,23 @@ ${JSON.stringify(contextData, null, 2)}
         fullText += delta;
         sendEvent({ content: delta });
       }
+    }
+    // 正文级异常检测：流式路径同样会被上游把网关错误当内容吐回来，且此时错误话术已经
+    // 逐字推给前端了。这里补发 error 事件——前端两个消费方（useAiChat / AiAssistantView）
+    // 收到 error 都会用 ⚠️ 文案整条覆盖气泡并跳过播报与追问建议，抖动正文因此不会留下。
+    if (looksLikeUpstreamEcho(fullText)) {
+      logger.warn("[AI:CHAT_STREAM] 上游返回自身异常提示，已拦截:", fullText.slice(0, 80));
+      sendEvent({ error: UPSTREAM_ECHO_NOTICE, degraded: true });
+      res.write("data: [DONE]\n\n");
+      res.end();
+      addAuditLog(req, {
+        actionType: "AI_CHAT_STREAM",
+        module: "ai",
+        detail: `AI 流式对话被正文级异常检测拦截（上游返回自身错误话术）: ${fullText.slice(0, 60)}`,
+        status: "FAILED",
+        metadata: { echoFiltered: true, upstreamText: fullText.slice(0, 200) },
+      });
+      return;
     }
     res.write("data: [DONE]\n\n");
     res.end();

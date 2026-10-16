@@ -180,6 +180,33 @@ export function getVisionClient(): LazyModelRouter {
 /** AI 服务未配置 (DASHSCOPE_API_KEY 缺失) 时的友好降级错误 */
 export class AiUnavailableError extends Error {}
 
+/**
+ * 上游抖动时会把它自己的网关错误话术当作 assistant 正文返回（Agnes 实测：
+ * content = "注：Agnes 接口异常，请稍后重试。"）。那不是对本请求的回答，直接展示会让
+ * 用户以为设备真有此状，并会作为 model_response 污染专家纠错队列。
+ * 判定刻意收窄，避免误杀正常回答里顺带提到"重试/余额"的内容：
+ * 1) 剥离 markdown 符号与空白后不超过 120 字——真答案不会只剩一句提醒；
+ * 2) 含 JSON 大括号结构的一律放行，交给 extractAiJson 那条链判定；
+ * 3) 剩余短文本命中网关错误话术才判为回声。
+ * 纯函数，导出仅供测试。
+ */
+const UPSTREAM_ECHO_MAX_LENGTH = 120;
+const UPSTREAM_ECHO_PATTERN =
+  /接口异常|请求失败|服务(?:暂时|暂)?不可用|无法(?:为)?(?:您|你)?(?:处理|完成)|额度(?:不足|已用尽|耗尽)|余额不足|配额不足|请稍后?重试|稍后再试|请求过于频繁|too ?many ?requests|rate ?limit|insufficient ?quota|service ?unavailable|bad ?gateway|internal ?(?:server )?error/i;
+
+export function looksLikeUpstreamEcho(text: string | undefined | null): boolean {
+  if (!text) return false;
+  const raw = String(text);
+  if (raw.includes("{") && raw.includes("}")) return false;
+  const compactLength = raw.replace(/[*`#>_|~\-—–\s]/g, "").length;
+  if (!compactLength || compactLength > UPSTREAM_ECHO_MAX_LENGTH) return false;
+  return UPSTREAM_ECHO_PATTERN.test(raw);
+}
+
+/** 命中回声后统一对外的措辞：只说"本次没有有效回答"，不复述上游话术，也不编造结论 */
+export const UPSTREAM_ECHO_NOTICE =
+  "AI 上游服务本次返回了它自身的异常提示，未生成有效回答（系统已拦截，避免把网关报错当作检测结论）。请稍后重试，或改用文本/现场复核。";
+
 /** 从模型返回文本中稳健提取 JSON (容忍 ```json 围栏与前后说明文字) */
 export function extractAiJson(text: string): any | null {
   if (!text) return null;
