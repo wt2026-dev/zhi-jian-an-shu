@@ -1,5 +1,5 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样（speech-to-text 含指派的最小修复，见响应处注释）。
-import { getAiClient, extractAiJson } from "../services/aiClient.ts";
+import { getVisionClient, extractAiJson } from "../services/aiClient.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
 import { findRelevantKnowledge } from "../services/knowledgeRetrieval.ts";
@@ -27,7 +27,7 @@ export const handleVisionDefectDetect = async (req: any, res: any) => {
   "safetyNotice": "现场检修安全防护要点（含【安全警示】与 LOTO/GB 30871 要点）"
 }`;
 
-  const ai = getAiClient();
+  const ai = getVisionClient();
   if (ai) {
     try {
       let imageUri = imageUrl;
@@ -167,7 +167,7 @@ export const handleVideoAnalysis = async (req: any, res: any) => {
 export async function handleAiMultimodalSearch(req: any, res: any) {
   try {
     const { imageBase64, userText = "" } = req.body;
-    const ai = getAiClient();
+    const ai = getVisionClient();
 
     if (!imageBase64 || imageBase64.trim().length === 0) {
       return res.json({

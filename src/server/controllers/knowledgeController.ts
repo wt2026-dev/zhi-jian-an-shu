@@ -3,7 +3,7 @@
 // dbKnowledgeArticles（仅 2 篇硬编码种子），与 KnowledgeRepository（数据库 14+ 篇）不一致，
 // 导致前端列表与 AI RAG 检索口径割裂、重启后新建文章从列表消失。
 // 现已删除内存数组，列表/检索/图谱统一以 knowledge_articles 表为唯一数据源。
-import { getAiClient, callDashScopeJson, createEmbedding, cosineSimilarity } from "../services/aiClient.ts";
+import { getVisionClient, callDashScopeJson, createEmbedding, cosineSimilarity } from "../services/aiClient.ts";
 import { getDb } from "../../db/db.ts";
 import { KnowledgeRepository } from "../../db/repositories/index.ts";
 import { DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
@@ -99,7 +99,7 @@ export const handleSearchKnowledge = async (req: any, res: any) => {
   let { query = "", imageBase64, limit = 5 } = req.body;
   let imageRecognition = "";
   if (imageBase64) {
-    const ai = getAiClient();
+    const ai = getVisionClient();
     if (!ai) return res.status(503).json({ error: "AI 服务未配置，无法进行图片识别检索" });
     try {
       const vision: any = await ai.chat.completions.create({ model: DASHSCOPE_VISION_MODEL, messages: [{ role: "user", content: [{ type: "text", text: "识别图中的工业设备型号、部件和故障现象；只返回用于知识检索的中文关键词，50字以内。" }, { type: "image_url", image_url: { url: imageBase64 } }] }] } as any);

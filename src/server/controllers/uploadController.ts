@@ -4,7 +4,7 @@ import fs from "fs";
 import { DASHSCOPE_VISION_MODEL, UPLOADS_DIR } from "../utils/config.ts";
 import { authenticateBearer } from "../services/authService.ts";
 import { addAuditLog } from "../services/auditService.ts";
-import { getAiClient, extractAiJson } from "../services/aiClient.ts";
+import { getVisionClient, extractAiJson } from "../services/aiClient.ts";
 import { AiAnalysisLogRepository } from "../../db/repositories/index.ts";
 
 // ==================== 视频文件上传接口 (POST /api/v1/upload/video) ====================
@@ -215,7 +215,7 @@ export const handleUploadImage = async (req: any, res: any) => {
 export const handleVideoAnalyze = async (req: any, res: any) => {
   try {
     const { frames, question = "分析视频中工业设备的运行状态与潜在故障", deviceModel = "工业动力设备", videoId } = req.body;
-    const ai = getAiClient();
+    const ai = getVisionClient();
     if (!ai) return res.status(503).json({ error: "AI 服务未配置，无法进行视频多模态分析" });
 
     const promptText = `你是一位拥有20年工程经验的特级工业设备多模态视觉诊断专家。

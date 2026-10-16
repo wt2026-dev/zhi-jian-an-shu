@@ -1,7 +1,7 @@
 import { aiCacheGet, aiCacheSet } from "../../utils/aiCache.ts";
 import { DASHSCOPE_CHAT_MODEL, isAiBudgetEnabled, getAiDailyBudget } from "../utils/config.ts";
 import { addAuditLog } from "./auditService.ts";
-import { resolveCandidates, clientFor, markHealth, isFailoverEligible } from "./aiModelRouter.ts";
+import { resolveCandidates, clientFor, markHealth, isFailoverEligible, ModelCandidate } from "./aiModelRouter.ts";
 import { logger } from "../../utils/logger.ts";
 
 // ==================== AI 每日预算记账（最小化实现，不改动各 controller） ====================
@@ -91,6 +91,28 @@ export interface LazyModelRouter {
   };
 }
 
+/**
+ * 候选排序：请求 model 与配置精确一致者优先 > 具备首选能力者 > priority（入参须已按 priority 升序）。
+ * 调用方基本都会带一个写死在 config.ts 里的 model 名，所以"未精确命中"才是常态
+ * （换 provider、或该 model 的配置行被停用都会走到这里）——此时必须按 preferredCapability 重排，
+ * 否则该参数形同虚设，视觉请求会落到 priority 最小的纯对话模型上。
+ * 纯函数，导出仅供测试；Array#sort 稳定，同组内保持入参顺序。
+ */
+export function orderCandidates(
+  resolved: ModelCandidate[],
+  reqModel: string | undefined,
+  preferredCapability: "chat" | "vision"
+): ModelCandidate[] {
+  const ordered = [...resolved];
+  const exactMatch = reqModel ? ordered.find((c) => c.modelName === reqModel) : undefined;
+  if (exactMatch) return [exactMatch, ...ordered.filter((c) => c !== exactMatch)];
+  return ordered.sort((a, b) => {
+    const aPref = a.capabilities.includes(preferredCapability) ? 0 : 1;
+    const bPref = b.capabilities.includes(preferredCapability) ? 0 : 1;
+    return aPref - bPref;
+  });
+}
+
 /** 同步构建懒解析路由客户端；preferredCapability 仅在请求 model 与任何配置都不匹配时影响候选排序 */
 function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRouter {
   return {
@@ -108,19 +130,7 @@ function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRoute
               "AI 服务未配置：请在 .env 中配置 DASHSCOPE_API_KEY，或在「AI 模型路由」中添加可用模型配置。"
             );
           }
-          // 排序：请求 model 与配置精确一致者优先 > 首选能力 > priority
-          let ordered = [...resolved];
-          const reqModel = params?.model;
-          if (reqModel) {
-            const exact = ordered.find((c) => c.modelName === reqModel);
-            if (exact) ordered = [exact, ...ordered.filter((c) => c !== exact)];
-          } else {
-            ordered.sort((a, b) => {
-              const aPref = a.capabilities.includes(preferredCapability) ? 0 : 1;
-              const bPref = b.capabilities.includes(preferredCapability) ? 0 : 1;
-              return aPref - bPref;
-            });
-          }
+          const ordered = orderCandidates(resolved, params?.model, preferredCapability);
 
           let lastError: any = null;
           for (let i = 0; i < ordered.length; i++) {
