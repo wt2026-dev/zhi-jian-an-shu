@@ -81,12 +81,15 @@ export async function createApp() {
                         "ws://localhost:*", "wss://localhost:*"],   // Vite HMR
           fontSrc:     ["'self'", "data:"],
           mediaSrc:    ["'self'", "blob:", "*.aliyuncs.com"],
-          frameSrc:    ["'none'"],
+          // 'self' 而非 'none'：Godot 导出页（/godot-maze、/godot-game-2d）以同源
+          // iframe 挂载，'none' 会在生产（下方 reportOnly=false）把引擎整个拦掉。
+          frameSrc:    ["'self'"],
           objectSrc:   ["'none'"],
           baseUri:     ["'self'"],
           formAction:  ["'self'"],
-          // frameAncestors 防止 Clickjacking（替代 X-Frame-Options）
-          frameAncestors: ["'none'"],
+          // frameAncestors 防止 Clickjacking（替代 X-Frame-Options）：'self' 仍拒绝
+          // 任何第三方站点框入本页，只放行自家页面嵌自家页面（Godot iframe 需要）。
+          frameAncestors: ["'self'"],
         },
         // 仅在开发模式报告 CSP 违规到控制台，不阻断（生产改为 enforce）
         reportOnly: process.env.NODE_ENV !== "production",
