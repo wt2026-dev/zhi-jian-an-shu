@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { getDb } from './db.ts';
 import { TelemetryRepository } from './repository.ts';
@@ -10,10 +9,12 @@ import { TelemetryRepository } from './repository.ts';
 // ADR: 数据/代码分离架构，纯数据维护于 seed-data/*.json，本文件纯逻辑层 (<= 400 行)
 // ==============================================================================
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// 与 db.ts 的 migrationsDir 同用 process.cwd()：esbuild 将本文件打进 CJS 产物，
+// import.meta.url 在该产物里为 undefined（dev 的 tsx/ESM 下才存在）。
+const seedDataDir = path.join(process.cwd(), 'src', 'db', 'seed-data');
 
 function loadJson<T = any>(filename: string): T {
-  const filepath = path.join(__dirname, 'seed-data', filename);
+  const filepath = path.join(seedDataDir, filename);
   return JSON.parse(fs.readFileSync(filepath, 'utf-8').replace(/^\uFEFF/, ''));
 }
 
