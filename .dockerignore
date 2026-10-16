@@ -8,6 +8,15 @@ coverage
 data
 public/uploads
 
+# AI 会话临时目录（取证照/日志/补丁，不参与构建）
+scratch
+
+# Godot 源工程与编辑器安装包：浏览器侧只读 public/godot-* 的导出产物，源工程不进镜像
+godot-game
+godot-game-2d
+godot-game-maze
+godot-4.7.2-win64.zip
+
 # 版本控制与 CI
 .git
 .github
