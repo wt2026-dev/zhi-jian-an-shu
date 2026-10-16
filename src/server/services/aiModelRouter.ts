@@ -141,11 +141,15 @@ export function clientFor(candidate: ModelCandidate): OpenAI {
   return new OpenAI({ apiKey: candidate.apiKey, baseURL: candidate.baseUrl, timeout: 120000, maxRetries: 0 });
 }
 
-// ==================== 失败分类：仅 超时/网络错误/5xx/鉴权失败 触发切换 ====================
+// ==================== 失败分类：超时/网络错误/5xx/鉴权失败/模型名不存在(404) 触发切换 ====================
 
 export function isFailoverEligible(err: any): boolean {
   const status = err?.status || err?.httpResponseStatusCode;
   if (status === 401 || status === 403) return true;
+  // 404 = 这个 model 名在该 provider 上不存在（账号换了、配置行写死了过期模型名）。
+  // 它是"这条候选本身不可用"，不是"用户请求有问题"，必须换下一跳；
+  // 早先不放行 404，导致一条过期行把整条降级链钉死，气泡里只剩一句误导的 "Model not exist"。
+  if (status === 404) return true;
   if (typeof status === "number" && status >= 500) return true;
   // OpenAI SDK 网络层错误（APIConnectionError / APIConnectionTimeoutError，cause.code 携带底层 errno）
   const errName = err?.name || "";
@@ -189,42 +193,68 @@ export async function testModelConfig(candidate: ModelCandidate): Promise<{ succ
   }
 }
 
-// ==================== 启动种子：DASHSCOPE_* 环境变量 → 初始配置行（升级无感） ====================
+// ==================== 启动种子：DASHSCOPE_* / AGNES_* 环境变量 → 配置行（升级无感） ====================
+
+/**
+ * 环境里配了 AGNES_API_KEY 就必须存在一条 Agnes 候选行。
+ * 为什么不能只在空表时 seed：PGlite 是进程独占的嵌入式库，两个实例抢同一数据目录时后来者会
+ * fork 一份带时间戳的副本（openPgliteWithFallback），副本里只有迁移期那两条百炼行——百炼免费
+ * 额度一耗尽，这种副本一开机就是"403→404、全站 AI 死"，且管理员在旧库里配的路由看不见。
+ * 只补不覆盖：已有 provider=agnes 的行（哪怕被停用）一律不动，人工开关优先于环境变量。
+ */
+async function ensureAgnesCandidate(configs: { provider?: string }[]): Promise<boolean> {
+  if (!process.env.AGNES_API_KEY) return false;
+  if (configs.some((c) => c.provider === "agnes")) return false;
+  await AiModelConfigRepository.insert({
+    id: "aimc-agnes-flash",
+    provider: "agnes",
+    displayName: "Agnes 2.5 Flash（对话+视觉）",
+    baseUrl: process.env.AGNES_BASE_URL || "https://apihub.agnes-ai.cn/v1",
+    apiKeyEnv: "AGNES_API_KEY",
+    modelName: process.env.AGNES_MODEL || "agnes-2.5-flash",
+    capabilities: ["chat", "vision"],
+    // 必须小于百炼两行的 10：路由器会把与请求 model 精确一致的行强制排第一，
+    // Agnes 只能靠 priority 抢在降级链前面（额度耗尽的百炼行否则先吃掉请求）。
+    priority: 5,
+    enabled: true,
+  });
+  logger.log("[AI Model Router] 检测到 AGNES_API_KEY 且库内无 agnes 候选行，已自动补入（priority=5, chat+vision）");
+  return true;
+}
 
 export async function ensureAiModelSeed(): Promise<void> {
   try {
-    const count = await AiModelConfigRepository.count();
-    if (count > 0) return;
-    const baseUrl = process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
-    const hasKey = !!process.env.DASHSCOPE_API_KEY;
-    if (!hasKey) {
-      logger.log("[AI Model Router] 未检测到 DASHSCOPE_API_KEY，跳过模型配置种子（环境变量回退模式）");
-      return;
+    const configs = await AiModelConfigRepository.getAll();
+    let changed = false;
+    if (!configs.length && process.env.DASHSCOPE_API_KEY) {
+      const baseUrl = process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
+      await AiModelConfigRepository.insert({
+        id: "aimc-dashscope-chat",
+        provider: "dashscope",
+        displayName: "阿里百炼 qwen-plus（对话/文本）",
+        baseUrl,
+        apiKeyEnv: "DASHSCOPE_API_KEY",
+        modelName: process.env.DASHSCOPE_MODEL || "qwen-plus",
+        capabilities: ["chat"],
+        priority: 10,
+        enabled: true,
+      });
+      await AiModelConfigRepository.insert({
+        id: "aimc-dashscope-vision",
+        provider: "dashscope",
+        displayName: "阿里百炼 qwen-vl-max（视觉）",
+        baseUrl,
+        apiKeyEnv: "DASHSCOPE_API_KEY",
+        modelName: process.env.DASHSCOPE_VISION_MODEL || "qwen-vl-max",
+        capabilities: ["vision"],
+        priority: 10,
+        enabled: true,
+      });
+      logger.log("[AI Model Router] 已从 DASHSCOPE_* 环境变量初始化 2 条模型配置（chat/vision）");
+      changed = true;
     }
-    await AiModelConfigRepository.insert({
-      id: "aimc-dashscope-chat",
-      provider: "dashscope",
-      displayName: "阿里百炼 qwen-plus（对话/文本）",
-      baseUrl,
-      apiKeyEnv: "DASHSCOPE_API_KEY",
-      modelName: process.env.DASHSCOPE_MODEL || "qwen-plus",
-      capabilities: ["chat"],
-      priority: 10,
-      enabled: true,
-    });
-    await AiModelConfigRepository.insert({
-      id: "aimc-dashscope-vision",
-      provider: "dashscope",
-      displayName: "阿里百炼 qwen-vl-max（视觉）",
-      baseUrl,
-      apiKeyEnv: "DASHSCOPE_API_KEY",
-      modelName: process.env.DASHSCOPE_VISION_MODEL || "qwen-vl-max",
-      capabilities: ["vision"],
-      priority: 10,
-      enabled: true,
-    });
-    logger.log("[AI Model Router] 已从 DASHSCOPE_* 环境变量初始化 2 条模型配置（chat/vision）");
-    invalidateModelConfigCache();
+    if (await ensureAgnesCandidate(configs)) changed = true;
+    if (changed) invalidateModelConfigCache();
   } catch (e: any) {
     logger.warn("[AI Model Router] 模型配置种子写入失败（不影响启动）:", e?.message || e);
   }

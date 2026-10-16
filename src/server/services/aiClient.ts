@@ -133,6 +133,7 @@ function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRoute
           const ordered = orderCandidates(resolved, params?.model, preferredCapability);
 
           let lastError: any = null;
+          const attempts: string[] = [];
           for (let i = 0; i < ordered.length; i++) {
             const cand = ordered[i];
             // 环境变量回退候选（configId=null）：完全沿用调用方传入的 model，保持升级前行为
@@ -145,6 +146,8 @@ function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRoute
               return response;
             } catch (err: any) {
               lastError = err;
+              const status = err?.status || err?.httpResponseStatusCode || "-";
+              attempts.push(`${cand.displayName}(${cand.modelName})→${status} ${String(err?.message || err).split("\n")[0].slice(0, 90)}`);
               logger.error(`[AI Model Router] ${cand.displayName}(${cand.modelName}) 调用失败:`, err?.message || err);
               void markHealth(cand.configId, "unhealthy");
               if (i < ordered.length - 1 && isFailoverEligible(err)) {
@@ -157,8 +160,21 @@ function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRoute
                 });
                 continue;
               }
-              throw err;
+              break;
             }
+          }
+          // 只抛最后一跳会把真因遮掉：实测百炼额度耗尽(403) 时，界面显示的是下一跳 qwen-vl-max 的
+          // "404 Model not exist"，排查者会去找一条根本不存在的坏模型名。这里把逐跳结果并进去，
+          // 首因放最前，同时保留原 err 的 status/cause，让上层分类逻辑照旧工作。
+          if (lastError && attempts.length > 1) {
+            const first = attempts[0];
+            const rest = attempts.slice(1).join(" | ");
+            const aggregated = new Error(
+              `${first} ｜ 降级链 ${attempts.length} 跳全部失败，其余: ${rest}`.slice(0, 300)
+            ) as Error & { status?: number; cause?: unknown };
+            aggregated.status = lastError.status ?? lastError.httpResponseStatusCode;
+            aggregated.cause = lastError;
+            throw aggregated;
           }
           throw lastError;
         },
