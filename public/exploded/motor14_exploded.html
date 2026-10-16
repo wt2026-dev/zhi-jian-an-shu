@@ -1,0 +1,2277 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>14# 备用电机（成品线变频调速三相异步电机）— 3D 硬件爆炸分解台</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    * { box-sizing: border-box; user-select: none; }
+    body, html {
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+      background-color: #06090f;
+      color: #e2e8f0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .font-mono-tech {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.65); }
+    ::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.35); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.7); }
+
+    /* Industrial Range Slider */
+    input[type="range"].tech-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: linear-gradient(90deg, #0ea5e9 0%, #38bdf8 50%, rgba(51, 65, 85, 0.8) 100%);
+      border-radius: 999px;
+      outline: none;
+      border: 1px solid rgba(56, 189, 248, 0.45);
+    }
+    input[type="range"].tech-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.95);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    input[type="range"].tech-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+      box-shadow: 0 0 18px rgba(56, 189, 248, 1);
+    }
+
+    .tech-panel {
+      background: linear-gradient(180deg, rgba(11, 17, 29, 0.92) 0%, rgba(7, 11, 19, 0.95) 100%);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(56, 189, 248, 0.24);
+      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .tech-btn {
+      background: rgba(15, 23, 42, 0.88);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      color: #cbd5e1;
+      transition: all 0.16s ease;
+    }
+    .tech-btn:hover {
+      border-color: rgba(56, 189, 248, 0.8);
+      color: #ffffff;
+      background: rgba(14, 116, 144, 0.38);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+    }
+    .tech-btn.active {
+      background: linear-gradient(135deg, rgba(2, 132, 199, 0.72) 0%, rgba(14, 165, 233, 0.4) 100%);
+      border-color: #38bdf8;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.55), inset 0 0 8px rgba(56, 189, 248, 0.35);
+    }
+    .orange-demo-btn {
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      border: 1px solid #fdba74;
+      color: #ffffff;
+      box-shadow: 0 0 16px rgba(249, 115, 22, 0.55);
+      transition: all 0.16s ease;
+    }
+    .orange-demo-btn:hover {
+      background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+      box-shadow: 0 0 22px rgba(249, 115, 22, 0.85);
+      transform: translateY(-1px);
+    }
+    .orange-demo-btn.playing {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      border-color: #fca5a5;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.75);
+    }
+    .bom-row {
+      transition: background-color 0.12s ease, border-color 0.12s ease;
+      border-left: 3px solid transparent;
+    }
+    .bom-row:hover {
+      background-color: rgba(14, 165, 233, 0.16);
+    }
+    .bom-row.selected {
+      background: linear-gradient(90deg, rgba(14, 165, 233, 0.38) 0%, rgba(14, 165, 233, 0.08) 100%);
+      border-left: 3px solid #38bdf8;
+    }
+    /* 3D Projected Part Callout Labels */
+    .part-label-tag {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: auto;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      background: rgba(8, 15, 28, 0.88);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 10px;
+      color: #e2e8f0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
+    }
+    .part-label-tag:hover, .part-label-tag.active-tag {
+      background: rgba(2, 132, 199, 0.92);
+      border-color: #7dd3fc;
+      color: #ffffff;
+      z-index: 30;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.85);
+      transform: translate(-50%, -108%) scale(1.06);
+    }
+    .part-label-tag::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: -8px;
+      width: 1px;
+      height: 8px;
+      background: rgba(56, 189, 248, 0.7);
+    }
+    #hover-tooltip {
+      pointer-events: none;
+      transition: opacity 0.08s ease;
+      box-shadow: 0 0 24px rgba(14, 165, 233, 0.45), 0 8px 20px rgba(0,0,0,0.85);
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden select-none">
+
+  <!-- ======================================================================= -->
+  <!-- 1. 顶部标题栏 (TOP HEADER BAR - STANDARD BOILER FEED PUMP LAYOUT)        -->
+  <!-- ======================================================================= -->
+  <header class="tech-panel z-30 flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-sky-500/30 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-sky-500/20 border border-sky-400/60 flex items-center justify-center shadow-[0_0_14px_rgba(56,189,248,0.45)] shrink-0">
+        <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-sm sm:text-base font-bold tracking-wide text-white">
+            14# 备用电机（成品线变频调速三相异步电机）· 3D 硬件爆炸分解台
+          </h1>
+          <span class="px-2 py-0.5 rounded text-[11px] font-mono-tech font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/50">
+            14# 备用电机 · YVF2-280M-4
+          </span>
+          <span id="part-count-badge" class="px-2 py-0.5 rounded text-[11px] font-mono-tech font-semibold bg-amber-500/20 text-amber-300 border border-amber-400/40">
+            90kW · 5~100Hz 变频强冷 · 26组BOM位号
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-0.5">
+          卧式变频调速三相异步电动机（含高密散热筋机座、H级耐电晕定子铜绕组、斜槽铸铝转子、电绝缘轴承、六叶强冷风扇、十字钩头防护网罩、高频瓷接线盒）
+        </p>
+      </div>
+    </div>
+
+    <!-- Right Toolbar: Standard 8 buttons -->
+    <div class="flex flex-wrap items-center gap-1.5">
+      <button id="mode-axial" class="tech-btn active px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1" title="沿电机主轴方向从左向右阶梯爆炸分解">
+        <span>↔</span> 轴向爆炸(左→右)
+      </button>
+      <button id="mode-radial" class="tech-btn px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1" title="轴向与径向多维放射状展开">
+        <span>✥</span> 径向爆炸展开
+      </button>
+      <button id="mode-workbench" class="tech-btn px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1" title="所有零件散落平铺在黑色圆形刻度工作台上">
+        <span>◎</span> 圆台散落模式
+      </button>
+
+      <div class="h-4 w-[1px] bg-slate-700 mx-0.5 hidden sm:block"></div>
+
+      <button id="btn-toggle-labels" class="tech-btn active px-2.5 py-1.5 rounded-md text-xs font-medium" title="显示或隐藏 3D 零件位号与名称标注标签">
+        显示/隐藏标注
+      </button>
+      <button id="btn-toggle-paint" class="tech-btn active px-2.5 py-1.5 rounded-md text-xs font-medium" title="切换工业原厂涂装与精密素体金属质感">
+        涂装
+      </button>
+      <button id="btn-toggle-xray" class="tech-btn px-2.5 py-1.5 rounded-md text-xs font-medium" title="将电机散热机座、前后端盖、风扇罩设为半透明蓝光透视">
+        壳体半透视
+      </button>
+      <button id="btn-toggle-ref" class="tech-btn active px-2.5 py-1.5 rounded-md text-xs font-medium" title="显示 or 隐藏左上角参考爆炸拆解台视觉效果对照窗">
+        参考图对照
+      </button>
+      <button id="btn-reset-camera" class="tech-btn px-2.5 py-1.5 rounded-md text-xs font-semibold text-sky-300 border-sky-400/50" title="重置三维相机视角与零件隔离状态">
+        重置视角
+      </button>
+    </div>
+  </header>
+
+  <!-- ======================================================================= -->
+  <!-- 主体区域：中间 3D 主视图 (含左上角弹窗 + 底部控制栏) + 右侧详情与BOM面板 -->
+  <!-- ======================================================================= -->
+  <div class="relative flex-1 flex overflow-hidden">
+
+    <!-- 3. 中间主视图 (CENTER 3D VIEWPORT) -->
+    <main id="viewport-container" class="relative flex-1 h-full overflow-hidden bg-[#05080d]">
+      <canvas id="three-canvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+      <!-- 3D 实时投影零件标注标签容器 -->
+      <div id="labels-overlay" class="pointer-events-none absolute inset-0 overflow-hidden z-10"></div>
+
+      <!-- =================================================================== -->
+      <!-- 2. 左上角弹窗：参考爆炸拆解台视觉效果 (TOP-LEFT REFERENCE POPUP)     -->
+      <!-- =================================================================== -->
+      <section id="ref-popup" class="tech-panel absolute top-3.5 left-3.5 z-20 w-72 sm:w-80 rounded-xl p-3 border border-sky-500/35 transition-all duration-200">
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+            <h2 class="text-xs font-bold text-sky-300 tracking-wide">参考爆炸拆解台视觉效果</h2>
+          </div>
+          <div class="flex items-center gap-1">
+            <button id="btn-ref-img-motor" class="tech-btn active px-1.5 py-0.5 rounded text-[10px]" title="查看 14# 备用电机实机风扇网罩参考图">14#电机图</button>
+            <button id="btn-ref-img-blender" class="tech-btn px-1.5 py-0.5 rounded text-[10px]" title="查看 Blender 硬件工程师圆台拆解参考">拆解台</button>
+            <button id="btn-close-ref" class="text-slate-400 hover:text-white px-1 text-xs" title="最小化参考窗">✕</button>
+          </div>
+        </div>
+
+        <!-- 参考图像显示框 -->
+        <div class="relative w-full h-32 rounded-lg overflow-hidden bg-slate-950 border border-slate-800 mb-2.5 flex items-center justify-center">
+          <img id="ref-img-display" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='128' viewBox='0 0 320 128'><rect width='320' height='128' fill='%23080e18'/><circle cx='160' cy='64' r='45' fill='none' stroke='%2338bdf8' stroke-width='4'/><path d='M160 19l0 90M115 64l90 0' stroke='%23f97316' stroke-width='3'/><text x='160' y='118' fill='%2394a3b8' font-size='11' font-family='monospace' text-anchor='middle'>14# Motor Fan & Grille Reference</text></svg>" alt="参考爆炸拆解台视觉效果" class="w-full h-full object-contain bg-[#2a2d32]" />
+          <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950/95 via-slate-950/60 to-transparent px-2 py-1 flex items-center justify-between text-[10px]">
+            <span id="ref-img-caption" class="text-slate-200 font-medium">14# 备用电机 (六叶风扇+十字钩头网罩)</span>
+            <span class="font-mono-tech text-sky-400">YVF2-280M</span>
+          </div>
+        </div>
+
+        <!-- 当前爆炸模式 + 当前高亮零件 -->
+        <div class="grid grid-cols-2 gap-1.5 text-[11px] mb-2.5">
+          <div class="bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800">
+            <div class="text-[10px] text-slate-400">当前爆炸模式</div>
+            <div id="ref-current-mode" class="font-bold text-sky-300 mt-0.5 truncate">轴向爆炸(左→右)</div>
+          </div>
+          <div class="bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800">
+            <div class="text-[10px] text-slate-400">当前高亮零件</div>
+            <div id="ref-current-part" class="font-bold text-amber-300 mt-0.5 truncate">#20 六叶强冷风扇</div>
+          </div>
+        </div>
+
+        <!-- 材质分布 (Material Distribution Bar & Legend) -->
+        <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800/90">
+          <div class="flex items-center justify-between text-[10px] text-slate-300 mb-1">
+            <span class="font-semibold">整机 26 组零件材质分布</span>
+            <span class="font-mono-tech text-sky-400">685.0 kg</span>
+          </div>
+          <div class="w-full h-2 rounded-full overflow-hidden flex bg-slate-950 mb-1.5">
+            <div class="bg-sky-400 h-full" style="width: 35%" title="高强灰铸铁与结构钢 35%"></div>
+            <div class="bg-emerald-400 h-full" style="width: 28%" title="冷轧硅钢片与42CrMo转轴 28%"></div>
+            <div class="bg-amber-400 h-full" style="width: 22%" title="无氧紫铜绕组与铸铝鼠笼 22%"></div>
+            <div class="bg-indigo-400 h-full" style="width: 15%" title="轴承钢/陶瓷绝缘/不锈钢网罩 15%"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-slate-400">
+            <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-sky-400"></span>HT250铸铁/钢 (9)</div>
+            <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-emerald-400"></span>50W470硅钢/轴 (5)</div>
+            <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-amber-400"></span>H级紫铜/铸铝 (6)</div>
+            <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-indigo-400"></span>绝缘轴承/304网 (6)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================================== -->
+      <!-- 5. 底部控制栏 (BOTTOM CONTROL BAR - MUST HAVE STANDARD STRUCTURE)   -->
+      <!-- =================================================================== -->
+      <section class="tech-panel absolute bottom-3.5 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-4 py-2.5 rounded-2xl border border-sky-500/40 max-w-[96vw]">
+        <button id="btn-play-explode" class="orange-demo-btn px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
+          <span id="play-icon">▶</span>
+          <span id="play-text">动画演示</span>
+        </button>
+
+        <div class="flex items-center gap-1 shrink-0">
+          <button id="btn-prev-part" class="tech-btn px-2.5 py-1.5 rounded-lg text-xs font-medium" title="切换到上一个拆解零件并高亮">
+            ◀ 上一件
+          </button>
+          <button id="btn-next-part" class="tech-btn px-2.5 py-1.5 rounded-lg text-xs font-medium" title="切换到下一个拆解零件并高亮">
+            下一件 ▶
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2 bg-slate-950/90 px-3 py-1.5 rounded-xl border border-slate-800 shrink-0">
+          <span class="text-xs text-slate-300 font-medium whitespace-nowrap">拆解程度</span>
+          <input id="explode-slider" type="range" min="0" max="100" value="55" class="tech-slider w-28 sm:w-40 md:w-48" />
+          <span id="explode-value" class="font-mono-tech text-xs font-bold text-sky-400 w-10 text-right">55%</span>
+        </div>
+
+        <div class="flex items-center gap-1 shrink-0">
+          <button id="btn-quick-assemble" class="tech-btn px-2.5 py-1.5 rounded-lg text-xs font-medium">
+            0% 完全组装
+          </button>
+          <button id="btn-quick-half" class="tech-btn px-2.5 py-1.5 rounded-lg text-xs font-medium">
+            45% 半拆解
+          </button>
+          <button id="btn-quick-explode" class="tech-btn px-2.5 py-1.5 rounded-lg text-xs font-medium">
+            100% 完全散开
+          </button>
+        </div>
+
+        <button id="btn-auto-rotate" class="tech-btn px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0">
+          <span>↻</span> 环绕展示
+        </button>
+      </section>
+
+      <!-- 悬停零件提示框 (Floating Hover Tooltip) -->
+      <div id="hover-tooltip" class="hidden fixed z-50 px-3.5 py-2.5 rounded-lg bg-slate-950/95 border border-sky-400/80 text-xs max-w-xs">
+        <div class="flex items-center justify-between gap-3 mb-1">
+          <span id="tt-code" class="font-mono-tech text-[11px] font-bold px-1.5 py-0.5 rounded bg-sky-500/25 text-sky-300 border border-sky-400/40">#20 · M-20</span>
+          <span id="tt-category" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">风冷与接线</span>
+        </div>
+        <div id="tt-name" class="text-sm font-bold text-white tracking-wide">六叶宽弦独立强冷风扇</div>
+        <div class="mt-1 flex items-center gap-1.5 text-[11px] text-sky-300">
+          <span class="text-slate-400">材质:</span>
+          <span id="tt-material" class="font-mono-tech font-medium">ZL104 高强铸造铝合金</span>
+        </div>
+        <div id="tt-spec" class="mt-0.5 text-[10px] text-slate-400">规格: Ø470mm · 6枚宽弦叶片</div>
+      </div>
+    </main>
+
+    <!-- ===================================================================== -->
+    <!-- 4. 右侧面板：上半部分零件详情卡片 + 下半部分BOM表格 + 底部统计        -->
+    <!-- ===================================================================== -->
+    <aside id="right-sidebar" class="tech-panel z-30 w-80 sm:w-96 md:w-[420px] h-full flex flex-col border-l border-sky-500/30 shrink-0">
+      
+      <!-- 4.1 上半部分：零件详情卡片 -->
+      <section class="p-3.5 border-b border-sky-500/25 bg-slate-950/50 shrink-0">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-4 rounded-sm bg-sky-400 shadow-[0_0_8px_#38bdf8]"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-sky-300">零件详情卡片 (PART INSPECTOR)</h2>
+          </div>
+          <span id="detail-status-badge" class="text-[11px] font-mono-tech px-2 py-0.5 rounded bg-sky-500/25 text-sky-300 border border-sky-400/50">
+            位号 #20 已高亮
+          </span>
+        </div>
+
+        <div class="rounded-xl bg-slate-900/90 border border-sky-500/35 p-3 shadow-inner">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span id="detail-pos-no" class="font-mono-tech text-xs font-bold px-2 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-400/50">#20</span>
+                <span id="detail-code" class="font-mono-tech text-xs font-bold px-2 py-0.5 rounded bg-sky-500/30 text-sky-200 border border-sky-400/50">M-20</span>
+                <span id="detail-cat" class="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-950 text-sky-300 border border-sky-700/50">风冷与接线</span>
+              </div>
+              <h3 id="detail-name" class="text-base font-bold text-white mt-1.5">六叶宽弦独立强冷风扇</h3>
+            </div>
+            <div class="text-right shrink-0 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800">
+              <div class="text-[10px] text-slate-400">数量 / 重量</div>
+              <div class="font-mono-tech text-xs font-bold text-sky-300 mt-0.5">
+                <span id="detail-qty">1 件</span> · <span id="detail-weight">7.8 kg</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 mt-2.5 pt-2.5 border-t border-slate-800 text-xs">
+            <div class="bg-slate-950/75 p-2 rounded-lg border border-slate-800/90">
+              <div class="text-[10px] text-slate-400">规格参数 (Specification)</div>
+              <div id="detail-spec" class="font-mono-tech text-slate-100 text-[11px] font-medium mt-0.5 truncate" title="Ø470mm · 6枚宽弦大倾角轴流叶片">Ø470mm · 6枚宽弦叶片</div>
+            </div>
+            <div class="bg-slate-950/75 p-2 rounded-lg border border-slate-800/90">
+              <div class="text-[10px] text-slate-400">材质标准 (Material Std)</div>
+              <div id="detail-material" class="font-mono-tech text-sky-300 text-[11px] font-semibold mt-0.5 truncate" title="ZL104 高强铸造铝合金 (数控动平衡)">ZL104 高强铸造铝合金</div>
+            </div>
+          </div>
+
+          <p id="detail-desc" class="mt-2 text-[11px] text-slate-300 leading-relaxed bg-sky-950/25 p-2 rounded-lg border border-sky-500/20">
+            精准复刻 14# 备用电机实机图中的 6 叶片宽弦金属风扇！即使主电机在 5Hz 低频慢速运行时，仍能提供强劲轴向冷却风量。
+          </p>
+
+          <div class="flex items-center gap-1.5 mt-2.5">
+            <button id="btn-focus-part" class="tech-btn flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1">
+              <span>🎯</span> 聚焦零件
+            </button>
+            <button id="btn-isolate-part" class="tech-btn flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1">
+              <span>👁️</span> 其余半透明
+            </button>
+            <button id="btn-clear-select" class="tech-btn py-1.5 px-2.5 rounded-lg text-xs font-medium text-slate-300">
+              全显还原
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4.2 下半部分：BOM 物料清单表格 -->
+      <section class="flex-1 flex flex-col min-h-0 p-3.5">
+        <div class="flex items-center justify-between gap-2 mb-2 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-4 rounded-sm bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">BOM 物料清单表格 (26 组位号)</h2>
+          </div>
+          <button id="btn-export-bom" class="tech-btn px-2 py-0.5 rounded text-[11px] font-mono-tech text-sky-300 flex items-center gap-1" title="导出 CSV 格式 BOM 物料表">
+            ⬇ 导出 CSV
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1 mb-2 shrink-0">
+          <button data-cat="ALL" class="bom-cat-btn tech-btn active flex-1 py-1 rounded text-[11px] font-medium">全部(26)</button>
+          <button data-cat="机壳端盖" class="bom-cat-btn tech-btn flex-1 py-1 rounded text-[11px] font-medium">机壳(7)</button>
+          <button data-cat="定转子核心" class="bom-cat-btn tech-btn flex-1 py-1 rounded text-[11px] font-medium">电磁(6)</button>
+          <button data-cat="轴承密封" class="bom-cat-btn tech-btn flex-1 py-1 rounded text-[11px] font-medium">轴承(7)</button>
+          <button data-cat="风冷与接线" class="bom-cat-btn tech-btn flex-1 py-1 rounded text-[11px] font-medium">风罩/盒(6)</button>
+        </div>
+
+        <div class="relative mb-2 shrink-0">
+          <input id="bom-search" type="text" placeholder="搜索位号、零件名称或材质 (如: #20 / 风扇 / 绕组 / 轴承)..."
+            class="w-full bg-slate-900/90 border border-slate-700/80 focus:border-sky-400 rounded-lg pl-7 pr-7 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none" />
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <button id="btn-clear-search" class="hidden absolute right-2 top-1.5 text-xs text-slate-400 hover:text-white">✕</button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/65">
+          <table class="w-full text-left border-collapse">
+            <thead class="sticky top-0 z-10 bg-slate-900/95 text-[11px] text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-2 pl-2 pr-1 font-mono-tech">位号</th>
+                <th class="py-2 px-1">零件名称</th>
+                <th class="py-2 px-1">规格材质</th>
+                <th class="py-2 px-1 text-right">数量</th>
+                <th class="py-2 pr-2 text-right">重量</th>
+              </tr>
+            </thead>
+            <tbody id="bom-tbody" class="divide-y divide-slate-800/60 text-xs">
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 4.3 底部统计 -->
+        <div class="mt-2.5 pt-2.5 border-t border-slate-800/90 flex items-center justify-between text-xs text-slate-300 shrink-0 bg-slate-900/60 px-3 py-2 rounded-lg border border-slate-800">
+          <div>
+            <span class="text-slate-400">拆解位号组数:</span>
+            <strong id="bom-filter-count" class="font-mono-tech text-sky-400 ml-1">26 组 (共74件)</strong>
+          </div>
+          <div>
+            <span class="text-slate-400">整机总重:</span>
+            <strong class="font-mono-tech text-amber-300 ml-1">685.0 kg</strong>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <!-- TOAST 提示 -->
+  <div id="toast-msg" class="pointer-events-none fixed bottom-20 right-6 z-50 opacity-0 translate-y-2 transition-all duration-200 px-4 py-2 rounded-lg bg-sky-950/95 border border-sky-400 text-xs text-sky-100 shadow-lg">
+    已导出 BOM 表格
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- 10. JAVASCRIPT: THREE.JS 3D MOTOR ENGINE & INTERACTIVE LOGIC            -->
+  <!-- ======================================================================= -->
+  <script>
+    const REF_IMAGES = {
+      motor: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='128' viewBox='0 0 320 128'><rect width='320' height='128' fill='%23080e18'/><circle cx='160' cy='64' r='45' fill='none' stroke='%2338bdf8' stroke-width='4'/><path d='M160 19l0 90M115 64l90 0' stroke='%23f97316' stroke-width='3'/><text x='160' y='118' fill='%2394a3b8' font-size='11' font-family='monospace' text-anchor='middle'>14# Motor Fan & Grille Reference</text></svg>",
+      blender: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='128' viewBox='0 0 320 128'><rect width='320' height='128' fill='%2305080d'/><circle cx='160' cy='64' r='48' fill='none' stroke='%23f97316' stroke-width='3'/><circle cx='160' cy='64' r='24' fill='none' stroke='%2338bdf8' stroke-width='2'/><text x='160' y='118' fill='%2338bdf8' font-size='11' font-family='monospace' text-anchor='middle'>Blender Workbench Dial Reference</text></svg>"
+    };
+
+    const PARTS_DATA = [
+      {
+        posNo: '#01', id: 'M-01', name: '轴伸半联轴器与端面压板', en: 'Drive-End Coupling Hub & Retainer', category: '轴承密封', isHousing: false,
+        material: '45# 优质碳素锻钢 (调质+发黑)', qty: '1 套', weight: '14.2 kg',
+        spec: '内孔 Ø75 H7 · 外径 Ø210 · 8孔柱销盘',
+        desc: '套装于 14# 备用电机左端主轴伸上，通过端面压板与双防松螺栓轴向锁紧，将变频电机输出扭矩平稳传递至成品线辊道减速机。',
+        assembledPos: [-3.35, 0.15, 0],
+        axialOffset:  [-5.65, 0.0, 0],
+        radialOffset: [-5.85, 0.25, 0],
+        workbenchPos: [-7.2, -1.78, -4.2],
+        showLabel: true
+      },
+      {
+        posNo: '#02', id: 'M-02', name: '主轴伸平键与防尘甩油环', en: 'Shaft Flat Key & Labyrinth Flinger', category: '轴承密封', isHousing: false,
+        material: '45# 精拉钢平键 + ZCuSn10Pb1 锡青铜', qty: '1 套', weight: '1.4 kg',
+        spec: 'GB/T 1096 A型平键 20×12×140 + Ø95甩油环',
+        desc: 'A型圆头平键负责传递轴伸周向切向扭矩；锡青铜离心甩油环随轴高速旋转，防止外部轧线氧化铁皮粉尘与水汽侵入前轴承室。',
+        assembledPos: [-2.85, 0.15, 0],
+        axialOffset:  [-4.85, 0.0, 0],
+        radialOffset: [-4.85, 1.85, 0.8],
+        workbenchPos: [-5.2, -1.94, -4.2],
+        showLabel: false
+      },
+      {
+        posNo: '#03', id: 'M-03', name: '前轴承外盖 (驱动端外压盖)', en: 'DE Outer Bearing Cap', category: '轴承密封', isHousing: false,
+        material: 'HT250 灰铸铁', qty: '1 件', weight: '6.8 kg',
+        spec: '外径 Ø235mm · 带自动排脂腔与6×M10螺栓',
+        desc: '封闭驱动端前轴承室外侧，内设迷宫式储脂槽与废旧润滑脂自动溢流排出口，实现不停机在线换脂维护。',
+        assembledPos: [-2.35, 0.15, 0],
+        axialOffset:  [-4.10, 0.0, 0],
+        radialOffset: [-4.10, -1.65, 1.4],
+        workbenchPos: [-3.2, -1.88, -4.2],
+        showLabel: true
+      },
+      {
+        posNo: '#04', id: 'M-04', name: '前迷宫油封与轴电流接地碳刷环', en: 'Labyrinth Seal & Shaft Grounding Ring', category: '轴承密封', isHousing: false,
+        material: 'PTFE碳纤维复合 + 导电微纤维接地环', qty: '1 套', weight: '1.1 kg',
+        spec: 'Ø85×Ø115×18mm · 360°环形导电微纤维刷',
+        desc: '变频调速电机核心保护件：通过数万根超细导电碳纤维将变频器高频共模电压感应出的轴电流直接导入机壳接地，彻底杜绝轴承电蚀搓衣板纹。',
+        assembledPos: [-2.12, 0.15, 0],
+        axialOffset:  [-3.45, 0.0, 0],
+        radialOffset: [-3.45, 2.15, -1.2],
+        workbenchPos: [-1.4, -1.94, -4.2],
+        showLabel: true
+      },
+      {
+        posNo: '#05', id: 'M-05', name: '电机前端盖 (驱动端端盖)', en: 'Drive-End Shield (DE Bracket)', category: '机壳端盖', isHousing: true,
+        material: 'HT250 高强度灰铸铁', qty: '1 件', weight: '42.0 kg',
+        spec: '外径 Ø550mm · 止口 H7/h6 · 8道放射加强筋',
+        desc: '封闭电机机座左端（驱动端）并高精度同轴支承前滚子轴承，外侧铸有 8 道放射状高刚性加强筋及顶部黄油加注嘴。',
+        assembledPos: [-1.78, 0.15, 0],
+        axialOffset:  [-2.65, 0.0, 0],
+        radialOffset: [-2.75, 0.45, 0],
+        workbenchPos: [1.2, -1.72, -4.2],
+        showLabel: true
+      },
+      {
+        posNo: '#06', id: 'M-06', name: '前轴承 (圆柱滚子轴承 NU317)', en: 'Front Roller Bearing NU317 C3', category: '轴承密封', isHousing: false,
+        material: 'GCr15 高碳铬轴承钢 + 黄铜实体保持架', qty: '1 套', weight: '6.2 kg',
+        spec: 'NU317 ECM/C3 · Ø85×Ø180×41mm · P6级',
+        desc: '布置于电机驱动端，采用黄铜实体保持架圆柱滚子结构，专门承受成品线联轴器重载径向力，并允许转子热膨胀轴向微量游动。',
+        assembledPos: [-1.62, 0.15, 0],
+        axialOffset:  [-1.85, 0.0, 0],
+        radialOffset: [-1.95, 2.35, 1.5],
+        workbenchPos: [3.8, -1.88, -4.2],
+        showLabel: true
+      },
+      {
+        posNo: '#07', id: 'M-07', name: '前轴承内盖 (驱动端内挡盖)', en: 'DE Inner Bearing Cap', category: '轴承密封', isHousing: false,
+        material: 'HT250 灰铸铁', qty: '1 件', weight: '5.4 kg',
+        spec: '外径 Ø235mm · 带内迷宫挡油环槽',
+        desc: '与前轴承外盖配合轴向锁紧前轴承外圈，彻底隔离轴承润滑脂腔与机座内部定子绕组腔室，防止油脂甩入污染定子线圈。',
+        assembledPos: [-1.38, 0.15, 0],
+        axialOffset:  [-1.25, 0.0, 0],
+        radialOffset: [-1.35, -1.85, -1.4],
+        workbenchPos: [5.8, -1.88, -4.2],
+        showLabel: false
+      },
+      {
+        posNo: '#08', id: 'M-08', name: '前后端盖紧固螺栓组', en: 'End-Shield Fastening Bolts Set', category: '机壳端盖', isHousing: false,
+        material: '35CrMoA 高强合金钢 (8.8级发黑)', qty: '16 套', weight: '4.8 kg',
+        spec: '16×M16×65 六角头螺栓 + 重型弹簧垫圈',
+        desc: '均匀分布于前后端盖圆周法兰孔上，将前后端盖稳固锁紧在铸铁机座两端止口面上，保证定转子气隙均匀度。',
+        assembledPos: [-1.85, 0.15, 0],
+        axialOffset:  [-3.05, 0.0, 0],
+        radialOffset: [-3.05, 2.65, 2.1],
+        workbenchPos: [7.6, -1.94, -4.2],
+        showLabel: false
+      },
+      {
+        posNo: '#09', id: 'M-09', name: '高密散热片铸铁机座', en: 'Finned Cast-Iron Stator Frame', category: '机壳端盖', isHousing: true,
+        material: 'HT250 高导热灰铸铁 (重防腐工业涂装)', qty: '1 件', weight: '198.0 kg',
+        spec: 'YVF2-280M · 中心高 H=280mm · 32道纵向散热片',
+        desc: '14# 备用电机主体承重外壳，周向铸有 32 道深槽高导热散热翅片、一体式双底脚安装板、顶部接线盒座及双起重吊环座。',
+        assembledPos: [0, 0.15, 0],
+        axialOffset:  [0, 0.0, 0],
+        radialOffset: [0, 0.25, 0],
+        workbenchPos: [-6.5, -1.10, -0.4],
+        showLabel: true
+      },
+      {
+        posNo: '#10', id: 'M-10', name: '定子铁芯 (冷轧硅钢片叠压铁芯)', en: 'Laminated Silicon-Steel Stator Core', category: '定转子核心', isHousing: false,
+        material: '50W470 低损耗无取向冷轧硅钢片', qty: '1 件', weight: '132.0 kg',
+        spec: '外径 Ø440×内径 Ø290×长 380mm · 48槽',
+        desc: '由 0.5mm 厚高导磁低铁损冷轧硅钢片经高速冲槽、叠压扣片及外圆氩弧焊固而成，减少变频高频谐波涡流损耗与温升。',
+        assembledPos: [0, 0.15, 0],
+        axialOffset:  [-0.55, 0.0, 0],
+        radialOffset: [0, 2.75, -2.2],
+        workbenchPos: [-3.2, -1.30, -0.4],
+        showLabel: true
+      },
+      {
+        posNo: '#11', id: 'M-11', name: '定子变频耐电晕紫铜绕组', en: 'Corona-Resistant Copper Stator Windings', category: '定转子核心', isHousing: false,
+        material: 'H级聚酰亚胺耐电晕无氧紫铜漆包线', qty: '1 套', weight: '68.5 kg',
+        spec: '380V △接 · 5~100Hz宽频 · VPI真空浸漆 · PT100',
+        desc: '针对成品线变频器高频 PWM 载波尖峰电压专门设计的耐电晕三相定子线圈，经 VPI 真空压力浸渍无溶剂绝缘漆固化，端部带防振绑扎环。',
+        assembledPos: [0, 0.15, 0],
+        axialOffset:  [0.55, 0.0, 0],
+        radialOffset: [0, 3.10, 2.2],
+        workbenchPos: [0.0, -1.35, -0.4],
+        showLabel: true
+      },
+      {
+        posNo: '#12', id: 'M-12', name: '转子铁芯与斜槽铸铝鼠笼导条', en: 'Skewed Squirrel-Cage Rotor Core', category: '定转子核心', isHousing: false,
+        material: '50W470 硅钢片 + 99.7%高纯离心铸铝导条', qty: '1 件', weight: '86.0 kg',
+        spec: '外径 Ø287×长 380mm · 斜槽度 1个定子齿距',
+        desc: '采用高压离心铸铝工艺将鼠笼导条、端环与内风扇叶一次性浇铸成型，斜槽结构有效消除变频调速全频段齿谐波电磁啸叫。',
+        assembledPos: [0, 0.15, 0],
+        axialOffset:  [1.35, 0.0, 0],
+        radialOffset: [0.85, -2.15, 2.4],
+        workbenchPos: [3.2, -1.52, -0.4],
+        showLabel: true
+      },
+      {
+        posNo: '#13', id: 'M-13', name: '变频电机阶梯转子主轴', en: 'Stepped Alloy-Steel Rotor Shaft', category: '定转子核心', isHousing: false,
+        material: '42CrMo 合金结构钢 (调质+外圆精磨)', qty: '1 根', weight: '44.5 kg',
+        spec: '总长 1120mm · 轴伸 Ø75m6 · 滚花热套铁芯位',
+        desc: '贯穿整台电机的精密动力主轴，中段经数控滚花与转子铁芯过盈热套配合，整体达到 G1.0 级高精度双面动平衡标准。',
+        assembledPos: [-0.25, 0.15, 0],
+        axialOffset:  [2.15, 0.0, 0],
+        radialOffset: [0, -2.55, -2.2],
+        workbenchPos: [6.5, -1.82, -0.4],
+        showLabel: true
+      },
+      {
+        posNo: '#14', id: 'M-14', name: '后轴承内盖 (非驱动端内盖)', en: 'NDE Inner Bearing Cap', category: '轴承密封', isHousing: false,
+        material: 'HT250 灰铸铁', qty: '1 件', weight: '5.2 kg',
+        spec: '外径 Ø235mm · 绝缘端盖配合孔',
+        desc: '封闭非驱动端后轴承室内侧，配合波形弹簧对后绝缘轴承施加恒定轴向预紧力，限制转子轴向窜动。',
+        assembledPos: [1.38, 0.15, 0],
+        axialOffset:  [2.85, 0.0, 0],
+        radialOffset: [1.45, -1.85, 1.5],
+        workbenchPos: [-7.2, -1.88, 2.5],
+        showLabel: false
+      },
+      {
+        posNo: '#15', id: 'M-15', name: '后电绝缘深沟球轴承 (6317/VL0241)', en: 'Rear Ceramic-Insulated Ball Bearing', category: '轴承密封', isHousing: false,
+        material: 'GCr15 轴承钢 + 外圈 Al2O3 等离子陶瓷绝缘层', qty: '1 套', weight: '6.5 kg',
+        spec: '6317 M/C3VL0241 · 耐击穿电压 ≥3000V DC',
+        desc: '变频电机非驱动端专用电绝缘轴承，外圈表面等离子喷涂 200μm 致密氧化铝陶瓷绝缘层，从物理回路上彻底阻断高频环流轴电流。',
+        assembledPos: [1.62, 0.15, 0],
+        axialOffset:  [3.45, 0.0, 0],
+        radialOffset: [2.15, 2.35, -1.5],
+        workbenchPos: [-5.0, -1.86, 2.5],
+        showLabel: true
+      },
+      {
+        posNo: '#16', id: 'M-16', name: '轴承波形弹簧垫圈与轴用挡圈', en: 'Wave Spring Washer & Shaft Circlip', category: '轴承密封', isHousing: false,
+        material: '65Mn 弹簧钢 (淬火回火发蓝)', qty: '1 套', weight: '0.6 kg',
+        spec: 'Ø178×Ø152×1.8mm 三峰波形弹簧 + GB894挡圈',
+        desc: '安装在后端盖轴承室端面与后轴承外圈之间，提供平稳的弹性轴向预载荷，降低电机高速变频运行时的轴承游隙振动噪声。',
+        assembledPos: [1.75, 0.15, 0],
+        axialOffset:  [3.95, 0.0, 0],
+        radialOffset: [2.65, 1.65, 1.6],
+        workbenchPos: [-3.0, -1.95, 2.5],
+        showLabel: false
+      },
+      {
+        posNo: '#17', id: 'M-17', name: '电机后端盖 (非驱动端端盖)', en: 'Non-Drive-End Shield (NDE Bracket)', category: '机壳端盖', isHousing: true,
+        material: 'HT250 高强度灰铸铁', qty: '1 件', weight: '39.5 kg',
+        spec: '外径 Ø550mm · 带4组风扇罩安装支耳与导风锥面',
+        desc: '封闭电机机座右端（非驱动端）并支承后电绝缘轴承，外圈带有流线型导风过渡锥面及 4 个风扇罩固定支耳。',
+        assembledPos: [1.82, 0.15, 0],
+        axialOffset:  [4.45, 0.0, 0],
+        radialOffset: [2.85, 0.45, 0],
+        workbenchPos: [-0.8, -1.72, 2.5],
+        showLabel: true
+      },
+      {
+        posNo: '#18', id: 'M-18', name: '后轴承外盖与氟橡胶旋转油封', en: 'NDE Outer Cap & Viton Rotary Seal', category: '轴承密封', isHousing: false,
+        material: 'HT250 灰铸铁 + FKM 氟橡胶双唇骨架油封', qty: '1 套', weight: '5.5 kg',
+        spec: '外径 Ø235mm + TC 80×110×12 耐高温氟胶油封',
+        desc: '锁紧后轴承室并集成耐高温氟橡胶双唇口旋转轴封，保证在 120℃ 连续运行工况下润滑脂不渗漏。',
+        assembledPos: [2.12, 0.15, 0],
+        axialOffset:  [5.05, 0.0, 0],
+        radialOffset: [3.55, -1.65, -1.4],
+        workbenchPos: [1.6, -1.88, 2.5],
+        showLabel: false
+      },
+      {
+        posNo: '#19', id: 'M-19', name: '增量式光电旋转编码器组件', en: 'Hollow-Shaft Rotary Encoder Assembly', category: '定转子核心', isHousing: false,
+        material: '压铸铝抗干扰屏蔽壳 + 不锈钢波纹管联轴器', qty: '1 套', weight: '2.4 kg',
+        spec: 'HTL/TTL 1024 PPR · IP66 · 带防转弹性支臂',
+        desc: '成品线变频调速闭环矢量控制核心反馈元件，实时采集 14# 电机转子精确转速与相位角并反馈至变频柜。',
+        assembledPos: [2.32, 0.15, 0],
+        axialOffset:  [5.55, 0.0, 0],
+        radialOffset: [4.15, 1.95, 0],
+        workbenchPos: [3.6, -1.90, 2.5],
+        showLabel: true
+      },
+      {
+        posNo: '#20', id: 'M-20', name: '六叶宽弦独立强冷风扇 (复刻原图)', en: '6-Blade Axial Forced Cooling Fan', category: '风冷与接线', isHousing: false,
+        material: 'ZL104 高强铸造铝合金 (数控动平衡)', qty: '1 件', weight: '7.8 kg',
+        spec: 'Ø470mm · 6枚宽弦大倾角轴流叶片 · 中心轮毂 Ø115',
+        desc: '精准复刻 14# 备用电机实机图中的 6 叶片宽弦金属风扇！即使主电机在 5Hz 低频慢速运行时，仍能提供强劲轴向冷却风量。',
+        assembledPos: [2.58, 0.15, 0],
+        axialOffset:  [6.25, 0.0, 0],
+        radialOffset: [4.85, 0.85, 0],
+        workbenchPos: [5.8, -1.82, 2.5],
+        showLabel: true
+      },
+      {
+        posNo: '#21', id: 'M-21', name: '圆筒形导流风扇罩壳 (复刻原图)', en: 'Cylindrical Fan Shroud Duct', category: '风冷与接线', isHousing: true,
+        material: 'SPCC 冷轧钢板旋压成形 (深灰金属漆)', qty: '1 件', weight: '14.5 kg',
+        spec: '外径 Ø560×长 360mm · 双层翻边导流圆筒',
+        desc: '精准复刻 14# 备用电机实机图的外圈厚壁圆筒形导流风罩，将六叶风扇产生的强冷气流约束并导向机座 32 道散热筋槽。',
+        assembledPos: [2.62, 0.15, 0],
+        axialOffset:  [7.15, 0.0, 0],
+        radialOffset: [5.75, 0.35, 0],
+        workbenchPos: [7.8, -1.48, 2.5],
+        showLabel: true
+      },
+      {
+        posNo: '#22', id: 'M-22', name: '十字钢筋折弯钩头防护网罩 (复刻原图)', en: 'Cross-Wire Hooked Safety Grille Guard', category: '风冷与接线', isHousing: false,
+        material: '304 不锈钢冷拔钢丝 (Ø8mm 交叉点焊)', qty: '1 件', weight: '3.2 kg',
+        spec: '4横×4纵正交钢筋格栅 · 外缘 90°折弯挂钩锁紧',
+        desc: '1:1 还原用户上传 14# 备用电机实拍图特征：由 4 根水平钢筋与 4 根垂直钢筋正交焊接而成，末端带弧形折弯挂钩扣合于风罩外圈。',
+        assembledPos: [3.02, 0.15, 0],
+        axialOffset:  [8.15, 0.0, 0],
+        radialOffset: [6.85, 0.35, 0],
+        workbenchPos: [-6.8, -1.92, 5.6],
+        showLabel: true
+      },
+      {
+        posNo: '#23', id: 'M-23', name: '顶部高压变频接线盒壳体与盒盖', en: 'Top VFD Terminal Box & Gasketed Lid', category: '风冷与接线', isHousing: true,
+        material: 'ZL104 压铸铝合金 (IP55) + 双M50防爆格兰头', qty: '1 套', weight: '12.6 kg',
+        spec: '320×280×190mm · 电磁屏蔽密封腔 + 双进线口',
+        desc: '布置于机座顶部偏右位置，专为变频屏蔽电力电缆设计的全密封铝合金接线盒，配双 M50 黄铜铠装电缆锁紧格兰头。',
+        assembledPos: [0.35, 1.58, 0],
+        axialOffset:  [0.35, 2.75, 0],
+        radialOffset: [0.35, 3.65, 0],
+        workbenchPos: [-4.2, -1.72, 5.6],
+        showLabel: true
+      },
+      {
+        posNo: '#24', id: 'M-24', name: '六柱高频瓷绝缘紫铜接线端子排', en: '6-Post Porcelain & Copper Terminal Block', category: '风冷与接线', isHousing: false,
+        material: '95氧化铝高频绝缘瓷 + T2紫铜导电螺柱/连片', qty: '1 套', weight: '3.8 kg',
+        spec: 'U1/V1/W1-W2/U2/V2 六柱 M12 铜桩 + △连接铜排',
+        desc: '固定于接线盒内部底座，采用高爬电距离釉面高频瓷绝缘座与大截面紫铜接线柱，防止变频高次谐波引起相间闪络。',
+        assembledPos: [0.35, 1.38, 0],
+        axialOffset:  [0.35, 1.95, 0],
+        radialOffset: [1.65, 2.95, 1.4],
+        workbenchPos: [-1.8, -1.88, 5.6],
+        showLabel: true
+      },
+      {
+        posNo: '#25', id: 'M-25', name: '重型型钢滑轨底座、铭牌与吊环组', en: 'Slide-Rail Baseplate, Nameplate & Eyebolts', category: '机壳端盖', isHousing: false,
+        material: 'Q345B 宝蓝槽钢底座 + 304激光铭牌 + 20#锻钢吊环', qty: '1 套', weight: '32.5 kg',
+        spec: '1150×760×160mm 滑轨底座 + DIN580 M24 吊环×2',
+        desc: '支撑整台 14# 备用电机的宝蓝色重型焊接型钢底座与 C35 基础台，侧面铆接“14# 备用电机”不锈钢铭牌，顶部配双锻钢吊环。',
+        assembledPos: [0, -1.32, 0],
+        axialOffset:  [0, -1.05, 0],
+        radialOffset: [0, -1.85, 0],
+        workbenchPos: [1.8, -1.62, 5.6],
+        showLabel: true
+      },
+      {
+        posNo: '#26', id: 'M-26', name: '地脚螺栓、张紧顶丝与铜接地桩组', en: 'Foundation Anchor Bolts & Grounding Lug', category: '机壳端盖', isHousing: false,
+        material: 'Q345B 热浸镀锌 (8.8级) + T2紫铜接地端子', qty: '12 套', weight: '9.2 kg',
+        spec: '8×M24地脚螺栓 + 2×M20导轨顶丝 + 铜编织接地桩',
+        desc: '包含锚固电机底座的 8 组 M24 地脚螺栓、调节电机水平对中位置的导轨顶丝以及变频电机专用低阻抗高频接地铜桩。',
+        assembledPos: [0, -1.12, 0],
+        axialOffset:  [0, -1.75, 0],
+        radialOffset: [0, -2.55, 2.2],
+        workbenchPos: [5.8, -1.92, 5.6],
+        showLabel: false
+      }
+    ];
+
+    function createWorkbenchDialTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 2048;
+      canvas.height = 2048;
+      const ctx = canvas.getContext('2d');
+      const cx = 1024, cy = 1024;
+
+      const grad = ctx.createRadialGradient(cx, cy, 40, cx, cy, 1020);
+      grad.addColorStop(0, '#141a24');
+      grad.addColorStop(0.55, '#0d121a');
+      grad.addColorStop(0.88, '#080b11');
+      grad.addColorStop(1, '#040609');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 2048, 2048);
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.055)';
+      ctx.lineWidth = 1;
+      for (let g = 184; g <= 1864; g += 60) {
+        ctx.beginPath();
+        ctx.moveTo(g, 184); ctx.lineTo(g, 1864);
+        ctx.moveTo(184, g); ctx.lineTo(1864, g);
+        ctx.stroke();
+      }
+
+      const mainRadii = [140, 240, 380, 520, 680, 820, 920, 965];
+      mainRadii.forEach((r, idx) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = idx >= 6 ? 'rgba(255, 255, 255, 0.72)' : 'rgba(226, 232, 240, 0.38)';
+        ctx.lineWidth = idx === 6 ? 6 : (idx === 1 || idx === 4 ? 3 : 1.8);
+        if (idx === 2 || idx === 5) ctx.setLineDash([18, 10]);
+        else ctx.setLineDash([]);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      for (let deg = 0; deg < 360; deg += 2) {
+        const rad = (deg * Math.PI) / 180;
+        const isMajor = deg % 30 === 0;
+        const isMid = deg % 10 === 0;
+        const rInner = isMajor ? 832 : (isMid ? 854 : 872);
+        const rOuter = 896;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(rad) * rInner, cy + Math.sin(rad) * rInner);
+        ctx.lineTo(cx + Math.cos(rad) * rOuter, cy + Math.sin(rad) * rOuter);
+        ctx.strokeStyle = isMajor ? 'rgba(255, 255, 255, 0.92)' : (isMid ? 'rgba(226, 232, 240, 0.6)' : 'rgba(148, 163, 184, 0.3)');
+        ctx.lineWidth = isMajor ? 3.5 : (isMid ? 2 : 1.2);
+        ctx.stroke();
+
+        if (isMajor) {
+          ctx.save();
+          ctx.translate(cx + Math.cos(rad) * 802, cy + Math.sin(rad) * 802);
+          ctx.rotate(rad + Math.PI / 2);
+          ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
+          ctx.font = 'bold 20px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${deg}°`, 0, 0);
+          ctx.restore();
+        }
+      }
+
+      for (let i = 0; i < 4; i++) {
+        const startAngle = (i * Math.PI) / 2 + 0.22;
+        const endAngle = ((i + 1) * Math.PI) / 2 - 0.22;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 195, startAngle, endAngle);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
+
+      for (let deg = 0; deg < 360; deg += 45) {
+        const rad = (deg * Math.PI) / 180;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(rad) * 145, cy + Math.sin(rad) * 145);
+        ctx.lineTo(cx + Math.cos(rad) * 960, cy + Math.sin(rad) * 960);
+        ctx.strokeStyle = deg % 90 === 0 ? 'rgba(255, 255, 255, 0.45)' : 'rgba(226, 232, 240, 0.22)';
+        ctx.lineWidth = deg % 90 === 0 ? 2.4 : 1.4;
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = '#f97316';
+      ctx.lineWidth = 4.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 28, cy - 28); ctx.lineTo(cx + 28, cy + 28);
+      ctx.moveTo(cx + 28, cy - 28); ctx.lineTo(cx - 28, cy + 28);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(248, 250, 252, 0.55)';
+      ctx.font = 'bold 24px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('14# 备用电机 (成品线变频调速三相异步电机) · 精密拆解台', cx, cy + 748);
+      ctx.font = '18px "JetBrains Mono", monospace';
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
+      ctx.fillText('AXIAL EXPLODED DIRECTION: [LEFT: DRIVE END SHAFT] ──────▶ [RIGHT: 6-BLADE FAN & WIRE GUARD]', cx, cy - 728);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    function createMotorNameplateTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 320;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, 512, 320);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(12, 12, 488, 296);
+
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(24, 24, 464, 58);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('14# 备用电机 · 变频调速三相异步电动机', 256, 62);
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '21px "JetBrains Mono", monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('型号: YVF2-280M-4   功率: 90 kW', 36, 125);
+      ctx.fillText('电压: 380V △接      调频: 5 ~ 100 Hz', 36, 165);
+      ctx.fillText('绝缘: H级耐电晕     质量: 685.0 kg', 36, 205);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('轴承: DE NU317 / NDE 6317VL0241绝缘', 36, 255);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const canvasEl = document.getElementById('three-canvas');
+    const viewportEl = document.getElementById('viewport-container');
+    const labelsOverlayEl = document.getElementById('labels-overlay');
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvasEl,
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.22;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05080e);
+    scene.fog = new THREE.FogExp2(0x05080e, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+
+    scene.add(new THREE.AmbientLight(0xdbeafe, 0.70));
+
+    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x090d16, 0.82);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    const mainDirLight = new THREE.DirectionalLight(0xffffff, 1.42);
+    mainDirLight.position.set(10, 22, 16);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 2;
+    mainDirLight.shadow.camera.far = 55;
+    const d = 14;
+    mainDirLight.shadow.camera.left = -d;
+    mainDirLight.shadow.camera.right = d;
+    mainDirLight.shadow.camera.top = d;
+    mainDirLight.shadow.camera.bottom = -d;
+    mainDirLight.shadow.bias = -0.0005;
+    scene.add(mainDirLight);
+
+    const blueRimLight = new THREE.DirectionalLight(0x00b4ff, 1.15);
+    blueRimLight.position.set(-14, 12, -12);
+    scene.add(blueRimLight);
+
+    const warmBackLight = new THREE.PointLight(0xf97316, 0.75, 38);
+    warmBackLight.position.set(0, 3, -15);
+    scene.add(warmBackLight);
+
+    const environmentGroup = new THREE.Group();
+    scene.add(environmentGroup);
+
+    const workbenchTexture = createWorkbenchDialTexture();
+    const tableTopMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(11.6, 11.8, 0.36, 96),
+      new THREE.MeshStandardMaterial({ map: workbenchTexture, roughness: 0.4, metalness: 0.35 })
+    );
+    tableTopMesh.position.set(0, -2.28, 0);
+    tableTopMesh.receiveShadow = true;
+    environmentGroup.add(tableTopMesh);
+
+    const rimTorus = new THREE.Mesh(
+      new THREE.TorusGeometry(11.7, 0.14, 20, 128),
+      new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.85, roughness: 0.22 })
+    );
+    rimTorus.rotation.x = Math.PI / 2;
+    rimTorus.position.set(0, -2.14, 0);
+    environmentGroup.add(rimTorus);
+
+    const floorMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(95, 95),
+      new THREE.MeshStandardMaterial({ color: 0x05080d, roughness: 0.4, metalness: 0.45 })
+    );
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = -2.47;
+    floorMesh.receiveShadow = true;
+    environmentGroup.add(floorMesh);
+
+    const polarGrid = new THREE.PolarGridHelper(26, 24, 10, 96, 0x334155, 0x1e293b);
+    polarGrid.position.y = -2.45;
+    environmentGroup.add(polarGrid);
+
+    const slatMat = new THREE.MeshStandardMaterial({ color: 0x0d121c, metalness: 0.65, roughness: 0.35 });
+    const amberGlowMat = new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.7 });
+    for (let i = -18; i <= 18; i++) {
+      const ang = (i / 18) * (Math.PI * 0.58) + Math.PI;
+      const r = 25.0;
+      const sx = Math.sin(ang) * r;
+      const sz = Math.cos(ang) * r;
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(0.95, 16, 0.4), slatMat);
+      slat.position.set(sx, 5.5, sz);
+      slat.lookAt(0, 5.5, 0);
+      environmentGroup.add(slat);
+
+      if (i % 2 === 0) {
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.09, 0.45), amberGlowMat);
+        strip.position.set(sx, -2.38, sz);
+        strip.lookAt(0, -2.38, 0);
+        environmentGroup.add(strip);
+      }
+    }
+
+    function makePartMaterial(hexColor, metalness = 0.68, roughness = 0.30) {
+      return new THREE.MeshStandardMaterial({
+        color: hexColor,
+        metalness,
+        roughness,
+        emissive: new THREE.Color(0x000000),
+        emissiveIntensity: 0
+      });
+    }
+
+    function addBoltCircleX(group, count, radius, boltRadius, boltLen, xOffset, mat) {
+      const cylGeo = new THREE.CylinderGeometry(boltRadius, boltRadius, boltLen, 8);
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2;
+        const m = new THREE.Mesh(cylGeo, mat);
+        m.rotation.z = Math.PI / 2;
+        m.position.set(xOffset, Math.cos(a) * radius, Math.sin(a) * radius);
+        group.add(m);
+      }
+    }
+
+    function buildMotorPartGeometry(partId) {
+      const group = new THREE.Group();
+
+      const matFrameGrey = makePartMaterial(0x8fa0b5, 0.58, 0.32);
+      const matCowlSilver = makePartMaterial(0xa8b8c8, 0.68, 0.26);
+      const matWireBright = makePartMaterial(0xdbe4ee, 0.85, 0.18);
+      const matMachinedSteel = makePartMaterial(0xcbd5e1, 0.88, 0.18);
+      const matDarkSteel = makePartMaterial(0x334155, 0.74, 0.34);
+      const matCopper = makePartMaterial(0xd97706, 0.88, 0.20);
+      const matBrass = makePartMaterial(0xeab308, 0.85, 0.22);
+      const matCeramicBlack = makePartMaterial(0x1e293b, 0.45, 0.15);
+      const matPorcelainRed = makePartMaterial(0xb91c1c, 0.25, 0.25);
+      const matRoyalBlue = makePartMaterial(0x1d4ed8, 0.46, 0.36);
+      const matConcrete = makePartMaterial(0x64748b, 0.12, 0.82);
+
+      switch (partId) {
+        case 'M-01': {
+          const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.45, 28), matDarkSteel);
+          hub.rotation.z = Math.PI / 2;
+          group.add(hub);
+          const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.14, 32), matDarkSteel);
+          flange.rotation.z = Math.PI / 2;
+          flange.position.x = -0.18;
+          group.add(flange);
+          addBoltCircleX(group, 8, 0.31, 0.032, 0.22, -0.18, matBrass);
+          const endCap = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.05, 24), matMachinedSteel);
+          endCap.rotation.z = Math.PI / 2;
+          endCap.position.x = -0.28;
+          group.add(endCap);
+          break;
+        }
+        case 'M-02': {
+          const flatKey = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.05, 0.07), matMachinedSteel);
+          flatKey.position.set(-0.22, 0.16, 0);
+          group.add(flatKey);
+          const flinger = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.22, 0.07, 28), matBrass);
+          flinger.rotation.z = Math.PI / 2;
+          flinger.position.set(0.18, 0, 0);
+          group.add(flinger);
+          break;
+        }
+        case 'M-03': {
+          const capDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 32), matFrameGrey);
+          capDisc.rotation.z = Math.PI / 2;
+          group.add(capDisc);
+          const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.14, 28), matFrameGrey);
+          neck.rotation.z = Math.PI / 2;
+          neck.position.x = -0.08;
+          group.add(neck);
+          addBoltCircleX(group, 6, 0.35, 0.022, 0.14, -0.02, matMachinedSteel);
+          break;
+        }
+        case 'M-04': {
+          const labRing = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.04, 16, 32), matBrass);
+          labRing.rotation.y = Math.PI / 2;
+          group.add(labRing);
+          const carbonBrushRing = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.032, 16, 32), matCeramicBlack);
+          carbonBrushRing.rotation.y = Math.PI / 2;
+          carbonBrushRing.position.x = -0.07;
+          group.add(carbonBrushRing);
+          const groundTab = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.06), matCopper);
+          groundTab.position.set(-0.07, 0.28, 0);
+          group.add(groundTab);
+          break;
+        }
+        case 'M-05': {
+          const shieldRim = new THREE.Mesh(new THREE.CylinderGeometry(1.18, 1.18, 0.26, 40), matFrameGrey);
+          shieldRim.rotation.z = Math.PI / 2;
+          group.add(shieldRim);
+          const conePlate = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 1.12, 0.22, 36), matFrameGrey);
+          conePlate.rotation.z = Math.PI / 2;
+          conePlate.position.x = -0.12;
+          group.add(conePlate);
+          const brgBoss = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.34, 32), matMachinedSteel);
+          brgBoss.rotation.z = Math.PI / 2;
+          brgBoss.position.x = -0.16;
+          group.add(brgBoss);
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            const rib = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.42, 0.06), matFrameGrey);
+            rib.position.set(-0.14, Math.cos(a) * 0.72, Math.sin(a) * 0.72);
+            rib.rotation.x = -a;
+            group.add(rib);
+          }
+          const greaseNipple = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.25, 12), matBrass);
+          greaseNipple.position.set(-0.16, 0.56, 0);
+          group.add(greaseNipple);
+          break;
+        }
+        case 'M-06': {
+          const outerRace = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.055, 18, 36), matMachinedSteel);
+          outerRace.rotation.y = Math.PI / 2;
+          group.add(outerRace);
+          const innerRace = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.05, 18, 36), matMachinedSteel);
+          innerRace.rotation.y = Math.PI / 2;
+          group.add(innerRace);
+          const brassCage = new THREE.Mesh(new THREE.TorusGeometry(0.275, 0.024, 14, 32), matBrass);
+          brassCage.rotation.y = Math.PI / 2;
+          group.add(brassCage);
+          for (let i = 0; i < 14; i++) {
+            const a = (i / 14) * Math.PI * 2;
+            const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.11, 14), matWireBright);
+            roller.rotation.z = Math.PI / 2;
+            roller.position.set(0, Math.cos(a) * 0.275, Math.sin(a) * 0.275);
+            group.add(roller);
+          }
+          break;
+        }
+        case 'M-07': {
+          const capDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.07, 32), matFrameGrey);
+          capDisc.rotation.z = Math.PI / 2;
+          group.add(capDisc);
+          const lip = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.14, 28), matMachinedSteel);
+          lip.rotation.z = Math.PI / 2;
+          lip.position.x = -0.05;
+          group.add(lip);
+          break;
+        }
+        case 'M-08': {
+          addBoltCircleX(group, 8, 1.06, 0.035, 0.28, 0, matDarkSteel);
+          addBoltCircleX(group, 8, 1.06, 0.035, 0.28, 3.65, matDarkSteel);
+          break;
+        }
+        case 'M-09': {
+          const barrel = new THREE.Mesh(new THREE.CylinderGeometry(1.14, 1.14, 3.25, 44), matFrameGrey);
+          barrel.rotation.z = Math.PI / 2;
+          group.add(barrel);
+          for (let i = 0; i < 32; i++) {
+            const a = (i / 32) * Math.PI * 2;
+            if (Math.cos(a) < -0.76) continue;
+            const fin = new THREE.Mesh(new THREE.BoxGeometry(3.12, 0.18, 0.032), matFrameGrey);
+            fin.position.set(0, Math.cos(a) * 1.19, Math.sin(a) * 1.19);
+            fin.rotation.x = -a;
+            group.add(fin);
+          }
+          [-1.55, 0, 1.55].forEach(xPos => {
+            const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.22, 1.22, 0.12, 40), matFrameGrey);
+            ring.rotation.z = Math.PI / 2;
+            ring.position.x = xPos;
+            group.add(ring);
+          });
+          [-0.88, 0.88].forEach(zPos => {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.45, 0.38), matFrameGrey);
+            leg.position.set(0, -1.04, zPos);
+            group.add(leg);
+            const pad = new THREE.Mesh(new THREE.BoxGeometry(3.05, 0.14, 0.56), matMachinedSteel);
+            pad.position.set(0, -1.26, zPos);
+            group.add(pad);
+          });
+          break;
+        }
+        case 'M-10': {
+          const outerCore = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 2.15, 40), matDarkSteel);
+          outerCore.rotation.z = Math.PI / 2;
+          group.add(outerCore);
+          for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * Math.PI * 2;
+            const tooth = new THREE.Mesh(new THREE.BoxGeometry(2.18, 0.08, 0.06), matMachinedSteel);
+            tooth.position.set(0, Math.cos(a) * 0.74, Math.sin(a) * 0.74);
+            tooth.rotation.x = -a;
+            group.add(tooth);
+          }
+          break;
+        }
+        case 'M-11': {
+          [-1.12, 1.12].forEach(xEnd => {
+            const coilTorus = new THREE.Mesh(new THREE.TorusGeometry(0.80, 0.18, 20, 40), matCopper);
+            coilTorus.rotation.y = Math.PI / 2;
+            coilTorus.position.x = xEnd;
+            group.add(coilTorus);
+            const bindRing = new THREE.Mesh(new THREE.TorusGeometry(0.82, 0.04, 12, 36), matBrass);
+            bindRing.rotation.y = Math.PI / 2;
+            bindRing.position.x = xEnd * 1.12;
+            group.add(bindRing);
+          });
+          for (let i = 0; i < 24; i++) {
+            const a = (i / 24) * Math.PI * 2;
+            const bar = new THREE.Mesh(new THREE.BoxGeometry(2.28, 0.045, 0.045), matCopper);
+            bar.position.set(0, Math.cos(a) * 0.80, Math.sin(a) * 0.80);
+            bar.rotation.x = -a;
+            group.add(bar);
+          }
+          [-0.18, 0, 0.18].forEach(xLead => {
+            const lead = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.65, 12), matCopper);
+            lead.position.set(xLead + 0.35, 0.95, 0);
+            group.add(lead);
+          });
+          break;
+        }
+        case 'M-12': {
+          const rotorCore = new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.64, 2.05, 36), matMachinedSteel);
+          rotorCore.rotation.z = Math.PI / 2;
+          group.add(rotorCore);
+          [-1.06, 1.06].forEach(xEnd => {
+            const alRing = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.10, 36), matWireBright);
+            alRing.rotation.z = Math.PI / 2;
+            alRing.position.x = xEnd;
+            group.add(alRing);
+            for (let f = 0; f < 8; f++) {
+              const a = (f / 8) * Math.PI * 2;
+              const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.03), matWireBright);
+              fin.position.set(xEnd * 1.06, Math.cos(a) * 0.52, Math.sin(a) * 0.52);
+              fin.rotation.x = -a;
+              group.add(fin);
+            }
+          });
+          for (let i = 0; i < 18; i++) {
+            const a = (i / 18) * Math.PI * 2;
+            const bar = new THREE.Mesh(new THREE.BoxGeometry(2.08, 0.035, 0.035), matCowlSilver);
+            bar.position.set(0, Math.cos(a) * 0.64, Math.sin(a) * 0.64);
+            bar.rotation.x = -a;
+            bar.rotation.y = 0.08;
+            group.add(bar);
+          }
+          break;
+        }
+        case 'M-13': {
+          const centerShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 3.2, 32), matMachinedSteel);
+          centerShaft.rotation.z = Math.PI / 2;
+          group.add(centerShaft);
+          const journalShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 4.8, 32), matMachinedSteel);
+          journalShaft.rotation.z = Math.PI / 2;
+          group.add(journalShaft);
+          const deExtension = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.145, 6.4, 28), matMachinedSteel);
+          deExtension.rotation.z = Math.PI / 2;
+          deExtension.position.x = -0.25;
+          group.add(deExtension);
+          break;
+        }
+        case 'M-14': {
+          const capDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.07, 32), matFrameGrey);
+          capDisc.rotation.z = Math.PI / 2;
+          group.add(capDisc);
+          const lip = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.14, 28), matMachinedSteel);
+          lip.rotation.z = Math.PI / 2;
+          lip.position.x = 0.05;
+          group.add(lip);
+          break;
+        }
+        case 'M-15': {
+          const ceramicOuter = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.058, 18, 36), matCeramicBlack);
+          ceramicOuter.rotation.y = Math.PI / 2;
+          group.add(ceramicOuter);
+          const innerRace = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.05, 18, 36), matMachinedSteel);
+          innerRace.rotation.y = Math.PI / 2;
+          group.add(innerRace);
+          const brassCage = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.022, 14, 32), matBrass);
+          brassCage.rotation.y = Math.PI / 2;
+          group.add(brassCage);
+          for (let i = 0; i < 12; i++) {
+            const a = (i / 12) * Math.PI * 2;
+            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.048, 14, 14), matWireBright);
+            ball.position.set(0, Math.cos(a) * 0.28, Math.sin(a) * 0.28);
+            group.add(ball);
+          }
+          break;
+        }
+        case 'M-16': {
+          const waveSpring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.025, 12, 36), matDarkSteel);
+          waveSpring.rotation.y = Math.PI / 2;
+          group.add(waveSpring);
+          const circlip = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.018, 10, 28, Math.PI * 1.85), matBrass);
+          circlip.rotation.y = Math.PI / 2;
+          circlip.position.x = 0.06;
+          group.add(circlip);
+          break;
+        }
+        case 'M-17': {
+          const shieldRim = new THREE.Mesh(new THREE.CylinderGeometry(1.18, 1.18, 0.26, 40), matFrameGrey);
+          shieldRim.rotation.z = Math.PI / 2;
+          group.add(shieldRim);
+          const conePlate = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 0.52, 0.22, 36), matFrameGrey);
+          conePlate.rotation.z = Math.PI / 2;
+          conePlate.position.x = 0.12;
+          group.add(conePlate);
+          const brgBoss = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.34, 32), matMachinedSteel);
+          brgBoss.rotation.z = Math.PI / 2;
+          brgBoss.position.x = 0.16;
+          group.add(brgBoss);
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            const rib = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.42, 0.06), matFrameGrey);
+            rib.position.set(0.14, Math.cos(a) * 0.72, Math.sin(a) * 0.72);
+            rib.rotation.x = -a;
+            group.add(rib);
+          }
+          break;
+        }
+        case 'M-18': {
+          const capDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 32), matFrameGrey);
+          capDisc.rotation.z = Math.PI / 2;
+          group.add(capDisc);
+          const sealRing = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 14, 28), matCopper);
+          sealRing.rotation.y = Math.PI / 2;
+          sealRing.position.x = 0.06;
+          group.add(sealRing);
+          addBoltCircleX(group, 6, 0.35, 0.022, 0.14, 0.02, matMachinedSteel);
+          break;
+        }
+        case 'M-19': {
+          const encBody = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.22, 28), matWireBright);
+          encBody.rotation.z = Math.PI / 2;
+          group.add(encBody);
+          const bellows = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.18, 20), matBrass);
+          bellows.rotation.z = Math.PI / 2;
+          bellows.position.x = -0.16;
+          group.add(bellows);
+          const tetherArm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.38, 0.06), matDarkSteel);
+          tetherArm.position.set(-0.05, 0.26, 0);
+          group.add(tetherArm);
+          break;
+        }
+        case 'M-20': {
+          const centerHub = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.24, 32), matCowlSilver);
+          centerHub.rotation.z = Math.PI / 2;
+          group.add(centerHub);
+          const hubCap = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 18), matMachinedSteel);
+          hubCap.position.x = 0.08;
+          hubCap.scale.set(0.65, 1, 1);
+          group.add(hubCap);
+          for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 + 0.25;
+            const bladeHolder = new THREE.Group();
+            bladeHolder.rotation.x = -a;
+            const bladeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.72, 0.28), matWireBright);
+            bladeMesh.position.set(0, 0.56, 0);
+            bladeMesh.rotation.y = 0.42;
+            bladeHolder.add(bladeMesh);
+            group.add(bladeHolder);
+          }
+          break;
+        }
+        case 'M-21': {
+          const outerCylinder = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.16, 1.16, 0.82, 48, 1, true),
+            matCowlSilver
+          );
+          outerCylinder.rotation.z = Math.PI / 2;
+          outerCylinder.material.side = THREE.DoubleSide;
+          group.add(outerCylinder);
+          const rearRing = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.065, 20, 48), matCowlSilver);
+          rearRing.rotation.y = Math.PI / 2;
+          rearRing.position.x = 0.38;
+          group.add(rearRing);
+          const frontRing = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.05, 18, 48), matFrameGrey);
+          frontRing.rotation.y = Math.PI / 2;
+          frontRing.position.x = -0.38;
+          group.add(frontRing);
+          for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+            const strap = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 0.06), matDarkSteel);
+            strap.position.set(-0.45, Math.cos(a) * 1.15, Math.sin(a) * 1.15);
+            strap.rotation.x = -a;
+            group.add(strap);
+          }
+          break;
+        }
+        case 'M-22': {
+          const gridOffsets = [-0.72, -0.24, 0.24, 0.72];
+          const barRadius = 0.022;
+          const barLen = 2.48;
+
+          gridOffsets.forEach(yOff => {
+            const hBar = new THREE.Mesh(new THREE.CylinderGeometry(barRadius, barRadius, barLen, 12), matWireBright);
+            hBar.rotation.x = Math.PI / 2;
+            hBar.position.set(0, yOff, 0);
+            group.add(hBar);
+            [-barLen / 2, barLen / 2].forEach(zEnd => {
+              const hook = new THREE.Mesh(new THREE.TorusGeometry(0.06, barRadius, 10, 16, Math.PI), matWireBright);
+              hook.position.set(-0.04, yOff, zEnd);
+              hook.rotation.z = Math.PI / 2;
+              group.add(hook);
+            });
+          });
+
+          gridOffsets.forEach(zOff => {
+            const vBar = new THREE.Mesh(new THREE.CylinderGeometry(barRadius, barRadius, barLen, 12), matWireBright);
+            vBar.position.set(0, 0, zOff);
+            group.add(vBar);
+            [-barLen / 2, barLen / 2].forEach(yEnd => {
+              const hook = new THREE.Mesh(new THREE.TorusGeometry(0.06, barRadius, 10, 16, Math.PI), matWireBright);
+              hook.position.set(-0.04, yEnd, zOff);
+              hook.rotation.y = Math.PI / 2;
+              group.add(hook);
+            });
+          });
+
+          const supportRing = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.024, 14, 48), matCowlSilver);
+          supportRing.rotation.y = Math.PI / 2;
+          supportRing.position.x = -0.02;
+          group.add(supportRing);
+          break;
+        }
+        case 'M-23': {
+          const boxBody = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.46, 0.78), matFrameGrey);
+          group.add(boxBody);
+          const boxLid = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.08, 0.84), matDarkSteel);
+          boxLid.position.y = 0.26;
+          group.add(boxLid);
+          [[-0.38, -0.32], [-0.38, 0.32], [0.38, -0.32], [0.38, 0.32]].forEach(([bx, bz]) => {
+            const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 6), matMachinedSteel);
+            bolt.position.set(bx, 0.28, bz);
+            group.add(bolt);
+          });
+          [-0.22, 0.22].forEach(xOff => {
+            const gland = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.28, 16), matBrass);
+            gland.rotation.x = Math.PI / 2;
+            gland.position.set(xOff, -0.04, 0.48);
+            group.add(gland);
+          });
+          break;
+        }
+        case 'M-24': {
+          const insulatorBase = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.12, 0.48), matPorcelainRed);
+          group.add(insulatorBase);
+          [-0.20, 0, 0.20].forEach(xOff => {
+            [-0.12, 0.12].forEach(zOff => {
+              const porcPost = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 16), matPorcelainRed);
+              porcPost.position.set(xOff, 0.10, zOff);
+              group.add(porcPost);
+              const copperStud = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.24, 12), matCopper);
+              copperStud.position.set(xOff, 0.18, zOff);
+              group.add(copperStud);
+              const brassNut = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.04, 6), matBrass);
+              brassNut.position.set(xOff, 0.22, zOff);
+              group.add(brassNut);
+            });
+            const linkBar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.28), matBrass);
+            linkBar.position.set(xOff, 0.20, 0);
+            group.add(linkBar);
+          });
+          break;
+        }
+        case 'M-25': {
+          const concreteBlock = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.48, 2.75), matConcrete);
+          concreteBlock.position.set(0, -0.32, 0);
+          group.add(concreteBlock);
+          const blueBase = new THREE.Mesh(new THREE.BoxGeometry(3.95, 0.32, 2.38), matRoyalBlue);
+          blueBase.position.set(0, 0.08, 0);
+          group.add(blueBase);
+          [-0.88, 0.88].forEach(zPos => {
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(3.45, 0.12, 0.58), matMachinedSteel);
+            rail.position.set(0, 0.28, zPos);
+            group.add(rail);
+          });
+          const npMat = new THREE.MeshBasicMaterial({ map: createMotorNameplateTexture() });
+          const npPlate = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.42), npMat);
+          npPlate.position.set(-0.45, 1.35, 1.24);
+          group.add(npPlate);
+          [-0.95, 0.95].forEach(xPos => {
+            const eyeTorus = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.038, 14, 28), matBrass);
+            eyeTorus.position.set(xPos, 2.72, 0);
+            group.add(eyeTorus);
+            const eyeBase = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.08, 16), matBrass);
+            eyeBase.position.set(xPos, 2.54, 0);
+            group.add(eyeBase);
+          });
+          break;
+        }
+        case 'M-26': {
+          [-1.55, -0.52, 0.52, 1.55].forEach(xPos => {
+            [-0.98, 0.98].forEach(zPos => {
+              const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.48, 10), matMachinedSteel);
+              stud.position.set(xPos, 0.04, zPos);
+              group.add(stud);
+              const nut = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.08, 6), matBrass);
+              nut.position.set(xPos, 0.22, zPos);
+              group.add(nut);
+            });
+          });
+          const groundPost = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.28, 12), matCopper);
+          groundPost.position.set(1.75, 0.12, 1.08);
+          group.add(groundPost);
+          break;
+        }
+      }
+
+      group.traverse(obj => {
+        if (obj.isMesh) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+          obj.material = obj.material.clone();
+          obj.userData.partId = partId;
+          obj.userData.origColor = obj.material.color.clone();
+          obj.userData.rawMetalColor = new THREE.Color(0xcbd5e1);
+
+          const edgesGeo = new THREE.EdgesGeometry(obj.geometry, 28);
+          const edgesMat = new THREE.LineBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.08
+          });
+          const edgeLines = new THREE.LineSegments(edgesGeo, edgesMat);
+          edgeLines.userData.isEdgeHelper = true;
+          obj.add(edgeLines);
+        }
+      });
+
+      return group;
+    }
+
+    const motorMasterGroup = new THREE.Group();
+    scene.add(motorMasterGroup);
+
+    const partMeshesMap = new Map();
+    const pickableMeshes = [];
+    const guideLinesMap = new Map();
+    const labelDomMap = new Map();
+
+    const dashedLineMat = new THREE.LineDashedMaterial({
+      color: 0x38bdf8,
+      dashSize: 0.18,
+      gapSize: 0.10,
+      transparent: true,
+      opacity: 0.55
+    });
+
+    PARTS_DATA.forEach(part => {
+      const partGroup = buildMotorPartGeometry(part.id);
+      partGroup.position.set(...part.assembledPos);
+      motorMasterGroup.add(partGroup);
+      partMeshesMap.set(part.id, partGroup);
+
+      partGroup.traverse(child => {
+        if (child.isMesh && !child.userData.isEdgeHelper) {
+          pickableMeshes.push(child);
+        }
+      });
+
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(...part.assembledPos),
+        new THREE.Vector3(...part.assembledPos)
+      ]);
+      const line = new THREE.Line(lineGeo, dashedLineMat);
+      line.computeLineDistances();
+      motorMasterGroup.add(line);
+      guideLinesMap.set(part.id, line);
+
+      const tagEl = document.createElement('div');
+      tagEl.className = 'part-label-tag font-mono-tech';
+      tagEl.innerHTML = `<span class="text-sky-300 font-bold">${part.posNo}</span> ${part.name}`;
+      tagEl.addEventListener('click', e => {
+        e.stopPropagation();
+        selectPartById(part.id, true);
+      });
+      labelsOverlayEl.appendChild(tagEl);
+      labelDomMap.set(part.id, tagEl);
+    });
+
+    const selectionBeaconGroup = new THREE.Group();
+    const selRingMesh = new THREE.Mesh(
+      new THREE.RingGeometry(0.75, 0.85, 48),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.88 })
+    );
+    selRingMesh.rotation.x = -Math.PI / 2;
+    selectionBeaconGroup.add(selRingMesh);
+    motorMasterGroup.add(selectionBeaconGroup);
+
+    const appState = {
+      explodeFactor: 0.55,
+      targetExplodeFactor: 0.55,
+      layoutMode: 'axial',
+      showLabels: true,
+      paintCoat: true,
+      housingXray: false,
+      showRefPopup: true,
+      autoRotate: false,
+      isPlayingExplode: false,
+      playDirection: 1,
+      selectedPartId: 'M-20',
+      hoveredPartId: null,
+      isolateOthers: false,
+      bomCategoryFilter: 'ALL',
+      bomSearchQuery: ''
+    };
+
+    function updatePartsTransform() {
+      const t = appState.explodeFactor;
+      PARTS_DATA.forEach(part => {
+        const grp = partMeshesMap.get(part.id);
+        const line = guideLinesMap.get(part.id);
+        if (!grp) return;
+
+        const [ax, ay, az] = part.assembledPos;
+        let tx, ty, tz;
+
+        if (appState.layoutMode === 'axial') {
+          const [ox, oy, oz] = part.axialOffset;
+          tx = ax + ox * t;
+          ty = ay + oy * t;
+          tz = az + oz * t;
+          grp.rotation.set(0, 0, 0);
+        } else if (appState.layoutMode === 'radial') {
+          const [rx, ry, rz] = part.radialOffset;
+          tx = ax + rx * t;
+          ty = ay + ry * t;
+          tz = az + rz * t;
+          grp.rotation.set(0, 0, 0);
+        } else {
+          const [wx, wy, wz] = part.workbenchPos;
+          const arcLift = Math.sin(t * Math.PI) * 1.5;
+          tx = ax + (wx - ax) * t;
+          ty = ay + (wy - ay) * t + arcLift;
+          tz = az + (wz - az) * t;
+          grp.rotation.set(0, t * 0.35, 0);
+        }
+
+        grp.position.set(tx, ty, tz);
+
+        if (line) {
+          line.visible = t > 0.02;
+          if (line.visible) {
+            const posArr = line.geometry.attributes.position.array;
+            posArr[0] = ax; posArr[1] = ay; posArr[2] = az;
+            posArr[3] = tx; posArr[4] = ty; posArr[5] = tz;
+            line.geometry.attributes.position.needsUpdate = true;
+            line.computeLineDistances();
+          }
+        }
+      });
+
+      if (appState.selectedPartId && partMeshesMap.has(appState.selectedPartId)) {
+        const selGrp = partMeshesMap.get(appState.selectedPartId);
+        selectionBeaconGroup.visible = true;
+        selectionBeaconGroup.position.copy(selGrp.position);
+        selectionBeaconGroup.position.y -= 0.45;
+      } else {
+        selectionBeaconGroup.visible = false;
+      }
+    }
+
+    function updateProjectedLabels() {
+      if (!appState.showLabels) {
+        labelDomMap.forEach(el => { el.style.display = 'none'; });
+        return;
+      }
+      const w = viewportEl.clientWidth;
+      const h = viewportEl.clientHeight;
+      const tempV = new THREE.Vector3();
+
+      PARTS_DATA.forEach(part => {
+        const el = labelDomMap.get(part.id);
+        const grp = partMeshesMap.get(part.id);
+        if (!el || !grp) return;
+
+        const isSelected = appState.selectedPartId === part.id;
+        const shouldShow = isSelected || part.showLabel || appState.explodeFactor > 0.7;
+        if (!shouldShow) {
+          el.style.display = 'none';
+          return;
+        }
+
+        tempV.copy(grp.position);
+        tempV.y += 0.68;
+        tempV.project(camera);
+
+        if (tempV.z > 1.0 || tempV.z < -1.0) {
+          el.style.display = 'none';
+          return;
+        }
+
+        const x = (tempV.x * 0.5 + 0.5) * w;
+        const y = (-(tempV.y * 0.5) + 0.5) * h;
+
+        if (x < 30 || x > w - 30 || y < 30 || y > h - 75) {
+          el.style.display = 'none';
+          return;
+        }
+
+        el.style.display = 'block';
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.classList.toggle('active-tag', isSelected);
+      });
+    }
+
+    function updateMaterialsAndHighlights() {
+      PARTS_DATA.forEach(part => {
+        const grp = partMeshesMap.get(part.id);
+        if (!grp) return;
+
+        const isSelected = appState.selectedPartId === part.id;
+        const isHovered = appState.hoveredPartId === part.id;
+
+        grp.traverse(obj => {
+          if (!obj.isMesh) return;
+          const edgeHelper = obj.children.find(c => c.userData.isEdgeHelper);
+
+          if (appState.paintCoat) {
+            obj.material.color.copy(obj.userData.origColor);
+          } else {
+            obj.material.color.copy(obj.userData.rawMetalColor);
+          }
+
+          if (isSelected) {
+            obj.material.transparent = false;
+            obj.material.opacity = 1.0;
+            obj.material.depthWrite = true;
+            if (obj.material.emissive) {
+              obj.material.emissive.setHex(0x0088ff);
+              obj.material.emissiveIntensity = 0.75;
+            }
+            if (edgeHelper) {
+              edgeHelper.material.color.setHex(0x7dd3fc);
+              edgeHelper.material.opacity = 0.95;
+            }
+          } else if (isHovered) {
+            obj.material.transparent = false;
+            obj.material.opacity = 1.0;
+            obj.material.depthWrite = true;
+            if (obj.material.emissive) {
+              obj.material.emissive.setHex(0x0ea5e9);
+              obj.material.emissiveIntensity = 0.45;
+            }
+            if (edgeHelper) {
+              edgeHelper.material.color.setHex(0x38bdf8);
+              edgeHelper.material.opacity = 0.78;
+            }
+          } else {
+            const shouldGhost =
+              (appState.housingXray && part.isHousing) ||
+              (appState.isolateOthers && appState.selectedPartId !== null);
+
+            if (shouldGhost) {
+              obj.material.transparent = true;
+              obj.material.opacity = appState.housingXray && part.isHousing ? 0.24 : 0.16;
+              obj.material.depthWrite = false;
+              if (obj.material.emissive) {
+                obj.material.emissive.setHex(0x0284c7);
+                obj.material.emissiveIntensity = 0.28;
+              }
+              if (edgeHelper) {
+                edgeHelper.material.color.setHex(0x38bdf8);
+                edgeHelper.material.opacity = 0.42;
+              }
+            } else {
+              obj.material.transparent = false;
+              obj.material.opacity = 1.0;
+              obj.material.depthWrite = true;
+              if (obj.material.emissive) {
+                obj.material.emissive.setHex(0x000000);
+                obj.material.emissiveIntensity = 0.0;
+              }
+              if (edgeHelper) {
+                edgeHelper.material.opacity = 0.08;
+              }
+            }
+          }
+        });
+      });
+    }
+
+    const camCtrl = {
+      theta: 0.28,
+      phi: 1.15,
+      radius: 17.5,
+      target: new THREE.Vector3(0.4, 0.15, 0),
+      desiredTheta: 0.28,
+      desiredPhi: 1.15,
+      desiredRadius: 17.5,
+      desiredTarget: new THREE.Vector3(0.4, 0.15, 0),
+      isDragging: false,
+      dragMode: 'orbit',
+      lastX: 0,
+      lastY: 0,
+      movedDistance: 0
+    };
+
+    function updateCamera(dt) {
+      if (appState.autoRotate && !camCtrl.isDragging) {
+        camCtrl.desiredTheta += dt * 0.32;
+      }
+      const damp = Math.min(1, dt * 10);
+      camCtrl.theta += (camCtrl.desiredTheta - camCtrl.theta) * damp;
+      camCtrl.phi += (camCtrl.desiredPhi - camCtrl.phi) * damp;
+      camCtrl.radius += (camCtrl.desiredRadius - camCtrl.radius) * damp;
+      camCtrl.target.lerp(camCtrl.desiredTarget, damp);
+
+      const sinPhi = Math.sin(camCtrl.phi);
+      camera.position.set(
+        camCtrl.target.x + camCtrl.radius * sinPhi * Math.sin(camCtrl.theta),
+        camCtrl.target.y + camCtrl.radius * Math.cos(camCtrl.phi),
+        camCtrl.target.z + camCtrl.radius * sinPhi * Math.cos(camCtrl.theta)
+      );
+      camera.lookAt(camCtrl.target);
+    }
+
+    function setCameraView(theta, phi, radius, targetVec = new THREE.Vector3(0.4, 0.15, 0)) {
+      camCtrl.desiredTheta = theta;
+      camCtrl.desiredPhi = phi;
+      camCtrl.desiredRadius = radius;
+      camCtrl.desiredTarget.copy(targetVec);
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const tooltipEl = document.getElementById('hover-tooltip');
+
+    canvasEl.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvasEl.addEventListener('pointerdown', e => {
+      camCtrl.isDragging = true;
+      camCtrl.lastX = e.clientX;
+      camCtrl.lastY = e.clientY;
+      camCtrl.movedDistance = 0;
+      camCtrl.dragMode = (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'orbit';
+    });
+
+    window.addEventListener('pointermove', e => {
+      if (camCtrl.isDragging) {
+        const dx = e.clientX - camCtrl.lastX;
+        const dy = e.clientY - camCtrl.lastY;
+        camCtrl.lastX = e.clientX;
+        camCtrl.lastY = e.clientY;
+        camCtrl.movedDistance += Math.hypot(dx, dy);
+
+        if (camCtrl.dragMode === 'orbit') {
+          camCtrl.desiredTheta -= dx * 0.0065;
+          camCtrl.desiredPhi = Math.max(0.15, Math.min(Math.PI * 0.48, camCtrl.desiredPhi - dy * 0.0065));
+        } else {
+          const panSpeed = camCtrl.radius * 0.0012;
+          const forward = new THREE.Vector3().subVectors(camCtrl.target, camera.position).normalize();
+          const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+          const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+          camCtrl.desiredTarget.addScaledVector(right, -dx * panSpeed);
+          camCtrl.desiredTarget.addScaledVector(up, dy * panSpeed);
+        }
+        tooltipEl.classList.add('hidden');
+        return;
+      }
+
+      const rect = canvasEl.getBoundingClientRect();
+      if (
+        e.clientX < rect.left || e.clientX > rect.right ||
+        e.clientY < rect.top || e.clientY > rect.bottom
+      ) {
+        if (appState.hoveredPartId !== null) {
+          appState.hoveredPartId = null;
+          updateMaterialsAndHighlights();
+        }
+        tooltipEl.classList.add('hidden');
+        return;
+      }
+
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      const hits = raycaster.intersectObjects(pickableMeshes, false);
+      if (hits.length > 0) {
+        const hitPartId = hits[0].object.userData.partId;
+        if (hitPartId !== appState.hoveredPartId) {
+          appState.hoveredPartId = hitPartId;
+          updateMaterialsAndHighlights();
+        }
+        const part = PARTS_DATA.find(p => p.id === hitPartId);
+        if (part) {
+          canvasEl.style.cursor = 'pointer';
+          document.getElementById('tt-code').textContent = `${part.posNo} · ${part.id}`;
+          document.getElementById('tt-category').textContent = part.category;
+          document.getElementById('tt-name').textContent = `${part.name} (${part.en})`;
+          document.getElementById('tt-material').textContent = part.material;
+          document.getElementById('tt-spec').textContent = `规格: ${part.spec}`;
+          tooltipEl.classList.remove('hidden');
+
+          const maxX = window.innerWidth - 280;
+          const maxY = window.innerHeight - 120;
+          tooltipEl.style.left = `${Math.min(maxX, e.clientX + 16)}px`;
+          tooltipEl.style.top = `${Math.min(maxY, e.clientY + 16)}px`;
+        }
+      } else {
+        canvasEl.style.cursor = 'grab';
+        if (appState.hoveredPartId !== null) {
+          appState.hoveredPartId = null;
+          updateMaterialsAndHighlights();
+        }
+        tooltipEl.classList.add('hidden');
+      }
+    });
+
+    window.addEventListener('pointerup', e => {
+      if (!camCtrl.isDragging) return;
+      const wasClick = camCtrl.movedDistance < 5 && e.target === canvasEl;
+      camCtrl.isDragging = false;
+
+      if (wasClick) {
+        const rect = canvasEl.getBoundingClientRect();
+        pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointerNDC, camera);
+        const hits = raycaster.intersectObjects(pickableMeshes, false);
+        if (hits.length > 0) {
+          selectPartById(hits[0].object.userData.partId, false);
+        }
+      }
+    });
+
+    canvasEl.addEventListener('wheel', e => {
+      e.preventDefault();
+      camCtrl.desiredRadius = Math.max(4.5, Math.min(36, camCtrl.desiredRadius + e.deltaY * 0.012));
+    }, { passive: false });
+
+    function selectPartById(partId, flyTo = false) {
+      appState.selectedPartId = partId;
+      const part = PARTS_DATA.find(p => p.id === partId);
+      const badgeEl = document.getElementById('detail-status-badge');
+      const refPartEl = document.getElementById('ref-current-part');
+
+      if (part) {
+        document.getElementById('detail-pos-no').textContent = part.posNo;
+        document.getElementById('detail-code').textContent = part.id;
+        document.getElementById('detail-cat').textContent = part.category;
+        document.getElementById('detail-qty').textContent = part.qty;
+        document.getElementById('detail-name').textContent = `${part.name} (${part.en})`;
+        document.getElementById('detail-weight').textContent = part.weight;
+        document.getElementById('detail-material').textContent = part.material;
+        document.getElementById('detail-material').title = part.material;
+        document.getElementById('detail-spec').textContent = part.spec;
+        document.getElementById('detail-spec').title = part.spec;
+        document.getElementById('detail-desc').textContent = part.desc;
+        badgeEl.textContent = `位号 ${part.posNo} 已高亮`;
+        refPartEl.textContent = `${part.posNo} ${part.name}`;
+
+        if (flyTo && partMeshesMap.has(partId)) {
+          const grp = partMeshesMap.get(partId);
+          camCtrl.desiredTarget.copy(grp.position);
+          camCtrl.desiredRadius = Math.min(camCtrl.desiredRadius, 9.2);
+        }
+      } else {
+        badgeEl.textContent = '全机总览态';
+        refPartEl.textContent = '整机 26 组位号';
+      }
+
+      updatePartsTransform();
+      updateMaterialsAndHighlights();
+      renderBomTable();
+
+      if (partId) {
+        const rowEl = document.querySelector(`tr[data-part-id="${partId}"]`);
+        if (rowEl) rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function renderBomTable() {
+      const tbody = document.getElementById('bom-tbody');
+      const q = appState.bomSearchQuery.trim().toLowerCase();
+      const filtered = PARTS_DATA.filter(p => {
+        const catMatch = appState.bomCategoryFilter === 'ALL' || p.category === appState.bomCategoryFilter;
+        const qMatch = !q ||
+          p.posNo.toLowerCase().includes(q) ||
+          p.id.toLowerCase().includes(q) ||
+          p.name.toLowerCase().includes(q) ||
+          p.spec.toLowerCase().includes(q) ||
+          p.material.toLowerCase().includes(q);
+        return catMatch && qMatch;
+      });
+
+      document.getElementById('bom-filter-count').textContent = `${filtered.length} 组 (共74件)`;
+
+      tbody.innerHTML = filtered.map(p => {
+        const isSel = p.id === appState.selectedPartId;
+        return `
+          <tr data-part-id="${p.id}" class="bom-row cursor-pointer ${isSel ? 'selected' : ''}">
+            <td class="py-2 pl-2 pr-1 font-mono-tech font-bold ${isSel ? 'text-amber-300' : 'text-sky-300'} whitespace-nowrap">${p.posNo}</td>
+            <td class="py-2 px-1">
+              <div class="font-medium text-white leading-tight">${p.name}</div>
+              <div class="font-mono-tech text-[10px] text-slate-400">${p.id} · ${p.category}</div>
+            </td>
+            <td class="py-2 px-1 max-w-[125px]">
+              <div class="font-mono-tech text-[11px] text-slate-200 truncate" title="${p.material}">${p.material}</div>
+              <div class="font-mono-tech text-[10px] text-slate-400 truncate" title="${p.spec}">${p.spec}</div>
+            </td>
+            <td class="py-2 px-1 text-right font-mono-tech text-[11px] text-slate-300 whitespace-nowrap">${p.qty}</td>
+            <td class="py-2 pr-2 text-right font-mono-tech text-[11px] text-sky-300 whitespace-nowrap">${p.weight}</td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('tr[data-part-id]').forEach(row => {
+        row.addEventListener('click', () => {
+          selectPartById(row.getAttribute('data-part-id'), true);
+        });
+      });
+    }
+
+    const modeButtons = {
+      axial: document.getElementById('mode-axial'),
+      radial: document.getElementById('mode-radial'),
+      workbench: document.getElementById('mode-workbench')
+    };
+    const modeNames = {
+      axial: '轴向爆炸(左→右)',
+      radial: '径向爆炸展开',
+      workbench: '圆台散落模式'
+    };
+
+    function switchLayoutMode(mode) {
+      appState.layoutMode = mode;
+      Object.entries(modeButtons).forEach(([k, btn]) => {
+        btn.classList.toggle('active', k === mode);
+      });
+      document.getElementById('ref-current-mode').textContent = modeNames[mode];
+      if (mode === 'workbench') {
+        setExplodeValue(100);
+        setCameraView(0.25, 0.72, 21.5, new THREE.Vector3(0, -1.0, 0));
+      } else {
+        if (appState.targetExplodeFactor < 0.2) setExplodeValue(55);
+        setCameraView(0.28, 1.15, 17.5, new THREE.Vector3(0.4, 0.15, 0));
+      }
+      updatePartsTransform();
+    }
+
+    modeButtons.axial.addEventListener('click', () => switchLayoutMode('axial'));
+    modeButtons.radial.addEventListener('click', () => switchLayoutMode('radial'));
+    modeButtons.workbench.addEventListener('click', () => switchLayoutMode('workbench'));
+
+    const btnToggleLabels = document.getElementById('btn-toggle-labels');
+    btnToggleLabels.addEventListener('click', () => {
+      appState.showLabels = !appState.showLabels;
+      btnToggleLabels.classList.toggle('active', appState.showLabels);
+      updateProjectedLabels();
+    });
+
+    const btnTogglePaint = document.getElementById('btn-toggle-paint');
+    btnTogglePaint.addEventListener('click', () => {
+      appState.paintCoat = !appState.paintCoat;
+      btnTogglePaint.classList.toggle('active', appState.paintCoat);
+      updateMaterialsAndHighlights();
+    });
+
+    const btnToggleXray = document.getElementById('btn-toggle-xray');
+    btnToggleXray.addEventListener('click', () => {
+      appState.housingXray = !appState.housingXray;
+      btnToggleXray.classList.toggle('active', appState.housingXray);
+      updateMaterialsAndHighlights();
+    });
+
+    const refPopupEl = document.getElementById('ref-popup');
+    const btnToggleRef = document.getElementById('btn-toggle-ref');
+    function toggleRefPopup(forceState) {
+      appState.showRefPopup = forceState !== undefined ? forceState : !appState.showRefPopup;
+      refPopupEl.classList.toggle('hidden', !appState.showRefPopup);
+      btnToggleRef.classList.toggle('active', appState.showRefPopup);
+    }
+    btnToggleRef.addEventListener('click', () => toggleRefPopup());
+    document.getElementById('btn-close-ref').addEventListener('click', () => toggleRefPopup(false));
+
+    const btnRefMotor = document.getElementById('btn-ref-img-motor');
+    const btnRefBlender = document.getElementById('btn-ref-img-blender');
+    const refImgDisplay = document.getElementById('ref-img-display');
+    const refImgCaption = document.getElementById('ref-img-caption');
+
+    btnRefMotor.addEventListener('click', () => {
+      refImgDisplay.src = REF_IMAGES.motor;
+      refImgCaption.textContent = '14# 备用电机 (六叶风扇+十字钩头网罩)';
+      btnRefMotor.classList.add('active');
+      btnRefBlender.classList.remove('active');
+    });
+    btnRefBlender.addEventListener('click', () => {
+      refImgDisplay.src = REF_IMAGES.blender;
+      refImgCaption.textContent = 'Blender 黑色圆台爆炸拆解参考';
+      btnRefBlender.classList.add('active');
+      btnRefMotor.classList.remove('active');
+    });
+
+    document.getElementById('btn-reset-camera').addEventListener('click', () => {
+      appState.isolateOthers = false;
+      document.getElementById('btn-isolate-part').classList.remove('active');
+      if (appState.layoutMode === 'workbench') {
+        setCameraView(0.25, 0.72, 21.5, new THREE.Vector3(0, -1.0, 0));
+      } else {
+        setCameraView(0.28, 1.15, 17.5, new THREE.Vector3(0.4, 0.15, 0));
+      }
+      updateMaterialsAndHighlights();
+    });
+
+    const sliderEl = document.getElementById('explode-slider');
+    const sliderValEl = document.getElementById('explode-value');
+
+    function setExplodeValue(val) {
+      const clamped = Math.max(0, Math.min(100, val));
+      appState.targetExplodeFactor = clamped / 100;
+      sliderEl.value = Math.round(clamped);
+      sliderValEl.textContent = `${Math.round(clamped)}%`;
+    }
+
+    function updatePlayButtonUI() {
+      const btn = document.getElementById('btn-play-explode');
+      const icon = document.getElementById('play-icon');
+      const txt = document.getElementById('play-text');
+      if (appState.isPlayingExplode) {
+        btn.classList.add('playing');
+        icon.textContent = '⏸';
+        txt.textContent = '暂停演示';
+      } else {
+        btn.classList.remove('playing');
+        icon.textContent = '▶';
+        txt.textContent = '动画演示';
+      }
+    }
+
+    document.getElementById('btn-play-explode').addEventListener('click', () => {
+      appState.isPlayingExplode = !appState.isPlayingExplode;
+      updatePlayButtonUI();
+    });
+
+    function stepPartSelection(delta) {
+      const curIdx = PARTS_DATA.findIndex(p => p.id === appState.selectedPartId);
+      const nextIdx = (curIdx + delta + PARTS_DATA.length) % PARTS_DATA.length;
+      selectPartById(PARTS_DATA[nextIdx].id, true);
+    }
+    document.getElementById('btn-prev-part').addEventListener('click', () => stepPartSelection(-1));
+    document.getElementById('btn-next-part').addEventListener('click', () => stepPartSelection(1));
+
+    sliderEl.addEventListener('input', e => {
+      appState.isPlayingExplode = false;
+      updatePlayButtonUI();
+      setExplodeValue(parseFloat(e.target.value));
+    });
+
+    document.getElementById('btn-quick-assemble').addEventListener('click', () => {
+      appState.isPlayingExplode = false;
+      updatePlayButtonUI();
+      setExplodeValue(0);
+    });
+    document.getElementById('btn-quick-half').addEventListener('click', () => {
+      appState.isPlayingExplode = false;
+      updatePlayButtonUI();
+      setExplodeValue(45);
+    });
+    document.getElementById('btn-quick-explode').addEventListener('click', () => {
+      appState.isPlayingExplode = false;
+      updatePlayButtonUI();
+      setExplodeValue(100);
+    });
+
+    const btnAutoRotate = document.getElementById('btn-auto-rotate');
+    btnAutoRotate.addEventListener('click', () => {
+      appState.autoRotate = !appState.autoRotate;
+      btnAutoRotate.classList.toggle('active', appState.autoRotate);
+    });
+
+    document.getElementById('btn-focus-part').addEventListener('click', () => {
+      if (appState.selectedPartId && partMeshesMap.has(appState.selectedPartId)) {
+        const grp = partMeshesMap.get(appState.selectedPartId);
+        camCtrl.desiredTarget.copy(grp.position);
+        camCtrl.desiredRadius = 6.5;
+      }
+    });
+
+    const btnIsolate = document.getElementById('btn-isolate-part');
+    btnIsolate.addEventListener('click', () => {
+      appState.isolateOthers = !appState.isolateOthers;
+      btnIsolate.classList.toggle('active', appState.isolateOthers);
+      updateMaterialsAndHighlights();
+    });
+
+    document.getElementById('btn-clear-select').addEventListener('click', () => {
+      appState.isolateOthers = false;
+      btnIsolate.classList.remove('active');
+      selectPartById(null, false);
+    });
+
+    document.querySelectorAll('.bom-cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        appState.bomCategoryFilter = btn.getAttribute('data-cat');
+        document.querySelectorAll('.bom-cat-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderBomTable();
+      });
+    });
+
+    const bomSearchEl = document.getElementById('bom-search');
+    const btnClearSearch = document.getElementById('btn-clear-search');
+    bomSearchEl.addEventListener('input', e => {
+      appState.bomSearchQuery = e.target.value;
+      btnClearSearch.classList.toggle('hidden', !appState.bomSearchQuery);
+      renderBomTable();
+    });
+    btnClearSearch.addEventListener('click', () => {
+      bomSearchEl.value = '';
+      appState.bomSearchQuery = '';
+      btnClearSearch.classList.add('hidden');
+      renderBomTable();
+    });
+
+    document.getElementById('btn-export-bom').addEventListener('click', () => {
+      const headers = ['位号,零件代号,零件名称,英文名称,所属分系统,规格参数,材质标准,数量,单件重量'];
+      const rows = PARTS_DATA.map(p =>
+        `"${p.posNo}","${p.id}","${p.name}","${p.en}","${p.category}","${p.spec}","${p.material}","${p.qty}","${p.weight}"`
+      );
+      const csvContent = '\uFEFF' + headers.concat(rows).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '14号备用电机_YVF2-280M_26组BOM物料清单.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const toast = document.getElementById('toast-msg');
+      toast.textContent = '已成功导出 14# 备用电机 26 组完整 BOM 清单 (CSV)';
+      toast.classList.remove('opacity-0', 'translate-y-2');
+      setTimeout(() => toast.classList.add('opacity-0', 'translate-y-2'), 2400);
+    });
+
+    function handleResize() {
+      const w = viewportEl.clientWidth || window.innerWidth;
+      const h = viewportEl.clientHeight || window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', handleResize);
+
+    let lastTime = performance.now();
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (appState.isPlayingExplode) {
+        let nextVal = appState.targetExplodeFactor * 100 + appState.playDirection * dt * 28;
+        if (nextVal >= 100) {
+          nextVal = 100;
+          appState.playDirection = -1;
+        } else if (nextVal <= 0) {
+          nextVal = 0;
+          appState.playDirection = 1;
+        }
+        setExplodeValue(nextVal);
+      }
+
+      if (Math.abs(appState.explodeFactor - appState.targetExplodeFactor) > 0.0005) {
+        appState.explodeFactor += (appState.targetExplodeFactor - appState.explodeFactor) * Math.min(1, dt * 8);
+        updatePartsTransform();
+      }
+
+      if (selectionBeaconGroup.visible) {
+        selectionBeaconGroup.rotation.y += dt * 1.5;
+        const pulse = 1 + Math.sin(now * 0.005) * 0.08;
+        selectionBeaconGroup.scale.set(pulse, 1, pulse);
+      }
+
+      updateCamera(dt);
+      updateProjectedLabels();
+      renderer.render(scene, camera);
+    }
+
+    window.onload = () => {
+      handleResize();
+      updatePartsTransform();
+      selectPartById('M-20', false);
+      requestAnimationFrame(animate);
+    };
+  </script>
+<!-- 返回主页面按钮（注入） -->
+<a href="exploded_index.html" style="position:fixed;top:16px;left:16px;z-index:9999;padding:8px 16px;background:rgba(13,20,33,0.88);border:1px solid rgba(56,189,248,0.45);border-radius:8px;color:#38bdf8;font-size:13px;font-family:sans-serif;text-decoration:none;backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.5);" onmouseover="this.style.background='rgba(14,116,144,0.9)'" onmouseout="this.style.background='rgba(13,20,33,0.88)'">← 返回拆解总览</a>
+</body>
+</html>

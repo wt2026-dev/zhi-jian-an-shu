@@ -1,0 +1,2375 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2# 无油螺杆空压机 - 3D 硬件爆炸分解图</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #070b12;
+      --bg-panel: rgba(12, 19, 31, 0.88);
+      --border-cyan: rgba(56, 189, 248, 0.28);
+      --glow-blue: #00d2ff;
+      --accent-blue: #0ea5e9;
+    }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-deep);
+      color: #e2e8f0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.35);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(56, 189, 248, 0.65);
+    }
+
+    /* Industrial Panel Styling */
+    .ind-panel {
+      background: linear-gradient(180deg, rgba(14, 22, 36, 0.92) 0%, rgba(9, 14, 24, 0.95) 100%);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .ind-btn {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(71, 85, 105, 0.55);
+      color: #cbd5e1;
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .ind-btn:hover {
+      border-color: rgba(56, 189, 248, 0.7);
+      color: #f8fafc;
+      background: rgba(14, 116, 144, 0.25);
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.25);
+    }
+    .ind-btn.active {
+      background: linear-gradient(135deg, rgba(2, 132, 199, 0.45) 0%, rgba(14, 165, 233, 0.25) 100%);
+      border-color: #38bdf8;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.4), inset 0 0 8px rgba(56, 189, 248, 0.25);
+    }
+
+    /* Custom Range Slider */
+    input[type="range"].explode-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: linear-gradient(90deg, #0284c7 0%, #38bdf8 50%, #0f172a 50%);
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      outline: none;
+    }
+    input[type="range"].explode-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.9);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    input[type="range"].explode-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+
+    /* 3D Floating Callout Labels */
+    .part-label-3d {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: auto;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1.25;
+      white-space: nowrap;
+      background: rgba(8, 15, 28, 0.88);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      color: #e0f2fe;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+      transition: border-color 0.15s, background 0.15s, transform 0.15s;
+      z-index: 15;
+    }
+    .part-label-3d::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 2px;
+      height: 6px;
+      background: #38bdf8;
+    }
+    .part-label-3d:hover,
+    .part-label-3d.selected {
+      background: rgba(2, 132, 199, 0.92);
+      border-color: #7dd3fc;
+      color: #ffffff;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.75);
+      z-index: 30;
+      transform: translate(-50%, -106%) scale(1.06);
+    }
+
+    /* BOM Row Active */
+    .bom-row {
+      transition: background-color 0.12s ease, border-color 0.12s ease;
+      border-left: 3px solid transparent;
+    }
+    .bom-row:hover {
+      background-color: rgba(14, 165, 233, 0.12);
+    }
+    .bom-row.selected {
+      background-color: rgba(14, 165, 233, 0.24);
+      border-left-color: #38bdf8;
+    }
+
+    /* Corner Tech Brackets */
+    .tech-corner {
+      position: relative;
+    }
+    .tech-corner::before,
+    .tech-corner::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-color: #38bdf8;
+      pointer-events: none;
+    }
+    .tech-corner::before {
+      top: -1px;
+      left: -1px;
+      border-top: 2px solid #38bdf8;
+      border-left: 2px solid #38bdf8;
+    }
+    .tech-corner::after {
+      bottom: -1px;
+      right: -1px;
+      border-bottom: 2px solid #38bdf8;
+      border-right: 2px solid #38bdf8;
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden select-none">
+
+  <!-- 1. TOP TITLE BAR + TOOLBAR -->
+  <header class="ind-panel z-30 flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-sky-500/30 shrink-0">
+    <!-- Left: Equipment Title & Status Badges -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-sky-500/15 border border-sky-400/40 shadow-[0_0_15px_rgba(56,189,248,0.25)]">
+        <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2.5">
+          <h1 class="text-base sm:text-lg font-bold tracking-wide text-white flex items-center gap-2">
+            <span>2# 无油螺杆空压机</span>
+            <span class="text-xs font-normal px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-400/30 mono">ZW-160A / CLASS-0</span>
+          </h1>
+          <span class="hidden xl:inline-flex items-center gap-1.5 text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            双螺杆精密啮合 · 零围栏纯净模型
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-400 hidden sm:block">
+          工业级无油双螺杆压缩主机总成 · 阴阳转子 4/6 齿型 · 同步斜齿轮 · 迷宫碳环密封 · 永磁变频直联驱动
+        </p>
+      </div>
+    </div>
+
+    <!-- Right: Standard 8-Button Toolbar -->
+    <div class="flex flex-wrap items-center gap-1.5">
+      <!-- Explosion Mode Group -->
+      <div class="flex items-center bg-slate-950/80 p-0.5 rounded-lg border border-slate-800 mr-1">
+        <button id="btnModeAxial" type="button" class="ind-btn active px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5" title="沿主轴与装配方向分级轴向拆解">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+          <span>轴向爆炸</span>
+        </button>
+        <button id="btnModeRadial" type="button" class="ind-btn px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 ml-0.5" title="沿主机中心向外周径向辐射展开">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+          <span>径向爆炸</span>
+        </button>
+        <button id="btnModeScatter" type="button" class="ind-btn px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 ml-0.5" title="所有零件按检修规程环形陈列于黑色圆形工作台面">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          <span>圆台散落</span>
+        </button>
+      </div>
+
+      <!-- View & Shader Controls -->
+      <button id="btnToggleLabels" type="button" class="ind-btn active px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5" title="显示/隐藏 3D 零件引线标注标签">
+        <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+        <span>标注</span>
+      </button>
+
+      <button id="btnTogglePaint" type="button" class="ind-btn active px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5" title="切换工业原厂涂装 / 精密金属素体 / 蓝光全息模式">
+        <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+        <span id="paintModeText">涂装: 工业钛蓝</span>
+      </button>
+
+      <button id="btnToggleXray" type="button" class="ind-btn px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5" title="外壳半透明透视，直视内部阴阳螺杆转子与轴承齿轮">
+        <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        <span>半透视</span>
+      </button>
+
+      <button id="btnToggleRefPopup" type="button" class="ind-btn active px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5" title="打开/关闭左上角参考爆炸拆解台视觉效果对照窗">
+        <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span>参考图对照</span>
+      </button>
+
+      <button id="btnResetView" type="button" class="ind-btn px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5" title="重置 3D 摄像机视角与缩放">
+        <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span>重置视角</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE: CENTER 3D VIEWPORT + RIGHT SIDEBAR -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- 3. CENTER: 3D BLACK CIRCULAR WORKBENCH VIEWPORT -->
+    <main id="viewportContainer" class="flex-1 relative overflow-hidden bg-[#060a10]">
+      <!-- Three.js Canvas Mount -->
+      <div id="canvasMount" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+      <!-- 3D Floating HTML Callout Labels Container -->
+      <div id="labelsContainer" class="absolute inset-0 pointer-events-none overflow-hidden z-10"></div>
+
+      <!-- 2. TOP-LEFT POPUP: 参考爆炸拆解台视觉效果 -->
+      <aside id="refPopup" class="ind-panel tech-corner absolute top-3.5 left-3.5 z-20 w-72 sm:w-80 rounded-xl overflow-hidden transition-all duration-200">
+        <!-- Popup Header -->
+        <div class="flex items-center justify-between px-3 py-2 bg-slate-900/90 border-b border-sky-500/25">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]"></span>
+            <span class="text-xs font-semibold text-sky-100 tracking-wide">参考爆炸拆解台视觉效果</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button id="btnRefMinimize" type="button" class="text-slate-400 hover:text-sky-300 p-1 rounded" title="折叠/展开">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+            </button>
+            <button id="btnRefClose" type="button" class="text-slate-400 hover:text-rose-400 p-1 rounded" title="关闭弹窗">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Popup Body -->
+        <div id="refPopupBody" class="p-2.5 space-y-2">
+          <!-- Mode Switch Tabs inside Popup -->
+          <div class="grid grid-cols-2 gap-1 bg-slate-950/80 p-1 rounded-lg border border-slate-800 text-[11px]">
+            <button id="tabRefBench" type="button" class="py-1 px-2 rounded bg-sky-500/25 text-sky-300 border border-sky-500/40 font-medium">
+              标准拆解台布局
+            </button>
+            <button id="tabRefPhoto" type="button" class="py-1 px-2 rounded text-slate-400 hover:text-slate-200 font-medium">
+              2# 设备铭牌参考
+            </button>
+          </div>
+
+          <!-- Tab 1: Standard Exploded Workbench Visual Schematic -->
+          <div id="refViewBench" class="space-y-2">
+            <div class="relative rounded-lg overflow-hidden border border-sky-500/30 bg-[#05080f] h-36 flex items-center justify-center">
+              <svg viewBox="0 0 320 150" class="w-full h-full">
+                <defs>
+                  <radialGradient id="benchGrad" cx="50%" cy="55%" r="50%">
+                    <stop offset="0%" stop-color="#0f2942" stop-opacity="0.8"/>
+                    <stop offset="70%" stop-color="#091322" stop-opacity="0.95"/>
+                    <stop offset="100%" stop-color="#04070e" stop-opacity="1"/>
+                  </radialGradient>
+                </defs>
+                <!-- Circular Black Workbench Ellipse -->
+                <ellipse cx="160" cy="102" rx="135" ry="38" fill="url(#benchGrad)" stroke="#38bdf8" stroke-width="1.2" stroke-opacity="0.65"/>
+                <ellipse cx="160" cy="99" rx="105" ry="28" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-opacity="0.35" stroke-dasharray="3 3"/>
+                <ellipse cx="160" cy="99" rx="70" ry="18" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-opacity="0.35"/>
+                <ellipse cx="160" cy="99" rx="35" ry="9" fill="none" stroke="#38bdf8" stroke-width="0.7" stroke-opacity="0.5"/>
+                <!-- White Grid Crosshairs -->
+                <line x1="25" y1="99" x2="295" y2="99" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.35"/>
+                <line x1="160" y1="62" x2="160" y2="137" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.35"/>
+                <line x1="65" y1="74" x2="255" y2="124" stroke="#ffffff" stroke-width="0.4" stroke-opacity="0.22"/>
+                <line x1="65" y1="124" x2="255" y2="74" stroke="#ffffff" stroke-width="0.4" stroke-opacity="0.22"/>
+                <!-- Exploded Compressor Schematic Blocks (Blue Glow) -->
+                <!-- Skid Base -->
+                <polygon points="105,103 215,103 228,113 92,113" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+                <!-- Suction Filter & Casing Left -->
+                <rect x="44" y="54" width="26" height="22" rx="3" fill="#0284c7" fill-opacity="0.35" stroke="#38bdf8" stroke-width="1.2"/>
+                <!-- Twin Screw Rotors Center (Glowing Blue) -->
+                <rect x="115" y="52" width="48" height="11" rx="5" fill="#00d2ff" fill-opacity="0.65" stroke="#e0f2fe" stroke-width="1"/>
+                <rect x="115" y="66" width="48" height="11" rx="5" fill="#0284c7" fill-opacity="0.65" stroke="#7dd3fc" stroke-width="1"/>
+                <!-- Upper Casing Floating Above -->
+                <polygon points="108,34 170,34 178,44 100,44" fill="#1e3a5f" fill-opacity="0.7" stroke="#38bdf8" stroke-width="1.2"/>
+                <!-- Coupling & Drive Motor Right -->
+                <circle cx="192" cy="62" r="8" fill="#0ea5e9" fill-opacity="0.4" stroke="#38bdf8" stroke-width="1.2"/>
+                <rect x="216" y="47" width="46" height="28" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="1.2"/>
+                <!-- Axial Explosion Dashed Vector Line -->
+                <line x1="35" y1="62" x2="285" y2="62" stroke="#38bdf8" stroke-width="1" stroke-dasharray="4 3"/>
+                <!-- Callout Dots -->
+                <circle cx="139" cy="57" r="2.5" fill="#ffffff"/>
+                <line x1="139" y1="57" x2="128" y2="22" stroke="#38bdf8" stroke-width="0.9"/>
+                <rect x="85" y="10" width="66" height="13" rx="2" fill="#0c192c" stroke="#38bdf8" stroke-width="0.8"/>
+                <text x="118" y="19" fill="#7dd3fc" font-size="7.5" text-anchor="middle" font-family="sans-serif">阴阳螺杆转子副</text>
+
+                <circle cx="239" cy="61" r="2.5" fill="#ffffff"/>
+                <line x1="239" y1="61" x2="252" y2="25" stroke="#38bdf8" stroke-width="0.9"/>
+                <rect x="215" y="12" width="68" height="13" rx="2" fill="#0c192c" stroke="#38bdf8" stroke-width="0.8"/>
+                <text x="249" y="21" fill="#7dd3fc" font-size="7.5" text-anchor="middle" font-family="sans-serif">永磁变频主电机</text>
+              </svg>
+              <div class="absolute bottom-1.5 right-2 text-[10px] px-1.5 py-0.5 rounded bg-sky-950/90 text-sky-300 border border-sky-500/30 mono">
+                标准参考布局 · 无围栏纯净视图
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-300 px-1">
+              <span>当前拆解模式：<strong id="refModeLabel" class="text-sky-400">轴向爆炸</strong></span>
+              <span class="mono text-sky-300" id="refProgressLabel">拆解度 45%</span>
+            </div>
+          </div>
+
+          <!-- Tab 2: Uploaded 2# Equipment Reference Photo -->
+          <div id="refViewPhoto" class="hidden space-y-2">
+            <div class="relative rounded-lg overflow-hidden border border-sky-500/30 bg-slate-950 h-36 flex items-center justify-center">
+              <img src="data:image/png;base64,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" alt="2# 无油螺杆空压机参考图" class="max-h-full max-w-full object-contain" />
+              <div class="absolute bottom-1.5 left-1.5 right-1.5 text-[10px] px-2 py-0.5 rounded bg-slate-950/90 text-emerald-300 border border-emerald-500/30">
+                已按规范剥离外部围栏，重构内部 28 件双螺杆主机
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 px-1 leading-tight">
+              对照说明：保留 2# 无油螺杆空压机设备立项编号，采用无围栏纯净工业蓝光爆炸拆解台标准布局。
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Bottom-Left Viewport HUD Telemetry & Quick Camera Presets -->
+      <div class="absolute bottom-3.5 left-3.5 z-20 flex flex-wrap items-end gap-2 pointer-events-none">
+        <div class="ind-panel rounded-lg px-3 py-2 text-[11px] text-slate-300 space-y-1 pointer-events-auto">
+          <div class="flex items-center gap-2 text-sky-400 font-semibold">
+            <span>工作台交互指南</span>
+            <span class="text-[10px] px-1.5 py-0.2 bg-sky-500/15 border border-sky-400/30 rounded mono">WEBGL 3D</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-[10px] text-slate-400">
+            <div><span class="text-slate-200">左键拖拽:</span> 360°旋转</div>
+            <div><span class="text-slate-200">右键/Shift:</span> 平移视图</div>
+            <div><span class="text-slate-200">滚轮/点击:</span> 缩放/选件</div>
+          </div>
+          <div class="flex items-center gap-1 pt-1 border-t border-slate-800/80">
+            <span class="text-[10px] text-slate-400 mr-1">快捷视角:</span>
+            <button type="button" data-cam="iso" class="cam-preset-btn ind-btn px-2 py-0.5 rounded text-[10px]">等轴测</button>
+            <button type="button" data-cam="front" class="cam-preset-btn ind-btn px-2 py-0.5 rounded text-[10px]">正视图</button>
+            <button type="button" data-cam="top" class="cam-preset-btn ind-btn px-2 py-0.5 rounded text-[10px]">俯视图</button>
+            <button type="button" data-cam="rotor" class="cam-preset-btn ind-btn px-2 py-0.5 rounded text-[10px] text-sky-300">转子特写</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 4. RIGHT SIDEBAR: PART DETAILS CARD + BOM TABLE + BOTTOM STATS -->
+    <aside class="ind-panel z-20 w-80 sm:w-96 xl:w-[420px] border-l border-sky-500/30 flex flex-col shrink-0 h-full overflow-hidden">
+      <!-- 4A. Selected Part Detail Card -->
+      <section class="p-3.5 border-b border-sky-500/25 bg-slate-900/55 shrink-0">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-4 rounded-sm bg-sky-400 shadow-[0_0_8px_#38bdf8]"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-sky-300">零件详情卡片 · PART INSPECTOR</h2>
+          </div>
+          <span id="detailBomCode" class="mono text-xs font-semibold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-400/40">
+            BOM-09
+          </span>
+        </div>
+
+        <div class="rounded-lg bg-slate-950/85 border border-sky-500/30 p-3 space-y-2.5 shadow-inner">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <h3 id="detailName" class="text-sm font-bold text-white leading-snug">
+                阳转子（主动四叶螺旋轴）
+              </h3>
+              <p id="detailEnName" class="text-[11px] text-sky-400/90 mono">
+                Male Drive Helical Screw Rotor (4-Lobe)
+              </p>
+            </div>
+            <span id="detailCategoryBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30 shrink-0">
+              双螺杆转子
+            </span>
+          </div>
+
+          <!-- Technical Specs Grid -->
+          <div class="grid grid-cols-3 gap-1.5 text-[11px] bg-slate-900/90 p-2 rounded border border-slate-800">
+            <div>
+              <div class="text-slate-400 text-[10px]">材质与表面处理</div>
+              <div id="detailMaterial" class="text-slate-100 font-medium truncate" title="42CrMo4 锻钢 + PEEK纳米防腐蚀涂层">42CrMo4+PEEK涂层</div>
+            </div>
+            <div>
+              <div class="text-slate-400 text-[10px]">数量 / 单重</div>
+              <div id="detailWeightQty" class="text-sky-300 font-medium mono">1 件 / 148.0 kg</div>
+            </div>
+            <div>
+              <div class="text-slate-400 text-[10px]">装配精度等级</div>
+              <div id="detailPrecision" class="text-emerald-400 font-medium mono">ISO IT4 / G2.5</div>
+            </div>
+          </div>
+
+          <p id="detailDesc" class="text-xs text-slate-300 leading-relaxed">
+            主动四叶非对称型线螺杆转子，表面喷涂特种 PEEK/PTFE 食品医药级超滑无油涂层，与阴转子保持 0.045mm 非接触干式精密啮合。
+          </p>
+
+          <!-- Coordinates & Quick Part Actions -->
+          <div class="flex items-center justify-between pt-1.5 border-t border-slate-800/90 text-[11px]">
+            <div class="mono text-[10px] text-slate-400">
+              爆炸位移: <span id="detailOffset" class="text-sky-300">Δ(-0.3, +0.9, -0.5)m</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button id="btnFocusPart" type="button" class="ind-btn px-2 py-1 rounded text-[11px] text-sky-300 flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <span>聚焦特写</span>
+              </button>
+              <button id="btnIsolatePart" type="button" class="ind-btn px-2 py-1 rounded text-[11px] flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span id="isolateBtnText">单独观察</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4B. BOM Material List Table Header & Filters -->
+      <section class="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div class="px-3.5 py-2.5 bg-slate-900/80 border-b border-slate-800 space-y-2 shrink-0">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-4 rounded-sm bg-cyan-400"></span>
+              <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">BOM 物料清单表格 (28 项核心部件)</h2>
+            </div>
+            <span id="bomFilterCount" class="text-[11px] text-sky-400 mono">显示 28 / 28 项</span>
+          </div>
+
+          <!-- Search + Subsystem Filter -->
+          <div class="flex items-center gap-1.5">
+            <div class="relative flex-1">
+              <input id="bomSearchInput" type="text" placeholder="搜索零件名称、位号或材质..." class="w-full bg-slate-950/90 border border-slate-700/80 focus:border-sky-400 rounded-md pl-7 pr-2 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none" />
+              <svg class="w-3.5 h-3.5 text-slate-500 absolute left-2 top-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            <select id="bomCategoryFilter" class="bg-slate-950/90 border border-slate-700/80 focus:border-sky-400 rounded-md px-2 py-1 text-xs text-slate-200 outline-none">
+              <option value="ALL">全部系统 (28)</option>
+              <option value="双螺杆转子">双螺杆转子</option>
+              <option value="机壳与水冷套">机壳与水冷套</option>
+              <option value="轴承与同步齿轮">轴承与同步齿轮</option>
+              <option value="无油气封轴封">无油气封轴封</option>
+              <option value="进排气法兰">进排气法兰</option>
+              <option value="电机与联轴器">电机与联轴器</option>
+              <option value="底座与减震">底座与减震</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- BOM Table Column Headers -->
+        <div class="grid grid-cols-12 px-3.5 py-1.5 bg-slate-950/90 border-b border-slate-800 text-[11px] font-semibold text-slate-400 shrink-0">
+          <div class="col-span-2">位号</div>
+          <div class="col-span-5">零件名称</div>
+          <div class="col-span-3">材质规范</div>
+          <div class="col-span-2 text-right">数量/重</div>
+        </div>
+
+        <!-- Scrollable BOM Rows -->
+        <div id="bomTableBody" class="flex-1 overflow-y-auto divide-y divide-slate-800/60 bg-slate-950/40">
+          <!-- Populated dynamically by JS -->
+        </div>
+      </section>
+
+      <!-- 4C. Bottom Statistics Bar inside Right Sidebar -->
+      <footer class="p-3 bg-slate-950/95 border-t border-sky-500/30 shrink-0">
+        <div class="grid grid-cols-4 gap-1.5 text-center">
+          <div class="bg-slate-900/90 border border-slate-800 rounded p-1.5">
+            <div class="text-[10px] text-slate-400">总拆解零件</div>
+            <div class="text-xs font-bold text-white mono">28 项 / 54 件</div>
+          </div>
+          <div class="bg-slate-900/90 border border-slate-800 rounded p-1.5">
+            <div class="text-[10px] text-slate-400">整机总质量</div>
+            <div class="text-xs font-bold text-sky-400 mono">1,860.5 kg</div>
+          </div>
+          <div class="bg-slate-900/90 border border-slate-800 rounded p-1.5">
+            <div class="text-[10px] text-slate-400">额定排气压力</div>
+            <div class="text-xs font-bold text-emerald-400 mono">0.85 MPa</div>
+          </div>
+          <div class="bg-slate-900/90 border border-slate-800 rounded p-1.5">
+            <div class="text-[10px] text-slate-400">当前爆炸度</div>
+            <div id="statExplodePct" class="text-xs font-bold text-amber-400 mono">45%</div>
+          </div>
+        </div>
+      </footer>
+    </aside>
+  </div>
+
+  <!-- 5. BOTTOM CONTROL BAR -->
+  <footer class="ind-panel z-30 px-4 py-2.5 border-t border-sky-500/30 flex flex-wrap items-center justify-between gap-3 shrink-0">
+    <!-- Left: Animation Demo + Prev/Next Part Step -->
+    <div class="flex items-center gap-2">
+      <button id="btnAnimDemo" type="button" class="ind-btn px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-sky-300 border-sky-500/40">
+        <svg id="iconPlay" class="w-4 h-4 text-sky-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg>
+        <span id="animBtnText">动画演示</span>
+      </button>
+
+      <div class="flex items-center bg-slate-950/90 rounded-lg p-0.5 border border-slate-800">
+        <button id="btnPrevPart" type="button" class="ind-btn px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1" title="切换至上一个零件">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          <span>上一件</span>
+        </button>
+        <span id="partStepIndicator" class="px-2.5 text-xs mono text-sky-300 font-semibold">09 / 28</span>
+        <button id="btnNextPart" type="button" class="ind-btn px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1" title="切换至下一个零件">
+          <span>下一件</span>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Center: Explosion Slider + 0% / 45% / 100% Quick Presets -->
+    <div class="flex-1 max-w-2xl flex items-center gap-3">
+      <span class="text-xs font-medium text-slate-300 shrink-0 hidden md:inline">拆解滑块</span>
+      <div class="flex-1 flex items-center gap-2">
+        <input id="explodeSlider" type="range" min="0" max="100" value="45" step="1" class="explode-slider w-full cursor-pointer" />
+        <span id="sliderValueBadge" class="w-12 text-right mono text-xs font-bold text-sky-400 shrink-0">45%</span>
+      </div>
+
+      <div class="flex items-center gap-1 shrink-0">
+        <button type="button" data-pct="0" class="pct-preset-btn ind-btn px-2.5 py-1 rounded-md text-xs font-medium">
+          0%完全组装
+        </button>
+        <button type="button" data-pct="45" class="pct-preset-btn ind-btn active px-2.5 py-1 rounded-md text-xs font-medium">
+          45%半拆解
+        </button>
+        <button type="button" data-pct="100" class="pct-preset-btn ind-btn px-2.5 py-1 rounded-md text-xs font-medium">
+          100%完全散开
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: Orbit Showcase Toggle -->
+    <div class="flex items-center gap-2">
+      <button id="btnOrbitShowcase" type="button" class="ind-btn px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5" title="开启/关闭 360° 环绕旋转展示">
+        <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span>环绕展示</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- MAIN APPLICATION SCRIPT -->
+  <script>
+    // =========================================================================
+    // 1. COMPLETE 28-PART BOM ENGINEERING DATASET FOR 2# OIL-FREE SCREW COMPRESSOR
+    // =========================================================================
+    const PARTS_DATA = [
+      {
+        id: 1,
+        code: 'BOM-01',
+        name: '重型工字钢公共底座',
+        enName: 'Heavy-Duty Steel Skid Base Frame',
+        category: '底座与减震',
+        material: 'Q355B 结构钢',
+        qty: 1,
+        weight: 340.0,
+        precision: 'GB/T 1804-m',
+        assembledPos: [0.0, -1.22, 0.0],
+        axialOffset: [0.0, -0.75, 0.0],
+        radialOffset: [0.0, -1.35, 0.0],
+        scatterRing: 1,
+        isCasing: false,
+        color: 0x1e293b,
+        desc: '承载双螺杆主机与 160kW 永磁驱动电机的整体刚性公共型钢底座，经退火消除焊接内应力与数控铣削基准面，确保主机与电机同轴度误差小于 0.02mm。'
+      },
+      {
+        id: 2,
+        code: 'BOM-02',
+        name: '主机端抗震橡胶减震器组',
+        enName: 'Airend Elastomer Vibration Isolators',
+        category: '底座与减震',
+        material: '丁腈合成橡胶+45#钢',
+        qty: 4,
+        weight: 12.4,
+        precision: '邵氏硬度 65A',
+        assembledPos: [-1.15, -0.96, 0.0],
+        axialOffset: [-0.45, -0.52, 0.0],
+        radialOffset: [-1.35, -0.95, 0.85],
+        scatterRing: 1,
+        isCasing: false,
+        color: 0x334155,
+        desc: '安装于双螺杆主机支脚与公共底座之间的四点高频弹性阻尼减震器，隔离高频气体脉动与机械振动。'
+      },
+      {
+        id: 3,
+        code: 'BOM-03',
+        name: '电机端复合弹簧减震垫组',
+        enName: 'Motor End Heavy-Duty Isolator Pads',
+        category: '底座与减震',
+        material: '60Si2Mn 弹簧钢+氯丁胶',
+        qty: 4,
+        weight: 14.8,
+        precision: '载荷 800kg/点',
+        assembledPos: [1.55, -0.96, 0.0],
+        axialOffset: [0.55, -0.52, 0.0],
+        radialOffset: [1.65, -0.95, -0.85],
+        scatterRing: 1,
+        isCasing: false,
+        color: 0x334155,
+        desc: '布置于永磁变频电机底脚下方的四点高阻尼减震支撑垫，防止定转子电磁谐振向基础传递。'
+      },
+      {
+        id: 4,
+        code: 'BOM-04',
+        name: '双螺杆主机下半气缸体',
+        enName: 'Lower Twin-Bore Cylinder Casing',
+        category: '机壳与水冷套',
+        material: 'QT500-7 球墨铸铁',
+        qty: 1,
+        weight: 265.0,
+        precision: '镗孔公差 H6',
+        assembledPos: [-1.15, -0.32, 0.0],
+        axialOffset: [-0.30, -0.35, 0.0],
+        radialOffset: [-1.15, -0.68, 0.0],
+        scatterRing: 0,
+        isCasing: true,
+        color: 0x1e3a5f,
+        desc: '水平剖分式“8”字形双镗孔下半气缸体，内壁经等离子喷涂耐磨防腐陶瓷复合层，集成冷却水回水腔道。'
+      },
+      {
+        id: 5,
+        code: 'BOM-05',
+        name: '双螺杆主机上半气缸水冷套盖',
+        enName: 'Upper Twin-Bore Water-Jacket Casing',
+        category: '机壳与水冷套',
+        material: 'QT500-7 球墨铸铁',
+        qty: 1,
+        weight: 238.0,
+        precision: '平面度 0.01mm',
+        assembledPos: [-1.15, 0.28, 0.0],
+        axialOffset: [-0.30, 1.35, 0.0],
+        radialOffset: [-1.15, 1.85, 0.0],
+        scatterRing: 1,
+        isCasing: true,
+        color: 0x254b7c,
+        desc: '主机上半部“8”字形气缸盖，内置螺旋导流夹套冷却水腔，均匀带走干式无油压缩产生的高温热量，抑制气缸热变形。'
+      },
+      {
+        id: 6,
+        code: 'BOM-06',
+        name: '进气端低压轴承座端盖',
+        enName: 'Suction-End Bearing Housing Cover',
+        category: '机壳与水冷套',
+        material: 'HT300 高强灰铸铁',
+        qty: 1,
+        weight: 68.5,
+        precision: '同轴度 0.008mm',
+        assembledPos: [-2.12, -0.02, 0.0],
+        axialOffset: [-1.65, 0.0, 0.0],
+        radialOffset: [-2.55, 0.15, 0.0],
+        scatterRing: 1,
+        isCasing: true,
+        color: 0x1e3a5f,
+        desc: '封闭主机低压进气端腔体并承载进气端圆柱滚子轴承，加工有精密定位销孔与密封油气隔离腔。'
+      },
+      {
+        id: 7,
+        code: 'BOM-07',
+        name: '排气端高压轴承座体',
+        enName: 'Discharge-End High-Pressure Housing',
+        category: '机壳与水冷套',
+        material: 'QT600-3 球墨铸铁',
+        qty: 1,
+        weight: 94.0,
+        precision: '耐压 1.6 MPa',
+        assembledPos: [-0.18, -0.02, 0.0],
+        axialOffset: [0.55, 0.0, 0.0],
+        radialOffset: [-0.18, 0.0, 1.65],
+        scatterRing: 1,
+        isCasing: true,
+        color: 0x1e3a5f,
+        desc: '位于主机高压排气端的加强筋壳体，内部集成轴向推力轴承腔、冷却油道及斜向高压排气流道口。'
+      },
+      {
+        id: 8,
+        code: 'BOM-08',
+        name: '同步齿轮箱前端密封罩壳',
+        enName: 'Timing Gearbox Front Cover',
+        category: '机壳与水冷套',
+        material: 'ZL104 铸造铝合金',
+        qty: 1,
+        weight: 32.0,
+        precision: 'IP65 密封等级',
+        assembledPos: [-2.68, -0.02, 0.0],
+        axialOffset: [-3.10, 0.0, 0.0],
+        radialOffset: [-3.35, 0.0, 0.0],
+        scatterRing: 2,
+        isCasing: true,
+        color: 0x2b547e,
+        desc: '位于进气端外侧的同步齿轮箱前罩，内部设有喷油嘴对同步齿轮进行微量闭式冷却润滑，与压缩气腔完全隔离。'
+      },
+      {
+        id: 9,
+        code: 'BOM-09',
+        name: '阳转子（主动四叶螺旋轴）',
+        enName: 'Male Drive Helical Screw Rotor (4-Lobe)',
+        category: '双螺杆转子',
+        material: '42CrMo4+PEEK涂层',
+        qty: 1,
+        weight: 148.0,
+        precision: 'ISO IT4 / G2.5',
+        assembledPos: [-1.15, -0.02, -0.31],
+        axialOffset: [-0.35, 0.72, -0.85],
+        radialOffset: [-1.15, 0.88, -1.55],
+        scatterRing: 0,
+        isCasing: false,
+        color: 0x38bdf8,
+        desc: '主动四叶非对称型线螺杆转子，表面喷涂特种 PEEK/PTFE 超滑无油涂层，与阴转子保持 0.045mm 非接触干式精密啮合。'
+      },
+      {
+        id: 10,
+        code: 'BOM-10',
+        name: '阴转子（从动六齿螺旋轴）',
+        enName: 'Female Driven Helical Screw Rotor (6-Flute)',
+        category: '双螺杆转子',
+        material: '42CrMo4+PTFE涂层',
+        qty: 1,
+        weight: 132.0,
+        precision: 'ISO IT4 / G2.5',
+        assembledPos: [-1.15, -0.02, 0.31],
+        axialOffset: [-0.35, 0.72, 0.85],
+        radialOffset: [-1.15, 0.88, 1.55],
+        scatterRing: 0,
+        isCasing: false,
+        color: 0x60a5fa,
+        desc: '从动六齿螺旋包络转子，经五轴数控强力成形磨削加工与动平衡校验，由同步齿轮驱动实现无油干式高速旋转压缩。'
+      },
+      {
+        id: 11,
+        code: 'BOM-11',
+        name: '主动轴高精度斜齿同步齿轮',
+        enName: 'Male Shaft Helical Timing Gear',
+        category: '轴承与同步齿轮',
+        material: '20CrMnTi 渗碳淬火',
+        qty: 1,
+        weight: 16.5,
+        precision: 'DIN 4级 (AGMA Q13)',
+        assembledPos: [-2.42, -0.02, -0.31],
+        axialOffset: [-2.55, 0.25, -0.65],
+        radialOffset: [-2.85, 0.45, -1.15],
+        scatterRing: 1,
+        isCasing: false,
+        color: 0x94a3b8,
+        desc: '安装在阳转子前端轴颈上的精密磨齿斜齿轮，严格锁定阴阳转子相位角，杜绝转子型面直接接触磨损。'
+      },
+      {
+        id: 12,
+        code: 'BOM-12',
+        name: '从动轴高精度斜齿同步齿轮',
+        enName: 'Female Shaft Helical Timing Gear',
+        category: '轴承与同步齿轮',
+        material: '20CrMnTi 渗碳淬火',
+        qty: 1,
+        weight: 21.0,
+        precision: 'DIN 4级 (AGMA Q13)',
+        assembledPos: [-2.42, -0.02, 0.31],
+        axialOffset: [-2.55, 0.25, 0.65],
+        radialOffset: [-2.85, 0.45, 1.15],
+        scatterRing: 1,
+        isCasing: false,
+        color: 0x94a3b8,
+        desc: '安装在阴转子前端的无键液压胀紧套同步斜齿轮，可在装配时微米级微调阴阳转子啮合背隙。'
+      },
+      {
+        id: 13,
+        code: 'BOM-13',
+        name: '进气端圆柱滚子轴承组 (NU214)',
+        enName: 'Suction-End Cylindrical Roller Bearings',
+        category: '轴承与同步齿轮',
+        material: 'GCr15 轴承钢+黄铜保持架',
+        qty: 2,
+        weight: 9.6,
+        precision: 'P4 超高精密级',
+        assembledPos: [-1.96, -0.02, 0.0],
+        axialOffset: [-1.95, 0.45, -0.45],
+        radialOffset: [-2.25, 0.95, -0.75],
+        scatterRing: 1,
+        isCasing: false,
+        color: 0xe2e8f0,
+        desc: '成对配置于阴阳转子进气端的 P4 级高速圆柱滚子轴承，承受转子径向气体力并允许热膨胀轴向浮动。'
+      },
+      {
+        id: 14,
+        code: 'BOM-14',
+        name: '排气端四点接触推力球轴承组 (QJ312)',
+        enName: 'Discharge-End Angular Contact Thrust Bearings',
+        category: '轴承与同步齿轮',
+        material: 'GCr15SiMn+机削铜保持架',
+        qty: 2,
+        weight: 14.2,
+        precision: 'P4 / 轴向游隙 C2',
+        assembledPos: [-0.36, -0.02, 0.0],
+        axialOffset: [0.22, 0.55, 0.45],
+        radialOffset: [-0.36, 1.15, 0.95],
+        scatterRing: 1,
+        isCasing: false,
+        color: 0xfbbf24,
+        desc: '背靠背安装于高压排气端的四点接触球轴承与圆柱滚子组合轴承，精准定位转子轴向排气端面间隙。'
+      },
+      {
+        id: 15,
+        code: 'BOM-15',
+        name: '轴承轴向精密锁紧圆螺母组件',
+        enName: 'Precision Shaft Locknuts & Tab Washers',
+        category: '轴承与同步齿轮',
+        material: '40Cr 调质合金钢',
+        qty: 4,
+        weight: 4.2,
+        precision: '端面跳动 0.003mm',
+        assembledPos: [-0.22, -0.02, 0.0],
+        axialOffset: [0.42, 0.35, -0.35],
+        radialOffset: [-0.15, 0.78, -0.95],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0xcbd5e1,
+        desc: '带径向防松顶丝的精密轴用锁紧螺母，锁紧排气端推力轴承内圈，承受高达 18,000 r/min 高速运转离心力。'
+      },
+      {
+        id: 16,
+        code: 'BOM-16',
+        name: '不锈钢多级迷宫式气封环组',
+        enName: 'Multi-Stage Stainless Labyrinth Air Seals',
+        category: '无油气封轴封',
+        material: '316L 不锈钢+哈氏合金齿',
+        qty: 4,
+        weight: 6.8,
+        precision: '径向间隙 0.06mm',
+        assembledPos: [-1.76, -0.02, 0.0],
+        axialOffset: [-1.30, 0.38, 0.55],
+        radialOffset: [-1.76, 1.05, 0.95],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x38bdf8,
+        desc: '非接触式多级尖齿迷宫气封，利用节流膨胀效应阻断压缩腔高温洁净空气沿轴颈向外泄漏。'
+      },
+      {
+        id: 17,
+        code: 'BOM-17',
+        name: '浮动碳环隔离控油密封组件',
+        enName: 'Floating Carbon-Ring Oil Barrier Seals',
+        category: '无油气封轴封',
+        material: '浸锑特种石墨+304不锈钢',
+        qty: 4,
+        weight: 7.4,
+        precision: 'ISO 8573-1 Class 0',
+        assembledPos: [-0.54, -0.02, 0.0],
+        axialOffset: [-0.05, 0.38, -0.55],
+        radialOffset: [-0.54, 1.05, -0.95],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x475569,
+        desc: '配备大气排空隔离腔的自调心浮动碳环油封，彻底杜绝轴承润滑油向压缩腔迁移，保障 100% 纯净无油。'
+      },
+      {
+        id: 18,
+        code: 'BOM-18',
+        name: 'DN150 顶置进气法兰与蝶式调节阀',
+        enName: 'DN150 Top Suction Flange & Unloader Valve',
+        category: '进排气法兰',
+        material: '304 不锈钢锻件',
+        qty: 1,
+        weight: 36.0,
+        precision: 'PN16 法兰标准',
+        assembledPos: [-1.62, 0.72, 0.0],
+        axialOffset: [-1.62, 1.75, 0.0],
+        radialOffset: [-1.95, 2.05, 0.0],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x94a3b8,
+        desc: '安装于主机进气腔顶部的 DN150 标准法兰与伺服气动进气蝶阀，根据管网压力自动调节进气开度与空载卸荷。'
+      },
+      {
+        id: 19,
+        code: 'BOM-19',
+        name: '高精密进气消音过滤器总成',
+        enName: 'High-Efficiency Suction Filter & Silencer',
+        category: '进排气法兰',
+        material: '纳米覆膜滤芯+碳钢壳体',
+        qty: 1,
+        weight: 42.5,
+        precision: '过滤精度 1μm / 99.9%',
+        assembledPos: [-1.62, 1.22, 0.0],
+        axialOffset: [-1.62, 2.55, 0.0],
+        radialOffset: [-2.25, 2.75, 0.0],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x1e293b,
+        desc: '集微米级粉尘过滤与亥姆霍兹阻抗复合消音室于一体的顶置进气总成，降低进气气流脉动噪声 18 dB(A)。'
+      },
+      {
+        id: 20,
+        code: 'BOM-20',
+        name: 'DN100 高压排气法兰与止回阀座',
+        enName: 'DN100 High-Pressure Discharge Flange',
+        category: '进排气法兰',
+        material: '316Ti 耐热不锈钢',
+        qty: 1,
+        weight: 29.5,
+        precision: 'PN25 高压法兰',
+        assembledPos: [-0.52, -0.18, 0.68],
+        axialOffset: [-0.52, -0.18, 1.55],
+        radialOffset: [-0.52, -0.18, 2.15],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x94a3b8,
+        desc: '布置于主机排气端侧下方的耐高温高压法兰组件，内置弹簧辅助旋启式止回阀芯，防止停机时高压气体倒流反转。'
+      },
+      {
+        id: 21,
+        code: 'BOM-21',
+        name: '不锈钢波纹膨胀节与排气管段',
+        enName: 'Stainless Bellows Expansion Joint & Pipe',
+        category: '进排气法兰',
+        material: 'SUS321 多层液压波纹管',
+        qty: 1,
+        weight: 22.0,
+        precision: '耐温 260℃ / 2.5MPa',
+        assembledPos: [-0.52, -0.18, 1.12],
+        axialOffset: [-0.52, -0.18, 2.35],
+        radialOffset: [-0.52, -0.25, 2.95],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0xcbd5e1,
+        desc: '补偿无油空压机高温排气引起的热胀冷缩位移，并隔断主机高频机械振动向后级冷却管网传递。'
+      },
+      {
+        id: 22,
+        code: 'BOM-22',
+        name: '高弹性膜片联轴器（主机侧半联轴节）',
+        enName: 'Diaphragm Coupling - Compressor Shaft Hub',
+        category: '电机与联轴器',
+        material: '42CrMo 高强合金钢',
+        qty: 1,
+        weight: 15.5,
+        precision: '动平衡 G2.5',
+        assembledPos: [0.16, -0.12, -0.31],
+        axialOffset: [0.75, 0.15, -0.55],
+        radialOffset: [0.16, 0.65, -1.35],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x64748b,
+        desc: '过盈热装于阳转子主动轴伸出端的精密半联轴节，采用锥套锁紧结构传递高扭矩且无键槽应力集中。'
+      },
+      {
+        id: 23,
+        code: 'BOM-23',
+        name: '不锈钢叠片挠性膜片组与中间轴套',
+        enName: 'Stainless Laminated Diaphragm Pack & Spacer',
+        category: '电机与联轴器',
+        material: '301 高弹不锈钢叠片组',
+        qty: 1,
+        weight: 11.8,
+        precision: '零背隙免维护',
+        assembledPos: [0.42, -0.12, -0.31],
+        axialOffset: [1.12, 0.55, -0.31],
+        radialOffset: [0.42, 1.35, -0.95],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x38bdf8,
+        desc: '由多层束腰形超薄不锈钢膜片叠合而成，无需润滑油即可吸收轴向、径向与角向安装偏差。'
+      },
+      {
+        id: 24,
+        code: 'BOM-24',
+        name: '高弹性膜片联轴器（电机侧半联轴节）',
+        enName: 'Diaphragm Coupling - Motor Shaft Hub',
+        category: '电机与联轴器',
+        material: '42CrMo 高强合金钢',
+        qty: 1,
+        weight: 17.2,
+        precision: '动平衡 G2.5',
+        assembledPos: [0.68, -0.12, -0.31],
+        axialOffset: [1.45, 0.15, 0.35],
+        radialOffset: [0.68, 0.65, 1.25],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x64748b,
+        desc: '连接 160kW 永磁电机输出主轴的半联轴节，与中间膜片组通过高强度铰制孔螺栓紧固。'
+      },
+      {
+        id: 25,
+        code: 'BOM-25',
+        name: '联轴器钟形铝合金连接过渡罩筒',
+        enName: 'Bellhousing Coupling Enclosure Barrel',
+        category: '电机与联轴器',
+        material: 'ADC12 压铸铝合金',
+        qty: 1,
+        weight: 28.0,
+        precision: '止口同心度 0.015mm',
+        assembledPos: [0.42, -0.12, -0.31],
+        axialOffset: [1.12, 1.28, -0.31],
+        radialOffset: [0.42, 1.95, 0.0],
+        scatterRing: 2,
+        isCasing: true,
+        color: 0x1e3a5f,
+        desc: '连接双螺杆主机后端面与电机前端法兰的刚性钟形罩筒，利用精密止口自动保证主机与电机轴系自然对中。'
+      },
+      {
+        id: 26,
+        code: 'BOM-26',
+        name: '160kW 永磁变频驱动电机散热机座',
+        enName: '160kW PM VFD Drive Motor Finned Stator Frame',
+        category: '电机与联轴器',
+        material: 'HT250 铸铁+紫铜绕组',
+        qty: 1,
+        weight: 410.0,
+        precision: 'IE5 一级能效 / IP55',
+        assembledPos: [1.62, -0.05, -0.12],
+        axialOffset: [2.25, 0.0, 0.0],
+        radialOffset: [2.25, 0.25, 0.0],
+        scatterRing: 1,
+        isCasing: true,
+        color: 0x172a45,
+        desc: '高效率高压永磁同步变频电机定子外壳，周向密布高导热散热翅片，顶部集成高压防爆接线盒。'
+      },
+      {
+        id: 27,
+        code: 'BOM-27',
+        name: '永磁电机钕铁硼转子与主轴总成',
+        enName: 'PM Motor NdFeB Rotor Core & Main Shaft',
+        category: '电机与联轴器',
+        material: '35WW270硅钢+N48SH钕铁硼',
+        qty: 1,
+        weight: 165.0,
+        precision: '动平衡 G1.0',
+        assembledPos: [1.62, -0.12, -0.31],
+        axialOffset: [2.25, 0.92, -0.31],
+        radialOffset: [2.25, 1.45, -0.65],
+        scatterRing: 1,
+        isCasing: false,
+        color: 0x0ea5e9,
+        desc: '内置 V 型磁路稀土永磁体的高速电机转子总成，直接输出高转矩驱动阳转子，省去传统增速齿轮箱。'
+      },
+      {
+        id: 28,
+        code: 'BOM-28',
+        name: '电机后端独立冷却风机与导风罩',
+        enName: 'Motor Rear Axial Cooling Fan & Cowling',
+        category: '电机与联轴器',
+        material: '冷轧钢板冲压+铝合金叶轮',
+        qty: 1,
+        weight: 24.8,
+        precision: '风量 4200 m³/h',
+        assembledPos: [2.52, -0.05, -0.12],
+        axialOffset: [3.45, 0.0, 0.0],
+        radialOffset: [3.45, 0.0, 0.0],
+        scatterRing: 2,
+        isCasing: false,
+        color: 0x1e293b,
+        desc: '安装于驱动电机尾部的独立定频轴流冷却风扇与流线型导风罩，确保电机在低频调速工况下依然保持恒定强迫风冷。'
+      }
+    ];
+
+    // Precompute circular workbench scatter coordinates (concentric rings on table y = -1.25)
+    (function computeScatterPositions() {
+      const rings = [[], [], []];
+      PARTS_DATA.forEach(p => rings[p.scatterRing || 0].push(p));
+      const radii = [1.85, 3.35, 4.75];
+      rings.forEach((group, rIdx) => {
+        const radius = radii[rIdx];
+        group.forEach((p, idx) => {
+          const angle = (idx / group.length) * Math.PI * 2 - Math.PI / 4;
+          p.scatterPos = [
+            Math.cos(angle) * radius,
+            -1.16,
+            Math.sin(angle) * radius
+          ];
+        });
+      });
+    })();
+
+    // =========================================================================
+    // 2. APPLICATION STATE
+    // =========================================================================
+    const state = {
+      explodeMode: 'axial',   // 'axial' | 'radial' | 'scatter'
+      explodePct: 45,         // 0 to 100
+      targetExplodePct: 45,
+      showLabels: true,
+      paintMode: 0,           // 0: 工业钛蓝 (OEM), 1: 精密金属素体 (Raw Metal), 2: 蓝光全息 (Cyber Blue)
+      xrayMode: false,
+      showRefPopup: true,
+      selectedPartId: 9,      // Default highlight: BOM-09 Male Screw Rotor
+      hoveredPartId: null,
+      isolatedPartId: null,
+      animDemoPlaying: false,
+      animDirection: 1,
+      orbitShowcase: false,
+      searchQuery: '',
+      categoryFilter: 'ALL'
+    };
+
+    // =========================================================================
+    // 3. THREE.JS SCENE, CAMERA, LIGHTS & BLACK CIRCULAR WORKBENCH (NO RAILINGS!)
+    // =========================================================================
+    const container = document.getElementById('viewportContainer');
+    const canvasMount = document.getElementById('canvasMount');
+    const labelsContainer = document.getElementById('labelsContainer');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x060a11);
+    scene.fog = new THREE.FogExp2(0x060a11, 0.032);
+
+    const camera = new THREE.PerspectiveCamera(
+      42,
+      container.clientWidth / container.clientHeight,
+      0.1,
+      120
+    );
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+    canvasMount.appendChild(renderer.domElement);
+
+    // Studio & Industrial Blue Lighting
+    const ambientLight = new THREE.AmbientLight(0x93c5fd, 0.65);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.35);
+    keyLight.position.set(6, 11, 8);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.camera.near = 1;
+    keyLight.shadow.camera.far = 30;
+    const d = 7;
+    keyLight.shadow.camera.left = -d;
+    keyLight.shadow.camera.right = d;
+    keyLight.shadow.camera.top = d;
+    keyLight.shadow.camera.bottom = -d;
+    scene.add(keyLight);
+
+    const rimLightLeft = new THREE.DirectionalLight(0x00d2ff, 1.05);
+    rimLightLeft.position.set(-9, 5, -6);
+    scene.add(rimLightLeft);
+
+    const rimLightRight = new THREE.DirectionalLight(0x38bdf8, 0.75);
+    rimLightRight.position.set(8, 3, -8);
+    scene.add(rimLightRight);
+
+    const underGlowLight = new THREE.PointLight(0x0284c7, 0.9, 12);
+    underGlowLight.position.set(0, -1.1, 0);
+    scene.add(underGlowLight);
+
+    // -------------------------------------------------------------------------
+    // BLACK CIRCULAR WORKBENCH WITH WHITE GRID LINES (ZERO RAILINGS/FENCES)
+    // -------------------------------------------------------------------------
+    const workbenchGroup = new THREE.Group();
+    workbenchGroup.position.set(0, -1.52, 0);
+    scene.add(workbenchGroup);
+
+    function buildCircularWorkbench() {
+      const tableRadius = 6.2;
+      const tableHeight = 0.24;
+
+      // 1. Matte Black Metallic Circular Platform Disc
+      const baseGeo = new THREE.CylinderGeometry(tableRadius, tableRadius * 1.03, tableHeight, 96);
+      const baseMat = new THREE.MeshStandardMaterial({
+        color: 0x090d15,
+        metalness: 0.65,
+        roughness: 0.38
+      });
+      const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+      baseMesh.position.y = -tableHeight / 2;
+      baseMesh.receiveShadow = true;
+      workbenchGroup.add(baseMesh);
+
+      // 2. Dark Bevel Outer Rim Ring (Flush with table surface, NO vertical railings!)
+      const outerRimGeo = new THREE.RingGeometry(tableRadius - 0.12, tableRadius, 96);
+      outerRimGeo.rotateX(-Math.PI / 2);
+      const outerRimMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.55
+      });
+      const outerRim = new THREE.Mesh(outerRimGeo, outerRimMat);
+      outerRim.position.y = 0.003;
+      workbenchGroup.add(outerRim);
+
+      // 3. White Orthogonal Grid clipped inside Circle on the Black Workbench
+      const gridPoints = [];
+      const step = 0.55;
+      const maxR = tableRadius - 0.22;
+      for (let x = -maxR; x <= maxR; x += step) {
+        const halfChord = Math.sqrt(Math.max(0, maxR * maxR - x * x));
+        gridPoints.push(new THREE.Vector3(x, 0.004, -halfChord));
+        gridPoints.push(new THREE.Vector3(x, 0.004, halfChord));
+      }
+      for (let z = -maxR; z <= maxR; z += step) {
+        const halfChord = Math.sqrt(Math.max(0, maxR * maxR - z * z));
+        gridPoints.push(new THREE.Vector3(-halfChord, 0.004, z));
+        gridPoints.push(new THREE.Vector3(halfChord, 0.004, z));
+      }
+      const gridGeo = new THREE.BufferGeometry().setFromPoints(gridPoints);
+      const gridMat = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.22
+      });
+      const gridLines = new THREE.LineSegments(gridGeo, gridMat);
+      workbenchGroup.add(gridLines);
+
+      // 4. Crisp White Concentric Calibration Circles & Radial Sector Lines
+      const concentricRadii = [1.2, 2.4, 3.6, 4.8, 5.85];
+      concentricRadii.forEach((r, idx) => {
+        const segs = 96;
+        const pts = [];
+        for (let i = 0; i <= segs; i++) {
+          const theta = (i / segs) * Math.PI * 2;
+          pts.push(new THREE.Vector3(Math.cos(theta) * r, 0.006, Math.sin(theta) * r));
+        }
+        const cGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        const cMat = new THREE.LineBasicMaterial({
+          color: idx === concentricRadii.length - 1 ? 0x7dd3fc : 0xffffff,
+          transparent: true,
+          opacity: idx % 2 === 0 ? 0.42 : 0.25
+        });
+        workbenchGroup.add(new THREE.Line(cGeo, cMat));
+      });
+
+      // Radial spokes (12 sectors)
+      const radialPts = [];
+      for (let i = 0; i < 12; i++) {
+        const theta = (i / 12) * Math.PI * 2;
+        radialPts.push(new THREE.Vector3(Math.cos(theta) * 0.6, 0.006, Math.sin(theta) * 0.6));
+        radialPts.push(new THREE.Vector3(Math.cos(theta) * 5.85, 0.006, Math.sin(theta) * 5.85));
+      }
+      const radialGeo = new THREE.BufferGeometry().setFromPoints(radialPts);
+      const radialMat = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.28
+      });
+      workbenchGroup.add(new THREE.LineSegments(radialGeo, radialMat));
+    }
+    buildCircularWorkbench();
+
+    // =========================================================================
+    // 4. PROCEDURAL 3D MECHANICAL GEOMETRY BUILDER FOR ALL 28 PARTS
+    // =========================================================================
+    const partGroups = new Map();     // id -> THREE.Group
+    const meshToPartId = new Map();   // THREE.Mesh -> partId
+    const labelElements = new Map();  // id -> HTMLElement
+    const axisConnectorLines = [];    // Dynamic dashed explosion guide lines
+
+    const compressorRoot = new THREE.Group();
+    scene.add(compressorRoot);
+
+    function createPartMaterial(baseHex, isRotor = false) {
+      return new THREE.MeshStandardMaterial({
+        color: baseHex,
+        metalness: isRotor ? 0.88 : 0.78,
+        roughness: isRotor ? 0.20 : 0.30,
+        emissive: new THREE.Color(0x001a33),
+        emissiveIntensity: 0.22
+      });
+    }
+
+    // Helper to add edge highlight wireframe for industrial metallic crispness
+    function addCrispEdges(mesh, opacity = 0.28) {
+      const edgesGeo = new THREE.EdgesGeometry(mesh.geometry, 28);
+      const edgesMat = new THREE.LineBasicMaterial({
+        color: 0x7dd3fc,
+        transparent: true,
+        opacity: opacity
+      });
+      const line = new THREE.LineSegments(edgesGeo, edgesMat);
+      line.userData.isEdgeLine = true;
+      mesh.add(line);
+    }
+
+    function buildPartGeometry(part) {
+      const group = new THREE.Group();
+      const mat = createPartMaterial(part.color, part.category === '双螺杆转子');
+      group.userData = { part, baseMat: mat, meshes: [] };
+
+      const registerMesh = (m, edgeOpacity = 0.26) => {
+        m.castShadow = true;
+        m.receiveShadow = true;
+        meshToPartId.set(m, part.id);
+        group.userData.meshes.push(m);
+        addCrispEdges(m, edgeOpacity);
+        group.add(m);
+        return m;
+      };
+
+      switch (part.id) {
+        case 1: {
+          // BOM-01: Heavy-Duty Steel Skid Base Frame
+          const plate = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.14, 1.95), mat);
+          registerMesh(plate);
+          // Longitudinal I-beams
+          [-0.85, 0.85].forEach(z => {
+            const beam = new THREE.Mesh(new THREE.BoxGeometry(5.7, 0.26, 0.18), mat);
+            beam.position.set(0, -0.1, z);
+            registerMesh(beam);
+          });
+          // Cross channels
+          [-2.5, -1.1, 0.3, 1.6, 2.65].forEach(x => {
+            const cross = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 1.85), mat);
+            cross.position.set(x, -0.1, 0);
+            registerMesh(cross);
+          });
+          break;
+        }
+        case 2:
+        case 3: {
+          // BOM-02 & BOM-03: Anti-vibration mount pads (4x each)
+          const offsets = [[-0.45, -0.55], [0.45, -0.55], [-0.45, 0.55], [0.45, 0.55]];
+          offsets.forEach(([dx, dz]) => {
+            const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.17, 0.16, 20), mat);
+            pad.position.set(dx, 0, dz);
+            registerMesh(pad);
+            const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.24, 12), mat);
+            bolt.position.set(dx, 0.05, dz);
+            registerMesh(bolt);
+          });
+          break;
+        }
+        case 4: {
+          // BOM-04: Lower Twin-Bore Cylinder Casing
+          const leftLobe = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 1.68, 28, 1, false, 0, Math.PI), mat);
+          leftLobe.rotation.z = Math.PI / 2;
+          leftLobe.rotation.x = Math.PI;
+          leftLobe.position.set(0, 0.12, -0.31);
+          registerMesh(leftLobe);
+
+          const rightLobe = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 1.68, 28, 1, false, 0, Math.PI), mat);
+          rightLobe.rotation.z = Math.PI / 2;
+          rightLobe.rotation.x = Math.PI;
+          rightLobe.position.set(0, 0.12, 0.31);
+          registerMesh(rightLobe);
+
+          const cradle = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.42, 1.38), mat);
+          cradle.position.set(0, -0.22, 0);
+          registerMesh(cradle);
+
+          // Mounting feet
+          [-0.62, 0.62].forEach(x => {
+            const foot = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 1.68), mat);
+            foot.position.set(x, -0.46, 0);
+            registerMesh(foot);
+          });
+          break;
+        }
+        case 5: {
+          // BOM-05: Upper Twin-Bore Water-Jacket Casing
+          const leftTop = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 1.68, 28, 1, false, 0, Math.PI), mat);
+          leftTop.rotation.z = Math.PI / 2;
+          leftTop.position.set(0, -0.12, -0.31);
+          registerMesh(leftTop);
+
+          const rightTop = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 1.68, 28, 1, false, 0, Math.PI), mat);
+          rightTop.rotation.z = Math.PI / 2;
+          rightTop.position.set(0, -0.12, 0.31);
+          registerMesh(rightTop);
+
+          const flangeBridge = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.12, 1.56), mat);
+          flangeBridge.position.set(0, -0.14, 0);
+          registerMesh(flangeBridge);
+
+          // Cooling jacket ribs
+          for (let i = -3; i <= 3; i++) {
+            const rib = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 1.34), mat);
+            rib.position.set(i * 0.21, 0.12, 0);
+            registerMesh(rib);
+          }
+          break;
+        }
+        case 6: {
+          // BOM-06: Suction-End Bearing Housing Cover
+          const plate = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.88, 1.42), mat);
+          registerMesh(plate);
+          [-0.31, 0.31].forEach(z => {
+            const boss = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.38, 24), mat);
+            boss.rotation.z = Math.PI / 2;
+            boss.position.set(-0.08, 0, z);
+            registerMesh(boss);
+          });
+          break;
+        }
+        case 7: {
+          // BOM-07: Discharge-End High-Pressure Housing
+          const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.92, 1.44), mat);
+          registerMesh(body);
+          [-0.31, 0.31].forEach(z => {
+            const boss = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.44, 24), mat);
+            boss.rotation.z = Math.PI / 2;
+            boss.position.set(0.08, 0, z);
+            registerMesh(boss);
+          });
+          break;
+        }
+        case 8: {
+          // BOM-08: Timing Gearbox Front Cover
+          const cover = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.78, 1.26), mat);
+          registerMesh(cover);
+          const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.34, 20), mat);
+          cap.rotation.z = Math.PI / 2;
+          cap.position.set(-0.05, 0, 0);
+          registerMesh(cap);
+          break;
+        }
+        case 9:
+        case 10: {
+          // BOM-09 (Male 4-Lobe Rotor) & BOM-10 (Female 6-Flute Rotor)
+          const isMale = part.id === 9;
+          const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.65, 24), mat);
+          shaft.rotation.z = Math.PI / 2;
+          registerMesh(shaft, 0.2);
+
+          // Helical Screw Lobes along Rotor Core
+          const lobeCount = isMale ? 4 : 6;
+          const slices = 22;
+          const coreLen = 1.48;
+          for (let s = 0; s < slices; s++) {
+            const xPos = -coreLen / 2 + (s + 0.5) * (coreLen / slices);
+            const twistAngle = (s / slices) * Math.PI * 1.65 * (isMale ? 1 : -1);
+            const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, coreLen / slices * 0.92, 16), mat);
+            disc.rotation.z = Math.PI / 2;
+            disc.position.x = xPos;
+            registerMesh(disc, 0.12);
+
+            for (let l = 0; l < lobeCount; l++) {
+              const theta = twistAngle + (l / lobeCount) * Math.PI * 2;
+              const r = isMale ? 0.21 : 0.19;
+              const lobe = new THREE.Mesh(
+                new THREE.BoxGeometry(coreLen / slices * 0.88, isMale ? 0.11 : 0.08, isMale ? 0.13 : 0.09),
+                mat
+              );
+              lobe.position.set(xPos, Math.sin(theta) * r, Math.cos(theta) * r);
+              lobe.rotation.x = -theta;
+              registerMesh(lobe, 0.18);
+            }
+          }
+          break;
+        }
+        case 11:
+        case 12: {
+          // BOM-11 & BOM-12: Precision Helical Timing Gears
+          const gearRadius = part.id === 11 ? 0.27 : 0.31;
+          const gearDisc = new THREE.Mesh(new THREE.CylinderGeometry(gearRadius, gearRadius, 0.14, 32), mat);
+          gearDisc.rotation.z = Math.PI / 2;
+          registerMesh(gearDisc);
+
+          const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.22, 20), mat);
+          hub.rotation.z = Math.PI / 2;
+          registerMesh(hub);
+
+          // Gear teeth around rim
+          const teeth = 18;
+          for (let t = 0; t < teeth; t++) {
+            const ang = (t / teeth) * Math.PI * 2;
+            const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.04), mat);
+            tooth.position.set(0, Math.sin(ang) * gearRadius, Math.cos(ang) * gearRadius);
+            tooth.rotation.x = -ang;
+            tooth.rotation.y = 0.22; // Helical angle
+            registerMesh(tooth, 0.15);
+          }
+          break;
+        }
+        case 13:
+        case 14: {
+          // BOM-13 (Roller Bearings) & BOM-14 (Thrust Angular Contact Bearings)
+          [-0.31, 0.31].forEach(z => {
+            const outerRing = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.045, 14, 28), mat);
+            outerRing.rotation.y = Math.PI / 2;
+            outerRing.position.set(0, 0, z);
+            registerMesh(outerRing);
+
+            const innerRing = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.12, 20), mat);
+            innerRing.rotation.z = Math.PI / 2;
+            innerRing.position.set(0, 0, z);
+            registerMesh(innerRing);
+          });
+          break;
+        }
+        case 15:
+        case 16:
+        case 17: {
+          // BOM-15 (Locknuts), BOM-16 (Labyrinth Air Seals), BOM-17 (Carbon Ring Oil Seals)
+          const radius = part.id === 15 ? 0.14 : 0.17;
+          [-0.31, 0.31].forEach(z => {
+            const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.14, 24), mat);
+            sleeve.rotation.z = Math.PI / 2;
+            sleeve.position.set(0, 0, z);
+            registerMesh(sleeve);
+
+            const fin = new THREE.Mesh(new THREE.TorusGeometry(radius + 0.02, 0.02, 10, 24), mat);
+            fin.rotation.y = Math.PI / 2;
+            fin.position.set(0, 0, z);
+            registerMesh(fin);
+          });
+          break;
+        }
+        case 18: {
+          // BOM-18: DN150 Top Suction Flange & Butterfly Unloader Valve
+          const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.34, 28), mat);
+          registerMesh(neck);
+          const topFlange = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.07, 28), mat);
+          topFlange.position.y = 0.16;
+          registerMesh(topFlange);
+          const actuator = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.26), mat);
+          actuator.position.set(0.34, 0.02, 0);
+          registerMesh(actuator);
+          break;
+        }
+        case 19: {
+          // BOM-19: High-Efficiency Suction Filter & Silencer Drum
+          const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.56, 32), mat);
+          registerMesh(drum);
+          const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.51, 0.51, 0.06, 32), mat);
+          cap.position.y = 0.28;
+          registerMesh(cap);
+          const intakeHood = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 0.18, 24), mat);
+          intakeHood.position.set(0, 0.38, 0);
+          registerMesh(intakeHood);
+          break;
+        }
+        case 20: {
+          // BOM-20: DN100 High-Pressure Discharge Flange
+          const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.36, 24), mat);
+          pipe.rotation.x = Math.PI / 2;
+          registerMesh(pipe);
+          const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.07, 24), mat);
+          flange.rotation.x = Math.PI / 2;
+          flange.position.z = 0.16;
+          registerMesh(flange);
+          break;
+        }
+        case 21: {
+          // BOM-21: Stainless Bellows Expansion Joint
+          for (let i = -2; i <= 2; i++) {
+            const bellow = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.038, 12, 24), mat);
+            bellow.position.z = i * 0.075;
+            registerMesh(bellow);
+          }
+          const endFlange = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.05, 24), mat);
+          endFlange.rotation.x = Math.PI / 2;
+          endFlange.position.z = 0.24;
+          registerMesh(endFlange);
+          break;
+        }
+        case 22:
+        case 24: {
+          // BOM-22 & BOM-24: Coupling Hubs
+          const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.22, 24), mat);
+          hub.rotation.z = Math.PI / 2;
+          registerMesh(hub);
+          const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 24), mat);
+          rim.rotation.z = Math.PI / 2;
+          rim.position.x = part.id === 22 ? 0.08 : -0.08;
+          registerMesh(rim);
+          break;
+        }
+        case 23: {
+          // BOM-23: Stainless Laminated Diaphragm Pack & Spacer
+          const spacer = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.26, 20), mat);
+          spacer.rotation.z = Math.PI / 2;
+          registerMesh(spacer);
+          [-0.11, 0.11].forEach(x => {
+            const pack = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.03, 16), mat);
+            pack.rotation.z = Math.PI / 2;
+            pack.position.x = x;
+            registerMesh(pack);
+          });
+          break;
+        }
+        case 25: {
+          // BOM-25: Bellhousing Coupling Enclosure Barrel
+          const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 0.62, 28), mat);
+          bell.rotation.z = Math.PI / 2;
+          registerMesh(bell);
+          break;
+        }
+        case 26: {
+          // BOM-26: 160kW PM VFD Drive Motor Finned Stator Frame
+          const stator = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 1.56, 32), mat);
+          stator.rotation.z = Math.PI / 2;
+          registerMesh(stator);
+
+          // Cooling fins along motor frame
+          for (let i = 0; i < 12; i++) {
+            const ang = (i / 12) * Math.PI * 2;
+            const fin = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.04, 0.08), mat);
+            fin.position.set(0, Math.sin(ang) * 0.67, Math.cos(ang) * 0.67);
+            fin.rotation.x = -ang;
+            registerMesh(fin, 0.15);
+          }
+
+          // Top high-voltage terminal box
+          const termBox = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.32, 0.42), mat);
+          termBox.position.set(0.1, 0.76, 0);
+          registerMesh(termBox);
+
+          // Motor mounting feet
+          [-0.48, 0.48].forEach(x => {
+            const foot = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.22, 1.48), mat);
+            foot.position.set(x, -0.68, 0);
+            registerMesh(foot);
+          });
+          break;
+        }
+        case 27: {
+          // BOM-27: PM Motor NdFeB Rotor Core & Main Shaft
+          const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 2.15, 24), mat);
+          shaft.rotation.z = Math.PI / 2;
+          registerMesh(shaft);
+          const rotorCore = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 1.05, 28), mat);
+          rotorCore.rotation.z = Math.PI / 2;
+          registerMesh(rotorCore);
+          break;
+        }
+        case 28: {
+          // BOM-28: Motor Rear Axial Cooling Fan & Cowling
+          const shroud = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.65, 0.42, 28), mat);
+          shroud.rotation.z = Math.PI / 2;
+          registerMesh(shroud);
+          const grille = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.45, 20), mat);
+          grille.rotation.z = Math.PI / 2;
+          registerMesh(grille);
+          break;
+        }
+      }
+
+      group.position.set(...part.assembledPos);
+      compressorRoot.add(group);
+      partGroups.set(part.id, group);
+
+      // Dashed Explosion Vector Line from Assembled Pos to Current Pos
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(...part.assembledPos),
+        new THREE.Vector3(...part.assembledPos)
+      ]);
+      const lineMat = new THREE.LineDashedMaterial({
+        color: 0x38bdf8,
+        dashSize: 0.12,
+        gapSize: 0.08,
+        transparent: true,
+        opacity: 0.45
+      });
+      const vectorLine = new THREE.Line(lineGeo, lineMat);
+      vectorLine.computeLineDistances();
+      compressorRoot.add(vectorLine);
+      axisConnectorLines.push({ part, line: vectorLine });
+
+      // Floating HTML Callout Label
+      const label = document.createElement('div');
+      label.className = 'part-label-3d';
+      label.innerHTML = `<span class="mono text-sky-300 font-semibold mr-1">${part.code}</span><span>${part.name.split('（')[0]}</span>`;
+      label.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectPart(part.id, true);
+      });
+      labelsContainer.appendChild(label);
+      labelElements.set(part.id, label);
+    }
+
+    PARTS_DATA.forEach(buildPartGeometry);
+
+    // =========================================================================
+    // 5. CAMERA ORBIT CONTROLLER (SMOOTH DRAG, PAN, ZOOM & FOCUS)
+    // =========================================================================
+    const orbit = {
+      theta: 0.62,
+      phi: 1.12,
+      radius: 8.6,
+      target: new THREE.Vector3(0.1, -0.15, 0.0),
+      targetGoal: new THREE.Vector3(0.1, -0.15, 0.0),
+      thetaGoal: 0.62,
+      phiGoal: 1.12,
+      radiusGoal: 8.6,
+      isDragging: false,
+      isPanning: false,
+      lastX: 0,
+      lastY: 0,
+      pointerDownX: 0,
+      pointerDownY: 0
+    };
+
+    function updateCameraFromOrbit() {
+      orbit.theta += (orbit.thetaGoal - orbit.theta) * 0.14;
+      orbit.phi += (orbit.phiGoal - orbit.phi) * 0.14;
+      orbit.radius += (orbit.radiusGoal - orbit.radius) * 0.14;
+      orbit.target.lerp(orbit.targetGoal, 0.14);
+
+      orbit.phi = Math.max(0.18, Math.min(Math.PI / 2 - 0.04, orbit.phi));
+      orbit.radius = Math.max(3.2, Math.min(18.5, orbit.radius));
+
+      const x = orbit.target.x + orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta);
+      const y = orbit.target.y + orbit.radius * Math.cos(orbit.phi);
+      const z = orbit.target.z + orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta);
+
+      camera.position.set(x, y, z);
+      camera.lookAt(orbit.target);
+    }
+
+    canvasMount.addEventListener('pointerdown', (e) => {
+      orbit.isDragging = true;
+      orbit.isPanning = e.button === 2 || e.shiftKey;
+      orbit.lastX = e.clientX;
+      orbit.lastY = e.clientY;
+      orbit.pointerDownX = e.clientX;
+      orbit.pointerDownY = e.clientY;
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (orbit.isDragging) {
+        const dx = e.clientX - orbit.lastX;
+        const dy = e.clientY - orbit.lastY;
+        orbit.lastX = e.clientX;
+        orbit.lastY = e.clientY;
+
+        if (orbit.isPanning) {
+          const panScale = orbit.radius * 0.0015;
+          const right = new THREE.Vector3();
+          camera.getWorldDirection(right);
+          right.cross(camera.up).normalize();
+          orbit.targetGoal.addScaledVector(right, -dx * panScale);
+          orbit.targetGoal.y += dy * panScale;
+        } else {
+          orbit.thetaGoal -= dx * 0.0065;
+          orbit.phiGoal -= dy * 0.0055;
+        }
+        return;
+      }
+
+      // Hover raycasting when not dragging
+      const rect = renderer.domElement.getBoundingClientRect();
+      if (
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom
+      ) {
+        handlePointerHover(e, rect);
+      }
+    });
+
+    window.addEventListener('pointerup', (e) => {
+      if (!orbit.isDragging) return;
+      const moveDist = Math.hypot(e.clientX - orbit.pointerDownX, e.clientY - orbit.pointerDownY);
+      orbit.isDragging = false;
+      if (moveDist < 5 && e.button === 0) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        if (
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        ) {
+          handlePointerClick(e, rect);
+        }
+      }
+    });
+
+    canvasMount.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    canvasMount.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      orbit.radiusGoal += e.deltaY * 0.005;
+    }, { passive: false });
+
+    // Raycaster for Part Picking & Blue Glow Highlight
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+
+    function pickPartAtEvent(e, rect) {
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointerNDC, camera);
+      const allMeshes = [];
+      partGroups.forEach((grp) => {
+        if (grp.visible) {
+          grp.userData.meshes.forEach(m => allMeshes.push(m));
+        }
+      });
+      const hits = raycaster.intersectObjects(allMeshes, false);
+      if (hits.length > 0) {
+        return meshToPartId.get(hits[0].object) || null;
+      }
+      return null;
+    }
+
+    function handlePointerHover(e, rect) {
+      const pid = pickPartAtEvent(e, rect);
+      if (pid !== state.hoveredPartId) {
+        state.hoveredPartId = pid;
+        canvasMount.style.cursor = pid ? 'pointer' : 'grab';
+        refreshPartMaterials();
+      }
+    }
+
+    function handlePointerClick(e, rect) {
+      const pid = pickPartAtEvent(e, rect);
+      if (pid) {
+        selectPart(pid, false);
+      }
+    }
+
+    // =========================================================================
+    // 6. EXPLOSION POSITION INTERPOLATION & SHADER/MATERIAL UPDATES
+    // =========================================================================
+    function getPartTargetPosition(part, ratio) {
+      const [ax, ay, az] = part.assembledPos;
+      if (state.explodeMode === 'axial') {
+        const [ox, oy, oz] = part.axialOffset;
+        return new THREE.Vector3(ax + ox * ratio, ay + oy * ratio, az + oz * ratio);
+      } else if (state.explodeMode === 'radial') {
+        const [rx, ry, rz] = part.radialOffset;
+        return new THREE.Vector3(ax + rx * ratio, ay + ry * ratio, az + rz * ratio);
+      } else {
+        // 'scatter' mode: smoothly interpolate from assembled position onto the circular workbench
+        const [sx, sy, sz] = part.scatterPos;
+        return new THREE.Vector3(
+          ax + (sx - ax) * ratio,
+          ay + (sy - ay) * ratio,
+          az + (sz - az) * ratio
+        );
+      }
+    }
+
+    function refreshPartMaterials() {
+      partGroups.forEach((group, id) => {
+        const part = group.userData.part;
+        const mat = group.userData.baseMat;
+        const isSelected = id === state.selectedPartId;
+        const isHovered = id === state.hoveredPartId;
+
+        // Visibility for single-part isolation mode
+        group.visible = state.isolatedPartId === null || state.isolatedPartId === id;
+
+        // Base color according to Paint Mode (0: OEM Titanium Blue, 1: Brushed Raw Silver, 2: Cyber Blue Hologram)
+        if (state.paintMode === 0) {
+          mat.color.setHex(part.color);
+          mat.metalness = part.category === '双螺杆转子' ? 0.88 : 0.76;
+          mat.roughness = part.category === '双螺杆转子' ? 0.18 : 0.30;
+          mat.wireframe = false;
+        } else if (state.paintMode === 1) {
+          mat.color.setHex(part.category === '双螺杆转子' ? 0xe0f2fe : 0x94a3b8);
+          mat.metalness = 0.92;
+          mat.roughness = 0.22;
+          mat.wireframe = false;
+        } else {
+          mat.color.setHex(0x0ea5e9);
+          mat.metalness = 0.5;
+          mat.roughness = 0.2;
+          mat.wireframe = false;
+        }
+
+        // Semi-transparent X-Ray Casing Mode
+        const shouldBeTranslucent =
+          (state.xrayMode && part.isCasing && !isSelected) ||
+          state.paintMode === 2;
+        mat.transparent = shouldBeTranslucent;
+        mat.opacity = shouldBeTranslucent ? (state.paintMode === 2 ? 0.55 : 0.24) : 1.0;
+        mat.depthWrite = !shouldBeTranslucent;
+
+        // Electric Blue Glow Highlight for Selected or Hovered Part
+        if (isSelected) {
+          mat.emissive.setHex(0x00a8ff);
+          mat.emissiveIntensity = 0.78;
+        } else if (isHovered) {
+          mat.emissive.setHex(0x0284c7);
+          mat.emissiveIntensity = 0.48;
+        } else {
+          mat.emissive.setHex(state.paintMode === 2 ? 0x0369a1 : 0x001529);
+          mat.emissiveIntensity = state.paintMode === 2 ? 0.42 : 0.18;
+        }
+
+        // Update crisp edge highlight intensity
+        group.userData.meshes.forEach((mesh) => {
+          mesh.children.forEach((child) => {
+            if (child.userData.isEdgeLine) {
+              child.material.color.setHex(isSelected ? 0xffffff : 0x38bdf8);
+              child.material.opacity = isSelected ? 0.95 : (isHovered ? 0.65 : 0.26);
+            }
+          });
+        });
+
+        // Update 3D floating label selection state
+        const labelEl = labelElements.get(id);
+        if (labelEl) {
+          labelEl.classList.toggle('selected', isSelected);
+        }
+      });
+    }
+
+    // =========================================================================
+    // 7. UI SYNCHRONIZATION: PART DETAIL CARD, BOM TABLE & CONTROLS
+    // =========================================================================
+    function selectPart(partId, focusCamera = false) {
+      state.selectedPartId = partId;
+      const part = PARTS_DATA.find(p => p.id === partId);
+      if (!part) return;
+
+      // Update Part Inspector Card
+      document.getElementById('detailBomCode').textContent = part.code;
+      document.getElementById('detailName').textContent = part.name;
+      document.getElementById('detailEnName').textContent = part.enName;
+      document.getElementById('detailCategoryBadge').textContent = part.category;
+      document.getElementById('detailMaterial').textContent = part.material;
+      document.getElementById('detailWeightQty').textContent = `${part.qty} 件 / ${part.weight.toFixed(1)} kg`;
+      document.getElementById('detailPrecision').textContent = part.precision;
+      document.getElementById('detailDesc').textContent = part.desc;
+
+      const ratio = state.targetExplodePct / 100;
+      const targetPos = getPartTargetPosition(part, ratio);
+      const dx = (targetPos.x - part.assembledPos[0]).toFixed(2);
+      const dy = (targetPos.y - part.assembledPos[1]).toFixed(2);
+      const dz = (targetPos.z - part.assembledPos[2]).toFixed(2);
+      document.getElementById('detailOffset').textContent = `Δ(${dx}, ${dy}, ${dz})m`;
+
+      // Update Step Indicator
+      document.getElementById('partStepIndicator').textContent =
+        `${String(part.id).padStart(2, '0')} / ${PARTS_DATA.length}`;
+
+      // Highlight active row in BOM Table
+      document.querySelectorAll('.bom-row').forEach(row => {
+        const rid = Number(row.dataset.partId);
+        row.classList.toggle('selected', rid === partId);
+        if (rid === partId) {
+          row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      });
+
+      if (focusCamera) {
+        const grp = partGroups.get(partId);
+        if (grp) {
+          orbit.targetGoal.copy(grp.position);
+          orbit.radiusGoal = 4.6;
+        }
+      }
+
+      refreshPartMaterials();
+    }
+
+    function renderBomTable() {
+      const tbody = document.getElementById('bomTableBody');
+      const q = state.searchQuery.trim().toLowerCase();
+      const cat = state.categoryFilter;
+
+      const filtered = PARTS_DATA.filter(p => {
+        const matchCat = cat === 'ALL' || p.category === cat;
+        const matchQuery =
+          !q ||
+          p.name.toLowerCase().includes(q) ||
+          p.code.toLowerCase().includes(q) ||
+          p.material.toLowerCase().includes(q) ||
+          p.enName.toLowerCase().includes(q);
+        return matchCat && matchQuery;
+      });
+
+      document.getElementById('bomFilterCount').textContent =
+        `显示 ${filtered.length} / ${PARTS_DATA.length} 项`;
+
+      tbody.innerHTML = filtered.map(p => {
+        const isSel = p.id === state.selectedPartId;
+        return `
+          <div data-part-id="${p.id}" class="bom-row ${isSel ? 'selected' : ''} grid grid-cols-12 items-center px-3.5 py-2 text-xs cursor-pointer">
+            <div class="col-span-2 mono font-semibold text-sky-400 text-[11px]">${p.code}</div>
+            <div class="col-span-5 pr-1">
+              <div class="font-medium text-slate-100 truncate" title="${p.name}">${p.name}</div>
+              <div class="text-[10px] text-slate-500 truncate">${p.category}</div>
+            </div>
+            <div class="col-span-3 text-[11px] text-slate-300 truncate pr-1" title="${p.material}">${p.material}</div>
+            <div class="col-span-2 text-right mono">
+              <div class="text-slate-200 text-[11px]">${p.qty}件</div>
+              <div class="text-[10px] text-sky-400/90">${p.weight}kg</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('.bom-row').forEach(row => {
+        row.addEventListener('click', () => {
+          const pid = Number(row.dataset.partId);
+          selectPart(pid, false);
+        });
+      });
+    }
+
+    function updateExplodeUI(pct) {
+      const rounded = Math.round(pct);
+      state.targetExplodePct = rounded;
+      const slider = document.getElementById('explodeSlider');
+      slider.value = rounded;
+      slider.style.background = `linear-gradient(90deg, #0284c7 0%, #38bdf8 ${rounded}%, #0f172a ${rounded}%)`;
+
+      document.getElementById('sliderValueBadge').textContent = `${rounded}%`;
+      document.getElementById('statExplodePct').textContent = `${rounded}%`;
+      document.getElementById('refProgressLabel').textContent = `拆解度 ${rounded}%`;
+
+      document.querySelectorAll('.pct-preset-btn').forEach(btn => {
+        btn.classList.toggle('active', Number(btn.dataset.pct) === rounded);
+      });
+
+      // Refresh coordinate readout in Part Inspector
+      const currentPart = PARTS_DATA.find(p => p.id === state.selectedPartId);
+      if (currentPart) {
+        const ratio = rounded / 100;
+        const targetPos = getPartTargetPosition(currentPart, ratio);
+        const dx = (targetPos.x - currentPart.assembledPos[0]).toFixed(2);
+        const dy = (targetPos.y - currentPart.assembledPos[1]).toFixed(2);
+        const dz = (targetPos.z - currentPart.assembledPos[2]).toFixed(2);
+        document.getElementById('detailOffset').textContent = `Δ(${dx}, ${dy}, ${dz})m`;
+      }
+    }
+
+    // =========================================================================
+    // 8. WIRE UP ALL TOOLBAR, POPUP, SIDEBAR & BOTTOM BAR EVENT LISTENERS
+    // =========================================================================
+    function setExplodeMode(mode) {
+      state.explodeMode = mode;
+      document.getElementById('btnModeAxial').classList.toggle('active', mode === 'axial');
+      document.getElementById('btnModeRadial').classList.toggle('active', mode === 'radial');
+      document.getElementById('btnModeScatter').classList.toggle('active', mode === 'scatter');
+
+      const modeNames = { axial: '轴向爆炸', radial: '径向爆炸', scatter: '圆台散落' };
+      document.getElementById('refModeLabel').textContent = modeNames[mode];
+
+      if (state.targetExplodePct < 20) {
+        updateExplodeUI(65);
+      } else {
+        updateExplodeUI(state.targetExplodePct);
+      }
+
+      if (mode === 'scatter') {
+        orbit.phiGoal = 0.88;
+        orbit.radiusGoal = 10.8;
+        orbit.targetGoal.set(0, -0.5, 0);
+      }
+    }
+
+    document.getElementById('btnModeAxial').addEventListener('click', () => setExplodeMode('axial'));
+    document.getElementById('btnModeRadial').addEventListener('click', () => setExplodeMode('radial'));
+    document.getElementById('btnModeScatter').addEventListener('click', () => setExplodeMode('scatter'));
+
+    document.getElementById('btnToggleLabels').addEventListener('click', (e) => {
+      state.showLabels = !state.showLabels;
+      e.currentTarget.classList.toggle('active', state.showLabels);
+      labelsContainer.style.display = state.showLabels ? 'block' : 'none';
+    });
+
+    document.getElementById('btnTogglePaint').addEventListener('click', (e) => {
+      state.paintMode = (state.paintMode + 1) % 3;
+      const labels = ['涂装: 工业钛蓝', '涂装: 金属素体', '涂装: 蓝光全息'];
+      document.getElementById('paintModeText').textContent = labels[state.paintMode];
+      e.currentTarget.classList.toggle('active', state.paintMode !== 1);
+      refreshPartMaterials();
+    });
+
+    document.getElementById('btnToggleXray').addEventListener('click', (e) => {
+      state.xrayMode = !state.xrayMode;
+      e.currentTarget.classList.toggle('active', state.xrayMode);
+      refreshPartMaterials();
+    });
+
+    const refPopup = document.getElementById('refPopup');
+    const refPopupBody = document.getElementById('refPopupBody');
+    document.getElementById('btnToggleRefPopup').addEventListener('click', (e) => {
+      state.showRefPopup = !state.showRefPopup;
+      refPopup.classList.toggle('hidden', !state.showRefPopup);
+      e.currentTarget.classList.toggle('active', state.showRefPopup);
+    });
+    document.getElementById('btnRefClose').addEventListener('click', () => {
+      state.showRefPopup = false;
+      refPopup.classList.add('hidden');
+      document.getElementById('btnToggleRefPopup').classList.remove('active');
+    });
+    document.getElementById('btnRefMinimize').addEventListener('click', () => {
+      refPopupBody.classList.toggle('hidden');
+    });
+
+    // Reference Popup Tabs
+    const tabRefBench = document.getElementById('tabRefBench');
+    const tabRefPhoto = document.getElementById('tabRefPhoto');
+    const refViewBench = document.getElementById('refViewBench');
+    const refViewPhoto = document.getElementById('refViewPhoto');
+
+    tabRefBench.addEventListener('click', () => {
+      refViewBench.classList.remove('hidden');
+      refViewPhoto.classList.add('hidden');
+      tabRefBench.className = 'py-1 px-2 rounded bg-sky-500/25 text-sky-300 border border-sky-500/40 font-medium';
+      tabRefPhoto.className = 'py-1 px-2 rounded text-slate-400 hover:text-slate-200 font-medium';
+    });
+    tabRefPhoto.addEventListener('click', () => {
+      refViewPhoto.classList.remove('hidden');
+      refViewBench.classList.add('hidden');
+      tabRefPhoto.className = 'py-1 px-2 rounded bg-sky-500/25 text-sky-300 border border-sky-500/40 font-medium';
+      tabRefBench.className = 'py-1 px-2 rounded text-slate-400 hover:text-slate-200 font-medium';
+    });
+
+    // Reset View
+    document.getElementById('btnResetView').addEventListener('click', () => {
+      state.isolatedPartId = null;
+      document.getElementById('isolateBtnText').textContent = '单独观察';
+      document.getElementById('btnIsolatePart').classList.remove('active');
+      orbit.thetaGoal = 0.62;
+      orbit.phiGoal = 1.12;
+      orbit.radiusGoal = 8.6;
+      orbit.targetGoal.set(0.1, -0.15, 0.0);
+      refreshPartMaterials();
+    });
+
+    // Camera Presets
+    document.querySelectorAll('.cam-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const preset = btn.dataset.cam;
+        if (preset === 'iso') {
+          orbit.thetaGoal = 0.65;
+          orbit.phiGoal = 1.08;
+          orbit.radiusGoal = 8.6;
+          orbit.targetGoal.set(0.1, -0.15, 0);
+        } else if (preset === 'front') {
+          orbit.thetaGoal = 0.0;
+          orbit.phiGoal = 1.42;
+          orbit.radiusGoal = 8.2;
+          orbit.targetGoal.set(0.0, -0.1, 0);
+        } else if (preset === 'top') {
+          orbit.thetaGoal = 0.0;
+          orbit.phiGoal = 0.22;
+          orbit.radiusGoal = 10.5;
+          orbit.targetGoal.set(0.0, -0.2, 0);
+        } else if (preset === 'rotor') {
+          state.xrayMode = true;
+          document.getElementById('btnToggleXray').classList.add('active');
+          selectPart(9, true);
+        }
+      });
+    });
+
+    // Part Detail Card Actions
+    document.getElementById('btnFocusPart').addEventListener('click', () => {
+      selectPart(state.selectedPartId, true);
+    });
+
+    document.getElementById('btnIsolatePart').addEventListener('click', (e) => {
+      if (state.isolatedPartId === state.selectedPartId) {
+        state.isolatedPartId = null;
+        document.getElementById('isolateBtnText').textContent = '单独观察';
+        e.currentTarget.classList.remove('active');
+      } else {
+        state.isolatedPartId = state.selectedPartId;
+        document.getElementById('isolateBtnText').textContent = '恢复全机';
+        e.currentTarget.classList.add('active');
+        selectPart(state.selectedPartId, true);
+      }
+      refreshPartMaterials();
+    });
+
+    // BOM Search & Filter
+    document.getElementById('bomSearchInput').addEventListener('input', (e) => {
+      state.searchQuery = e.target.value;
+      renderBomTable();
+    });
+    document.getElementById('bomCategoryFilter').addEventListener('change', (e) => {
+      state.categoryFilter = e.target.value;
+      renderBomTable();
+    });
+
+    // Bottom Control Bar: Animation Demo, Prev/Next, Slider, Presets, Orbit Showcase
+    document.getElementById('btnAnimDemo').addEventListener('click', (e) => {
+      state.animDemoPlaying = !state.animDemoPlaying;
+      e.currentTarget.classList.toggle('active', state.animDemoPlaying);
+      document.getElementById('animBtnText').textContent = state.animDemoPlaying ? '停止演示' : '动画演示';
+    });
+
+    document.getElementById('btnPrevPart').addEventListener('click', () => {
+      const prevId = state.selectedPartId <= 1 ? PARTS_DATA.length : state.selectedPartId - 1;
+      selectPart(prevId, false);
+    });
+
+    document.getElementById('btnNextPart').addEventListener('click', () => {
+      const nextId = state.selectedPartId >= PARTS_DATA.length ? 1 : state.selectedPartId + 1;
+      selectPart(nextId, false);
+    });
+
+    document.getElementById('explodeSlider').addEventListener('input', (e) => {
+      state.animDemoPlaying = false;
+      document.getElementById('btnAnimDemo').classList.remove('active');
+      document.getElementById('animBtnText').textContent = '动画演示';
+      updateExplodeUI(Number(e.target.value));
+    });
+
+    document.querySelectorAll('.pct-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.animDemoPlaying = false;
+        document.getElementById('btnAnimDemo').classList.remove('active');
+        document.getElementById('animBtnText').textContent = '动画演示';
+        updateExplodeUI(Number(btn.dataset.pct));
+      });
+    });
+
+    document.getElementById('btnOrbitShowcase').addEventListener('click', (e) => {
+      state.orbitShowcase = !state.orbitShowcase;
+      e.currentTarget.classList.toggle('active', state.orbitShowcase);
+    });
+
+    // =========================================================================
+    // 9. MAIN ANIMATION LOOP & 3D LABEL PROJECTION
+    // =========================================================================
+    const tempProjVec = new THREE.Vector3();
+
+    function update3DLabels() {
+      if (!state.showLabels) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      partGroups.forEach((group, id) => {
+        const labelEl = labelElements.get(id);
+        if (!labelEl) return;
+
+        if (!group.visible) {
+          labelEl.style.display = 'none';
+          return;
+        }
+
+        // Show selected, hovered, or key milestone parts when exploded > 15%
+        const isSelected = id === state.selectedPartId;
+        const isHovered = id === state.hoveredPartId;
+        const isKeyPart = (id % 2 === 1) || state.explodePct > 55;
+        if (!isSelected && !isHovered && (state.explodePct < 12 || !isKeyPart)) {
+          labelEl.style.display = 'none';
+          return;
+        }
+
+        tempProjVec.copy(group.position);
+        tempProjVec.y += 0.36;
+        tempProjVec.project(camera);
+
+        if (tempProjVec.z > 1.0 || tempProjVec.z < -1.0) {
+          labelEl.style.display = 'none';
+          return;
+        }
+
+        const x = (tempProjVec.x * 0.5 + 0.5) * width;
+        const y = (-(tempProjVec.y * 0.5) + 0.5) * height;
+
+        if (x < 30 || x > width - 30 || y < 25 || y > height - 25) {
+          labelEl.style.display = 'none';
+          return;
+        }
+
+        labelEl.style.display = 'block';
+        labelEl.style.left = `${x}px`;
+        labelEl.style.top = `${y}px`;
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 1. Automatic Explosion Animation Demo
+      if (state.animDemoPlaying) {
+        let nextPct = state.targetExplodePct + state.animDirection * 0.45;
+        if (nextPct >= 100) {
+          nextPct = 100;
+          state.animDirection = -1;
+        } else if (nextPct <= 0) {
+          nextPct = 0;
+          state.animDirection = 1;
+        }
+        updateExplodeUI(nextPct);
+      }
+
+      // 2. Smoothly interpolate explosion percentage
+      state.explodePct += (state.targetExplodePct - state.explodePct) * 0.12;
+      const ratio = state.explodePct / 100;
+
+      // 3. Update 3D positions of all 28 parts & dashed guide lines
+      PARTS_DATA.forEach(part => {
+        const grp = partGroups.get(part.id);
+        if (!grp) return;
+        const targetPos = getPartTargetPosition(part, ratio);
+        grp.position.lerp(targetPos, 0.22);
+
+        // Gently rotate twin screw rotors and motor rotor to showcase meshing mechanics
+        if (part.id === 9) {
+          grp.rotation.x += 0.012;
+        } else if (part.id === 10) {
+          grp.rotation.x -= 0.008;
+        } else if (part.id === 27) {
+          grp.rotation.x += 0.012;
+        }
+      });
+
+      axisConnectorLines.forEach(({ part, line }) => {
+        const grp = partGroups.get(part.id);
+        const showLine = grp.visible && state.explodePct > 3 && state.explodeMode !== 'scatter';
+        line.visible = showLine;
+        if (showLine) {
+          const posAttr = line.geometry.attributes.position;
+          posAttr.setXYZ(0, part.assembledPos[0], part.assembledPos[1], part.assembledPos[2]);
+          posAttr.setXYZ(1, grp.position.x, grp.position.y, grp.position.z);
+          posAttr.needsUpdate = true;
+          line.computeLineDistances();
+        }
+      });
+
+      // 4. Optional 360° Orbit Showcase
+      if (state.orbitShowcase && !orbit.isDragging) {
+        orbit.thetaGoal += 0.0045;
+      }
+
+      updateCameraFromOrbit();
+      renderer.render(scene, camera);
+      update3DLabels();
+    }
+
+    // Responsive Resize
+    window.addEventListener('resize', () => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    });
+
+    // Initialize App
+    renderBomTable();
+    selectPart(9, false);
+    updateExplodeUI(45);
+    animate();
+  </script>
+<!-- 返回主页面按钮（注入） -->
+<a href="exploded_index.html" style="position:fixed;top:16px;left:16px;z-index:9999;padding:8px 16px;background:rgba(13,20,33,0.88);border:1px solid rgba(56,189,248,0.45);border-radius:8px;color:#38bdf8;font-size:13px;font-family:sans-serif;text-decoration:none;backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.5);" onmouseover="this.style.background='rgba(14,116,144,0.9)'" onmouseout="this.style.background='rgba(13,20,33,0.88)'">← 返回拆解总览</a>
+</body>
+</html>

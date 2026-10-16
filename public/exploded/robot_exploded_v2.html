@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工业六轴机械臂 005 — 3D 硬件爆炸分解与 BOM 检视系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js r128 & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+        :root {
+            --bg-dark: #080c14;
+            --panel-bg: rgba(13, 20, 33, 0.86);
+            --accent-cyan: #00f0ff;
+            --accent-blue: #0ea5e9;
+            --border-glow: rgba(0, 240, 255, 0.28);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: 'Noto Sans SC', sans-serif;
+            color: #e2e8f0;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* 工业科技感毛玻璃面板 */
+        .tech-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(56, 189, 248, 0.22);
+            box-shadow: 0 10px 35px -5px rgba(0, 0, 0, 0.75), inset 0 0 15px rgba(0, 240, 255, 0.05);
+        }
+
+        .tech-panel-header {
+            background: linear-gradient(90deg, rgba(14, 165, 233, 0.2) 0%, rgba(15, 23, 42, 0) 100%);
+            border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+        }
+
+        /* 3D 零件引线标签样式 */
+        #labels-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .part-label {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+            background: rgba(9, 15, 26, 0.85);
+            border: 1px solid rgba(56, 189, 248, 0.45);
+            border-left: 3px solid #00f0ff;
+            padding: 3px 9px;
+            border-radius: 4px;
+            white-space: nowrap;
+            font-size: 11px;
+            color: #f1f5f9;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.65);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .part-label:hover, .part-label.active {
+            background: rgba(14, 116, 144, 0.92);
+            border-color: #00f0ff;
+            border-left: 3px solid #ffffff;
+            box-shadow: 0 0 16px rgba(0, 240, 255, 0.65);
+            z-index: 30;
+            transform: translate(-50%, -50%) scale(1.07);
+        }
+
+        .part-label .code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #38bdf8;
+            font-weight: 700;
+        }
+
+        .part-label.active .code {
+            color: #fde047;
+        }
+
+        /* 自定义滑块 */
+        input[type=range].explode-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: linear-gradient(90deg, #0ea5e9 0%, #22d3ee 50%, #334155 50%);
+            border-radius: 999px;
+            outline: none;
+        }
+
+        input[type=range].explode-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #00f0ff;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 12px #00f0ff;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+
+        input[type=range].explode-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.35);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 240, 255, 0.7);
+        }
+
+        /* 扫描线微光动画 */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 12px rgba(0, 240, 255, 0.25); }
+            50% { box-shadow: 0 0 22px rgba(0, 240, 255, 0.55); }
+        }
+        .glow-active {
+            animation: pulseGlow 2.2s infinite;
+        }
+
+        /* SVG 标注连线层 */
+        #callout-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden select-none">
+
+    <!-- Three.js 渲染容器 -->
+    <div id="canvas-container" class="w-full h-full absolute inset-0 z-0 cursor-grab active:cursor-grabbing"></div>
+
+    <!-- 2D/3D 折线引线 SVG 画布 -->
+    <svg id="callout-svg"></svg>
+
+    <!-- 3D 浮动中文零件标签容器 -->
+    <div id="labels-container"></div>
+
+    <!-- 顶部工业数字孪生状态栏 -->
+    <header class="tech-panel fixed top-3 left-3 right-3 h-14 rounded-xl px-4 flex items-center justify-between z-30">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-cyan-500/20 border border-cyan-400/60 flex items-center justify-center text-cyan-300 shadow-inner">
+                <i class="fa-solid fa-robot text-lg"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="px-1.5 py-0.5 text-[10px] mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 rounded">UNIT #005</span>
+                    <h1 class="text-sm md:text-base font-bold tracking-wide text-white">工业六轴机械臂 3D 硬件爆炸拆解与 BOM 工程系统</h1>
+                </div>
+                <p class="text-[11px] text-slate-400 hidden sm:block">型号：IR-6A-005 (流线型铸铝机身 / 谐波减速全闭环驱动 / 负载 12kg / 重复精度 ±0.02mm)</p>
+            </div>
+        </div>
+
+        <!-- 顶部快捷视角与功能状态 -->
+        <div class="flex items-center gap-2">
+            <div class="hidden xl:flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-700/70 text-xs">
+                <span class="px-2 text-slate-400"><i class="fa-solid fa-video mr-1 text-cyan-400"></i>视角:</span>
+                <button onclick="setCameraPreset('iso')" class="px-2.5 py-1 rounded hover:bg-cyan-500/20 hover:text-cyan-300 transition">轴测图</button>
+                <button onclick="setCameraPreset('front')" class="px-2.5 py-1 rounded hover:bg-cyan-500/20 hover:text-cyan-300 transition">正视图</button>
+                <button onclick="setCameraPreset('side')" class="px-2.5 py-1 rounded hover:bg-cyan-500/20 hover:text-cyan-300 transition">侧视图</button>
+                <button onclick="setCameraPreset('top')" class="px-2.5 py-1 rounded hover:bg-cyan-500/20 hover:text-cyan-300 transition">俯视图</button>
+            </div>
+
+            <div class="h-6 w-[1px] bg-slate-700 hidden md:block mx-1"></div>
+
+            <!-- 工程展示模式切换 -->
+            <div class="flex items-center gap-1.5">
+                <button id="btn-workbench" onclick="toggleWorkbenchMode()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 hover:bg-cyan-950 border border-slate-600/80 text-slate-200 flex items-center gap-1.5 transition" title="将所有零件平铺在工程师桌面上展示">
+                    <i class="fa-solid fa-table-cells-large text-cyan-400"></i>
+                    <span class="hidden sm:inline">桌面拆解平铺</span>
+                </button>
+                <button id="btn-labels" onclick="toggleLabels()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-cyan-600/30 border border-cyan-400/70 text-cyan-200 flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-tags text-cyan-300"></i>
+                    <span class="hidden sm:inline">零件标注</span>
+                </button>
+                <button id="btn-bom-toggle" onclick="toggleBomPanel()" class="lg:hidden px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 border border-slate-600 text-slate-200">
+                    <i class="fa-solid fa-list-check"></i> BOM
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 左侧：零件选中高亮详情卡片 (点击任意零件时激活或常驻展示) -->
+    <aside id="detail-card" class="tech-panel fixed left-3 top-20 w-80 md:w-96 rounded-xl overflow-hidden z-30 transition-all duration-300 transform translate-x-0">
+        <div class="tech-panel-header px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                <span class="text-xs font-bold tracking-wider uppercase text-cyan-300 mono">HARDWARE INSPECTOR // 零件工程档案</span>
+            </div>
+            <button onclick="clearSelection()" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-700/50" title="重置选中">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-4 space-y-3.5 text-xs">
+            <!-- 零件标题与编号 -->
+            <div class="flex items-start justify-between border-b border-slate-700/70 pb-3">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="detail-code" class="mono text-xs font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">IR005-A05</span>
+                        <span id="detail-category" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">核心传动模组</span>
+                    </div>
+                    <h2 id="detail-name" class="text-base font-bold text-white mt-1.5">J1轴伺服电机与谐波减速器总成</h2>
+                    <p id="detail-en" class="text-[11px] text-slate-400 mono">J1 Servo Motor & Harmonic Drive Unit</p>
+                </div>
+                <button onclick="focusSelectedPart()" class="px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 border border-cyan-400/50 flex items-center gap-1 text-[11px] shrink-0 transition">
+                    <i class="fa-solid fa-crosshairs"></i> 特写
+                </button>
+            </div>
+
+            <!-- 关键物理与材料属性网格 -->
+            <div class="grid grid-cols-2 gap-2">
+                <div class="bg-slate-900/75 p-2.5 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">主体材质 / 牌号</div>
+                    <div id="detail-material" class="text-xs font-semibold text-slate-100 mt-0.5">40CrMo合金钢 + 紫铜定子</div>
+                </div>
+                <div class="bg-slate-900/75 p-2.5 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">单件重量 / 数量</div>
+                    <div id="detail-weight" class="text-xs font-semibold text-cyan-300 mono mt-0.5">4.85 kg × 1</div>
+                </div>
+                <div class="bg-slate-900/75 p-2.5 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">装配轴向层级</div>
+                    <div id="detail-layer" class="text-xs font-semibold text-slate-200 mono mt-0.5">Level 05 / J1 Base Axis</div>
+                </div>
+                <div class="bg-slate-900/75 p-2.5 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">标准紧固扭矩</div>
+                    <div id="detail-torque" class="text-xs font-semibold text-amber-300 mono mt-0.5">28.5 N·m (M8×12)</div>
+                </div>
+            </div>
+
+            <!-- 规格参数说明 -->
+            <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-800/90 space-y-1">
+                <div class="text-[11px] font-semibold text-cyan-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-microchip"></i> 工程规格参数 (Specifications)
+                </div>
+                <p id="detail-specs" class="text-slate-300 leading-relaxed text-[11px]">
+                    额定功率 750W，谐波减速比 100:1，内置 23-bit 绝对值光电编码器与交叉滚子轴承，峰值扭矩 180 N·m，背隙 ≤ 10 arcsec。
+                </p>
+            </div>
+
+            <!-- 维护说明 -->
+            <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-800/90 space-y-1">
+                <div class="text-[11px] font-semibold text-emerald-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-screwdriver-wrench"></i> 拆装与预防性维护指南 (Maintenance)
+                </div>
+                <p id="detail-maint" class="text-slate-300 leading-relaxed text-[11px]">
+                    每运行 4,000 小时需通过注油口补充 SK-1A 谐波专用润滑脂；拆装时严禁敲击柔轮波发生器，需对角分三次均匀锁紧法兰螺栓。
+                </p>
+            </div>
+
+            <!-- 单独隔离检视开关 -->
+            <div class="pt-1 flex items-center justify-between gap-2">
+                <button id="btn-isolate" onclick="toggleIsolatePart()" class="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 font-medium flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-cube text-cyan-400"></i>
+                    <span id="isolate-text">单独隔离检视该零件</span>
+                </button>
+                <button onclick="stepSelectPart(-1)" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200" title="上一个零件">
+                    <i class="fa-solid fa-chevron-up"></i>
+                </button>
+                <button onclick="stepSelectPart(1)" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200" title="下一个零件">
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 右侧：BOM 物料清单面板 -->
+    <aside id="bom-panel" class="tech-panel fixed right-3 top-20 bottom-24 w-85 md:w-[410px] rounded-xl flex flex-col z-30 transition-transform duration-300">
+        <div class="tech-panel-header px-4 py-3 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-clipboard-list text-cyan-400"></i>
+                <span class="text-xs font-bold tracking-wider uppercase text-white">BOM 物料清单 (Bill of Materials)</span>
+            </div>
+            <span class="text-[11px] mono text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/30" id="bom-count-badge">14 项组件</span>
+        </div>
+
+        <!-- 搜索与分类筛选栏 -->
+        <div class="p-3 border-b border-slate-800 space-y-2 shrink-0">
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                <input id="bom-search" type="text" oninput="filterBOM()" placeholder="搜索零件名称、编号、材质 (如: 减速器 / 铝合金 / PCB)..."
+                    class="w-full pl-8 pr-7 py-1.5 bg-slate-900/90 border border-slate-700 focus:border-cyan-400 rounded-lg text-xs text-white placeholder-slate-500 outline-none transition">
+                <button onclick="clearBomSearch()" class="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 text-xs">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                </button>
+            </div>
+
+            <!-- 分类药丸按钮 -->
+            <div class="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px]">
+                <button onclick="setBomCategory('ALL')" data-cat="ALL" class="bom-cat-btn px-2.5 py-1 rounded-md bg-cyan-500/25 text-cyan-300 border border-cyan-400/50 font-medium shrink-0">全部 (14)</button>
+                <button onclick="setBomCategory('结构铸件')" data-cat="结构铸件" class="bom-cat-btn px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-transparent shrink-0">结构铸件</button>
+                <button onclick="setBomCategory('传动与电机')" data-cat="传动与电机" class="bom-cat-btn px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-transparent shrink-0">传动与电机</button>
+                <button onclick="setBomCategory('电子与执行器')" data-cat="电子与执行器" class="bom-cat-btn px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-transparent shrink-0">电子/执行器</button>
+                <button onclick="setBomCategory('紧固与密封')" data-cat="紧固与密封" class="bom-cat-btn px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-transparent shrink-0">紧固/密封</button>
+            </div>
+        </div>
+
+        <!-- BOM 表格头 -->
+        <div class="grid grid-cols-12 px-3 py-2 bg-slate-900/90 text-[11px] font-semibold text-slate-400 border-b border-slate-800 shrink-0">
+            <div class="col-span-3">编号</div>
+            <div class="col-span-4">零件名称</div>
+            <div class="col-span-1 text-center">数量</div>
+            <div class="col-span-4 text-right">材质</div>
+        </div>
+
+        <!-- BOM 列表内容区 -->
+        <div id="bom-table-body" class="flex-1 overflow-y-auto divide-y divide-slate-800/60 text-xs">
+            <!-- JS 动态渲染 -->
+        </div>
+
+        <!-- 底部汇总栏 -->
+        <div class="px-4 py-2.5 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+            <div>总零件数: <span class="text-white font-bold mono">46 pcs</span> (14 核心总成)</div>
+            <div>整机净重: <span class="text-cyan-300 font-bold mono">32.40 kg</span></div>
+        </div>
+    </aside>
+
+    <!-- 底部：爆炸分解控制中心与动画控制台 -->
+    <footer class="tech-panel fixed bottom-3 left-3 right-3 h-18 rounded-xl px-4 py-2.5 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 z-30">
+        <!-- 拆解/组装动画按钮组 -->
+        <div class="flex items-center gap-2 shrink-0">
+            <button id="btn-play-explode" onclick="toggleExplodeAnimation()" class="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/25 transition">
+                <i id="play-icon" class="fa-solid fa-play"></i>
+                <span id="play-text">播放组装/拆解动画</span>
+            </button>
+            <button onclick="quickSetExplode(0)" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 transition" title="一键完全组装">
+                组装态
+            </button>
+            <button onclick="quickSetExplode(100)" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-cyan-300 transition" title="一键完全爆炸拆解">
+                全爆炸
+            </button>
+        </div>
+
+        <!-- 爆炸程度无级滑块 -->
+        <div class="flex-1 flex items-center gap-3 max-w-xl">
+            <span class="text-xs text-slate-300 whitespace-nowrap flex items-center gap-1.5">
+                <i class="fa-solid fa-up-right-and-down-left-from-center text-cyan-400"></i>
+                <span>爆炸分解程度:</span>
+            </span>
+            <input id="explode-slider" type="range" min="0" max="100" value="68" step="0.5" oninput="onSliderChange(this.value)" class="explode-slider">
+            <span id="explode-percent" class="mono text-sm font-bold text-cyan-300 w-14 text-right">68%</span>
+        </div>
+
+        <!-- 辅助工程视图开关 -->
+        <div class="hidden sm:flex items-center gap-2 shrink-0">
+            <button id="btn-trails" onclick="toggleTrailLines()" class="px-3 py-1.5 rounded-lg text-xs bg-cyan-500/20 border border-cyan-400/50 text-cyan-200 flex items-center gap-1.5 transition" title="显示轴向拆解轨迹引导虚线">
+                <i class="fa-solid fa-bezier-curve"></i>
+                <span>拆解轴线</span>
+            </button>
+            <button id="btn-xray" onclick="toggleXRay()" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800/90 border border-slate-700 text-slate-300 hover:text-white flex items-center gap-1.5 transition" title="半透明透视外壳以观察内部电机和PCB">
+                <i class="fa-solid fa-eye"></i>
+                <span>外壳透视</span>
+            </button>
+            <button id="btn-autorotate" onclick="toggleAutoRotate()" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800/90 border border-slate-700 text-slate-300 hover:text-white flex items-center gap-1.5 transition" title="360度环绕展示">
+                <i class="fa-solid fa-rotate"></i>
+                <span>环绕旋转</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- 操作提示角标 -->
+    <div class="fixed bottom-24 left-3 pointer-events-none z-20 hidden xl:flex items-center gap-3 text-[11px] text-slate-400 bg-slate-950/75 px-3 py-1.5 rounded-lg border border-slate-800">
+        <span><i class="fa-solid fa-computer-mouse text-cyan-400 mr-1"></i>左键拖拽: 旋转视图</span>
+        <span><i class="fa-solid fa-arrows-up-down text-cyan-400 mr-1"></i>滚轮: 缩放细节</span>
+        <span><i class="fa-solid fa-hand-pointer text-cyan-400 mr-1"></i>点击零件/标签: 蓝光高亮并查看工程参数</span>
+    </div>
+
+    <script>
+        /*************************************************************************
+         * 1. 工业六轴机械臂 005 — 14个核心精密硬件组件的工程数据库 (BOM & 拆解向量)
+         *************************************************************************/
+        const PARTS_DATA = [
+            {
+                id: 'base_plate',
+                code: 'IR005-A01',
+                name: '安装底板',
+                fullName: '重载法兰安装底板 (Mounting Base Plate)',
+                enName: 'Heavy-Duty Steel Mounting Flange Plate',
+                category: '结构铸件',
+                qty: 1,
+                material: 'S45C 调质结构钢 (发黑防锈)',
+                weight: '5.20 kg',
+                layer: 'Level 01 / 底部基础面',
+                torque: '85.0 N·m (M16地脚)',
+                specs: '直径 Ø260mm，厚度 18mm；加工有 8×Ø18mm 沉头通孔、2×Ø10H7 精密定位销孔及底部十字排屑减重槽，平面度 ≤ 0.015mm。',
+                maint: '安装台面需保证刚性与水平度；每半年检查一次底板与地面钢架的防松标记线是否偏移。',
+                assembledPos: [0, 0.10, 0],
+                explodedPos: [0, -3.40, 0],
+                workbenchPos: [-8.5, 0.12, 3.8],
+                labelOffset: [-2.6, 0, 1.2],
+                isHousing: false
+            },
+            {
+                id: 'anchor_bolts',
+                code: 'IR005-A02',
+                name: '地脚螺栓',
+                fullName: '高强度地脚螺栓组 (Anchor Bolts M16×8)',
+                enName: '12.9 Grade Socket Cap Anchor Bolts',
+                category: '紧固与密封',
+                qty: 8,
+                material: 'SCM435 合金钢 (12.9级镀镍)',
+                weight: '0.64 kg',
+                layer: 'Level 02 / 底座紧固层',
+                torque: '85.0 N·m + 螺纹胶',
+                specs: 'M16×65mm 内六角圆柱头螺栓 × 8颗，配套高强度淬火平垫圈与弹簧垫圈，抗拉强度 1220 MPa。',
+                maint: '拆装时必须使用扭力扳手按对角十字顺序分两次锁紧，并涂抹乐泰 243 中强度螺纹锁固胶。',
+                assembledPos: [0, 0.25, 0],
+                explodedPos: [0, -2.35, 0],
+                workbenchPos: [-5.8, 0.25, 4.2],
+                labelOffset: [2.5, -0.1, 1.2],
+                isHousing: false
+            },
+            {
+                id: 'base_frame',
+                code: 'IR005-A03',
+                name: '基座框架',
+                fullName: '基座铸造框架 (Base Casting Frame #005)',
+                enName: 'Ribbed Aluminum Alloy Base Housing',
+                category: '结构铸件',
+                qty: 1,
+                material: 'ZL101A-T6 航空铸造铝合金',
+                weight: '4.60 kg',
+                layer: 'Level 03 / J1固定座',
+                torque: '24.0 N·m (M8×12)',
+                specs: '带 8 道外置放射状加强筋（复刻005号机底座特征）、正前方镶嵌“05”数字金属铭牌，背部集成 24V 电源与 EtherCAT 重载航空插头座。',
+                maint: '日常清洁表面油污，检查背部重载航空连接器锁扣与接地铜柱是否牢固，防止电磁干扰。',
+                assembledPos: [0, 0.90, 0],
+                explodedPos: [0, -1.05, 0],
+                workbenchPos: [-8.2, 0.72, 0.2],
+                labelOffset: [-2.8, 0.2, -0.8],
+                isHousing: true
+            },
+            {
+                id: 'servo_pcb',
+                code: 'IR005-A04',
+                name: '底部驱动电路板',
+                fullName: 'J1底层伺服驱动与总线控制板 (Controller PCB)',
+                enName: 'EtherCAT Servo Driver & Brake Logic PCB',
+                category: '电子与执行器',
+                qty: 1,
+                material: 'FR-4 四层沉金玻纤板 + 贴片IC',
+                weight: '0.32 kg',
+                layer: 'Level 04 / 基座内腔电子层',
+                torque: '1.8 N·m (M3铜柱螺丝)',
+                specs: '环形高密度 PCB，集成 DSP 主控芯片、6 颗高压固态滤波电容、IGBT 逆变模块、镀金排针接口及 LED 状态诊断灯。',
+                maint: '拆修时必须佩戴防静电手环（ESD）；检查电容顶部有无鼓包，插件端子有无氧化松动。',
+                assembledPos: [0, 0.78, 0],
+                explodedPos: [2.35, -0.35, 1.25],
+                workbenchPos: [-5.2, 0.12, 1.5],
+                labelOffset: [2.4, 0, 1.0],
+                isHousing: false
+            },
+            {
+                id: 'j1_motor',
+                code: 'IR005-A05',
+                name: 'J1轴电机/减速器',
+                fullName: 'J1轴伺服电机与谐波减速器总成',
+                enName: 'J1 Hollow-Shaft Servo & Harmonic Drive',
+                category: '传动与电机',
+                qty: 1,
+                material: '40CrMo 柔轮钢 + 紫铜绕组 + 轴承钢',
+                weight: '4.85 kg',
+                layer: 'Level 05 / J1腰部回转驱动',
+                torque: '28.5 N·m',
+                specs: '750W 永磁同步无框电机（裸露可见高纯度紫铜定子线圈）、谐波减速器（减速比 100:1）、中空走线孔 Ø32mm、交叉滚子轴承。',
+                maint: '每 4000 小时检测谐波减速器温升（正常 ≤65℃）与异响，定期更换谐波专用低摩阻油脂。',
+                assembledPos: [0, 1.35, 0],
+                explodedPos: [0, 0.65, 0],
+                workbenchPos: [-5.2, 0.65, -1.8],
+                labelOffset: [-2.7, 0.1, 1.0],
+                isHousing: false
+            },
+            {
+                id: 'j1_seal_ring',
+                code: 'IR005-A06',
+                name: 'J1密封环与螺栓',
+                fullName: 'J1轴丁腈橡胶密封圈与锁紧螺栓环',
+                enName: 'NBR Oil Seal O-Ring & Flange Fasteners',
+                category: '紧固与密封',
+                qty: 1,
+                material: '丁腈橡胶 (NBR) + 304不锈钢螺丝',
+                weight: '0.18 kg',
+                layer: 'Level 06 / J1回转密封层',
+                torque: '12.0 N·m (M6×16)',
+                specs: 'IP65 防护等级双唇口旋转动密封圈，耐油耐磨（工作温度 -30℃~120℃），配 12 颗 M6 内六角紧固螺钉。',
+                maint: '大修拆解后建议直接更换全套新密封圈，装配前在橡胶唇口涂抹薄层硅基润滑脂防干磨。',
+                assembledPos: [0, 1.75, 0],
+                explodedPos: [0, 1.85, 0],
+                workbenchPos: [-2.2, 0.15, 4.0],
+                labelOffset: [2.6, 0.1, -0.5],
+                isHousing: false
+            },
+            {
+                id: 'waist_turret',
+                code: 'IR005-A07',
+                name: '腰座',
+                fullName: '回转腰座壳体 (Waist Turret Housing)',
+                enName: 'Streamlined Cast Aluminum Waist Turret',
+                category: '结构铸件',
+                qty: 1,
+                material: 'A356-T6 铸铝合金 + 深灰阳极氧化盖',
+                weight: '3.90 kg',
+                layer: 'Level 07 / J1-J2转换座',
+                torque: '26.0 N·m',
+                specs: '复刻参考图经典的白银色流线型非对称弯头腰座，后部带 45° 斜切深灰色检修端盖与散热凹槽，内部集成线束防磨导套。',
+                maint: '打开后部深灰色斜端盖即可检修内部 J1/J2 动力线束及零位机械限位块。',
+                assembledPos: [0, 2.35, 0],
+                explodedPos: [0, 3.20, 0],
+                workbenchPos: [-2.2, 0.85, 0.8],
+                labelOffset: [-2.8, 0.2, -0.6],
+                isHousing: true
+            },
+            {
+                id: 'j2_joint',
+                code: 'IR005-A08',
+                name: 'J2轴关节',
+                fullName: 'J2肩部关节驱动模组 (Shoulder Joint Unit)',
+                enName: 'J2 High-Torque Shoulder Joint & Brake',
+                category: '传动与电机',
+                qty: 1,
+                material: '轴承钢 + 紫铜线圈 + 深灰铝端盖',
+                weight: '4.20 kg',
+                layer: 'Level 08 / J2肩部俯仰轴',
+                torque: '32.0 N·m',
+                specs: '横置大扭矩关节模组，含失电电磁抱闸制动器（断电自锁防止大臂下坠）、HD 谐波减速机、黑色密封颈环及深灰防护外盖。',
+                maint: '每月测试一次急停断电时 J2 轴电磁抱闸的响应时间与下坠量（标准下坠量 < 0.5°）。',
+                assembledPos: [0.65, 2.65, 0],
+                explodedPos: [-2.65, 3.65, 0],
+                workbenchPos: [-2.0, 0.65, -2.5],
+                labelOffset: [-2.6, 0.3, 1.2],
+                isHousing: false
+            },
+            {
+                id: 'lower_arm',
+                code: 'IR005-A09',
+                name: '大臂',
+                fullName: '流线型大臂总成 (Curved Lower Arm)',
+                enName: 'Aerodynamic Hollow Cast Lower Arm',
+                category: '结构铸件',
+                qty: 1,
+                material: '6061-T6 精密锻造铝合金 (亮银白喷涂)',
+                weight: '4.10 kg',
+                layer: 'Level 09 / 主连杆大臂',
+                torque: '26.0 N·m',
+                specs: '采用参考图标志性的微弧度双曲面流线型中空管状设计，中心距 420mm，两端镶嵌高精加工黑色阳极氧化法兰连接环。',
+                maint: '内部走有动力与编码器高柔拖链线缆，严禁在臂体表面钻孔或焊接附加重物。',
+                assembledPos: [0.95, 4.10, 0],
+                explodedPos: [2.15, 5.15, 0],
+                workbenchPos: [1.5, 0.55, 2.2],
+                labelOffset: [2.7, 0.1, 0.6],
+                isHousing: true
+            },
+            {
+                id: 'j3_joint',
+                code: 'IR005-A10',
+                name: 'J3轴',
+                fullName: 'J3肘部关节模组 (J3 Elbow Joint Module)',
+                enName: 'J3 Elbow Harmonic Drive & Encoder',
+                category: '传动与电机',
+                qty: 1,
+                material: '特种合金钢 + 紫铜定子 + 铝散热壳',
+                weight: '2.45 kg',
+                layer: 'Level 10 / J3肘部俯仰轴',
+                torque: '18.5 N·m',
+                specs: '紧凑型中空肘部驱动单元，额定功率 400W，配深灰色斜切散热尾盖、黑色橡胶减震环及温度热敏传感器。',
+                maint: '检查肘部关节处线束弯曲半径，每 5000 小时校准一次 J3 轴零点偏移量。',
+                assembledPos: [0.25, 5.35, 0],
+                explodedPos: [-2.10, 6.75, 0],
+                workbenchPos: [1.5, 0.58, -1.8],
+                labelOffset: [-2.6, 0.2, -0.5],
+                isHousing: false
+            },
+            {
+                id: 'upper_arm',
+                code: 'IR005-A11',
+                name: '小臂',
+                fullName: '小臂与J4回转轴总成 (Upper Arm & J4 Roll)',
+                enName: 'Upper Forearm Housing & J4 Roll Drive',
+                category: '结构铸件',
+                qty: 1,
+                material: 'A356 轻量化铸铝 + 内部谐波传动轴',
+                weight: '2.15 kg',
+                layer: 'Level 11 / 小臂与J4回转层',
+                torque: '16.0 N·m',
+                specs: 'L型流线过渡前臂壳体，后端带深灰色流线端盖，前端同轴内嵌 J4 小臂回转电机与精密同步带轮机构。',
+                maint: '检查 J4 轴回转密封环气密性；若在喷涂或高粉尘车间使用，需保持正压气吹微孔畅通。',
+                assembledPos: [-0.20, 6.05, 0],
+                explodedPos: [0.10, 8.20, 0],
+                workbenchPos: [4.8, 0.62, 3.0],
+                labelOffset: [2.6, 0.3, -0.8],
+                isHousing: true
+            },
+            {
+                id: 'wrist_unit',
+                code: 'IR005-A12',
+                name: '腕部',
+                fullName: 'J5腕部俯仰关节总成 (J5 Wrist Pitch Unit)',
+                enName: 'J5 Dual-Support Wrist Pitch Joint',
+                category: '传动与电机',
+                qty: 1,
+                material: '7075 航空铝 + 精密交叉滚子轴承',
+                weight: '1.15 kg',
+                layer: 'Level 12 / J5手腕俯仰层',
+                torque: '10.5 N·m',
+                specs: '轻量化正交腕部关节，具备 ±135° 俯仰运动范围，内置超薄型谐波减速器与霍尔零位开关。',
+                maint: '腕部负载力臂敏感，严禁末端超载运行或发生剧烈碰撞，碰撞后需检测轴承游隙。',
+                assembledPos: [-0.95, 6.45, 0],
+                explodedPos: [-1.75, 9.55, 0],
+                workbenchPos: [4.8, 0.50, 0.2],
+                labelOffset: [-2.4, 0.2, 0.8],
+                isHousing: false
+            },
+            {
+                id: 'j6_flange',
+                code: 'IR005-A13',
+                name: '六维力传感器与法兰',
+                fullName: 'J6末端ISO法兰与六维力矩传感器',
+                enName: 'J6 ISO-9409 Flange & 6-Axis F/T Sensor',
+                category: '电子与执行器',
+                qty: 1,
+                material: '17-4PH 沉淀硬化不锈钢 + 应变片电桥',
+                weight: '0.45 kg',
+                layer: 'Level 13 / J6末端法兰接口',
+                torque: '8.5 N·m (M5×8)',
+                specs: '符合 ISO 9409-1-50-4-M6 国际标准法兰接口，集成高精度六维力/力矩传感器（力分辨率 0.1N）及 Ø6H7 主定位销。',
+                maint: '安装夹爪前需在无负载状态下执行传感器零点漂移清零（Bias Reset）。',
+                assembledPos: [-0.95, 5.82, 0],
+                explodedPos: [-1.75, 8.35, 1.65],
+                workbenchPos: [4.8, 0.25, -2.5],
+                labelOffset: [-2.5, -0.2, 1.4],
+                isHousing: false
+            },
+            {
+                id: 'gripper',
+                code: 'IR005-A14',
+                name: '夹爪',
+                fullName: '工业精密气动平行夹爪 (Parallel Gripper)',
+                enName: 'Pneumatic Linear Guide Parallel Gripper',
+                category: '电子与执行器',
+                qty: 1,
+                material: '硬质阳极氧化铝缸体 + S7工具钢夹指',
+                weight: '0.68 kg',
+                layer: 'Level 14 / 末端执行器 (EOAT)',
+                torque: '8.5 N·m',
+                specs: '滚珠直线导轨型平行气爪，单指行程 16mm，夹持力 140N (@0.6MPa)，夹指内侧带防滑菱形齿纹，配双色 PU 气管快插接头与磁性开关槽。',
+                maint: '每周清理直线导轨滑槽内的金属碎屑，并在导轨滚珠槽涂抹微量锂基润滑脂；气源需经三联件过滤干燥。',
+                assembledPos: [-0.95, 5.20, 0],
+                explodedPos: [-1.75, 7.00, 3.10],
+                workbenchPos: [7.8, 0.45, 0.5],
+                labelOffset: [2.2, -0.3, 1.5],
+                isHousing: false
+            }
+        ];
+
+        /*************************************************************************
+         * 2. 全局状态与 Three.js 核心变量
+         *************************************************************************/
+        let scene, camera, renderer, controls, raycaster, mouse;
+        let partGroups = {};          // id -> THREE.Group
+        let partMeshes = [];          // 用于射线拾取的所有 Mesh
+        let trailLines = {};          // id -> THREE.Line (爆炸轨迹引导线)
+        let labelElements = {};       // id -> DOM Element
+        let workbenchGridMesh = null; // 桌面平铺防静电垫
+
+        let explodeFactor = 0.68;     // 当前爆炸程度 0.0 ~ 1.0
+        let targetExplodeFactor = 0.68;
+        let isAnimatingExplode = false;
+        let animDirection = 1;        // 1: 拆解, -1: 组装
+
+        let isWorkbenchMode = false;  // 是否处于桌面平铺模式
+        let workbenchBlend = 0.0;     // 0: 立式机械臂/爆炸态, 1: 桌面陈列态
+        let showLabels = true;
+        let showTrails = true;
+        let isXRayMode = false;
+        let isIsolated = false;
+
+        let selectedPartId = 'j1_motor';
+        let hoveredPartId = null;
+        let currentBomCategory = 'ALL';
+
+        // 预设的 PBR 材质库
+        const MAT = {};
+
+        /*************************************************************************
+         * 3. 程序化纹理生成 (PCB电路板、05铭牌、防静电工程师桌面垫)
+         *************************************************************************/
+        function createPCBTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            // 阻焊绿底色
+            ctx.fillStyle = '#064e3b';
+            ctx.fillRect(0, 0, 512, 512);
+            // 铜箔走线圆环
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2;
+            for (let r = 60; r < 240; r += 16) {
+                ctx.beginPath();
+                ctx.arc(256, 256, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            // 镀金焊盘
+            ctx.fillStyle = '#fbbf24';
+            for (let a = 0; a < Math.PI * 2; a += Math.PI / 12) {
+                const x = 256 + Math.cos(a) * 210;
+                const y = 256 + Math.sin(a) * 210;
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            return tex;
+        }
+
+        function createBadge05Texture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, 256, 128);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(6, 6, 244, 116);
+            // 左侧状态点
+            ctx.fillStyle = '#22d3ee';
+            ctx.fillRect(24, 30, 14, 14);
+            ctx.fillRect(24, 80, 14, 14);
+            // 右侧 "05" 字样 (还原参考图底座上的 05 标识)
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = 'bold 74px "JetBrains Mono", monospace';
+            ctx.fillText('05', 85, 90);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createWorkbenchMatTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0b1524';
+            ctx.fillRect(0, 0, 1024, 512);
+
+            // 细密工程切割垫网格
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= 1024; x += 32) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke();
+            }
+            for (let y = 0; y <= 512; y += 32) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1024, y); ctx.stroke();
+            }
+
+            // 外框刻度线
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(16, 16, 992, 480);
+
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+            ctx.font = 'bold 20px "JetBrains Mono", monospace';
+            ctx.fillText('ESD SAFE HARDWARE TEARDOWN MAT // UNIT IR-6A-005 WORKBENCH', 36, 48);
+            const tex = new THREE.CanvasTexture(canvas);
+            return tex;
+        }
+
+        /*************************************************************************
+         * 4. 初始化 PBR 材质库 (金属、铸铝、紫铜绕组、橡胶、PCB、高光轴承钢)
+         *************************************************************************/
+        function initMaterials() {
+            // 1. 机械臂主体：珍珠银白/浅灰烤漆铸造铝合金 (还原参考图005外观)
+            MAT.whiteCast = new THREE.MeshStandardMaterial({
+                color: 0xe2e8f0,
+                metalness: 0.32,
+                roughness: 0.26
+            });
+
+            // 2. 机械臂关节端盖：深空灰喷砂阳极氧化铝 (还原参考图关节转角深灰色块)
+            MAT.darkGrayCap = new THREE.MeshStandardMaterial({
+                color: 0x475569,
+                metalness: 0.55,
+                roughness: 0.38
+            });
+
+            // 3. 黑色阳极氧化铝 / 法兰装饰环
+            MAT.blackAnodized = new THREE.MeshStandardMaterial({
+                color: 0x18181b,
+                metalness: 0.65,
+                roughness: 0.32
+            });
+
+            // 4. 丁腈橡胶密封圈 (哑光深黑)
+            MAT.rubberSeal = new THREE.MeshStandardMaterial({
+                color: 0x09090b,
+                metalness: 0.05,
+                roughness: 0.88
+            });
+
+            // 5. 高光精密轴承钢 / 法兰面 / 活塞杆
+            MAT.chromeSteel = new THREE.MeshStandardMaterial({
+                color: 0xf1f5f9,
+                metalness: 0.88,
+                roughness: 0.15
+            });
+
+            // 6. 重载底板黑化结构钢
+            MAT.darkSteel = new THREE.MeshStandardMaterial({
+                color: 0x27272a,
+                metalness: 0.78,
+                roughness: 0.35
+            });
+
+            // 7. 伺服电机内部紫铜定子绕组
+            MAT.copperCoil = new THREE.MeshStandardMaterial({
+                color: 0xd97706,
+                metalness: 0.85,
+                roughness: 0.22
+            });
+
+            // 8. 黄铜接线柱/气嘴/铜柱
+            MAT.brass = new THREE.MeshStandardMaterial({
+                color: 0xfacc15,
+                metalness: 0.82,
+                roughness: 0.25
+            });
+
+            // 9. 绿色驱动电路板 PCB
+            MAT.pcbGreen = new THREE.MeshStandardMaterial({
+                map: createPCBTexture(),
+                metalness: 0.25,
+                roughness: 0.4
+            });
+
+            // 10. 蓝色快插气管接口
+            MAT.bluePlastic = new THREE.MeshStandardMaterial({
+                color: 0x0284c7,
+                metalness: 0.1,
+                roughness: 0.35
+            });
+
+            // 11. 05号机铭牌材质
+            MAT.badge05 = new THREE.MeshStandardMaterial({
+                map: createBadge05Texture(),
+                metalness: 0.3,
+                roughness: 0.3
+            });
+        }
+
+        /*************************************************************************
+         * 5. 精细 3D 硬件建模工厂函数 (拒绝简单几何体敷衍，全部带法兰孔、螺丝、鳍片、线圈)
+         *************************************************************************/
+
+        // 辅助：创建一圈内六角螺栓阵列
+        function createBoltCircle(radius, count, yPos, boltRadius = 0.045, boltHeight = 0.08, mat = MAT.chromeSteel) {
+            const group = new THREE.Group();
+            const headGeo = new THREE.CylinderGeometry(boltRadius, boltRadius, boltHeight, 6);
+            const socketGeo = new THREE.CylinderGeometry(boltRadius * 0.55, boltRadius * 0.55, boltHeight * 0.4, 6);
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                const bx = Math.cos(angle) * radius;
+                const bz = Math.sin(angle) * radius;
+                const head = new THREE.Mesh(headGeo, mat);
+                head.position.set(bx, yPos, bz);
+                const socket = new THREE.Mesh(socketGeo, MAT.blackAnodized);
+                socket.position.set(bx, yPos + boltHeight * 0.35, bz);
+                group.add(head, socket);
+            }
+            return group;
+        }
+
+        // 1) 安装底板 (带沉头孔、十字减重槽、定位销)
+        function buildBasePlate() {
+            const g = new THREE.Group();
+            // 主钢盘
+            const plate = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.60, 0.16, 48), MAT.darkSteel);
+            g.add(plate);
+            // 亮面精铣安装凸台
+            const boss = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 0.04, 48), MAT.chromeSteel);
+            boss.position.y = 0.09;
+            g.add(boss);
+            // 中心过线孔黑衬
+            const centerHole = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.19, 32), MAT.blackAnodized);
+            g.add(centerHole);
+            // 8个外圈沉头安装孔与定位销
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+                const hx = Math.cos(a) * 1.38;
+                const hz = Math.sin(a) * 1.38;
+                const holeRim = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.17, 16), MAT.chromeSteel);
+                holeRim.position.set(hx, 0.005, hz);
+                const holeInner = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.18, 16), MAT.blackAnodized);
+                holeInner.position.set(hx, 0.005, hz);
+                g.add(holeRim, holeInner);
+            }
+            // 2颗高精度圆柱定位销
+            const pinGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.28, 16);
+            const pin1 = new THREE.Mesh(pinGeo, MAT.chromeSteel);
+            pin1.position.set(1.38, 0.10, 0);
+            const pin2 = new THREE.Mesh(pinGeo, MAT.chromeSteel);
+            pin2.position.set(-1.38, 0.10, 0);
+            g.add(pin1, pin2);
+            return g;
+        }
+
+        // 2) 高强度地脚螺栓组 (8颗带螺纹柱、六角头、垫片)
+        function buildAnchorBolts() {
+            const g = new THREE.Group();
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+                const bx = Math.cos(a) * 1.38;
+                const bz = Math.sin(a) * 1.38;
+                const bolt = new THREE.Group();
+                bolt.position.set(bx, 0, bz);
+
+                // 垫圈
+                const washer = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 24), MAT.chromeSteel);
+                // 六角承压头
+                const head = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.12, 6), MAT.darkSteel);
+                head.position.y = 0.075;
+                // 螺杆螺纹段
+                const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.36, 16), MAT.chromeSteel);
+                shaft.position.y = -0.18;
+                // 螺纹环纹刻画
+                for (let t = 0; t < 4; t++) {
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.056, 0.008, 8, 16), MAT.darkSteel);
+                    ring.rotation.x = Math.PI / 2;
+                    ring.position.y = -0.10 - t * 0.06;
+                    bolt.add(ring);
+                }
+                bolt.add(washer, head, shaft);
+                g.add(bolt);
+            }
+            return g;
+        }
+
+        // 3) 基座铸造框架 (复刻参考图005号：带8道加强筋、下法兰、前方05铭牌、后方重载航空插头)
+        function buildBaseFrame() {
+            const g = new THREE.Group();
+            // 底部法兰裙边
+            const flange = new THREE.Mesh(new THREE.CylinderGeometry(1.22, 1.32, 0.24, 48), MAT.whiteCast);
+            flange.position.y = -0.45;
+            g.add(flange);
+
+            // 主圆台筒身
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.96, 1.12, 1.05, 48), MAT.whiteCast);
+            body.position.y = 0.08;
+            g.add(body);
+
+            // 8道外部放射状加强筋 (还原参考图底座周边凸起块)
+            const ribGeo = new THREE.BoxGeometry(0.14, 0.42, 0.26);
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2;
+                const rib = new THREE.Mesh(ribGeo, MAT.whiteCast);
+                rib.position.set(Math.cos(a) * 1.10, -0.32, Math.sin(a) * 1.10);
+                rib.rotation.y = -a + Math.PI / 2;
+                g.add(rib);
+            }
+
+            // 正前方 "05" 机器编号铭牌 (还原参考图机身正面黑色05方块)
+            const badgePlate = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.30, 0.08), MAT.badge05);
+            badgePlate.position.set(0, 0.12, 0.99);
+            g.add(badgePlate);
+
+            // 背部工业重载航空插头盒 (Harting Connector)
+            const connBox = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.42, 0.35), MAT.darkGrayCap);
+            connBox.position.set(0, -0.10, -1.05);
+            const port1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.15, 16), MAT.chromeSteel);
+            port1.rotation.x = Math.PI / 2;
+            port1.position.set(-0.16, -0.10, -1.24);
+            const port2 = port1.clone();
+            port2.position.x = 0.16;
+            const groundPin = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 12), MAT.brass);
+            groundPin.rotation.x = Math.PI / 2;
+            groundPin.position.set(0, -0.22, -1.24);
+            g.add(connBox, port1, port2, groundPin);
+
+            // 顶部轴承止口黑环
+            const topRim = new THREE.Mesh(new THREE.CylinderGeometry(0.97, 0.97, 0.08, 48), MAT.blackAnodized);
+            topRim.position.y = 0.62;
+            g.add(topRim);
+
+            return g;
+        }
+
+        // 4) 主控驱动 PCB 电路板 (环形绿板 + IC芯片 + 滤波电容阵列 + 镀金排针)
+        function buildServoPCB() {
+            const g = new THREE.Group();
+            // 绿板主体
+            const board = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.04, 36), MAT.pcbGreen);
+            g.add(board);
+            // 中心走线空洞
+            const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.05, 24), MAT.blackAnodized);
+            g.add(hole);
+            // 4颗黑色主控四方芯片 (FPGA / DSP)
+            const icGeo = new THREE.BoxGeometry(0.22, 0.04, 0.22);
+            for (let i = 0; i < 4; i++) {
+                const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+                const ic = new THREE.Mesh(icGeo, MAT.blackAnodized);
+                ic.position.set(Math.cos(a) * 0.52, 0.035, Math.sin(a) * 0.52);
+                g.add(ic);
+            }
+            // 6颗铝壳电解电容
+            const capGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.16, 16);
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                const cap = new THREE.Mesh(capGeo, MAT.chromeSteel);
+                cap.position.set(Math.cos(a) * 0.65, 0.09, Math.sin(a) * 0.65);
+                g.add(cap);
+            }
+            // 4根铜柱支撑脚
+            const standoffGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.18, 6);
+            for (let i = 0; i < 4; i++) {
+                const a = (i / 4) * Math.PI * 2;
+                const post = new THREE.Mesh(standoffGeo, MAT.brass);
+                post.position.set(Math.cos(a) * 0.74, -0.09, Math.sin(a) * 0.74);
+                g.add(post);
+            }
+            return g;
+        }
+
+        // 5) J1轴伺服电机与谐波减速器总成 (带散热鳍片、紫铜线圈绕组、柔轮、交叉滚子轴承)
+        function buildJ1MotorAssembly() {
+            const g = new THREE.Group();
+            // 底部电机端盖
+            const bottomCap = new THREE.Mesh(new THREE.CylinderGeometry(0.76, 0.76, 0.14, 36), MAT.darkGrayCap);
+            bottomCap.position.y = -0.35;
+            g.add(bottomCap);
+
+            // 裸露可见的 12 极紫铜定子绕组线圈 (极具硬件拆解感)
+            const coilGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.36, 16);
+            for (let i = 0; i < 12; i++) {
+                const a = (i / 12) * Math.PI * 2;
+                const coil = new THREE.Mesh(coilGeo, MAT.copperCoil);
+                coil.position.set(Math.cos(a) * 0.56, -0.08, Math.sin(a) * 0.56);
+                g.add(coil);
+            }
+
+            // 电机散热鳍片圈
+            for (let f = 0; f < 5; f++) {
+                const fin = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.74, 0.025, 36), MAT.blackAnodized);
+                fin.position.y = -0.22 + f * 0.07;
+                g.add(fin);
+            }
+
+            // 上部谐波减速器刚轮与交叉滚子轴承外圈 (高光钢)
+            const harmonicRing = new THREE.Mesh(new THREE.CylinderGeometry(0.84, 0.80, 0.24, 48), MAT.chromeSteel);
+            harmonicRing.position.y = 0.24;
+            g.add(harmonicRing);
+
+            // 内部金色波发生器端面与中心中空轴管
+            const waveGen = new THREE.Mesh(new THREE.CylinderGeometry(0.50, 0.50, 0.28, 32), MAT.brass);
+            waveGen.position.y = 0.25;
+            const hollowTube = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.85, 24), MAT.blackAnodized);
+            hollowTube.position.y = 0.02;
+            g.add(waveGen, hollowTube);
+
+            // 谐波输出端精密螺栓圈
+            g.add(createBoltCircle(0.68, 12, 0.37, 0.035, 0.05, MAT.darkSteel));
+            return g;
+        }
+
+        // 6) J1橡胶密封圈与法兰紧固螺丝组
+        function buildJ1SealAndScrews() {
+            const g = new THREE.Group();
+            // 丁腈橡胶黑色 O 型密封环
+            const torus = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.045, 16, 64), MAT.rubberSeal);
+            torus.rotation.x = Math.PI / 2;
+            g.add(torus);
+            // 内圈防尘油封唇环
+            const innerSeal = new THREE.Mesh(new THREE.TorusGeometry(0.76, 0.03, 12, 48), MAT.rubberSeal);
+            innerSeal.rotation.x = Math.PI / 2;
+            innerSeal.position.y = 0.04;
+            g.add(innerSeal);
+            // 12颗环形不锈钢紧固螺钉
+            g.add(createBoltCircle(0.84, 12, 0.08, 0.038, 0.12, MAT.chromeSteel));
+            return g;
+        }
+
+        // 7) 回转腰座壳体 (还原参考图005：白色圆润弯头主体 + 后上方深灰色斜切端盖)
+        function buildWaistTurret() {
+            const g = new THREE.Group();
+            // 下部连接圆筒
+            const lowerCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 0.95, 0.65, 48), MAT.whiteCast);
+            lowerCyl.position.y = -0.25;
+            g.add(lowerCyl);
+
+            // 上部偏心球面过渡肩部座
+            const shoulderSphere = new THREE.Mesh(new THREE.SphereGeometry(0.88, 36, 36), MAT.whiteCast);
+            shoulderSphere.position.set(0.05, 0.28, 0);
+            shoulderSphere.scale.set(1.05, 0.95, 0.92);
+            g.add(shoulderSphere);
+
+            // 右侧 J2 关节输出法兰颈口
+            const neckCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.78, 0.55, 36), MAT.whiteCast);
+            neckCyl.rotation.z = Math.PI / 2;
+            neckCyl.position.set(0.42, 0.30, 0);
+            g.add(neckCyl);
+
+            // 右侧黑色关节密封环 (参考图标志性黑环)
+            const blackCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.76, 0.76, 0.12, 36), MAT.blackAnodized);
+            blackCollar.rotation.z = Math.PI / 2;
+            blackCollar.position.set(0.68, 0.30, 0);
+            g.add(blackCollar);
+
+            // 左上方深灰色斜切端盖 (精准还原参考图腰座左侧深灰斜盖与凹槽)
+            const grayCap = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.82, 0.55, 36), MAT.darkGrayCap);
+            grayCap.rotation.z = -Math.PI / 3.2;
+            grayCap.position.set(-0.42, 0.46, 0);
+            g.add(grayCap);
+
+            // 端盖上的装饰凹槽环
+            const groove = new THREE.Mesh(new THREE.TorusGeometry(0.74, 0.025, 12, 36), MAT.blackAnodized);
+            groove.rotation.y = Math.PI / 2;
+            groove.rotation.x = Math.PI / 5.5;
+            groove.position.set(-0.52, 0.52, 0);
+            g.add(groove);
+
+            return g;
+        }
+
+        // 8) J2轴肩部关节模组 (横向插入的大扭矩谐波减速器 + 紫铜电机 + 深灰外盖)
+        function buildJ2JointModule() {
+            const g = new THREE.Group();
+            // 旋转使轴线沿 X 轴水平横向
+            const inner = new THREE.Group();
+            inner.rotation.z = Math.PI / 2;
+
+            // 谐波刚轮钢圈
+            const steelBody = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.68, 0.32, 36), MAT.chromeSteel);
+            steelBody.position.y = -0.15;
+            inner.add(steelBody);
+
+            // 内部定子铜线环
+            const copperRing = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.11, 16, 32), MAT.copperCoil);
+            copperRing.rotation.x = Math.PI / 2;
+            copperRing.position.y = 0.08;
+            inner.add(copperRing);
+
+            // 失电电磁抱闸黑盘
+            const brakeDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.64, 0.14, 36), MAT.blackAnodized);
+            brakeDisc.position.y = 0.24;
+            inner.add(brakeDisc);
+
+            // 外侧深灰色防护端盖
+            const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.68, 0.18, 36), MAT.darkGrayCap);
+            cap.position.y = 0.38;
+            inner.add(cap);
+
+            // 端面锁紧螺栓圈
+            inner.add(createBoltCircle(0.52, 8, -0.32, 0.035, 0.06, MAT.darkSteel));
+
+            g.add(inner);
+            return g;
+        }
+
+        // 9) 流线型大臂总成 (复刻参考图：带微弧度弯曲的亮白铸铝臂体 + 上下两端关节连接环)
+        function buildLowerArm() {
+            const g = new THREE.Group();
+
+            // 下端 J2 关节抱箍圆盘
+            const bottomHub = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.58, 36), MAT.whiteCast);
+            bottomHub.rotation.z = Math.PI / 2;
+            bottomHub.position.set(0, -1.35, 0);
+            g.add(bottomHub);
+
+            // 下端外侧深灰色圆端盖 (还原参考图右下角关节盖)
+            const bottomCap = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.71, 0.14, 36), MAT.darkGrayCap);
+            bottomCap.rotation.z = Math.PI / 2;
+            bottomCap.position.set(0.35, -1.35, 0);
+            g.add(bottomCap);
+
+            // 使用 CatmullRomCurve3 生成参考图标志性的微弧度弯曲大臂管体
+            const curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0, -1.15, 0),
+                new THREE.Vector3(0.16, -0.35, 0),
+                new THREE.Vector3(-0.12, 0.55, 0),
+                new THREE.Vector3(-0.48, 1.20, 0)
+            ]);
+            const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.52, 32, false);
+            const armTube = new THREE.Mesh(tubeGeo, MAT.whiteCast);
+            g.add(armTube);
+
+            // 上端 J3 肘部连接头
+            const topHub = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.56, 36), MAT.whiteCast);
+            topHub.rotation.z = Math.PI / 2;
+            topHub.position.set(-0.52, 1.25, 0);
+            g.add(topHub);
+
+            // 上端黑色关节装饰密封环 (还原参考图肘部竖向黑条)
+            const topBlackRing = new THREE.Mesh(new THREE.CylinderGeometry(0.60, 0.60, 0.12, 36), MAT.blackAnodized);
+            topBlackRing.rotation.z = Math.PI / 2;
+            topBlackRing.position.set(-0.80, 1.25, 0);
+            g.add(topBlackRing);
+
+            return g;
+        }
+
+        // 10) J3肘部关节驱动模组 (带深灰圆弧端盖、精密齿轮与伺服电机)
+        function buildJ3JointModule() {
+            const g = new THREE.Group();
+            const inner = new THREE.Group();
+            inner.rotation.z = Math.PI / 2;
+
+            // 谐波减速机钢壳
+            const gearHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.28, 32), MAT.chromeSteel);
+            gearHousing.position.y = -0.12;
+            inner.add(gearHousing);
+
+            // 铜绕组环
+            const coil = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.22, 32), MAT.copperCoil);
+            coil.position.y = 0.12;
+            inner.add(coil);
+
+            // 外部深灰色球面端盖 (还原参考图肘部左侧深灰色圆头)
+            const domeCap = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.55, 0.26, 32), MAT.darkGrayCap);
+            domeCap.position.y = 0.34;
+            inner.add(domeCap);
+
+            inner.add(createBoltCircle(0.42, 8, -0.27, 0.028, 0.05, MAT.darkSteel));
+            g.add(inner);
+            return g;
+        }
+
+        // 11) 小臂与J4回转轴总成 (还原参考图上部流线型弯头小臂)
+        function buildUpperArm() {
+            const g = new THREE.Group();
+
+            // J3 肘部承接座
+            const elbowBase = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.58, 0.52, 36), MAT.whiteCast);
+            elbowBase.rotation.z = Math.PI / 2;
+            elbowBase.position.set(0.20, -0.45, 0);
+            g.add(elbowBase);
+
+            // 流线型前臂弯曲过渡体
+            const foreCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0.20, -0.35, 0),
+                new THREE.Vector3(0.32, 0.18, 0),
+                new THREE.Vector3(-0.15, 0.42, 0),
+                new THREE.Vector3(-0.68, 0.42, 0)
+            ]);
+            const foreTube = new THREE.Mesh(new THREE.TubeGeometry(foreCurve, 28, 0.44, 28, false), MAT.whiteCast);
+            g.add(foreTube);
+
+            // J4 回转关节黑色分界环 (参考图上部倾斜黑环)
+            const j4Ring = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.035, 12, 36), MAT.blackAnodized);
+            j4Ring.rotation.y = Math.PI / 2;
+            j4Ring.rotation.x = -0.35;
+            j4Ring.position.set(0.24, 0.05, 0);
+            g.add(j4Ring);
+
+            // 后端深灰色装饰端盖
+            const rearCap = new THREE.Mesh(new THREE.SphereGeometry(0.43, 24, 24), MAT.darkGrayCap);
+            rearCap.scale.set(0.6, 0.9, 0.9);
+            rearCap.position.set(0.52, 0.22, 0);
+            g.add(rearCap);
+
+            return g;
+        }
+
+        // 12) J5腕部俯仰关节总成
+        function buildWristUnit() {
+            const g = new THREE.Group();
+            // 腕部主体外壳
+            const wristBody = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.38, 0.52, 32), MAT.whiteCast);
+            g.add(wristBody);
+            // 顶部深灰色端盖
+            const topCap = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.36, 0.16, 32), MAT.darkGrayCap);
+            topCap.position.y = 0.34;
+            g.add(topCap);
+            // 侧向 J5 转轴黑环
+            const sideRing = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.44, 24), MAT.blackAnodized);
+            sideRing.rotation.z = Math.PI / 2;
+            sideRing.position.y = -0.05;
+            g.add(sideRing);
+            return g;
+        }
+
+        // 13) J6末端ISO法兰与六维力矩传感器
+        function buildJ6Flange() {
+            const g = new THREE.Group();
+            // 六维力传感器黑色阳极氧化弹性体环
+            const ftSensor = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.14, 32), MAT.blackAnodized);
+            ftSensor.position.y = 0.10;
+            g.add(ftSensor);
+            // 传感器侧面航空插头
+            const sensorPlug = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.14, 12), MAT.brass);
+            sensorPlug.rotation.z = Math.PI / 2;
+            sensorPlug.position.set(0.36, 0.10, 0);
+            g.add(sensorPlug);
+
+            // ISO 9409 高光不锈钢法兰盘
+            const isoDisk = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.08, 32), MAT.chromeSteel);
+            isoDisk.position.y = -0.02;
+            g.add(isoDisk);
+
+            // 法兰盘端面螺栓与定位销
+            g.add(createBoltCircle(0.22, 6, -0.07, 0.025, 0.04, MAT.darkSteel));
+            const dowelPin = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.10, 12), MAT.chromeSteel);
+            dowelPin.position.set(0.22, -0.09, 0.08);
+            g.add(dowelPin);
+            return g;
+        }
+
+        // 14) 工业精密气动平行夹爪 (含气缸体、导轨滑块、双指齿纹夹爪、快插气管接头)
+        function buildGripper() {
+            const g = new THREE.Group();
+            // 顶部法兰过渡板
+            const adapter = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.07, 24), MAT.darkGrayCap);
+            adapter.position.y = 0.32;
+            g.add(adapter);
+
+            // 气动手指方缸主体
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.32, 0.34), MAT.blackAnodized);
+            body.position.y = 0.12;
+            g.add(body);
+
+            // 侧面蓝色快插气压接头 × 2
+            const fittingGeo = new THREE.CylinderGeometry(0.038, 0.038, 0.10, 16);
+            const fit1 = new THREE.Mesh(fittingGeo, MAT.bluePlastic);
+            fit1.rotation.x = Math.PI / 2;
+            fit1.position.set(-0.14, 0.16, 0.20);
+            const fit2 = fit1.clone();
+            fit2.position.x = 0.14;
+            const brass1 = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.08, 12), MAT.brass);
+            brass1.rotation.x = Math.PI / 2;
+            brass1.position.set(-0.14, 0.16, 0.18);
+            const brass2 = brass1.clone();
+            brass2.position.x = 0.14;
+            g.add(fit1, fit2, brass1, brass2);
+
+            // 底部精密直线导轨滑轨 (高光铬钢)
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.07, 0.16), MAT.chromeSteel);
+            rail.position.y = -0.07;
+            g.add(rail);
+
+            // 左右平行夹持手指 (带防滑齿纹细节)
+            [-0.17, 0.17].forEach((xPos, idx) => {
+                const fingerGroup = new THREE.Group();
+                fingerGroup.position.set(xPos, -0.26, 0);
+                // 滑块座
+                const slider = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.10, 0.22), MAT.darkGrayCap);
+                slider.position.y = 0.12;
+                // 夹指立柱
+                const finger = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.34, 0.16), MAT.chromeSteel);
+                // 内侧防滑锯齿垫块
+                const gripPad = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.18, 0.16), MAT.darkSteel);
+                gripPad.position.set(idx === 0 ? 0.04 : -0.04, -0.06, 0);
+                fingerGroup.add(slider, finger, gripPad);
+                g.add(fingerGroup);
+            });
+
+            return g;
+        }
+
+        // 将所有零件生成器映射
+        const PART_BUILDERS = {
+            base_plate: buildBasePlate,
+            anchor_bolts: buildAnchorBolts,
+            base_frame: buildBaseFrame,
+            servo_pcb: buildServoPCB,
+            j1_motor: buildJ1MotorAssembly,
+            j1_seal_ring: buildJ1SealAndScrews,
+            waist_turret: buildWaistTurret,
+            j2_joint: buildJ2JointModule,
+            lower_arm: buildLowerArm,
+            j3_joint: buildJ3JointModule,
+            upper_arm: buildUpperArm,
+            wrist_unit: buildWristUnit,
+            j6_flange: buildJ6Flange,
+            gripper: buildGripper
+        };
+
+        /*************************************************************************
+         * 6. 初始化 Three.js 场景、灯光、地面、零件组与轨迹引导线
+         *************************************************************************/
+        function initThreeScene() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x070b12);
+            scene.fog = new THREE.FogExp2(0x070b12, 0.022);
+
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(9.5, 8.2, 12.5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.15;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.target.set(0, 3.2, 0);
+            controls.maxPolarAngle = Math.PI / 2 + 0.15;
+            controls.minDistance = 2.5;
+            controls.maxDistance = 35;
+
+            // 多层次工作室工业布光 (主光 + 冷蓝轮廓光 + 暖金底补光)
+            const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x0f172a, 0.85);
+            scene.add(hemiLight);
+
+            const mainDirLight = new THREE.DirectionalLight(0xffffff, 1.35);
+            mainDirLight.position.set(12, 22, 14);
+            mainDirLight.castShadow = true;
+            mainDirLight.shadow.mapSize.width = 2048;
+            mainDirLight.shadow.mapSize.height = 2048;
+            mainDirLight.shadow.camera.near = 1;
+            mainDirLight.shadow.camera.far = 45;
+            const d = 12;
+            mainDirLight.shadow.camera.left = -d;
+            mainDirLight.shadow.camera.right = d;
+            mainDirLight.shadow.camera.top = d;
+            mainDirLight.shadow.camera.bottom = -d;
+            scene.add(mainDirLight);
+
+            const cyanRimLight = new THREE.DirectionalLight(0x00f0ff, 0.75);
+            cyanRimLight.position.set(-14, 10, -10);
+            scene.add(cyanRimLight);
+
+            const warmFillLight = new THREE.PointLight(0xf59e0b, 0.45, 25);
+            warmFillLight.position.set(6, 2, -8);
+            scene.add(warmFillLight);
+
+            // 工业全息参考地面网格 + 工程师防静电拆机垫
+            const gridHelper = new THREE.GridHelper(36, 36, 0x0284c7, 0x1e293b);
+            gridHelper.position.y = -3.8;
+            scene.add(gridHelper);
+
+            const matGeo = new THREE.PlaneGeometry(22, 11);
+            const matMesh = new THREE.Mesh(matGeo, new THREE.MeshStandardMaterial({
+                map: createWorkbenchMatTexture(),
+                roughness: 0.75,
+                metalness: 0.1
+            }));
+            matMesh.rotation.x = -Math.PI / 2;
+            matMesh.position.y = -3.78;
+            matMesh.receiveShadow = true;
+            workbenchGridMesh = matMesh;
+            scene.add(matMesh);
+
+            // 构建全部 14 个机械臂精密组件
+            const labelsContainer = document.getElementById('labels-container');
+            PARTS_DATA.forEach((part, index) => {
+                const group = PART_BUILDERS[part.id]();
+                group.userData = { partId: part.id, partData: part, index };
+
+                // 为每个子 Mesh 克隆独立材质引用以便支持单零件发光高亮与透视
+                group.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        child.material = child.material.clone();
+                        child.userData.originalEmissive = child.material.emissive ? child.material.emissive.clone() : new THREE.Color(0x000000);
+                        child.userData.partId = part.id;
+                        child.userData.isHousing = part.isHousing;
+                        partMeshes.push(child);
+                    }
+                });
+
+                partGroups[part.id] = group;
+                scene.add(group);
+
+                // 创建组装位置 -> 爆炸位置的蓝色虚线轨迹线
+                const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(...part.assembledPos),
+                    new THREE.Vector3(...part.explodedPos)
+                ]);
+                const lineMat = new THREE.LineDashedMaterial({
+                    color: 0x38bdf8,
+                    dashSize: 0.18,
+                    gapSize: 0.10,
+                    transparent: true,
+                    opacity: 0.55
+                });
+                const trailLine = new THREE.Line(lineGeo, lineMat);
+                trailLine.computeLineDistances();
+                trailLines[part.id] = trailLine;
+                scene.add(trailLine);
+
+                // 创建对应的中文悬浮引线标签 DOM
+                const labelEl = document.createElement('div');
+                labelEl.className = 'part-label';
+                labelEl.innerHTML = `<span class="code">${String(index + 1).padStart(2, '0')}</span><span>${part.name}</span>`;
+                labelEl.onclick = (e) => {
+                    e.stopPropagation();
+                    selectPart(part.id, true);
+                };
+                labelEl.onmouseenter = () => setHoverPart(part.id);
+                labelEl.onmouseleave = () => setHoverPart(null);
+                labelsContainer.appendChild(labelEl);
+                labelElements[part.id] = labelEl;
+            });
+
+            // 射线检测交互
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            let pointerDownPos = { x: 0, y: 0 };
+            renderer.domElement.addEventListener('pointerdown', (e) => {
+                pointerDownPos = { x: e.clientX, y: e.clientY };
+            });
+
+            renderer.domElement.addEventListener('pointerup', (e) => {
+                const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+                if (dist < 6) {
+                    onCanvasClick(e);
+                }
+            });
+
+            renderer.domElement.addEventListener('pointermove', onCanvasMove);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        /*************************************************************************
+         * 7. 爆炸位置插值、桌面平铺过渡与 2D/3D 引线标签实时投影
+         *************************************************************************/
+        function updatePartsTransform() {
+            PARTS_DATA.forEach(part => {
+                const group = partGroups[part.id];
+                if (!group) return;
+
+                // 计算立式组装与立式爆炸之间的线性插值位置
+                const ax = part.assembledPos[0] + (part.explodedPos[0] - part.assembledPos[0]) * explodeFactor;
+                const ay = part.assembledPos[1] + (part.explodedPos[1] - part.assembledPos[1]) * explodeFactor;
+                const az = part.assembledPos[2] + (part.explodedPos[2] - part.assembledPos[2]) * explodeFactor;
+
+                // 如果开启了“桌面陈列模式”，平滑过渡到防静电桌面坐标 (Y=-3.78为桌面基准)
+                const wx = part.workbenchPos[0];
+                const wy = -3.78 + part.workbenchPos[1];
+                const wz = part.workbenchPos[2];
+
+                group.position.set(
+                    ax * (1 - workbenchBlend) + wx * workbenchBlend,
+                    ay * (1 - workbenchBlend) + wy * workbenchBlend,
+                    az * (1 - workbenchBlend) + wz * workbenchBlend
+                );
+
+                // 更新拆解引导虚线端点
+                const line = trailLines[part.id];
+                if (line) {
+                    line.visible = showTrails && !isWorkbenchMode && explodeFactor > 0.03 && (!isIsolated || selectedPartId === part.id);
+                    const posAttr = line.geometry.attributes.position;
+                    posAttr.setXYZ(0, part.assembledPos[0], part.assembledPos[1], part.assembledPos[2]);
+                    posAttr.setXYZ(1, group.position.x, group.position.y, group.position.z);
+                    posAttr.needsUpdate = true;
+                    line.computeLineDistances();
+                }
+            });
+        }
+
+        // 实时绘制 SVG 引线与更新标签屏幕坐标
+        function updateCalloutLabels() {
+            const svg = document.getElementById('callout-svg');
+            if (!showLabels) {
+                svg.innerHTML = '';
+                return;
+            }
+
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            let svgPaths = '';
+
+            PARTS_DATA.forEach(part => {
+                const labelEl = labelElements[part.id];
+                const group = partGroups[part.id];
+
+                // 隔离模式下隐藏非选中零件标签
+                if (isIsolated && selectedPartId !== part.id) {
+                    labelEl.style.display = 'none';
+                    return;
+                }
+
+                // 1. 零件中心世界坐标
+                const partWorldPos = group.position.clone();
+
+                // 2. 标签锚点世界坐标 (随爆炸程度外扩，避免组装态标签重叠)
+                const spread = 0.45 + explodeFactor * 0.65;
+                const labelWorldPos = partWorldPos.clone().add(new THREE.Vector3(
+                    part.labelOffset[0] * spread,
+                    part.labelOffset[1] * spread + (isWorkbenchMode ? 1.1 : 0),
+                    part.labelOffset[2] * spread
+                ));
+
+                const partScreen = partWorldPos.clone().project(camera);
+                const labelScreen = labelWorldPos.clone().project(camera);
+
+                // 如果在相机背面则隐藏
+                if (partScreen.z > 1 || labelScreen.z > 1) {
+                    labelEl.style.display = 'none';
+                    return;
+                }
+
+                const px = (partScreen.x * 0.5 + 0.5) * width;
+                const py = (-(partScreen.y * 0.5) + 0.5) * height;
+                const lx = (labelScreen.x * 0.5 + 0.5) * width;
+                const ly = (-(labelScreen.y * 0.5) + 0.5) * height;
+
+                labelEl.style.display = 'flex';
+                labelEl.style.left = `${lx}px`;
+                labelEl.style.top = `${ly}px`;
+
+                const isSelected = selectedPartId === part.id;
+                const isHovered = hoveredPartId === part.id;
+                const strokeColor = isSelected ? '#00f0ff' : (isHovered ? '#fde047' : 'rgba(56, 189, 248, 0.55)');
+                const strokeWidth = (isSelected || isHovered) ? 2.0 : 1.1;
+
+                // 折线中间拐点
+                const midX = px + (lx - px) * 0.65;
+                const midY = ly;
+
+                svgPaths += `
+                    <polyline points="${px.toFixed(1)},${py.toFixed(1)} ${midX.toFixed(1)},${midY.toFixed(1)} ${lx.toFixed(1)},${ly.toFixed(1)}"
+                        fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
+                    <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${isSelected ? 4 : 2.5}" fill="${strokeColor}" />
+                `;
+            });
+
+            svg.innerHTML = svgPaths;
+        }
+
+        /*************************************************************************
+         * 8. 零件高亮（发蓝光）、点击拾取、详情卡片与 BOM 表格双向联动
+         *************************************************************************/
+        function refreshPartHighlights() {
+            PARTS_DATA.forEach(part => {
+                const group = partGroups[part.id];
+                const labelEl = labelElements[part.id];
+                const isSelected = (part.id === selectedPartId);
+                const isHovered = (part.id === hoveredPartId);
+
+                if (labelEl) {
+                    labelEl.classList.toggle('active', isSelected || isHovered);
+                }
+
+                // 控制隔离显示
+                group.visible = !isIsolated || isSelected;
+
+                group.traverse(child => {
+                    if (child.isMesh) {
+                        // 处理蓝光高亮效果 (选中发强蓝光，悬停发柔和青光)
+                        if (isSelected) {
+                            child.material.emissive.setHex(0x0088ff);
+                            child.material.emissiveIntensity = 0.65;
+                        } else if (isHovered) {
+                            child.material.emissive.setHex(0x00d0ff);
+                            child.material.emissiveIntensity = 0.35;
+                        } else {
+                            child.material.emissive.copy(child.userData.originalEmissive);
+                            child.material.emissiveIntensity = 1.0;
+                        }
+
+                        // 处理 X-Ray 外壳半透明透视
+                        if (isXRayMode && child.userData.isHousing && !isSelected) {
+                            child.material.transparent = true;
+                            child.material.opacity = 0.25;
+                            child.material.depthWrite = false;
+                        } else {
+                            child.material.transparent = false;
+                            child.material.opacity = 1.0;
+                            child.material.depthWrite = true;
+                        }
+                    }
+                });
+            });
+
+            // 同步高亮右侧 BOM 表格对应行
+            document.querySelectorAll('.bom-row').forEach(row => {
+                const isMatch = row.dataset.id === selectedPartId;
+                row.classList.toggle('bg-cyan-500/25', isMatch);
+                row.classList.toggle('border-l-2', isMatch);
+                row.classList.toggle('border-cyan-400', isMatch);
+            });
+        }
+
+        function selectPart(partId, shouldFocusCamera = false) {
+            selectedPartId = partId;
+            const part = PARTS_DATA.find(p => p.id === partId);
+            if (!part) return;
+
+            // 更新左侧工程详情卡片
+            const card = document.getElementById('detail-card');
+            card.classList.remove('-translate-x-[120%]');
+            document.getElementById('detail-code').textContent = part.code;
+            document.getElementById('detail-category').textContent = part.category;
+            document.getElementById('detail-name').textContent = part.fullName;
+            document.getElementById('detail-en').textContent = part.enName;
+            document.getElementById('detail-material').textContent = part.material;
+            document.getElementById('detail-weight').textContent = `${part.weight} × ${part.qty}`;
+            document.getElementById('detail-layer').textContent = part.layer;
+            document.getElementById('detail-torque').textContent = part.torque;
+            document.getElementById('detail-specs').textContent = part.specs;
+            document.getElementById('detail-maint').textContent = part.maint;
+
+            refreshPartHighlights();
+
+            // 滚动 BOM 表格使选中行可见
+            const activeRow = document.querySelector(`.bom-row[data-id="${partId}"]`);
+            if (activeRow) {
+                activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            if (shouldFocusCamera) {
+                focusSelectedPart();
+            }
+        }
+
+        function clearSelection() {
+            isIsolated = false;
+            document.getElementById('isolate-text').textContent = '单独隔离检视该零件';
+            selectedPartId = null;
+            document.getElementById('detail-card').classList.add('-translate-x-[120%]');
+            refreshPartHighlights();
+        }
+
+        function stepSelectPart(delta) {
+            const idx = PARTS_DATA.findIndex(p => p.id === selectedPartId);
+            const nextIdx = (idx + delta + PARTS_DATA.length) % PARTS_DATA.length;
+            selectPart(PARTS_DATA[nextIdx].id, false);
+        }
+
+        function setHoverPart(partId) {
+            if (hoveredPartId !== partId) {
+                hoveredPartId = partId;
+                refreshPartHighlights();
+            }
+        }
+
+        function onCanvasClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(partMeshes, false);
+            const validHit = intersects.find(hit => hit.object.parent && partGroups[hit.object.userData.partId]?.visible);
+            if (validHit) {
+                selectPart(validHit.object.userData.partId, false);
+            }
+        }
+
+        function onCanvasMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(partMeshes, false);
+            const validHit = intersects.find(hit => partGroups[hit.object.userData.partId]?.visible);
+            if (validHit) {
+                document.getElementById('canvas-container').style.cursor = 'pointer';
+                setHoverPart(validHit.object.userData.partId);
+            } else {
+                document.getElementById('canvas-container').style.cursor = 'grab';
+                setHoverPart(null);
+            }
+        }
+
+        /*************************************************************************
+         * 9. 相机平滑过渡、爆炸动画控制与工具栏交互函数
+         *************************************************************************/
+        let camTween = null;
+
+        function animateCameraTo(targetPos, targetLookAt) {
+            camTween = {
+                startPos: camera.position.clone(),
+                endPos: new THREE.Vector3(...targetPos),
+                startLook: controls.target.clone(),
+                endLook: new THREE.Vector3(...targetLookAt),
+                progress: 0
+            };
+        }
+
+        function focusSelectedPart() {
+            if (!selectedPartId || !partGroups[selectedPartId]) return;
+            const pos = partGroups[selectedPartId].position;
+            animateCameraTo(
+                [pos.x + 3.2, pos.y + 1.8, pos.z + 4.2],
+                [pos.x, pos.y, pos.z]
+            );
+        }
+
+        function setCameraPreset(preset) {
+            isIsolated = false;
+            document.getElementById('isolate-text').textContent = '单独隔离检视该零件';
+            refreshPartHighlights();
+
+            const centerY = isWorkbenchMode ? -2.8 : 3.2;
+            switch (preset) {
+                case 'iso':
+                    animateCameraTo([9.5, centerY + 5.0, 12.5], [0, centerY, 0]);
+                    break;
+                case 'front':
+                    animateCameraTo([0, centerY + 1.0, 15.5], [0, centerY, 0]);
+                    break;
+                case 'side':
+                    animateCameraTo([15.5, centerY + 1.0, 0], [0, centerY, 0]);
+                    break;
+                case 'top':
+                    animateCameraTo([0, 17.5, 0.01], [0, centerY, 0]);
+                    break;
+            }
+        }
+
+        function updateSliderUI(val) {
+            const slider = document.getElementById('explode-slider');
+            slider.value = val;
+            slider.style.background = `linear-gradient(90deg, #0ea5e9 0%, #00f0ff ${val}%, #334155 ${val}%)`;
+            document.getElementById('explode-percent').textContent = `${Math.round(val)}%`;
+        }
+
+        function onSliderChange(val) {
+            isAnimatingExplode = false;
+            updatePlayButtonUI();
+            if (isWorkbenchMode) {
+                toggleWorkbenchMode(false);
+            }
+            targetExplodeFactor = parseFloat(val) / 100;
+            explodeFactor = targetExplodeFactor;
+            updateSliderUI(val);
+        }
+
+        function quickSetExplode(val) {
+            isAnimatingExplode = false;
+            updatePlayButtonUI();
+            if (isWorkbenchMode) {
+                toggleWorkbenchMode(false);
+            }
+            targetExplodeFactor = val / 100;
+        }
+
+        function toggleExplodeAnimation() {
+            if (isWorkbenchMode) {
+                toggleWorkbenchMode(false);
+            }
+            isAnimatingExplode = !isAnimatingExplode;
+            if (isAnimatingExplode) {
+                if (explodeFactor >= 0.98) animDirection = -1;
+                else if (explodeFactor <= 0.02) animDirection = 1;
+            }
+            updatePlayButtonUI();
+        }
+
+        function updatePlayButtonUI() {
+            const icon = document.getElementById('play-icon');
+            const text = document.getElementById('play-text');
+            if (isAnimatingExplode) {
+                icon.className = 'fa-solid fa-pause';
+                text.textContent = '暂停拆解动画';
+            } else {
+                icon.className = 'fa-solid fa-play';
+                text.textContent = '播放组装/拆解动画';
+            }
+        }
+
+        // 切换工程师桌面陈列拆解模式 (Blender Flat-Lay 桌面俯视拆解图)
+        function toggleWorkbenchMode(forceState) {
+            isWorkbenchMode = typeof forceState === 'boolean' ? forceState : !isWorkbenchMode;
+            const btn = document.getElementById('btn-workbench');
+            if (isWorkbenchMode) {
+                isAnimatingExplode = false;
+                updatePlayButtonUI();
+                btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-cyan-500/30 border border-cyan-400 text-cyan-200 flex items-center gap-1.5 transition glow-active';
+                animateCameraTo([0, 7.5, 9.8], [0, -3.2, 0.5]);
+            } else {
+                btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 hover:bg-cyan-950 border border-slate-600/80 text-slate-200 flex items-center gap-1.5 transition';
+                animateCameraTo([9.5, 8.2, 12.5], [0, 3.2, 0]);
+            }
+        }
+
+        function toggleLabels() {
+            showLabels = !showLabels;
+            const btn = document.getElementById('btn-labels');
+            const container = document.getElementById('labels-container');
+            container.style.display = showLabels ? 'block' : 'none';
+            btn.classList.toggle('bg-cyan-600/30', showLabels);
+            btn.classList.toggle('border-cyan-400/70', showLabels);
+            if (!showLabels) document.getElementById('callout-svg').innerHTML = '';
+        }
+
+        function toggleTrailLines() {
+            showTrails = !showTrails;
+            const btn = document.getElementById('btn-trails');
+            btn.classList.toggle('bg-cyan-500/20', showTrails);
+            btn.classList.toggle('border-cyan-400/50', showTrails);
+            btn.classList.toggle('text-cyan-200', showTrails);
+        }
+
+        function toggleXRay() {
+            isXRayMode = !isXRayMode;
+            const btn = document.getElementById('btn-xray');
+            btn.classList.toggle('bg-cyan-500/20', isXRayMode);
+            btn.classList.toggle('border-cyan-400/50', isXRayMode);
+            btn.classList.toggle('text-cyan-200', isXRayMode);
+            refreshPartHighlights();
+        }
+
+        function toggleAutoRotate() {
+            controls.autoRotate = !controls.autoRotate;
+            controls.autoRotateSpeed = 1.6;
+            const btn = document.getElementById('btn-autorotate');
+            btn.classList.toggle('bg-cyan-500/20', controls.autoRotate);
+            btn.classList.toggle('border-cyan-400/50', controls.autoRotate);
+            btn.classList.toggle('text-cyan-200', controls.autoRotate);
+        }
+
+        function toggleIsolatePart() {
+            if (!selectedPartId) return;
+            isIsolated = !isIsolated;
+            document.getElementById('isolate-text').textContent = isIsolated ? '恢复显示全部零件' : '单独隔离检视该零件';
+            refreshPartHighlights();
+            if (isIsolated) focusSelectedPart();
+        }
+
+        function toggleBomPanel() {
+            const panel = document.getElementById('bom-panel');
+            panel.classList.toggle('translate-x-[110%]');
+        }
+
+        /*************************************************************************
+         * 10. BOM 物料清单表格渲染、搜索与分类过滤
+         *************************************************************************/
+        function renderBOMTable() {
+            const keyword = document.getElementById('bom-search').value.trim().toLowerCase();
+            const tbody = document.getElementById('bom-table-body');
+
+            const filtered = PARTS_DATA.filter(part => {
+                const matchCat = currentBomCategory === 'ALL' || part.category === currentBomCategory;
+                const matchKw = !keyword ||
+                    part.name.toLowerCase().includes(keyword) ||
+                    part.fullName.toLowerCase().includes(keyword) ||
+                    part.code.toLowerCase().includes(keyword) ||
+                    part.material.toLowerCase().includes(keyword);
+                return matchCat && matchKw;
+            });
+
+            document.getElementById('bom-count-badge').textContent = `${filtered.length} 项组件`;
+
+            tbody.innerHTML = filtered.map(part => {
+                const isSelected = part.id === selectedPartId;
+                return `
+                    <div data-id="${part.id}"
+                         onclick="selectPart('${part.id}', true)"
+                         onmouseenter="setHoverPart('${part.id}')"
+                         onmouseleave="setHoverPart(null)"
+                         class="bom-row grid grid-cols-12 items-center px-3 py-2.5 cursor-pointer hover:bg-cyan-500/15 transition ${isSelected ? 'bg-cyan-500/25 border-l-2 border-cyan-400' : ''}">
+                        <div class="col-span-3 mono text-[11px] font-semibold text-cyan-300">${part.code}</div>
+                        <div class="col-span-4 pr-1">
+                            <div class="font-medium text-slate-100 truncate">${part.name}</div>
+                            <div class="text-[10px] text-slate-400 truncate">${part.category}</div>
+                        </div>
+                        <div class="col-span-1 text-center mono text-slate-200 font-semibold">${part.qty}</div>
+                        <div class="col-span-4 text-right text-[11px] text-slate-300 truncate" title="${part.material}">${part.material.split(' ')[0]}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterBOM() {
+            renderBOMTable();
+        }
+
+        function clearBomSearch() {
+            document.getElementById('bom-search').value = '';
+            renderBOMTable();
+        }
+
+        function setBomCategory(cat) {
+            currentBomCategory = cat;
+            document.querySelectorAll('.bom-cat-btn').forEach(btn => {
+                const active = btn.dataset.cat === cat;
+                btn.className = active
+                    ? 'bom-cat-btn px-2.5 py-1 rounded-md bg-cyan-500/25 text-cyan-300 border border-cyan-400/50 font-medium shrink-0'
+                    : 'bom-cat-btn px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-transparent shrink-0';
+            });
+            renderBOMTable();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /*************************************************************************
+         * 11. 主渲染循环 (Animation Loop)
+         *************************************************************************/
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. 自动播放爆炸/组装动画步进
+            if (isAnimatingExplode) {
+                targetExplodeFactor += animDirection * 0.0045;
+                if (targetExplodeFactor >= 1.0) {
+                    targetExplodeFactor = 1.0;
+                    animDirection = -1;
+                } else if (targetExplodeFactor <= 0.0) {
+                    targetExplodeFactor = 0.0;
+                    animDirection = 1;
+                }
+                explodeFactor = targetExplodeFactor;
+                updateSliderUI(explodeFactor * 100);
+            } else {
+                // 平滑阻尼趋近目标爆炸值
+                explodeFactor += (targetExplodeFactor - explodeFactor) * 0.12;
+                if (Math.abs(targetExplodeFactor - explodeFactor) > 0.001) {
+                    updateSliderUI(explodeFactor * 100);
+                }
+            }
+
+            // 2. 桌面平铺陈列模式的平滑插值
+            const targetWb = isWorkbenchMode ? 1.0 : 0.0;
+            workbenchBlend += (targetWb - workbenchBlend) * 0.08;
+
+            // 3. 相机平滑过渡预设动画
+            if (camTween) {
+                camTween.progress += 0.05;
+                const t = 1 - Math.pow(1 - Math.min(camTween.progress, 1), 3);
+                camera.position.lerpVectors(camTween.startPos, camTween.endPos, t);
+                controls.target.lerpVectors(camTween.startLook, camTween.endLook, t);
+                if (camTween.progress >= 1) camTween = null;
+            }
+
+            // 4. 更新所有零件的 3D 空间坐标与引线标签
+            updatePartsTransform();
+            controls.update();
+            renderer.render(scene, camera);
+            updateCalloutLabels();
+        }
+
+        // 启动入口
+        window.onload = function () {
+            initMaterials();
+            initThreeScene();
+            renderBOMTable();
+            updateSliderUI(explodeFactor * 100);
+            selectPart('j1_motor', false);
+            animate();
+        };
+    </script>
+<!-- 返回主页面按钮（注入） -->
+<a href="exploded_index.html" style="position:fixed;top:16px;left:16px;z-index:9999;padding:8px 16px;background:rgba(13,20,33,0.88);border:1px solid rgba(56,189,248,0.45);border-radius:8px;color:#38bdf8;font-size:13px;font-family:sans-serif;text-decoration:none;backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.5);" onmouseover="this.style.background='rgba(14,116,144,0.9)'" onmouseout="this.style.background='rgba(13,20,33,0.88)'">← 返回拆解总览</a>
+</body>
+</html>
