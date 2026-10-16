@@ -50,6 +50,9 @@ export const handleVisionDefectDetect = async (req: any, res: any) => {
       });
 
       const rawContent = completion.choices?.[0]?.message?.content || "";
+      // 路由器会按候选配置改写 model 并重排降级，实际应答方未必是 DASHSCOPE_VISION_MODEL；
+      // 归属必须照实上报，否则界面上会把别家模型的输出标成 "DashScope qwen-vl-max"。
+      const usedModel = String(completion.model || DASHSCOPE_VISION_MODEL);
       let parsedResult: any = null;
       try {
         const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
@@ -60,15 +63,15 @@ export const handleVisionDefectDetect = async (req: any, res: any) => {
         addAuditLog(req, {
           actionType: "VISION_INSPECT",
           module: "AI视觉质检",
-          detail: `DashScope ${DASHSCOPE_VISION_MODEL} 完成图片质检: 检测到 [${parsedResult.defectType}]，评级: ${parsedResult.severity}`,
+          detail: `${usedModel} 完成图片质检: 检测到 [${parsedResult.defectType}]，评级: ${parsedResult.severity}`,
           status: "SUCCESS",
-          metadata: { model: DASHSCOPE_VISION_MODEL, defectType: parsedResult.defectType },
+          metadata: { model: usedModel, defectType: parsedResult.defectType },
         });
         return res.json({
           success: true,
-          defectResult: { ...parsedResult, modelEngine: `DashScope ${DASHSCOPE_VISION_MODEL}` },
+          defectResult: { ...parsedResult, modelEngine: usedModel },
           rawAnalysis: rawContent,
-          modelEngine: `DashScope ${DASHSCOPE_VISION_MODEL}`,
+          modelEngine: usedModel,
         });
       }
     } catch (dsErr: any) {
