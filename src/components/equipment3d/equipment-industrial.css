@@ -13,9 +13,19 @@
   background:
     radial-gradient(1200px 400px at 20% -10%, rgba(14, 165, 233, 0.10), transparent 60%),
     linear-gradient(180deg, #0b1220 0%, #0e1626 100%);
-  border: 1px solid #1e293b;
-  border-radius: 14px;
-  padding: 10px 12px;
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  padding: 0;
+}
+
+/* 大屏顶部“工业设备 · 数字孪生”标题栏：比大屏主体稍浅（#112240），带底部细边框 */
+.equipment-industrial-header {
+  background: #112240;
+  border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+  padding: 6px 12px;
+  min-height: 36px;
 }
 
 .equipment-industrial summary {
@@ -194,55 +204,16 @@
   text-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
 }
 
-/* 3. 顶部主标题栏与流动扫描线 */
-.hud-main-header {
-  position: relative;
-  background:
-    linear-gradient(90deg, rgba(34, 211, 238, 0.25) 0%, rgba(8, 15, 30, 0.72) 30%, rgba(8, 15, 30, 0.72) 70%, transparent 100%),
-    rgba(8, 15, 30, 0.72) !important;
-  border: 1px solid rgba(34, 211, 238, 0.35) !important;
+/* 3. 顶部半透明浮片（2026-10-16 延伸带已删，实心板降级为半透明浮片） */
+.hud-floating-chip {
+  background: rgba(8, 15, 30, 0.82);
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  border-radius: 10px;
   box-shadow:
-    0 0 16px rgba(34, 211, 238, 0.15),
-    inset 0 0 20px rgba(34, 211, 238, 0.06) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.hud-main-title {
-  text-shadow:
-    0 0 10px rgba(34, 211, 238, 0.85),
-    0 0 20px rgba(34, 211, 238, 0.45);
-}
-
-.hud-scanline-container {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: rgba(34, 211, 238, 0.15);
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.hud-scanline-beam {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 40%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent 0%, #22d3ee 50%, #67e8f9 80%, transparent 100%);
-  box-shadow: 0 0 8px #22d3ee;
-  animation: hud-scanline-flow 4s linear infinite;
-}
-
-@keyframes hud-scanline-flow {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(350%);
-  }
+    0 4px 16px rgba(2, 6, 23, 0.4),
+    inset 0 0 18px rgba(34, 211, 238, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* 4. 数据卡 hover / 激活态 */

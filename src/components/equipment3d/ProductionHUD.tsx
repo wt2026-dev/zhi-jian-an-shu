@@ -16,7 +16,6 @@ import {
   AlertTriangle,
   BarChart3,
   CalendarClock,
-  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -54,6 +53,7 @@ import {
 } from './factoryMetrics';
 import { roleOfWorkshop } from './factoryBuildingTypes';
 import { telemetryToStatus } from './statusMapping';
+import { ExplodedViewFrame } from './ExplodedViewFrame';
 import './equipment-industrial.css';
 
 /* ========================= 科技感角标组件 ========================= */
@@ -75,7 +75,7 @@ export const TechCornerMark: React.FC<{ className?: string }> = ({ className = '
 /* ========================= 类型 ========================= */
 
 
-type RightTab = 'overview' | 'params' | 'alarm' | 'logs' | 'permission' | 'deviceMgmt';
+type RightTab = 'overview' | 'params' | 'alarm' | 'logs' | 'permission' | 'deviceMgmt' | 'exploded';
 type LeftMenu =
   | 'devices'
   | 'plan'
@@ -87,9 +87,7 @@ type LeftMenu =
 
 export interface ProductionHUDProps {
   level: SceneLevel;
-  /** 当前下钻的厂房名（厂区层/车间层面包屑用） */
-  activeBuildingName?: string | null;
-  /** 点击面包屑返回上层 */
+  /** 切层（左栏分区/车间卡片点回车间层） */
   onLevelChange?: (level: SceneLevel) => void;
   /** 点击具体车间下钻 */
   onDrillBuilding?: (buildingId: string, name?: string) => void;
@@ -99,8 +97,6 @@ export interface ProductionHUDProps {
   workOrders: WorkOrder[];
   technicians?: Array<{ id?: string; name?: string; role?: string; title?: string; status?: string }>;
   onSelect: (id: string | null) => void;
-  /** 退出单设备聚焦 */
-  onExitIsolation?: () => void;
   fps?: number;
   /** 传送带动画开关（低配可关） */
   beltAnimation: boolean;
@@ -249,7 +245,6 @@ function RingGauge({ percent, label, color }: { percent: number | null; label: s
 
 export const ProductionHUD: React.FC<ProductionHUDProps> = ({
   level,
-  activeBuildingName,
   onLevelChange,
   onDrillBuilding,
   devices,
@@ -258,7 +253,6 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
   workOrders,
   technicians,
   onSelect,
-  onExitIsolation,
   fps,
   beltAnimation,
   onToggleBelt,
@@ -445,6 +439,14 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
   const workshopByName = (buildingName: string) =>
     workshopSummaries.find((w) => buildingName.includes(w.name)) ?? null;
 
+  /**
+   * 在建工程备注（去重）。来自 3D 引擎按真实备注带出的分区 constructionNote —— 进度就写在
+   * 备注里（如「二期智能仓储与管廊工程（进度 85%）」），所以这里不做任何百分比推算。
+   */
+  const constructionNotes = Array.from(
+    new Set(zones.map((z) => z.constructionNote).filter((n): n is string => !!n)),
+  );
+
   const RANK_METRIC_LABEL: Record<FactoryRankMetric, string> = {
     output: '工业产值（高→低）',
     failureRate: '设备故障率（低→高）',
@@ -456,6 +458,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
     { key: 'params', label: '参数' },
     { key: 'alarm', label: '告警' },
     { key: 'logs', label: '日志' },
+    { key: 'exploded', label: '拆解视图' },
     { key: 'permission', label: '权限' },
     { key: 'deviceMgmt', label: '设备管理' },
   ];
@@ -654,6 +657,12 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
       );
     }
 
+    if (tab === 'exploded') {
+      // 拆解视图：同源 iframe 加载 public/exploded/*.html（映射见 explodedViewFiles.ts）。
+      // 该设备没有对应拆解页时，组件内部自己渲染「该设备暂未生成拆解视图」。
+      return <ExplodedViewFrame deviceId={selected.id} deviceName={selected.name} />;
+    }
+
     // deviceMgmt
     return (
       <div className="p-3 space-y-1.5">
@@ -697,123 +706,53 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
 
   return (
     <div className="absolute inset-0 z-20 pointer-events-none select-none">
-      {/* ---------- 顶部主标题栏（科技感数字孪生大屏导航条） ----------
-          外层工具栏（设备数/故障数/可视化图层）与视口紧邻，上一版这一栏只留 8px，
-          两条栏视觉上粘成一条。下移 56px 后两栏之间有明确留白，
-          随之左右两栏面板整体下移到 110px 起（56 + 本栏 42 高 + 12 间距）。 */}
-      <div className="absolute top-14 left-3 right-3 pointer-events-auto flex items-center justify-between z-30 rounded-lg hud-main-header px-3 py-1.5 min-h-[42px]">
-        {/* 左侧：层级面包屑胶囊 */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-cyan-200">
-            <Factory className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="tracking-wide hidden sm:inline">
-              {level === 'factory' ? '厂区总览态势' : level === 'workshop' ? (activeBuildingName ?? '车间现场') : (selected?.name ?? '设备聚焦')}
-            </span>
-          </div>
+      {/* ---------- 顶部浮片（半透明数字孪生浮片） ----------
+          2026-10-16 起顶部只有一条实心 bar（工具栏），本层是浮在场景上的半透明浮片，
+          延伸带已删，不要再把它加回来。
+          左边一句「在哪一层」的模式说明（左片），右边「怎么看」
+          （纯净视界 + 天气/日期/时间/帧率，右片），两颗各自绝对定位在 top-5。 */}
+      {/* 左片（层级） */}
+      <div className="absolute top-5 left-3 z-30 pointer-events-auto rounded-lg hud-floating-chip px-2.5 py-1 flex items-center gap-1.5 min-h-[32px] text-[11px] font-mono font-bold text-cyan-200">
+        <Factory className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+        <span className="tracking-wide hidden sm:inline" data-testid="equipment3d-level-label">
+          {level === 'factory' ? '厂区总览态势' : level === 'workshop' ? '车间现场' : '单台设备聚焦'}
+        </span>
+      </div>
 
-          <div className="h-3 w-[1px] bg-cyan-500/30 mx-0.5" />
+      {/* 右片（读数） */}
+      <div className="absolute top-5 right-3 z-30 pointer-events-auto rounded-lg hud-floating-chip px-2 py-1 flex items-center gap-2 min-h-[32px] text-[11px] font-mono">
+        <button
+          onClick={() => setZenMode((prev) => !prev)}
+          className={`px-2 py-0.5 flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
+            zenMode
+              ? 'text-cyan-100 bg-cyan-500/20 rounded-md'
+              : 'text-slate-400 hover:text-white'
+          }`}
+          title={zenMode ? '恢复大屏仪表卡片' : '收起全部浮动卡片，纯享 3D 厂区漫游'}
+        >
+          {zenMode ? <Eye className="w-3.5 h-3.5 text-cyan-400" /> : <EyeOff className="w-3.5 h-3.5 text-slate-400" />}
+          <span>{zenMode ? '恢复面板' : '纯净视界'}</span>
+        </button>
 
-          {/* 面包屑：三级层级 */}
-          <div className="flex items-center gap-1 text-[10px] font-mono">
-            <button
-              className={`px-1.5 py-[2px] rounded transition-all ${
-                level === 'factory'
-                  ? 'border border-cyan-400/60 text-cyan-100 bg-cyan-500/25 font-semibold shadow-[0_0_8px_rgba(34,211,238,0.4)]'
-                  : 'border border-transparent text-slate-400 hover:text-cyan-200'
-              }`}
-              onClick={() => onLevelChange?.('factory')}
-            >
-              厂区总览
-            </button>
-            <span className="text-slate-600 text-[10px]">/</span>
-            <button
-              className={`px-1.5 py-[2px] rounded max-w-[120px] truncate transition-all ${
-                level === 'workshop'
-                  ? 'border border-cyan-400/60 text-cyan-100 bg-cyan-500/25 font-semibold shadow-[0_0_8px_rgba(34,211,238,0.4)]'
-                  : 'border border-transparent text-slate-400 hover:text-cyan-200'
-              }`}
-              onClick={() => onLevelChange?.('workshop')}
-            >
-              {activeBuildingName ?? '生产车间'}
-            </button>
-            {level === 'device' && (
-              <>
-                <span className="text-slate-600 text-[10px]">/</span>
-                <span className="px-1.5 py-[2px] rounded max-w-[120px] truncate border border-cyan-400/60 text-cyan-100 bg-cyan-500/25 font-semibold shadow-[0_0_8px_rgba(34,211,238,0.4)]">
-                  {selected?.name ?? '设备聚焦'}
-                </span>
-                {onExitIsolation && (
-                  <button
-                    className="ml-0.5 p-0.5 rounded border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-400/40 transition"
-                    title="退出聚焦"
-                    onClick={onExitIsolation}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* 中间：主标题"工业设备·数字孪生"与发光文字 */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none">
-          <div className="flex items-center gap-2">
-            <span className="h-[1px] w-4 sm:w-8 bg-gradient-to-r from-transparent to-cyan-400/80" />
-            <span className="text-xs sm:text-sm md:text-base font-extrabold tracking-widest text-cyan-100 hud-main-title">
-              工业设备 · 数字孪生
-            </span>
-            <span className="h-[1px] w-4 sm:w-8 bg-gradient-to-l from-transparent to-cyan-400/80" />
-          </div>
-          <span className="hidden md:inline text-[8px] font-mono tracking-[0.25em] text-cyan-400/70 -mt-0.5">
-            DIGITAL TWIN WORKSHOP HUD
+        {weatherText && <span className="hidden sm:inline text-cyan-200">{weatherText}</span>}
+        <span className="hidden sm:inline text-slate-400">{dateText}</span>
+        <span className="text-cyan-100 font-semibold">{timeText}</span>
+        {typeof fps === 'number' && (
+          <span className={`hidden md:inline ${fps >= 30 ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {fps.toFixed(0)} FPS
           </span>
-        </div>
-
-        {/* 右侧：纯净观景模式开关、环境时钟与性能 */}
-        <div className="flex items-center gap-2">
-          {/* 一键纯净全景模式开关 */}
-          <button
-            onClick={() => setZenMode((prev) => !prev)}
-            className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium flex items-center gap-1.5 transition-all shadow-sm ${
-              zenMode
-                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.35)]'
-                : 'bg-slate-950/80 border-cyan-500/30 text-slate-400 hover:text-white hover:border-cyan-400/50'
-            }`}
-            title={zenMode ? '恢复大屏仪表卡片' : '收起全部浮动卡片，纯享 3D 厂区漫游'}
-          >
-            {zenMode ? <Eye className="w-3.5 h-3.5 text-cyan-400" /> : <EyeOff className="w-3.5 h-3.5 text-slate-400" />}
-            <span>{zenMode ? '恢复面板' : '纯净视界'}</span>
-          </button>
-
-          {/* 时间与性能胶囊 */}
-          <div className="px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-slate-950/80 backdrop-blur-md flex items-center gap-2.5 text-[10px] font-mono text-cyan-200/80 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
-            {weatherText && <span className="hidden sm:inline text-cyan-200">{weatherText}</span>}
-            <span className="hidden sm:inline text-slate-400">{dateText}</span>
-            <span className="text-cyan-100 font-semibold">{timeText}</span>
-            {typeof fps === 'number' && (
-              <span className={`hidden md:inline ${fps >= 30 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {fps.toFixed(0)} FPS
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* 底部 1px 扫描线流动动效 */}
-        <div className="hud-scanline-container">
-          <div className="hud-scanline-beam" />
-        </div>
+        )}
       </div>
 
       {level === 'factory' ? (
-        /* ========================= L1 厂区总览态势大屏布局 ========================= */
+        /* ========================= L1 厂区大屏布局 ========================= */
         <>
           {/* 左侧：分区车间分布列表 + 园区基础设施 */}
           {!zenMode && (
             leftCollapsed ? (
               <button
                 onClick={() => setLeftCollapsed(false)}
-                className="absolute left-2.5 top-[110px] px-1.5 py-3 rounded-r-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
+                className="absolute left-2.5 top-[70px] px-1.5 py-3 rounded-r-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
                 title="展开车间分布"
               >
                 <Factory className="w-3.5 h-3.5" />
@@ -821,7 +760,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                 <ChevronRight className="w-3 h-3" />
               </button>
             ) : (
-              <div className="absolute left-2.5 top-[110px] flex flex-col gap-2 pointer-events-auto w-[240px] max-h-[calc(100%-184px)] z-20">
+              <div className="absolute left-2.5 top-[70px] flex flex-col gap-2 pointer-events-auto w-[240px] max-h-[calc(100%-134px)] z-20">
                 {/* 分区工厂分布列表（分区 → 该区厂房，点击分区选中 / 点击厂房下钻） */}
                 <div
                   className="rounded-lg hud-sci-fi-panel p-2.5 flex flex-col gap-2 min-h-0 overflow-hidden relative"
@@ -847,15 +786,19 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     </div>
                   </div>
 
-                  <div className="overflow-y-auto space-y-1.5 pr-0.5 min-h-0 max-h-[260px]">
+                  <div className="overflow-y-auto space-y-1 pr-0.5 min-h-0 max-h-[260px]">
                     {zones.length > 0
                       ? zones.map((z) => (
+                          /* 一个分区一块卡：首行 = 色块 + 名称 +（有异常才补的）⚠ + 设备/异常 + 排名徽章；
+                             下面挂该分区厂房（一行一厂房 + 「进入 ›」直接下钻）。
+                             2026-09-22 用户发来旧版截图「这样的效果」⇒ 厂房清单从"点中之后的
+                             右侧成绩卡"挪回左栏：左栏才是能一眼看到全部分区厂房的地方。 */
                           <div
                             key={z.id}
                             data-testid="factory-zone-row"
                             data-zone-id={z.id}
                             data-zone-rank={z.rank || ''}
-                            className={`p-2 rounded hud-data-card transition flex flex-col gap-1 cursor-pointer border ${
+                            className={`p-1.5 rounded hud-data-card transition flex flex-col gap-1 cursor-pointer border ${
                               activeZoneId === z.id
                                 ? 'border-cyan-400/70 shadow-[0_0_10px_rgba(34,211,238,0.35)]'
                                 : 'border-transparent'
@@ -863,7 +806,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                             onClick={() => onSelectZone?.(activeZoneId === z.id ? null : z.id)}
                           >
                             <div className="flex items-center justify-between gap-1">
-                              <div className="flex items-center gap-1.5 font-medium text-[11px] text-cyan-100 truncate">
+                              <div className="flex items-center gap-1.5 min-w-0 text-[11px] text-cyan-100">
                                 <span
                                   className="w-2 h-2 rounded-sm shrink-0"
                                   style={{ background: z.color, boxShadow: `0 0 6px ${z.color}` }}
@@ -873,68 +816,65 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                                   <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
                                 )}
                               </div>
-                              {z.rank > 0 && (
-                                <span
-                                  className={`text-[9px] font-mono font-bold px-1.5 py-[1px] rounded border shrink-0 ${
-                                    z.rank === 1
-                                      ? 'text-emerald-400 border-emerald-400/50 bg-emerald-500/15'
-                                      : 'text-cyan-200 border-cyan-400/40 bg-cyan-500/10'
-                                  }`}
-                                  title={`排名口径：${RANK_METRIC_LABEL[z.rankMetric]}`}
-                                >
-                                  #{z.rank}
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
-                              <span className="hud-tabular-nums">
-                                设备 {z.deviceCount} · 异常{' '}
-                                <strong
-                                  className={
-                                    z.abnormalCount > 0
-                                      ? 'text-rose-400 font-semibold hud-value-glow-rose'
-                                      : 'text-slate-400 font-normal'
-                                  }
-                                >
-                                  {z.abnormalCount}
-                                </strong>
-                              </span>
-                              <span className="hud-tabular-nums text-slate-400 truncate">
-                                {z.outputValue != null
-                                  ? `${formatWan(z.outputValue)} 万元`
-                                  : '产值未接入'}
-                              </span>
-                            </div>
-
-                            {/* 该分区下属厂房：点击直接下钻 */}
-                            <div className="mt-0.5 pt-1 border-t border-slate-200 space-y-0.5">
-                              {z.buildingNames.map((bn, bi) => {
-                                const bid = z.buildingIds[bi];
-                                const ws = workshopByName(bn);
-                                return (
-                                  <div
-                                    key={bid}
-                                    className="flex items-center justify-between text-[9px] text-slate-400 hover:text-cyan-200 transition"
+                              <div className="flex items-center gap-1.5 shrink-0 font-mono text-[10px] hud-tabular-nums">
+                                <span className="text-slate-400">
+                                  设备 {z.deviceCount} · 异常{' '}
+                                  <strong
+                                    className={
+                                      z.abnormalCount > 0
+                                        ? 'text-rose-400 font-semibold hud-value-glow-rose'
+                                        : 'text-slate-400 font-normal'
+                                    }
                                   >
-                                    <span className="truncate max-w-[128px]" title={bn}>
-                                      {bn}
-                                    </span>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (onDrillBuilding) onDrillBuilding(ws?.id ?? bid, ws?.name ?? bn);
-                                        else onLevelChange?.('workshop');
-                                      }}
-                                      className="px-1.5 py-[1px] rounded bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/40 text-[9px] flex items-center gap-0.5 transition shadow-[0_0_6px_rgba(34,211,238,0.2)] shrink-0"
-                                    >
-                                      进入
-                                      <ChevronRight className="w-2.5 h-2.5" />
-                                    </button>
-                                  </div>
-                                );
-                              })}
+                                    {z.abnormalCount}
+                                  </strong>
+                                </span>
+                                {z.rank > 0 && (
+                                  <span
+                                    className={`text-[9px] font-bold px-1.5 py-[1px] rounded border ${
+                                      z.rank === 1
+                                        ? 'text-emerald-400 border-emerald-400/50 bg-emerald-500/15'
+                                        : 'text-cyan-200 border-cyan-400/40 bg-cyan-500/10'
+                                    }`}
+                                    title={`排名口径：${RANK_METRIC_LABEL[z.rankMetric]}`}
+                                  >
+                                    #{z.rank}
+                                  </span>
+                                )}
+                              </div>
                             </div>
+
+                            {/* 该分区下属厂房：一行一厂房 +「进入 ›」直接下钻。
+                                bn 本身就是「N 号厂房・车间名」，别再拼一次车间名。 */}
+                            {z.buildingNames.length > 0 && (
+                              <div className="flex flex-col gap-0.5 pt-1 border-t border-cyan-500/15">
+                                {z.buildingNames.map((bn, bi) => {
+                                  const bid = z.buildingIds[bi];
+                                  const ws = workshopByName(bn);
+                                  return (
+                                    <div
+                                      key={bid}
+                                      className="flex items-center justify-between gap-1 text-[10px] text-slate-400"
+                                    >
+                                      <span className="truncate" title={bn}>
+                                        {bn}
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (onDrillBuilding) onDrillBuilding(ws?.id ?? bid, ws?.name ?? bn);
+                                          else onLevelChange?.('workshop');
+                                        }}
+                                        className="px-1.5 py-[1px] rounded bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/40 text-[9px] flex items-center gap-0.5 transition shadow-[0_0_6px_rgba(34,211,238,0.2)] shrink-0"
+                                      >
+                                        进入
+                                        <ChevronRight className="w-2.5 h-2.5" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         ))
                       : workshopSummaries.length === 0 ? (
@@ -944,62 +884,34 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                             <span className="text-[9px] text-slate-400">无数据时不做推算、不模拟</span>
                           </div>
                         ) : workshopSummaries.map((ws) => (
-                          <div key={ws.id} className="p-2 rounded hud-data-card transition flex flex-col gap-1">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 font-medium text-[11px] text-cyan-100 truncate">
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                    ws.status === 'warning'
-                                      ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
-                                      : 'bg-emerald-400 shadow-[0_0_8px_#10b981]'
-                                  }`}
-                                />
-                                <span className="truncate">{ws.name}</span>
-                              </div>
-                              <span className="text-[10px] font-mono font-bold text-slate-400 hud-tabular-nums">
-                                {ws.output}
-                                {ws.estimated && <span className="ml-0.5 text-[8px] text-amber-300/80">估</span>}
-                              </span>
+                          <div
+                            key={ws.id}
+                            className="p-1.5 rounded hud-data-card transition flex items-center justify-between gap-2 cursor-pointer"
+                            onClick={() => {
+                              if (onDrillBuilding) onDrillBuilding(ws.id, ws.name);
+                              else onLevelChange?.('workshop');
+                            }}
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0 text-[11px] text-cyan-100">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                  ws.status === 'warning'
+                                    ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
+                                    : 'bg-emerald-400 shadow-[0_0_8px_#10b981]'
+                                }`}
+                              />
+                              <span className="truncate">{ws.name}</span>
                             </div>
-
-                            <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
-                              <span className="hud-tabular-nums">设备 {ws.count} · 异常 <strong className={ws.abnormalCount > 0 ? 'text-rose-400 font-semibold hud-value-glow-rose' : 'text-slate-400 font-normal'}>{ws.abnormalCount}</strong></span>
-                              <button
-                                onClick={() => {
-                                  if (onDrillBuilding) onDrillBuilding(ws.id, ws.name);
-                                  else onLevelChange?.('workshop');
-                                }}
-                                className="px-1.5 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/40 text-[9px] flex items-center gap-0.5 transition shadow-[0_0_6px_rgba(34,211,238,0.2)]"
-                              >
-                                进入
-                                <ChevronRight className="w-2.5 h-2.5" />
-                              </button>
-                            </div>
+                            <span className="shrink-0 flex items-center gap-1.5 font-mono text-[10px] hud-tabular-nums">
+                              <span className="text-slate-400">{ws.count} 台</span>
+                              {ws.abnormalCount > 0 && (
+                                <span className="text-rose-400 font-semibold hud-value-glow-rose">
+                                  异常 {ws.abnormalCount}
+                                </span>
+                              )}
+                            </span>
                           </div>
                         ))}
-                  </div>
-                </div>
-
-                {/* 园区物流与工程动态 */}
-                <div
-                  className="rounded-lg hud-sci-fi-panel p-2 flex flex-col gap-1.5 shrink-0 text-[10px] relative"
-                >
-                  <TechCornerMark />
-                  <div className="flex items-center justify-between text-slate-400 font-mono text-[9px] pr-3">
-                    <span className="flex items-center gap-1 text-cyan-200 font-sans font-semibold">
-                      <span className="hud-title-bar-indicator" />
-                      <Truck className="w-3 h-3 text-cyan-400 ml-0.5" />
-                      <span className="hud-title-text">园区主干通道</span>
-                    </span>
-                    <span className="text-emerald-400 flex items-center gap-0.5 font-sans hud-value-glow-emerald">
-                      <CheckCircle2 className="w-2.5 h-2.5" /> 畅通
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-amber-200/90 pt-1 border-t border-slate-200 font-mono text-[9px]">
-                    <span className="flex items-center gap-1 font-sans">
-                      <HardHat className="w-3 h-3 text-amber-400" /> 二期智造车间
-                    </span>
-                    <span className="text-amber-400 font-bold hud-tabular-nums hud-value-glow-amber">进行中 68%</span>
                   </div>
                 </div>
               </div>
@@ -1011,7 +923,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
             rightCollapsed ? (
               <button
                 onClick={() => setRightCollapsed(false)}
-                className="absolute right-2.5 top-[110px] px-1.5 py-3 rounded-l-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
+                className="absolute right-2.5 top-[70px] px-1.5 py-3 rounded-l-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
                 title="展开指标看板"
               >
                 <TrendingUp className="w-3.5 h-3.5" />
@@ -1019,7 +931,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                 <ChevronLeft className="w-3 h-3" />
               </button>
             ) : (
-              <div className="absolute right-2.5 top-[110px] flex flex-col gap-2 pointer-events-auto w-[240px] max-h-[calc(100%-184px)] z-20">
+              <div className="absolute right-2.5 top-[70px] flex flex-col gap-2 pointer-events-auto w-[240px] max-h-[calc(100%-134px)] z-20">
                 <div
                   className="rounded-lg hud-sci-fi-panel p-2.5 flex flex-col gap-2 flex-1 overflow-y-auto relative"
                 >
@@ -1077,25 +989,25 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                       {/* 三项经营指标：产值 / 良品率 + 设备故障率（真实可算） */}
                       <div className="grid grid-cols-2 gap-1">
                         <div className="p-1.5 rounded bg-slate-950/70 border border-cyan-500/20">
-                          <div className="text-[8px] text-slate-400">工业产值</div>
-                          <div className="mt-0.5 text-[11px] font-mono font-bold hud-tabular-nums">
-                            <span className="text-emerald-400 hud-value-glow-emerald">
+                          <div className="text-[10px] text-slate-400">工业产值</div>
+                          <div className="mt-0.5 text-[12px] font-mono font-bold hud-tabular-nums">
+                            <span className="text-cyan-100 hud-value-glow">
                               {activeZone.outputValue != null
                                 ? formatWan(activeZone.outputValue)
                                 : '未接入'}
-                              <span className="text-[8px] font-normal text-slate-400 ml-0.5">
+                              <span className="text-[10px] font-normal text-slate-400 ml-0.5">
                                 {activeZone.outputValue != null ? '万元' : ''}
                               </span>
                               {activeZone.estimated && activeZone.outputValue != null && (
-                                <span className="text-[8px] font-normal text-amber-300/80 ml-0.5">估</span>
+                                <span className="text-[10px] font-normal text-amber-300/80 ml-0.5">估</span>
                               )}
                             </span>
                           </div>
                         </div>
                         <div className="p-1.5 rounded bg-slate-950/70 border border-cyan-500/20">
-                          <div className="text-[8px] text-slate-400">生产良品率</div>
-                          <div className="mt-0.5 text-[11px] font-mono font-bold hud-tabular-nums">
-                            <span className="text-emerald-400 hud-value-glow-emerald">
+                          <div className="text-[10px] text-slate-400">生产良品率</div>
+                          <div className="mt-0.5 text-[12px] font-mono font-bold hud-tabular-nums">
+                            <span className="text-cyan-100 hud-value-glow">
                               {activeZone.yieldRate != null
                                 ? `${activeZone.yieldRate.toFixed(1)}%${activeZone.estimated ? ' 估' : ''}`
                                 : '未接入'}
@@ -1103,76 +1015,55 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                           </div>
                         </div>
                         <div className="p-1.5 rounded bg-slate-950/70 border border-cyan-500/20">
-                          <div className="text-[8px] text-slate-400">设备故障率</div>
-                          <div className="mt-0.5 text-[11px] font-mono font-bold hud-tabular-nums">
+                          <div className="text-[10px] text-slate-400">设备故障率</div>
+                          <div className="mt-0.5 text-[12px] font-mono font-bold hud-tabular-nums">
                             <span
                               className={
                                 (activeZone.failureRate ?? 0) > 0
-                                  ? 'text-amber-400 hud-value-glow-amber'
-                                  : 'text-emerald-400 hud-value-glow-emerald'
+                                  ? 'text-rose-400 hud-value-glow-rose'
+                                  : 'text-cyan-100 hud-value-glow'
                               }
                             >
                               {(activeZone.failureRate ?? 0).toFixed(1)}%
                             </span>
                           </div>
-                          <div className="text-[7px] text-slate-400 font-mono">
-                            异常 {activeZone.abnormalCount} / 共 {activeZone.deviceCount} 台
-                          </div>
                         </div>
                         <div className="p-1.5 rounded bg-slate-950/70 border border-cyan-500/20">
-                          <div className="text-[8px] text-slate-400">设备健康分</div>
-                          <div className="mt-0.5 text-[11px] font-mono font-bold hud-tabular-nums">
+                          <div className="text-[10px] text-slate-400">设备健康分</div>
+                          <div className="mt-0.5 text-[12px] font-mono font-bold hud-tabular-nums">
                             <span className="text-cyan-200 hud-value-glow">
                               {activeZone.healthAvg == null ? '未接入' : activeZone.healthAvg.toFixed(1)}
                             </span>
                           </div>
-                          <div className="text-[7px] text-slate-400 font-mono">
+                          <div className="text-[10px] text-slate-400 font-mono">
                             未闭环工单 {activeZone.openWorkOrders ?? 0}
                           </div>
                         </div>
                       </div>
 
-                      {/* 在建工程所在地 */}
-                      <div className="flex items-center justify-between text-[9px] pt-1 border-t border-slate-200">
-                        <span className="flex items-center gap-1 text-amber-200/90">
-                          <HardHat className="w-3 h-3 text-amber-400" />
-                          在建工程
-                        </span>
-                        <span className="text-amber-400/90 font-mono">
-                          {activeZone.constructionNote ?? '园区空闲地块 · 二期扩建'}
-                        </span>
-                      </div>
-
-                      {/* 该分区下属厂房清单 */}
-                      <div className="flex flex-col gap-0.5 pt-1 border-t border-slate-200">
-                        <div className="text-[8px] text-slate-400">
-                          层级区域 · {activeZone.buildingNames.length} 个厂房
+                      {/* 在建工程所在地：没有真实备注就不占一行（曾经的 ?? 写死地名已删） */}
+                      {activeZone.constructionNote && (
+                        <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-200">
+                          <span className="flex items-center gap-1 text-amber-200/90">
+                            <HardHat className="w-3 h-3 text-amber-400" />
+                            在建工程
+                          </span>
+                          <span className="text-amber-400/90 font-mono truncate max-w-[132px]">
+                            {activeZone.constructionNote}
+                          </span>
                         </div>
-                        {activeZone.buildingNames.map((bn, bi) => {
-                          const bid = activeZone.buildingIds[bi];
-                          const ws = workshopByName(bn);
-                          return (
-                            <button
-                              key={bid}
-                              onClick={() => {
-                                if (onDrillBuilding) onDrillBuilding(ws?.id ?? bid, ws?.name ?? bn);
-                                else onLevelChange?.('workshop');
-                              }}
-                              className="text-left text-[9px] text-cyan-200/90 hover:text-white truncate px-1 py-[1px] rounded hover:bg-cyan-500/15 transition"
-                              title={`下钻进入 ${bn}`}
-                            >
-                              › {bn}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      )}
+
+                      {/* 厂房清单不再在这里列：2026-09-22 已挪回左栏分区卡（每个分区一行一厂房 +
+                          「进入 ›」），左栏能一眼看全，这里再列一遍就是同一个清单说两遍。
+                          本卡只留选中分区的成绩读数。 */}
                     </div>
                   )}
 
                   {/* 排名口径切换 */}
                   {zones.length > 0 && (
                     <div className="flex items-center gap-1 flex-wrap">
-                      <span className="text-[8px] text-slate-400 shrink-0">排名口径</span>
+                      <span className="text-[10px] text-slate-400 shrink-0">排名口径</span>
                       {(['output', 'failureRate', 'health'] as FactoryRankMetric[]).map((m) => (
                         <button
                           key={m}
@@ -1197,101 +1088,104 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     </div>
                   )}
 
-                  {/* 异常数与运行率双列汇总 */}
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div className="p-2 rounded hud-data-card">
-                      <div className="text-[9px] text-slate-400">运行异常数</div>
-                      <div className="mt-0.5 flex items-baseline gap-1">
-                        <span
-                          className={`text-lg font-mono font-bold hud-tabular-nums ${
-                            faultDevices.length > 0 ? 'text-rose-400 hud-value-glow-rose' : 'text-emerald-400 hud-value-glow-emerald'
-                          }`}
-                        >
-                          {faultDevices.length}
-                        </span>
-                        <span className="text-[9px] text-slate-400">项</span>
-                      </div>
-                    </div>
-                    <div className="p-2 rounded hud-data-card">
-                      <div className="text-[9px] text-slate-400">生产良品率</div>
-                      <div className="mt-0.5 flex items-baseline gap-1">
-                        <span className="text-xs font-mono font-bold text-emerald-400 hud-tabular-nums hud-value-glow-emerald">
-                          {activeZone?.yieldRate != null
-                            ? `${activeZone.yieldRate.toFixed(1)}%${activeZone.estimated ? ' 估' : ''}`
-                            : '未接入'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 设备综合运行率 */}
+                  {/* 运行异常：全大屏唯一的异常计数大字。
+                      之前同一个数在三处出现（这里 + 底部类别卡标题 + 左栏各行），
+                      现在左栏只在该区有异常时补一句「异常 N」，底部那格只讲类别占比；
+                      良率也不再在这里重复一次 —— 它属于分区成绩卡。 */}
                   <div className="p-2 rounded hud-data-card">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] text-slate-400">设备运行率</span>
-                      <span className="text-xs font-mono font-bold text-cyan-200 hud-tabular-nums hud-value-glow">{runningRate.toFixed(1)}%</span>
-                    </div>
-                    <div className="w-full bg-slate-900/80 h-1.5 rounded-full mt-1.5 overflow-hidden border border-cyan-500/20">
-                      <div
-                        className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]"
-                        style={{ width: `${runningRate}%` }}
-                      />
+                    <div className="text-[10px] text-slate-400">运行异常</div>
+                    <div className="mt-0.5 flex items-baseline gap-1">
+                      <span
+                        className={`text-lg font-mono font-bold hud-tabular-nums ${
+                          faultDevices.length > 0 ? 'text-rose-400 hud-value-glow-rose' : 'text-emerald-400 hud-value-glow-emerald'
+                        }`}
+                      >
+                        {faultDevices.length}
+                      </span>
+                      <span className="text-[10px] text-slate-400">台</span>
                     </div>
                   </div>
 
-                  {/* 产能预测趋势 Sparkline */}
-                  <div className="p-2 rounded hud-data-card flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] text-slate-400">7日产能走势</span>
-                      <span className="text-[8px] font-mono text-cyan-300 font-semibold">日均 1,420 件</span>
-                    </div>
-                    <svg viewBox="0 0 240 38" className="w-full h-[34px]" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.45" />
-                          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M 0 32 L 38 28 L 76 30 L 114 22 L 152 18 L 190 12 L 238 4"
-                        fill="none"
-                        stroke="#22d3ee"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        style={{ filter: 'drop-shadow(0 0 4px rgba(34,211,238,0.6))' }}
-                      />
-                      <path
-                        d="M 0 32 L 38 28 L 76 30 L 114 22 L 152 18 L 190 12 L 238 4 L 238 38 L 0 38 Z"
-                        fill="url(#areaGrad)"
-                      />
-                      <circle cx="238" cy="4" r="2.5" fill="#67e8f9" style={{ filter: 'drop-shadow(0 0 4px #22d3ee)' }} />
-                    </svg>
-                  </div>
+                  {/* 设备综合运行率挪到底部「各车间设备可动率」的标题行：
+                      全局率和分车间柱状图本来就是同一件事的两个粒度，拆成两栏反而要读两遍。
+                      同栏原有的「7 日产能走势」整块删除 —— 折线点位与日均件数都是字面量，
+                      没有任何排产数据源（假数守卫见 tests/factory-metrics-honesty.test.ts）。 */}
 
                   {/* 现场工单态势 */}
                   <div className="p-2 rounded hud-data-card flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-[9px] text-slate-400">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
                       <span>工单流转态势</span>
                       <span className="font-mono text-cyan-200 hud-tabular-nums hud-value-glow">共 {workOrders.length} 单</span>
                     </div>
                     <div className="grid grid-cols-3 gap-1 text-center font-mono">
                       <div className="p-1 rounded bg-slate-950/70 border border-cyan-500/20">
-                        <div className="text-[8px] text-slate-400">待处理</div>
-                        <div className="text-[10px] font-bold text-amber-400 hud-tabular-nums hud-value-glow-amber">{openWorkOrders.length}</div>
+                        <div className="text-[10px] text-slate-400">待处理</div>
+                        <div className="text-[11px] font-bold text-amber-400 hud-tabular-nums hud-value-glow-amber">{openWorkOrders.length}</div>
                       </div>
                       <div className="p-1 rounded bg-slate-950/70 border border-cyan-500/20">
-                        <div className="text-[8px] text-slate-400">检修中</div>
-                        <div className="text-[10px] font-bold text-sky-600 hud-tabular-nums hud-value-glow">
+                        <div className="text-[10px] text-slate-400">检修中</div>
+                        <div className="text-[11px] font-bold text-cyan-200 hud-tabular-nums hud-value-glow">
                           {devices.filter((d) => d.status === 'overhauling').length}
                         </div>
                       </div>
                       <div className="p-1 rounded bg-slate-950/70 border border-cyan-500/20">
-                        <div className="text-[8px] text-slate-400">已结案</div>
-                        <div className="text-[10px] font-bold text-emerald-400 hud-tabular-nums hud-value-glow-emerald">
+                        <div className="text-[10px] text-slate-400">已结案</div>
+                        <div className="text-[11px] font-bold text-slate-200 hud-tabular-nums">
                           {workOrders.filter((w) => w.status === 'completed').length}
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* 园区物流与工程动态（2026-09-22 按旧版截图恢复）。
+                    ⚠️ 旧版这张卡是写死的通道状态 + 工程进度百分比（假数守卫里就钉着那条串），
+                    已按数据纪律换掉：在建工程直接取分区的 constructionNote
+                    （真实备注，进度就写在备注里）。
+                    「园区通道通行」那半张卡**没有真实数据源**——库里只有巡检单的 route 字段，
+                    没有道路 / 物流 / 闸机的通行状态，所以不编，显式落「未接入」。 */}
+                <div className="rounded-lg hud-sci-fi-panel p-2 flex flex-col gap-1.5 shrink-0 text-[10px] relative">
+                  <TechCornerMark />
+                  <div className="flex items-center justify-between text-slate-300 font-mono text-[9px] pr-3">
+                    <span className="flex items-center gap-1 text-cyan-300 font-sans font-semibold">
+                      <span className="hud-title-bar-indicator" />
+                      <Truck className="w-3 h-3 text-cyan-400 ml-0.5" />
+                      <span className="hud-title-text">园区物流与工程动态</span>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-slate-400 font-mono text-[9px]">
+                    <span className="flex items-center gap-1 font-sans">
+                      <Truck className="w-3 h-3 text-slate-500" />
+                      园区通道通行
+                    </span>
+                    <span className="text-slate-500">未接入</span>
+                  </div>
+
+                  {constructionNotes.length > 0 ? (
+                    constructionNotes.slice(0, 2).map((note) => (
+                      <div
+                        key={note}
+                        className="flex items-start justify-between gap-1 text-amber-200/90 pt-1 border-t border-cyan-500/15 font-mono text-[9px]"
+                      >
+                        <span className="flex items-center gap-1 font-sans shrink-0">
+                          <HardHat className="w-3 h-3 text-amber-400" />
+                          在建工程
+                        </span>
+                        <span className="text-amber-300/90 text-right truncate" title={note}>
+                          {note}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-center justify-between text-slate-500 pt-1 border-t border-cyan-500/15 text-[9px]">
+                      <span className="flex items-center gap-1 font-sans">
+                        <HardHat className="w-3 h-3 text-slate-500" />
+                        在建工程
+                      </span>
+                      <span>未接入</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -1303,10 +1197,10 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
               <button
                 onClick={() => setBottomCollapsed(false)}
                 className="absolute bottom-2.5 left-1/2 -translate-x-1/2 px-3.5 py-1.5 rounded-full hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
-                title="展开工序产出与交付达成表盘"
+                title="展开产出与交付表盘"
               >
                 <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="hud-title-text font-bold">工序达成与交付表盘</span>
+                <span className="hud-title-text font-bold">产出与交付</span>
                 <ChevronUp className="w-3.5 h-3.5 text-cyan-400" />
               </button>
             ) : (
@@ -1315,20 +1209,26 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     兜住最矮的那块，最高的「交付与检修达成」（环形表盘 48px + 标签）决定实际
                     行高，因此三块视觉上严格等高，而不会像写死固定高那样把表盘标签裁掉。 */}
                 <div className="flex flex-wrap items-stretch justify-center gap-4 relative">
-                  {/* 1. 各工序实时达成（工序完成率卡片） */}
+                  {/* 1. 各工序实时达成（工序完成率卡片）
+                         综合可动率写进标题行：全局一个数 + 分车间柱状图，同一件事的两种粒度。 */}
                   <div className="rounded-xl hud-sci-fi-panel px-3 py-2 flex flex-col gap-1 relative min-w-[210px] min-h-[90px]">
                     <TechCornerMark />
-                    <div className="text-[9px] font-bold text-cyan-200 flex items-center gap-1 pr-4">
-                      <span className="hud-title-bar-indicator" />
-                      <BarChart3 className="w-3 h-3 text-cyan-400 ml-0.5" />
-                      <span className="hud-title-text">各车间设备可动率</span>
+                    <div className="text-[10px] font-bold text-cyan-200 flex items-center justify-between gap-2 pr-4">
+                      <span className="flex items-center gap-1">
+                        <span className="hud-title-bar-indicator" />
+                        <BarChart3 className="w-3 h-3 text-cyan-400 ml-0.5" />
+                        <span className="hud-title-text">各车间设备可动率</span>
+                      </span>
+                      <span className="font-mono font-bold text-cyan-200 hud-tabular-nums hud-value-glow">
+                        综合 {runningRate.toFixed(1)}%
+                      </span>
                     </div>
                     {/* 列高 = 数值 12 + 间距 4 + 柱 24 + 间距 4 + 名称 12 ≈ 56px；
                         上一版容器只有 h-10(40px)，数值与名称两行文字挤在柱子上沿。 */}
-                    <div className="flex items-end justify-between gap-2.5 h-[56px] pt-1 font-mono text-[9px] text-slate-400">
+                    <div className="flex items-end justify-between gap-2.5 h-[56px] pt-1 font-mono text-[10px] text-slate-400">
                       {workshopUptime.map((proc) => (
                         <div key={proc.name} className="flex flex-col items-center gap-1 group min-w-0">
-                          <span className="text-[9px] hud-tabular-nums text-slate-300 whitespace-nowrap">
+                          <span className="text-[10px] hud-tabular-nums text-slate-300 whitespace-nowrap">
                             {proc.rate.toFixed(1)}%
                           </span>
                           <div className="w-3 bg-slate-900/80 rounded-t h-6 relative flex items-end border-b border-cyan-500/30">
@@ -1337,7 +1237,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                               style={{ height: `${(proc.rate / 100) * 24}px` }}
                             />
                           </div>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[40px]">{proc.name}</span>
+                          <span className="text-[10px] text-slate-400 truncate max-w-[46px]">{proc.name}</span>
                         </div>
                       ))}
                     </div>
@@ -1358,23 +1258,17 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     </div>
                   </div>
 
-                  {/* 3. 不良品异常根因分布卡片（数字字号与另两块卡片统一为 9px） */}
+                  {/* 3. 异常台数按类别构成（只讲构成，那一个大数在右栏，这里不再重复） */}
                   <div className="rounded-xl hud-sci-fi-panel px-3 py-2 flex flex-col gap-1 relative min-w-[150px] min-h-[90px]">
                     <TechCornerMark />
-                    <div className="text-[9px] font-bold text-cyan-200 flex items-center justify-between pr-4">
-                      <span className="flex items-center gap-1">
-                        <span className="hud-title-bar-indicator" />
-                        <PieChart className="w-3 h-3 text-cyan-400 ml-0.5" />
-                        <span className="hud-title-text">异常台数构成</span>
-                      </span>
-                      <span className="text-[8px] font-mono text-cyan-400/70">按设备类别</span>
+                    <div className="text-[10px] font-bold text-cyan-200 flex items-center gap-1 pr-4">
+                      <span className="hud-title-bar-indicator" />
+                      <PieChart className="w-3 h-3 text-cyan-400 ml-0.5" />
+                      <span className="hud-title-text">异常类别构成</span>
                     </div>
-                    <div className="space-y-1 text-[9px] font-mono pt-1">
+                    <div className="space-y-1 text-[10px] font-mono pt-1">
                       {abnormalByCategory.length === 0 ? (
-                        <div className="flex justify-between items-center gap-2 text-slate-300">
-                          <span>当前台账</span>
-                          <span className="text-emerald-400 whitespace-nowrap">无异常台</span>
-                        </div>
+                        <div className="text-emerald-400">无异常台</div>
                       ) : (
                         abnormalByCategory.map((c) => (
                           <div key={c.name} className="flex justify-between items-center gap-2 text-slate-300 min-w-0">
@@ -1410,7 +1304,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
               {level === 'device' && deviceMenuCollapsed ? (
                 <button
                   onClick={() => setDeviceMenuCollapsed(false)}
-                  className="absolute left-2.5 top-[110px] px-1.5 py-3 rounded-r-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
+                  className="absolute left-2.5 top-[70px] px-1.5 py-3 rounded-r-lg hud-sci-fi-panel text-[10px] text-cyan-200 hover:text-white flex flex-col items-center gap-1.5 pointer-events-auto transition shadow-lg z-20"
                   title="展开功能菜单与设备列表"
                 >
                   <ListTree className="w-3.5 h-3.5" />
@@ -1418,7 +1312,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                   <ChevronRight className="w-3 h-3" />
                 </button>
               ) : (
-              <div className="absolute left-2.5 top-[110px] bottom-3 flex flex-col gap-1.5 pointer-events-auto">
+              <div className="absolute left-2.5 top-[70px] bottom-3 flex flex-col gap-1.5 pointer-events-auto">
                 <div
                   className="rounded-lg hud-sci-fi-panel p-1.5 w-[108px] relative"
                 >
@@ -1492,7 +1386,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
               )}
 
               {/* ---------- 右侧标签页 ---------- */}
-              <div className="absolute right-2.5 top-[110px] bottom-3 flex flex-col gap-1.5 pointer-events-auto w-[252px]">
+              <div className="absolute right-2.5 top-[70px] bottom-3 flex flex-col gap-1.5 pointer-events-auto w-[252px]">
                 <div
                   className="rounded-lg hud-sci-fi-panel overflow-hidden flex flex-col min-h-0 relative flex-1"
                 >
@@ -1502,7 +1396,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                       <button
                         key={t.key}
                         onClick={() => setTab(t.key)}
-                        className={`flex-1 py-1.5 text-[10px] transition ${
+                        className={`flex-1 py-1.5 text-[9px] whitespace-nowrap transition ${
                           tab === t.key
                             ? 'text-cyan-100 font-bold bg-cyan-500/25 border-b-2 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.25)]'
                             : 'text-slate-400 hover:text-cyan-200'
@@ -1547,13 +1441,6 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
             </div>
           )}
 
-          {/* 左下角装饰：扫描线品牌条 */}
-          <div className="absolute bottom-2 left-[124px] pointer-events-none hidden xl:block">
-            <div className="flex items-center gap-1.5 text-[9px] font-mono text-cyan-200/70 hud-value-glow">
-              <BarChart3 className="w-3 h-3 text-cyan-400" />
-              DIGITAL TWIN · 实时联动
-            </div>
-          </div>
         </>
       )}
     </div>
