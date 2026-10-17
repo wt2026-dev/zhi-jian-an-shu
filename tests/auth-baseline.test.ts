@@ -121,18 +121,31 @@ describe("全局鉴权基线：关键接口 RBAC 收口", () => {
     const auditRes = await request(app).get("/api/v1/audit-logs").set("Authorization", `Bearer ${techToken}`);
     expect(auditRes.status).toBe(403);
 
-    // ⚠️ 这条正向断言必须显式放宽响应缓冲上限。
-    // /api/download-zip 会把整个 public/ 流式打成 zip，而 public/ 现在 ≈245MB
-    //（150MB 的 VRM/GLB + 95MB 的上传视频，全是已压缩二进制，zlib 几乎压不动）。
-    // superagent 默认上限 200MB（node_modules/superagent/lib/node/index.js:
-    //   `let responseBytesLeft = this._maxResponseSize || 200000000`），
-    // 超限即抛 ETOOLARGE("Maximum response size reached") ——
-    // 那是**测试端的缓冲上限**，与被测的 RBAC 收口无关，却会让这条用例假红。
-    // 放宽后断言回到它真正要验证的东西：技师 403 / admin 200。
-    const zipAdmin = await request(app)
-      .get("/api/download-zip")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .maxResponseSize(600 * 1024 * 1024);
+    // ⚠️ 正向断言**不要真把 zip 拉完**。
+    // /api/download-zip 会把整个 public/ 流式打包，public/ 现在 ≈245MB
+    //（150MB 的 VRM/GLB + 95MB 上传视频，全是已压缩二进制），而且 handler 用的是
+    // `zlib: { level: 9 }` —— 对已压缩数据再压到 9 级，几乎不减小体积、却要跑满 CPU。
+    // 实测：完整下载 ≈19.5s；跑全量时并发争抢会偶发失败并触发 `retry: 1`
+    //（一次全量里这条报了 `53846ms (retry x1)`），于是"1150 全绿"里混进一条 flaky。
+    // 本条用例要验的是**RBAC 收口**（技师 403 / admin 200），与包体多大无关 ⇒
+    // 关掉响应缓冲，拿到响应头就销毁流：status 与 content-disposition 都已到手。
+    const zipAdmin = await new Promise<any>((resolve, reject) => {
+      let settled = false;
+      const req = request(app)
+        .get("/api/download-zip")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .buffer(false);
+      req.on("response", (res: any) => {
+        settled = true;
+        resolve(res);
+        res.destroy(); // 只要头部，不消费 245MB 包体
+      });
+      req.on("error", (err: any) => {
+        // 主动 destroy 之后 superagent 会再抛一次 aborted/ECONNRESET，此时已 resolve，忽略
+        if (!settled) reject(err);
+      });
+      req.end();
+    });
     expect(zipAdmin.status).toBe(200);
     // 顺带确认拿到的确实是 zip 附件（而非某个被拦下来的 JSON 错误体）
     expect(String(zipAdmin.headers["content-disposition"] || "")).toContain(".zip");
