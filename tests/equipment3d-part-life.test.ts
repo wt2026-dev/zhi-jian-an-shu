@@ -267,7 +267,7 @@ describe('零件寿命预警 · 源码契约', () => {
     expect(read('src/api/index.ts')).toContain('getPartLifeDiagnostics');
   });
 
-  it('9 份拆解页都有页面原生 setLifeAlert + 黄/暗红两档 + BOM 行 CSS（3D 颜色由页面自己渲染）', () => {
+  it('10 份拆解页都有页面原生 setLifeAlert + 黄/暗红两档 + BOM 行 CSS（3D 颜色由页面自己渲染）', () => {
     for (const file of Object.values(EXPLODED_VIEW_FILES)) {
       const src = read(`public/exploded/${file}`);
       expect(src, `${file} 缺 setLifeAlert 入口`).toContain('function setLifeAlert');

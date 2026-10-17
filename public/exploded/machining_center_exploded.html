@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>9# 龙门加工中心（五轴联动）- 3D爆炸分解视图</title>
+    <style>
+        :root {
+            --bg-dark: #0b0f17;
+            --panel-bg: rgba(16, 23, 36, 0.88);
+            --border-color: rgba(56, 189, 248, 0.22);
+            --accent: #0ea5e9;
+            --accent-hover: #38bdf8;
+            --accent-glow: rgba(14, 165, 233, 0.35);
+            --text-main: #f1f5f9;
+            --text-sub: #94a3b8;
+            --warning: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 1. 顶部标题栏 + 工具栏 */
+        .top-header {
+            height: 58px;
+            background: linear-gradient(90deg, rgba(12, 19, 31, 0.96) 0%, rgba(20, 32, 52, 0.92) 50%, rgba(12, 19, 31, 0.96) 100%);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 20;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .brand-area {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+
+        .title-main {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            background: linear-gradient(90deg, #ffffff, #7dd3fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .title-tag {
+            font-size: 12px;
+            padding: 2px 8px;
+            background: rgba(14, 165, 233, 0.15);
+            border: 1px solid rgba(14, 165, 233, 0.4);
+            color: #38bdf8;
+            border-radius: 4px;
+        }
+
+        .top-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tool-btn {
+            background: rgba(30, 41, 59, 0.75);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            color: var(--text-main);
+            padding: 7px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .tool-btn:hover {
+            border-color: var(--accent-hover);
+            background: rgba(14, 165, 233, 0.15);
+        }
+
+        .tool-btn.active {
+            background: rgba(14, 165, 233, 0.25);
+            border-color: var(--accent);
+            color: #38bdf8;
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        /* 2. 主体内容区 */
+        .main-workspace {
+            flex: 1;
+            position: relative;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            background: radial-gradient(circle at 42% 52%, #1e293b 0%, #090d16 75%);
+            overflow: hidden;
+        }
+
+        /* 左上角视图引导提示 */
+        .viewport-hud {
+            position: absolute;
+            top: 18px;
+            left: 20px;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 10;
+        }
+
+        .hud-badge {
+            background: rgba(15, 23, 42, 0.72);
+            backdrop-filter: blur(6px);
+            border-left: 3px solid var(--accent);
+            padding: 6px 12px;
+            font-size: 12px;
+            color: var(--text-sub);
+            border-radius: 0 4px 4px 0;
+        }
+
+        .hud-badge strong {
+            color: var(--text-main);
+        }
+
+        /* 3D 浮动零件标注标签 */
+        #labels-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 8;
+        }
+
+        .part-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            background: rgba(11, 18, 31, 0.88);
+            border: 1px solid rgba(56, 189, 248, 0.45);
+            color: #e2e8f0;
+            padding: 3px 9px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, transform 0.15s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+        }
+
+        .part-label::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 6px 5px 0;
+            border-style: solid;
+            border-color: rgba(56, 189, 248, 0.55) transparent;
+        }
+
+        .part-label:hover, .part-label.selected {
+            background: rgba(14, 165, 233, 0.92);
+            color: #fff;
+            border-color: #fff;
+            transform: translate(-50%, -108%) scale(1.06);
+            z-index: 15;
+        }
+
+        .part-label .code {
+            color: #38bdf8;
+            font-weight: 700;
+            margin-right: 4px;
+        }
+
+        .part-label:hover .code, .part-label.selected .code {
+            color: #fde047;
+        }
+
+        /* 3. 右侧侧边栏：零件详情卡片 + BOM物料清单表格 */
+        .right-sidebar {
+            width: 390px;
+            height: 100%;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 15;
+            transition: margin-right 0.3s ease;
+        }
+
+        .right-sidebar.collapsed {
+            margin-right: -390px;
+        }
+
+        .panel-section {
+            padding: 16px 18px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 2px;
+            display: inline-block;
+        }
+
+        /* 零件详情卡片 */
+        .detail-card {
+            background: rgba(15, 23, 42, 0.75);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .detail-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed rgba(148, 163, 184, 0.2);
+        }
+
+        .detail-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .detail-pos {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            color: #fbbf24;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 12px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .detail-label {
+            color: var(--text-sub);
+            font-size: 11px;
+        }
+
+        .detail-val {
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .detail-desc {
+            font-size: 12px;
+            color: #cbd5e1;
+            line-height: 1.5;
+            background: rgba(30, 41, 59, 0.5);
+            padding: 8px 10px;
+            border-radius: 4px;
+            border-left: 2px solid #38bdf8;
+        }
+
+        /* BOM 表格区（可独立滚动） */
+        .bom-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 16px 18px;
+        }
+
+        .bom-table-wrap {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(56, 189, 248, 0.35) rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 6px;
+            background: rgba(11, 17, 29, 0.65);
+        }
+
+        .bom-table-wrap::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .bom-table-wrap::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        .bom-table-wrap::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.35);
+            border-radius: 3px;
+        }
+
+        table.bom-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            text-align: left;
+        }
+
+        table.bom-table thead {
+            position: sticky;
+            top: 0;
+            background: #131f33;
+            z-index: 2;
+            box-shadow: 0 1px 0 rgba(56, 189, 248, 0.25);
+        }
+
+        table.bom-table th {
+            padding: 10px 10px;
+            color: #94a3b8;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        table.bom-table td {
+            padding: 9px 10px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+            color: #e2e8f0;
+        }
+
+        table.bom-table tbody tr {
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        table.bom-table tbody tr:hover {
+            background: rgba(14, 165, 233, 0.12);
+        }
+
+        table.bom-table tbody tr.active-row {
+            background: rgba(14, 165, 233, 0.26);
+            border-left: 3px solid var(--warning);
+        }
+
+        /* 故障红色脉冲（拆解视图 ↔ 故障定位联动）：宿主经 setFaultHighlight 加 .fault-alert */
+        tr[data-part-id].fault-alert td {
+            animation: faultRowPulse 1.8s ease-in-out infinite !important;
+            box-shadow: inset 3px 0 0 0 rgba(239, 68, 68, 0.85);
+        }
+        @keyframes faultRowPulse {
+            0%, 100% { background-color: rgba(239, 68, 68, 0.06); }
+            50% { background-color: rgba(239, 68, 68, 0.22); }
+        }
+        /* 零件寿命预警（拆解视图 × 零件寿命联动）：BOM 行黄/红呼吸提示 */
+        tr[data-part-id].life-warn td {
+            animation: lifeRowWarn 2.2s ease-in-out infinite !important;
+            box-shadow: inset 3px 0 0 0 rgba(234, 179, 8, 0.85);
+        }
+        tr[data-part-id].life-replace td {
+            animation: lifeRowReplace 2.2s ease-in-out infinite !important;
+            box-shadow: inset 3px 0 0 0 rgba(220, 38, 38, 0.9);
+        }
+        @keyframes lifeRowWarn {
+            0%, 100% { background-color: rgba(234, 179, 8, 0.08); }
+            50% { background-color: rgba(234, 179, 8, 0.24); }
+        }
+        @keyframes lifeRowReplace {
+            0%, 100% { background-color: rgba(220, 38, 38, 0.08); }
+            50% { background-color: rgba(220, 38, 38, 0.26); }
+        }
+
+        .pos-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            background: rgba(56, 189, 248, 0.14);
+            color: #38bdf8;
+            border-radius: 3px;
+            font-family: monospace;
+            font-weight: 600;
+        }
+
+        /* 4. 底部标准控制栏 */
+        .bottom-control-bar {
+            height: 64px;
+            background: linear-gradient(180deg, rgba(15, 23, 38, 0.94) 0%, rgba(10, 15, 25, 0.98) 100%);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            padding: 0 28px;
+            z-index: 20;
+        }
+
+        .ctrl-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ctrl-btn {
+            background: rgba(30, 41, 59, 0.85);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .ctrl-btn:hover {
+            border-color: var(--accent-hover);
+            color: #fff;
+            background: rgba(14, 165, 233, 0.18);
+        }
+
+        .ctrl-btn.primary {
+            background: linear-gradient(135deg, #0284c7, #0ea5e9);
+            border-color: #38bdf8;
+            color: #fff;
+            box-shadow: 0 0 14px rgba(14, 165, 233, 0.35);
+        }
+
+        .ctrl-btn.primary:hover {
+            background: linear-gradient(135deg, #0369a1, #0284c7);
+        }
+
+        .ctrl-btn.active {
+            background: rgba(14, 165, 233, 0.25);
+            border-color: #38bdf8;
+            color: #38bdf8;
+        }
+
+        /* 拆解滑块 */
+        .slider-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.75);
+            padding: 7px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .slider-label {
+            font-size: 12px;
+            color: var(--text-sub);
+        }
+
+        input[type="range"].explode-slider {
+            -webkit-appearance: none;
+            width: 190px;
+            height: 6px;
+            background: #1e293b;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"].explode-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #fff;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+        }
+
+        .slider-val {
+            font-size: 13px;
+            font-weight: 700;
+            color: #38bdf8;
+            min-width: 40px;
+            text-align: right;
+            font-family: monospace;
+        }
+
+        .preset-group {
+            display: flex;
+            gap: 6px;
+        }
+
+        .preset-btn {
+            padding: 7px 12px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. 顶部：标题栏 + 工具栏 -->
+    <header class="top-header">
+        <div class="brand-area">
+            <span class="status-dot"></span>
+            <h1 class="title-main">9# 龙门加工中心（五轴联动数控龙门铣床）</h1>
+            <span class="title-tag">3D 爆炸分解数字孪生视图</span>
+        </div>
+        <div class="top-toolbar">
+            <button id="btn-toggle-labels" class="tool-btn active">
+                <span>🏷️ 零件标注</span>
+            </button>
+            <button id="btn-toggle-lines" class="tool-btn active">
+                <span>📐 爆炸引线</span>
+            </button>
+            <button id="btn-reset-cam" class="tool-btn">
+                <span>🎯 复位视角</span>
+            </button>
+            <button id="btn-toggle-bom" class="tool-btn active">
+                <span>📋 BOM清单</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 2. 中间工作台与右侧面板 -->
+    <div class="main-workspace">
+        <!-- 中间：黑色圆形工作台3D视图 -->
+        <div id="canvas-container">
+            <div class="viewport-hud">
+                <div class="hud-badge"><strong>设备编号：</strong>MC-GM5X-009（五轴联动龙门加工中心）</div>
+                <div class="hud-badge"><strong>交互操作：</strong>左键旋转 | 右键平移 | 滚轮缩放 | 点击零件或BOM行高亮检视</div>
+            </div>
+            <div id="labels-layer"></div>
+        </div>
+
+        <!-- 3. 右侧：零件详情卡片 + BOM物料清单表格 -->
+        <aside id="right-sidebar" class="right-sidebar">
+            <!-- 零件详情卡片 -->
+            <div class="panel-section">
+                <div class="section-header">
+                    <span class="section-title">零件详情卡片</span>
+                    <span id="detail-status" style="font-size:11px; color:#94a3b8;">已选中部件</span>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-top">
+                        <span class="detail-name" id="card-name">五轴联动万能铣头</span>
+                        <span class="detail-pos" id="card-code">POS-07</span>
+                    </div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">规格型号</span>
+                            <span class="detail-val" id="card-spec">HSK-A63 / A/C双摆头 24000rpm</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">材质/工艺</span>
+                            <span class="detail-val" id="card-mat">合金钢渗碳淬火 + 精密陶瓷轴承</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">单机数量</span>
+                            <span class="detail-val" id="card-qty">1 套</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">部件重量</span>
+                            <span class="detail-val" id="card-weight">420 kg</span>
+                        </div>
+                    </div>
+                    <div class="detail-desc" id="card-desc">
+                        核心五轴加工执行单元，具备A轴（±110°）与C轴（±360°）连续回转分度能力，内置大功率电主轴与刀具内冷通道。
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOM 物料清单表格 -->
+            <div class="bom-section">
+                <div class="section-header">
+                    <span class="section-title">BOM 物料清单 (12项核心总成)</span>
+                </div>
+                <div class="bom-table-wrap overflow-y-auto min-h-0">
+                    <table class="bom-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 58px;">位号</th>
+                                <th>零件名称</th>
+                                <th>规格型号</th>
+                                <th style="width: 46px; text-align:center;">数量</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bom-tbody">
+                            <!-- 动态生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 4. 底部：标准控制栏 -->
+    <footer class="bottom-control-bar">
+        <div class="ctrl-group">
+            <button id="btn-play-explode" class="ctrl-btn primary">
+                <span id="play-icon">▶</span>
+                <span id="play-text">播放拆解动画</span>
+            </button>
+        </div>
+
+        <div class="slider-box">
+            <span class="slider-label">拆解程度</span>
+            <input type="range" id="explode-slider" class="explode-slider" min="0" max="100" value="0">
+            <span id="explode-val" class="slider-val">0%</span>
+        </div>
+
+        <div class="preset-group">
+            <button class="ctrl-btn preset-btn active" data-val="0">0% 完全组装</button>
+            <button class="ctrl-btn preset-btn" data-val="45">45% 半拆解</button>
+            <button class="ctrl-btn preset-btn" data-val="100">100% 完全散开</button>
+        </div>
+
+        <div class="ctrl-group">
+            <button id="btn-auto-rotate" class="ctrl-btn">
+                <span>🔄 环绕展示</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- 引入 Three.js 与 OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. 9# 龙门加工中心 BOM 数据定义（严格对应上传截图结构）
+        // ==========================================
+        const MACHINING_PARTS = [
+            {
+                id: "POS-01",
+                code: "POS-01",
+                name: "重型铸铁床身底座",
+                spec: "HT300 4200×2400×550mm",
+                material: "HT300高强度孕育铸铁",
+                qty: "1 件",
+                weight: "8,600 kg",
+                desc: "龙门加工中心基础承载底座，内部采用米字形加强筋结构，经过二次人工时效消除内应力，配备重型水平调整垫铁。"
+            },
+            {
+                id: "POS-02",
+                code: "POS-02",
+                name: "X轴重载滚柱直线导轨副",
+                spec: "INA RUE65-E-L 4000mm",
+                material: "GCr15轴承钢高频淬火",
+                qty: "2 组",
+                weight: "310 kg",
+                desc: "安装于床身底座上表面的高刚性滚柱导轨与精密滚珠丝杠驱动组件，承载工作台实现X轴高精度往复进给。"
+            },
+            {
+                id: "POS-03",
+                code: "POS-03",
+                name: "精密T型槽工作台",
+                spec: "2500×1600mm (7槽 22H7)",
+                material: "HT300 表面高频淬火研磨",
+                qty: "1 件",
+                weight: "2,450 kg",
+                desc: "用于装夹大型模具或航空结构件的精密工作台面，纵向加工有7条标准T型槽与排屑导流槽。"
+            },
+            {
+                id: "POS-04",
+                code: "POS-04",
+                name: "龙门双立柱框架",
+                spec: "箱型双立柱 跨距1900mm",
+                material: "HT300 蜂巢式筋板铸造",
+                qty: "1 套",
+                weight: "4,800 kg",
+                desc: "蓝白涂装的高刚性对称双立柱结构，与床身刚性锁紧，提供Z向与Y向切削抗振支撑。"
+            },
+            {
+                id: "POS-05",
+                code: "POS-05",
+                name: "龙门横梁与Y轴导轨总成",
+                spec: "阶梯式横梁 L=2650mm",
+                material: "HT300 + 三线轨支撑",
+                qty: "1 套",
+                weight: "2,150 kg",
+                desc: "横跨于左右龙门立柱之上的重型阶梯横梁，正面布置三根重载滚柱导轨以克服主轴箱悬伸倾覆力矩。"
+            },
+            {
+                id: "POS-06",
+                code: "POS-06",
+                name: "Y/Z轴十字滑鞍与滑枕总成",
+                spec: "方滑枕 □420×420mm 行程900",
+                material: "球墨铸铁 QT600-3",
+                qty: "1 套",
+                weight: "1,180 kg",
+                desc: "沿横梁Y向移动的溜板及内部垂直Z向升降的精密方滑枕，配备双液压平衡缸补偿自重。"
+            },
+            {
+                id: "POS-07",
+                code: "POS-07",
+                name: "五轴联动万能铣头",
+                spec: "HSK-A63 / A/C双摆头 24000rpm",
+                material: "合金钢渗碳淬火 + 陶瓷轴承",
+                qty: "1 套",
+                weight: "420 kg",
+                desc: "核心五轴加工执行单元，具备A轴（±110°）与C轴（±360°）连续回转分度能力，内置大功率电主轴与刀具内冷通道。"
+            },
+            {
+                id: "POS-08",
+                code: "POS-08",
+                name: "Y轴横梁伺服驱动电机总成",
+                spec: "SIEMENS 1FT7 28Nm + 行星减速机",
+                material: "航空铝壳体 / 稀土永磁",
+                qty: "1 套",
+                weight: "85 kg",
+                desc: "安装于龙门横梁左侧端部的Y轴进给伺服驱动单元，配置高分辨率绝对值编码器与高压拖链管线。"
+            },
+            {
+                id: "POS-09",
+                code: "POS-09",
+                name: "后置液压冷切与电气控制柜",
+                spec: "IP54 双百叶散热电气柜",
+                material: "2.5mm冷轧钢板 工业蓝涂装",
+                qty: "1 套",
+                weight: "960 kg",
+                desc: "位于龙门架左侧后方的深蓝色电气与主轴油冷机柜，侧面设有双层铝合金散热百叶窗，内置驱动器与PLC模块。"
+            },
+            {
+                id: "POS-10",
+                code: "POS-10",
+                name: "左侧移动式透明视窗防护门",
+                spec: "折弯钣金舱门 + 防爆夹胶视窗",
+                material: "SPCC冷轧板喷塑 + 12mm聚碳酸酯",
+                qty: "1 件",
+                weight: "340 kg",
+                desc: "白色涂装的左半高刚性全封闭防护舱门，正侧两面镶嵌大尺寸深色防爆观察窗，底部带精密导向滚轮支架。"
+            },
+            {
+                id: "POS-11",
+                code: "POS-11",
+                name: "右侧移动式透明视窗防护门",
+                spec: "折弯钣金舱门 + 防爆夹胶视窗",
+                material: "SPCC冷轧板喷塑 + 12mm聚碳酸酯",
+                qty: "1 件",
+                weight: "340 kg",
+                desc: "白色涂装的右半高刚性全封闭防护舱门，有效阻隔高速五轴铣削飞溅切屑与冷却液雾气，配备安全电磁门锁。"
+            },
+            {
+                id: "POS-12",
+                code: "POS-12",
+                name: "悬臂式CNC数控操作台",
+                spec: "SIEMENS SINUMERIK ONE 22寸屏",
+                material: "压铸铝操作箱 + 旋转悬臂支座",
+                qty: "1 套",
+                weight: "145 kg",
+                desc: "独立右置旋转支臂支撑的蓝白数控操作站，集成液晶触控屏、机床MCP操作面板、手轮及主轴电缆护套管。"
+            }
+        ];
+
+        // 拆解位移向量独立存放（不放进 MACHINING_PARTS —— 服务端解析器会在 Node 环境执行数组字面量，不能含 THREE 引用）
+        const PART_EXPLODE_VECS = {
+            'POS-01': new THREE.Vector3(0, -1.6, 0),
+            'POS-02': new THREE.Vector3(0, -0.7, 0),
+            'POS-03': new THREE.Vector3(0, 0.9, 1.3),
+            'POS-04': new THREE.Vector3(0, 0.5, -1.5),
+            'POS-05': new THREE.Vector3(0, 2.3, -0.6),
+            'POS-06': new THREE.Vector3(0, 2.9, 0.9),
+            'POS-07': new THREE.Vector3(0, 1.8, 2.5),
+            'POS-08': new THREE.Vector3(-2.8, 2.2, -0.4),
+            'POS-09': new THREE.Vector3(-2.6, 0.3, -2.0),
+            'POS-10': new THREE.Vector3(-2.5, 0.2, 2.3),
+            'POS-11': new THREE.Vector3(1.8, 0.2, 2.6),
+            'POS-12': new THREE.Vector3(3.1, 0.5, 1.4)
+        };
+
+        // ==========================================
+        // 2. 初始化 Three.js 场景、相机、渲染器与灯光
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const labelsLayer = document.getElementById('labels-layer');
+
+        const scene = new THREE.Scene();
+
+        const camera = new THREE.PerspectiveCamera(38, container.clientWidth / container.clientHeight, 0.1, 200);
+        camera.position.set(8.5, 6.2, 9.8);
+
+        const renderer = new THREE.WebGLRenderer({ preserveDrawingBuffer: true, antialias: true, alpha: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.target.set(0, 1.3, 0);
+        controls.maxPolarAngle = Math.PI / 2 + 0.08;
+        controls.minDistance = 4;
+        controls.maxDistance = 26;
+
+        // 工业级写实多光源布光
+        const ambientLight = new THREE.AmbientLight(0xdbeafe, 0.65);
+        scene.add(ambientLight);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.55);
+        hemiLight.position.set(0, 15, 0);
+        scene.add(hemiLight);
+
+        const mainDirLight = new THREE.DirectionalLight(0xffffff, 1.25);
+        mainDirLight.position.set(10, 16, 12);
+        mainDirLight.castShadow = true;
+        mainDirLight.shadow.mapSize.width = 2048;
+        mainDirLight.shadow.mapSize.height = 2048;
+        mainDirLight.shadow.camera.near = 2;
+        mainDirLight.shadow.camera.far = 35;
+        const d = 8;
+        mainDirLight.shadow.camera.left = -d;
+        mainDirLight.shadow.camera.right = d;
+        mainDirLight.shadow.camera.top = d;
+        mainDirLight.shadow.camera.bottom = -d;
+        mainDirLight.shadow.bias = -0.0005;
+        scene.add(mainDirLight);
+
+        const fillLight = new THREE.DirectionalLight(0x7dd3fc, 0.55);
+        fillLight.position.set(-10, 8, -8);
+        scene.add(fillLight);
+
+        const rimLight = new THREE.DirectionalLight(0xf8fafc, 0.45);
+        rimLight.position.set(0, 5, -12);
+        scene.add(rimLight);
+
+        // ==========================================
+        // 3. 中间黑色圆形工作台底座（无任何栏杆/围栏）
+        // ==========================================
+        function createBlackTurntableStage() {
+            const stageGroup = new THREE.Group();
+
+            // 主黑色圆形展示台
+            const diskGeo = new THREE.CylinderGeometry(5.6, 5.85, 0.26, 96);
+            const diskMat = new THREE.MeshStandardMaterial({
+                color: 0x11151c,
+                metalness: 0.45,
+                roughness: 0.35
+            });
+            const disk = new THREE.Mesh(diskGeo, diskMat);
+            disk.position.y = -0.13;
+            disk.receiveShadow = true;
+            stageGroup.add(disk);
+
+            // 台面内嵌磨砂暗黑圆盘
+            const innerDiskGeo = new THREE.CylinderGeometry(5.35, 5.35, 0.02, 96);
+            const innerDiskMat = new THREE.MeshStandardMaterial({
+                color: 0x0b0e14,
+                metalness: 0.3,
+                roughness: 0.65
+            });
+            const innerDisk = new THREE.Mesh(innerDiskGeo, innerDiskMat);
+            innerDisk.position.y = 0.005;
+            innerDisk.receiveShadow = true;
+            stageGroup.add(innerDisk);
+
+            // 精致科技感蓝色发光外圈环（紧贴台面，非护栏）
+            const ringGeo = new THREE.RingGeometry(5.32, 5.38, 96);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0x0ea5e9,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.65
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.018;
+            stageGroup.add(ring);
+
+            const innerRingGeo = new THREE.RingGeometry(3.8, 3.83, 96);
+            const innerRing = new THREE.Mesh(innerRingGeo, new THREE.MeshBasicMaterial({
+                color: 0x38bdf8,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.22
+            }));
+            innerRing.rotation.x = -Math.PI / 2;
+            innerRing.position.y = 0.018;
+            stageGroup.add(innerRing);
+
+            scene.add(stageGroup);
+        }
+        createBlackTurntableStage();
+
+        // ==========================================
+        // 4. 构建写实材质库（严格对齐参考图配色）
+        // ==========================================
+        const MATS = {
+            castIronBlack: new THREE.MeshStandardMaterial({
+                color: 0x15181e,
+                metalness: 0.55,
+                roughness: 0.45
+            }),
+            deepBlue: new THREE.MeshStandardMaterial({
+                color: 0x162b6f, // 参考图中的深工业蓝（电柜、立柱、横梁）
+                metalness: 0.4,
+                roughness: 0.28
+            }),
+            whitePaint: new THREE.MeshStandardMaterial({
+                color: 0xdce3ec, // 参考图中的高亮白银钣金外壳
+                metalness: 0.25,
+                roughness: 0.25
+            }),
+            steelBright: new THREE.MeshStandardMaterial({
+                color: 0xcbd5e1, // 精密加工金属台面/导轨
+                metalness: 0.85,
+                roughness: 0.2
+            }),
+            chrome: new THREE.MeshStandardMaterial({
+                color: 0xf1f5f9,
+                metalness: 0.92,
+                roughness: 0.12
+            }),
+            darkGlass: new THREE.MeshPhysicalMaterial({
+                color: 0x111827,
+                metalness: 0.1,
+                roughness: 0.1,
+                transparent: true,
+                opacity: 0.68
+            }),
+            windowFrameBlack: new THREE.MeshStandardMaterial({
+                color: 0x1e242b,
+                metalness: 0.4,
+                roughness: 0.5
+            }),
+            louverSilver: new THREE.MeshStandardMaterial({
+                color: 0x94a3b8,
+                metalness: 0.7,
+                roughness: 0.3
+            }),
+            screenGlow: new THREE.MeshBasicMaterial({
+                color: 0x1d4ed8
+            }),
+            cableBlack: new THREE.MeshStandardMaterial({
+                color: 0x0f1318,
+                metalness: 0.2,
+                roughness: 0.7
+            })
+        };
+
+        // ==========================================
+        // 5. 构建 9# 龙门加工中心 12 大核心部件 3D 模型
+        // ==========================================
+        const machineRoot = new THREE.Group();
+        scene.add(machineRoot);
+
+        const partGroups = [];       // 存放12个部件Group
+        const clickableMeshes = [];  // 用于射线拾取
+        const explodeLines = [];     // 爆炸虚线引线
+
+        function registerPartGroup(bomItem, group) {
+            group.userData = {
+                bom: bomItem,
+                basePos: group.position.clone(),
+                explodeVec: PART_EXPLODE_VECS[bomItem.code].clone()
+            };
+
+            group.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    // 克隆独立材质以便单独高亮
+                    child.material = child.material.clone();
+                    child.userData.parentPart = group;
+                    child.userData.origEmissive = child.material.emissive ? child.material.emissive.clone() : new THREE.Color(0x000000);
+                    clickableMeshes.push(child);
+                }
+            });
+
+            machineRoot.add(group);
+            partGroups.push(group);
+
+            // 创建爆炸轨迹虚线
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(),
+                new THREE.Vector3()
+            ]);
+            const lineMat = new THREE.LineDashedMaterial({
+                color: 0x38bdf8,
+                dashSize: 0.12,
+                gapSize: 0.08,
+                transparent: true,
+                opacity: 0.75
+            });
+            const line = new THREE.Line(lineGeo, lineMat);
+            line.computeLineDistances();
+            line.visible = false;
+            scene.add(line);
+            explodeLines.push({ line, group });
+        }
+
+        // 辅助函数：生成弧形黑色电缆管
+        function createCableCurve(points, radius = 0.032) {
+            const curve = new THREE.CatmullRomCurve3(points);
+            const geo = new THREE.TubeGeometry(curve, 24, radius, 10, false);
+            return new THREE.Mesh(geo, MATS.cableBlack);
+        }
+
+        // --- 部件 1：POS-01 重型铸铁床身底座 ---
+        (function buildPos01() {
+            const g = new THREE.Group();
+            // 主黑色铸铁底座（参考图底部宽厚黑底座）
+            const baseMain = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.36, 3.3), MATS.castIronBlack);
+            baseMain.position.set(-0.3, 0.18, -0.1);
+            g.add(baseMain);
+
+            // 底座上层台阶
+            const baseStep = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.12, 3.05), MATS.castIronBlack);
+            baseStep.position.set(-0.3, 0.42, -0.1);
+            g.add(baseStep);
+
+            // 四角黑色减震地脚螺栓座（还原参考图左前角的黑色圆筒地脚）
+            const footPositions = [
+                [-1.42, 0.42, 1.32],
+                [0.82, 0.42, 1.32],
+                [-1.42, 0.42, -1.52],
+                [0.82, 0.42, -1.52]
+            ];
+            footPositions.forEach(p => {
+                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.18, 20), MATS.castIronBlack);
+                cyl.position.set(p[0], p[1], p[2]);
+                g.add(cyl);
+            });
+
+            registerPartGroup(MACHINING_PARTS[0], g);
+        })();
+
+        // --- 部件 2：POS-02 X轴重载滚柱直线导轨副 ---
+        (function buildPos02() {
+            const g = new THREE.Group();
+            // 左右两条精密钢制导轨
+            [-0.78, 0.28].forEach(xPos => {
+                const rail = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 2.75), MATS.steelBright);
+                rail.position.set(xPos, 0.52, -0.05);
+                g.add(rail);
+
+                // 导轨滑块
+                [-0.55, 0.45].forEach(zPos => {
+                    const block = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.11, 0.26), MATS.castIronBlack);
+                    block.position.set(xPos, 0.55, zPos);
+                    g.add(block);
+                });
+            });
+
+            // 中央X轴滚珠丝杠与轴承座
+            const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 16), MATS.chrome);
+            screw.rotation.x = Math.PI / 2;
+            screw.position.set(-0.25, 0.51, -0.05);
+            g.add(screw);
+
+            registerPartGroup(MACHINING_PARTS[1], g);
+        })();
+
+        // --- 部件 3：POS-03 精密T型槽工作台（参考图中部银白色带槽台面） ---
+        (function buildPos03() {
+            const g = new THREE.Group();
+            // 工作台主体
+            const tableBody = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.16, 1.65), MATS.steelBright);
+            tableBody.position.set(-0.25, 0.66, 0.15);
+            g.add(tableBody);
+
+            // 台面多条纵向T型槽纹理（深色金属槽）
+            for (let i = -3; i <= 3; i++) {
+                const slot = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.02, 1.58), MATS.castIronBlack);
+                slot.position.set(-0.25 + i * 0.18, 0.745, 0.15);
+                g.add(slot);
+
+                // 横向分度刻线
+                const crossSlot = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.015, 0.025), MATS.louverSilver);
+                crossSlot.position.set(-0.25, 0.742, 0.15 + i * 0.21);
+                g.add(crossSlot);
+            }
+
+            registerPartGroup(MACHINING_PARTS[2], g);
+        })();
+
+        // --- 部件 4：POS-04 龙门双立柱框架 ---
+        (function buildPos04() {
+            const g = new THREE.Group();
+            // 左立柱与右立柱（深蓝色工业涂装）
+            [-0.95, 0.45].forEach(xPos => {
+                const col = new THREE.Mesh(new THREE.BoxGeometry(0.36, 2.15, 0.52), MATS.deepBlue);
+                col.position.set(xPos, 1.52, -0.58);
+                g.add(col);
+
+                // 立柱前侧导轨安装面
+                const guideStrip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.9, 0.04), MATS.steelBright);
+                guideStrip.position.set(xPos, 1.55, -0.31);
+                g.add(guideStrip);
+            });
+
+            // 立柱顶部连接横撑
+            const topTie = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.22, 0.42), MATS.deepBlue);
+            topTie.position.set(-0.25, 2.52, -0.60);
+            g.add(topTie);
+
+            registerPartGroup(MACHINING_PARTS[3], g);
+        })();
+
+        // --- 部件 5：POS-05 龙门横梁与Y轴导轨总成 ---
+        (function buildPos05() {
+            const g = new THREE.Group();
+            // 主深蓝色横梁（参考图上方醒目的蓝色横梁）
+            const beam = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.46, 0.48), MATS.deepBlue);
+            beam.position.set(-0.32, 2.28, -0.18);
+            g.add(beam);
+
+            // 横梁正面两条水平Y轴精密线性导轨
+            [2.14, 2.40].forEach(yPos => {
+                const yRail = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.055, 0.05), MATS.steelBright);
+                yRail.position.set(-0.32, yPos, 0.07);
+                g.add(yRail);
+            });
+
+            registerPartGroup(MACHINING_PARTS[4], g);
+        })();
+
+        // --- 部件 6：POS-06 Y/Z轴十字滑鞍与滑枕总成 ---
+        (function buildPos06() {
+            const g = new THREE.Group();
+            // Y轴滑鞍背板
+            const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.56, 0.18), MATS.deepBlue);
+            saddle.position.set(-0.22, 2.28, 0.16);
+            g.add(saddle);
+
+            // Z轴垂直方滑枕（白色/浅灰涂装外壳）
+            const ram = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.96, 0.34), MATS.whitePaint);
+            ram.position.set(-0.22, 2.18, 0.34);
+            g.add(ram);
+
+            // Z轴顶部驱动伺服电机
+            const zMotor = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.28, 20), MATS.castIronBlack);
+            zMotor.position.set(-0.22, 2.78, 0.34);
+            g.add(zMotor);
+
+            registerPartGroup(MACHINING_PARTS[5], g);
+        })();
+
+        // --- 部件 7：POS-07 五轴联动万能铣头（参考图横梁中央白色摆头+主轴刀具） ---
+        (function buildPos07() {
+            const g = new THREE.Group();
+            // C轴回转法兰座
+            const cRing = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 24), MATS.whitePaint);
+            cRing.position.set(-0.22, 1.65, 0.36);
+            g.add(cRing);
+
+            // U型双摆叉形主轴头外壳（参考图中白色圆柱加侧抱结构）
+            const forkBody = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.32, 0.28), MATS.whitePaint);
+            forkBody.position.set(-0.22, 1.46, 0.36);
+            g.add(forkBody);
+
+            // A轴高速电主轴圆筒
+            const spindleCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.32, 24), MATS.steelBright);
+            spindleCyl.position.set(-0.22, 1.32, 0.36);
+            g.add(spindleCyl);
+
+            // HSK刀柄与立铣刀
+            const toolHolder = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.035, 0.12, 20), MATS.castIronBlack);
+            toolHolder.position.set(-0.22, 1.12, 0.36);
+            g.add(toolHolder);
+
+            const cutter = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.14, 16), MATS.chrome);
+            cutter.position.set(-0.22, 1.01, 0.36);
+            g.add(cutter);
+
+            registerPartGroup(MACHINING_PARTS[6], g);
+        })();
+
+        // --- 部件 8：POS-08 Y轴横梁伺服驱动电机总成（参考图左上角伸出的黑色圆筒电机与弧形黑电缆） ---
+        (function buildPos08() {
+            const g = new THREE.Group();
+            // 变速箱法兰座
+            const gearBox = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.28, 0.28), MATS.castIronBlack);
+            gearBox.position.set(-1.38, 2.28, -0.18);
+            g.add(gearBox);
+
+            // 向左水平伸出的黑色圆柱伺服电机（参考图左侧醒目特征）
+            const servoMotor = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.42, 24), MATS.castIronBlack);
+            servoMotor.rotation.z = Math.PI / 2;
+            servoMotor.position.set(-1.65, 2.28, -0.18);
+            g.add(servoMotor);
+
+            // 橫梁左端前侧黑色辅助锁紧轮
+            const sideWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.14, 20), MATS.castIronBlack);
+            sideWheel.rotation.x = Math.PI / 2;
+            sideWheel.position.set(-1.12, 2.25, 0.12);
+            g.add(sideWheel);
+
+            // 参考图中从横梁左端向下连接到蓝电柜的黑色弯曲电缆管
+            const cable = createCableCurve([
+                new THREE.Vector3(-1.42, 2.18, -0.18),
+                new THREE.Vector3(-1.62, 1.85, -0.35),
+                new THREE.Vector3(-1.55, 1.45, -0.55)
+            ], 0.03);
+            g.add(cable);
+
+            registerPartGroup(MACHINING_PARTS[7], g);
+        })();
+
+        // --- 部件 9：POS-09 后置液压冷切与电气控制柜（参考图左下方深蓝色方箱+双层银白百叶窗） ---
+        (function buildPos09() {
+            const g = new THREE.Group();
+            // 深蓝色主电气柜体
+            const cab = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.18, 1.15), MATS.deepBlue);
+            cab.position.set(-1.12, 1.05, -0.72);
+            g.add(cab);
+
+            // 顶部斜面盖
+            const cabTop = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.08, 1.16), MATS.deepBlue);
+            cabTop.position.set(-1.12, 1.66, -0.72);
+            g.add(cabTop);
+
+            // 参考图正面左侧上下两个银白色散热百叶窗面板
+            [1.26, 0.76].forEach(yPos => {
+                const louverFrame = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.22, 0.03), MATS.whitePaint);
+                louverFrame.position.set(-1.15, yPos, -0.14);
+                g.add(louverFrame);
+
+                // 百叶横条纹
+                for (let k = -2; k <= 2; k++) {
+                    const slat = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.018, 0.04), MATS.louverSilver);
+                    slat.position.set(-1.15, yPos + k * 0.036, -0.135);
+                    g.add(slat);
+                }
+            });
+
+            registerPartGroup(MACHINING_PARTS[8], g);
+        })();
+
+        // --- 通用函数：构建参考图标志性的白色带大黑框透明视窗与底部滚轮支腿的防护舱门 ---
+        function createEnclosureDoor(isFrontDoor) {
+            const g = new THREE.Group();
+            const zOffset = isFrontDoor ? 0.62 : -0.36;
+
+            // 1. 底部向内折角裙板（参考图白色舱门下半部斜切造型）
+            const lowerSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.52, 0.78), MATS.whitePaint);
+            lowerSkirt.position.set(0.05, 0.72, zOffset);
+            g.add(lowerSkirt);
+
+            // 2. 上半部白色主门框舱体
+            const upperCabin = new THREE.Mesh(new THREE.BoxGeometry(0.92, 1.25, 0.82), MATS.whitePaint);
+            upperCabin.position.set(0.05, 1.58, zOffset);
+            g.add(upperCabin);
+
+            // 3. 侧面大尺寸黑框观察视窗（朝向左侧观察面）
+            const sideWinFrame = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.96, 0.62), MATS.windowFrameBlack);
+            sideWinFrame.position.set(-0.40, 1.60, zOffset);
+            g.add(sideWinFrame);
+
+            const sideGlass = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.86, 0.52), MATS.darkGlass);
+            sideGlass.position.set(-0.405, 1.60, zOffset);
+            g.add(sideGlass);
+
+            // 4. 正面（朝向操作台侧）傾斜观察窗与黑框
+            const frontFrame = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.96, 0.62), MATS.windowFrameBlack);
+            frontFrame.position.set(0.50, 1.60, zOffset);
+            g.add(frontFrame);
+
+            const frontGlass = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.86, 0.52), MATS.darkGlass);
+            frontGlass.position.set(0.505, 1.60, zOffset);
+            g.add(frontGlass);
+
+            // 5. 前/后立面视窗
+            const endZ = isFrontDoor ? (zOffset + 0.40) : (zOffset - 0.40);
+            const endWinFrame = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.95, 0.04), MATS.windowFrameBlack);
+            endWinFrame.position.set(0.05, 1.60, endZ);
+            g.add(endWinFrame);
+
+            const endGlass = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.85, 0.05), MATS.darkGlass);
+            endGlass.position.set(0.05, 1.60, endZ);
+            g.add(endGlass);
+
+            // 6. 底部白色垂直支腿与精密导向脚轮（还原参考图舱门底部的小支脚与滚轮）
+            [-0.32, 0.42].forEach(lx => {
+                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.34, 12), MATS.whitePaint);
+                leg.position.set(lx, 0.32, isFrontDoor ? zOffset + 0.32 : zOffset - 0.32);
+                g.add(leg);
+
+                const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.035, 16), MATS.castIronBlack);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(lx, 0.14, isFrontDoor ? zOffset + 0.32 : zOffset - 0.32);
+                g.add(wheel);
+            });
+
+            return g;
+        }
+
+        // --- 部件 10：POS-10 左侧（前向）移动式透明视窗防护门 ---
+        (function buildPos10() {
+            const doorLeft = createEnclosureDoor(true);
+            registerPartGroup(MACHINING_PARTS[9], doorLeft);
+        })();
+
+        // --- 部件 11：POS-11 右侧（后向）移动式透明视窗防护门 ---
+        (function buildPos11() {
+            const doorRight = createEnclosureDoor(false);
+            registerPartGroup(MACHINING_PARTS[10], doorRight);
+        })();
+
+        // --- 部件 12：POS-12 悬臂式CNC数控操作台（还原参考图右侧独立悬臂+蓝白控制箱+底部双弧形黑电缆） ---
+        (function buildPos12() {
+            const g = new THREE.Group();
+
+            // 底部黑色L型支撑悬臂管（从主机底部延伸至右侧操作台下方）
+            const armHoriz = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.08, 0.08), MATS.castIronBlack);
+            armHoriz.position.set(0.95, 0.82, 0.15);
+            g.add(armHoriz);
+
+            const armVert = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.68, 16), MATS.castIronBlack);
+            armVert.position.set(1.48, 1.15, 0.15);
+            g.add(armVert);
+
+            // 数控操作箱白色外壳（参考图右侧立体白盒）
+            const consoleBox = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.52, 0.56), MATS.whitePaint);
+            consoleBox.position.set(1.48, 1.66, 0.15);
+            consoleBox.rotation.y = -0.25;
+            g.add(consoleBox);
+
+            // 数控面板深蓝色前面板与屏幕
+            const bluePanel = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.44, 0.48), MATS.deepBlue);
+            bluePanel.position.set(1.26, 1.67, 0.21);
+            bluePanel.rotation.y = -0.25;
+            g.add(bluePanel);
+
+            // 液晶显示屏（亮蓝内屏+白边框）
+            const screenBezel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.32), MATS.whitePaint);
+            screenBezel.position.set(1.25, 1.71, 0.21);
+            screenBezel.rotation.y = -0.25;
+            g.add(screenBezel);
+
+            const lcd = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.20, 0.26), MATS.screenGlow);
+            lcd.position.set(1.245, 1.71, 0.21);
+            lcd.rotation.y = -0.25;
+            g.add(lcd);
+
+            // 下方倾斜式键盘操作托盘（参考图控制箱底部延伸的蓝色键盘台）
+            const kbTray = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.52), MATS.deepBlue);
+            kbTray.position.set(1.18, 1.40, 0.24);
+            kbTray.rotation.y = -0.25;
+            kbTray.rotation.z = 0.22;
+            g.add(kbTray);
+
+            // 操作台下方垂挂的两根标志性黑色弧形电缆（完全还原参考图右侧悬挂线缆）
+            const cableLoop1 = createCableCurve([
+                new THREE.Vector3(1.15, 1.38, 0.35),
+                new THREE.Vector3(1.38, 1.05, 0.42),
+                new THREE.Vector3(1.62, 1.18, 0.28),
+                new THREE.Vector3(1.52, 1.42, 0.18)
+            ], 0.022);
+            g.add(cableLoop1);
+
+            const cableLoop2 = createCableCurve([
+                new THREE.Vector3(1.42, 1.40, 0.05),
+                new THREE.Vector3(1.10, 1.02, 0.08),
+                new THREE.Vector3(0.55, 0.88, 0.12)
+            ], 0.024);
+            g.add(cableLoop2);
+
+            registerPartGroup(MACHINING_PARTS[11], g);
+        })();
+
+        // 调整整体模型初始姿态，使其默认角度与用户上传参考图一致
+        machineRoot.rotation.y = 0.42;
+
+        // ==========================================
+        // 6. 创建 3D 浮动零件标注 DOM 与 BOM 表格渲染
+        // ==========================================
+        const labelElements = [];
+        const bomTbody = document.getElementById('bom-tbody');
+
+        MACHINING_PARTS.forEach((item, index) => {
+            // 创建 3D 浮动标签
+            const el = document.createElement('div');
+            el.className = 'part-label';
+            el.innerHTML = `<span class="code">${item.code}</span>${item.name}`;
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectPartByIndex(index);
+            });
+            labelsLayer.appendChild(el);
+            labelElements.push(el);
+
+            // 创建 BOM 表格行
+            const tr = document.createElement('tr');
+            tr.dataset.index = index;
+            tr.dataset.partId = item.code;
+            tr.innerHTML = `
+                <td><span class="pos-badge">${item.code}</span></td>
+                <td style="font-weight:600; color:#f8fafc;">${item.name}</td>
+                <td style="color:#94a3b8; font-size:11px;">${item.spec}</td>
+                <td style="text-align:center;">${item.qty}</td>
+            `;
+            tr.addEventListener('click', () => {
+                selectPartByIndex(index);
+            });
+            bomTbody.appendChild(tr);
+        });
+
+        // ==========================================
+        // 7. 零件点击高亮与详情卡片联动逻辑
+        // ==========================================
+        let selectedIndex = 6; // 默认选中 POS-07 五轴万能铣头
+
+        function selectPartByIndex(index) {
+            selectedIndex = index;
+
+            // 1. 更新 3D 模型发光高亮状态
+            partGroups.forEach((grp, idx) => {
+                const isSelected = (idx === index);
+                grp.traverse(child => {
+                    if (child.isMesh && child.material && child.material.emissive) {
+                        if (isSelected) {
+                            child.material.emissive.setHex(0x0284c7);
+                            child.material.emissiveIntensity = 0.55;
+                        } else {
+                            child.material.emissive.copy(child.userData.origEmissive);
+                            child.material.emissiveIntensity = 1.0;
+                        }
+                    }
+                });
+            });
+
+            // 2. 更新 3D 标注样式
+            labelElements.forEach((el, idx) => {
+                el.classList.toggle('selected', idx === index);
+            });
+
+            // 3. 更新 BOM 表格高亮行并自动滚动到可视区域
+            const rows = bomTbody.querySelectorAll('tr');
+            rows.forEach((r, idx) => {
+                const active = (idx === index);
+                r.classList.toggle('active-row', active);
+                if (active) {
+                    r.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            });
+
+            // 4. 更新右侧零件详情卡片
+            const info = MACHINING_PARTS[index];
+            document.getElementById('card-name').textContent = info.name;
+            document.getElementById('card-code').textContent = info.code;
+            document.getElementById('card-spec').textContent = info.spec;
+            document.getElementById('card-mat').textContent = info.material;
+            document.getElementById('card-qty').textContent = info.qty;
+            document.getElementById('card-weight').textContent = info.weight;
+            document.getElementById('card-desc').textContent = info.desc;
+        }
+
+        // 初始化默认选中项
+        selectPartByIndex(6);
+
+        // 鼠标点击 3D 零件拾取（区分拖拽旋转与点击）
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let downPos = { x: 0, y: 0 };
+
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+            downPos.x = e.clientX;
+            downPos.y = e.clientY;
+        });
+
+        renderer.domElement.addEventListener('pointerup', (e) => {
+            const moveDist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+            if (moveDist > 5) return; // 拖动视角不触发点击
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(clickableMeshes, false);
+
+            if (intersects.length > 0) {
+                const hitMesh = intersects[0].object;
+                const parentGrp = hitMesh.userData.parentPart;
+                const idx = partGroups.indexOf(parentGrp);
+                if (idx !== -1) {
+                    selectPartByIndex(idx);
+                }
+            }
+        });
+
+        // ==========================================
+        // 8. 爆炸分解进度控制与动画系统
+        // ==========================================
+        let currentExplode = 0;   // 当前爆炸比例 0 ~ 100
+        let targetExplode = 0;    // 目标爆炸比例 0 ~ 100
+        let isPlayingAnim = false;
+        let animDirection = 1;
+        let showLines = true;
+        let showLabels = true;
+
+        const sliderEl = document.getElementById('explode-slider');
+        const valTextEl = document.getElementById('explode-val');
+        const presetBtns = document.querySelectorAll('.preset-btn');
+        const playBtn = document.getElementById('btn-play-explode');
+        const playIcon = document.getElementById('play-icon');
+        const playText = document.getElementById('play-text');
+
+        function updatePresetHighlight(val) {
+            presetBtns.forEach(btn => {
+                btn.classList.toggle('active', Number(btn.dataset.val) === Math.round(val));
+            });
+        }
+
+        function setExplodeTarget(val, stopPlay = true) {
+            if (stopPlay && isPlayingAnim) {
+                togglePlayAnimation(false);
+            }
+            targetExplode = Math.max(0, Math.min(100, val));
+            sliderEl.value = Math.round(targetExplode);
+            valTextEl.textContent = `${Math.round(targetExplode)}%`;
+            updatePresetHighlight(targetExplode);
+        }
+
+        function applyExplodePositions(ratio01) {
+            partGroups.forEach((grp, idx) => {
+                const base = grp.userData.basePos;
+                const vec = grp.userData.explodeVec;
+                grp.position.set(
+                    base.x + vec.x * ratio01,
+                    base.y + vec.y * ratio01,
+                    base.z + vec.z * ratio01
+                );
+
+                // 更新爆炸轨迹引线
+                const itemLine = explodeLines[idx];
+                if (showLines && ratio01 > 0.02) {
+                    itemLine.line.visible = true;
+                    const box = new THREE.Box3().setFromObject(grp);
+                    const centerCurrent = box.getCenter(new THREE.Vector3());
+                    const offsetWorld = vec.clone().multiplyScalar(ratio01).applyAxisAngle(new THREE.Vector3(0, 1, 0), machineRoot.rotation.y);
+                    const centerOrigin = centerCurrent.clone().sub(offsetWorld);
+
+                    const positions = itemLine.line.geometry.attributes.position.array;
+                    positions[0] = centerOrigin.x;
+                    positions[1] = centerOrigin.y;
+                    positions[2] = centerOrigin.z;
+                    positions[3] = centerCurrent.x;
+                    positions[4] = centerCurrent.y;
+                    positions[5] = centerCurrent.z;
+                    itemLine.line.geometry.attributes.position.needsUpdate = true;
+                    itemLine.line.computeLineDistances();
+                } else {
+                    itemLine.line.visible = false;
+                }
+            });
+        }
+
+        // 滑块拖动事件
+        sliderEl.addEventListener('input', (e) => {
+            const v = Number(e.target.value);
+            setExplodeTarget(v, true);
+            currentExplode = v;
+            applyExplodePositions(currentExplode / 100);
+        });
+
+        // 0% / 45% / 100% 三个快捷按钮
+        presetBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const v = Number(btn.dataset.val);
+                setExplodeTarget(v, true);
+            });
+        });
+
+        // 播放拆解动画按钮
+        function togglePlayAnimation(forceState) {
+            isPlayingAnim = (forceState !== undefined) ? forceState : !isPlayingAnim;
+            if (isPlayingAnim) {
+                if (currentExplode >= 99) animDirection = -1;
+                else if (currentExplode <= 1) animDirection = 1;
+                playIcon.textContent = '⏸';
+                playText.textContent = '暂停拆解动画';
+                playBtn.classList.add('active');
+            } else {
+                playIcon.textContent = '▶';
+                playText.textContent = '播放拆解动画';
+                playBtn.classList.remove('active');
+            }
+        }
+
+        playBtn.addEventListener('click', () => togglePlayAnimation());
+
+        // 环绕展示按钮
+        const btnRotate = document.getElementById('btn-auto-rotate');
+        btnRotate.addEventListener('click', () => {
+            controls.autoRotate = !controls.autoRotate;
+            controls.autoRotateSpeed = 1.6;
+            btnRotate.classList.toggle('active', controls.autoRotate);
+        });
+
+        // 顶部工具栏按钮事件
+        const btnLabels = document.getElementById('btn-toggle-labels');
+        btnLabels.addEventListener('click', () => {
+            showLabels = !showLabels;
+            labelsLayer.style.display = showLabels ? 'block' : 'none';
+            btnLabels.classList.toggle('active', showLabels);
+        });
+
+        const btnLines = document.getElementById('btn-toggle-lines');
+        btnLines.addEventListener('click', () => {
+            showLines = !showLines;
+            btnLines.classList.toggle('active', showLines);
+            applyExplodePositions(currentExplode / 100);
+        });
+
+        const btnBom = document.getElementById('btn-toggle-bom');
+        const rightSidebar = document.getElementById('right-sidebar');
+        btnBom.addEventListener('click', () => {
+            const isHidden = rightSidebar.classList.toggle('collapsed');
+            btnBom.classList.toggle('active', !isHidden);
+            setTimeout(onWindowResize, 310);
+        });
+
+        document.getElementById('btn-reset-cam').addEventListener('click', () => {
+            camera.position.set(8.5, 6.2, 9.8);
+            controls.target.set(0, 1.3, 0);
+            controls.update();
+        });
+
+        // ==========================================
+        // 9. 更新 3D 浮动零件标注屏幕坐标与主渲染循环
+        // ==========================================
+        const tempBox = new THREE.Box3();
+        const tempVec = new THREE.Vector3();
+
+        function updateLabelsProjection() {
+            if (!showLabels) return;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            partGroups.forEach((grp, idx) => {
+                tempBox.setFromObject(grp);
+                tempBox.getCenter(tempVec);
+                tempVec.y = tempBox.max.y + 0.08;
+
+                tempVec.project(camera);
+
+                const el = labelElements[idx];
+                if (tempVec.z > 1) {
+                    el.style.display = 'none';
+                } else {
+                    el.style.display = 'block';
+                    const x = (tempVec.x * 0.5 + 0.5) * width;
+                    const y = (-(tempVec.y * 0.5) + 0.5) * height;
+                    el.style.left = `${x}px`;
+                    el.style.top = `${y}px`;
+                }
+            });
+        }
+
+        /* ==================== 零件寿命预警高亮（拆解视图 × 零件寿命联动）====================
+           宿主注入口：顶层 function setLifeAlert(entries) —— entries 为 [{id, level}]，
+           level 'replace'=需更换（暗红稳定光）/ 'warn'=临近寿命（黄色缓脉动）。
+           渲染优先级：故障红脉冲 > 需更换红光 > 临近黄光；空数组 = 清除。返回命中的位号数。 */
+        let lifeAlertMap = {};
+        function setLifeAlert(entries) {
+            lifeAlertMap = {};
+            document.querySelectorAll('tr[data-part-id].life-warn, tr[data-part-id].life-replace').forEach((el) => {
+                el.classList.remove('life-warn', 'life-replace');
+            });
+            let count = 0;
+            if (Array.isArray(entries)) {
+                for (const entry of entries) {
+                    if (!entry || typeof entry.id !== 'string' || !entry.id) continue;
+                    const level = entry.level === 'replace' ? 'replace' : 'warn';
+                    lifeAlertMap[entry.id] = level;
+                    const target = document.querySelector(`tr[data-part-id="${entry.id}"]`);
+                    if (target) target.classList.add(level === 'replace' ? 'life-replace' : 'life-warn');
+                    count++;
+                }
+            }
+            return count;
+        }
+        /* ==================== 故障红色脉冲高亮（拆解视图 ↔ 故障定位联动） ====================
+           宿主注入口：顶层 function setFaultHighlight(位号) —— 拆解页脚本顶层声明即 window 全局。
+           3D 网格红色脉动由渲染循环每帧读取 faultHighlightPartId 实现；BOM 行走 CSS .fault-alert。
+           partId 传 null / 空串 = 清除故障高亮（读数恢复正常后宿主撤除）。 */
+        let faultHighlightPartId = null;
+        function setFaultHighlight(partId) {
+            faultHighlightPartId = (partId && typeof partId === 'string') ? partId : null;
+            document.querySelectorAll('tr[data-part-id].fault-alert').forEach((el) => el.classList.remove('fault-alert'));
+            if (faultHighlightPartId) {
+                const target = document.querySelector(`tr[data-part-id="${faultHighlightPartId}"]`);
+                if (target) target.classList.add('fault-alert');
+            }
+            return faultHighlightPartId;
+        }
+
+        function applyAlertHighlights() {
+            const now = performance.now();
+            partGroups.forEach((grp) => {
+                const part = grp.userData.bom;
+                const partId = part.code;
+                // 零件寿命预警（寿命联动）：先于故障块赋值 → 故障红脉冲优先
+                const lifeLevel = lifeAlertMap[part.id];
+                if (lifeLevel) {
+                    const lifePulse = 0.5 + 0.5 * Math.sin(now / 1000 * 3.2);
+                    const isReplace = lifeLevel === 'replace';
+                    grp.traverse(child => {
+                        if (child.isMesh && child.material && child.material.emissive) {
+                            child.material.emissive.setHex(isReplace ? 0xdc2626 : 0xeab308);
+                            child.material.emissiveIntensity = isReplace ? 0.5 : 0.26 + 0.16 * lifePulse;
+                        }
+                    });
+                }
+                // 故障红色脉动（观察部位联动）：覆盖自发光链的尾次赋值，红光优先
+                if (faultHighlightPartId === partId) {
+                    const faultPulse = 0.5 + 0.5 * Math.sin(now / 1000 * 4.6);
+                    grp.traverse(child => {
+                        if (child.isMesh && child.material && child.material.emissive) {
+                            child.material.emissive.setHex(0xef4444);
+                            child.material.emissiveIntensity = 0.5 + 0.38 * faultPulse;
+                        }
+                    });
+                }
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 自动播放拆解动画插值
+            if (isPlayingAnim) {
+                targetExplode += animDirection * 0.45;
+                if (targetExplode >= 100) {
+                    targetExplode = 100;
+                    animDirection = -1;
+                } else if (targetExplode <= 0) {
+                    targetExplode = 0;
+                    animDirection = 1;
+                }
+                currentExplode = targetExplode;
+                sliderEl.value = Math.round(currentExplode);
+                valTextEl.textContent = `${Math.round(currentExplode)}%`;
+                updatePresetHighlight(currentExplode);
+                applyExplodePositions(currentExplode / 100);
+            } else if (Math.abs(currentExplode - targetExplode) > 0.05) {
+                // 快捷按钮平滑过渡
+                currentExplode += (targetExplode - currentExplode) * 0.12;
+                applyExplodePositions(currentExplode / 100);
+            }
+
+            applyAlertHighlights();
+            controls.update();
+            updateLabelsProjection();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        window.addEventListener('resize', onWindowResize);
+
+        // 启动渲染循环
+        animate();
+    </script>
+
+    <script>
+    /* F7 检修报告：宿主同源 iframe 取实时 3D 画面（preserveDrawingBuffer 已开） */
+    window.__EXPL_CAPTURE = function () {
+      try {
+        var c = document.querySelector('canvas');
+        if (!c || !c.width) return null;
+        return c.toDataURL('image/png');
+      } catch (e) {
+        return null;
+      }
+    };
+    </script>
+</body>
+</html>

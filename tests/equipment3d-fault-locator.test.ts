@@ -69,7 +69,7 @@ describe('故障定位 · 遥测判定（真实阈值口径，复用 3D 场景�
 });
 
 describe('故障定位 · 观察部位对齐（只认真实 BOM，不编位号）', () => {
-  it('映射表只覆盖有拆解视图的 9 台设备', () => {
+  it('映射表只覆盖有拆解视图的 10 台设备', () => {
     expect(Object.keys(OBSERVATION_HINTS).sort()).toEqual(Object.keys(EXPLODED_VIEW_FILES).sort());
   });
 
@@ -168,7 +168,7 @@ describe('故障定位 · 源码契约（防静默删功能）', () => {
     expect(read('src/api/index.ts')).toContain('getFaultDiagnostics');
   });
 
-  it('9 份拆解页都有页面原生 setFaultHighlight + 红色脉动 + 行高亮 CSS（页面自己改自发光）', () => {
+  it('10 份拆解页都有页面原生 setFaultHighlight + 红色脉动 + 行高亮 CSS（页面自己改自发光）', () => {
     for (const file of Object.values(EXPLODED_VIEW_FILES)) {
       const src = read(`public/exploded/${file}`);
       expect(src, `${file} 缺 setFaultHighlight 入口`).toContain('function setFaultHighlight');

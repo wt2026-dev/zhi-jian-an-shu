@@ -44,7 +44,7 @@ const PKG = 'package.json';
 /* ------------------------------------------------------------------ */
 describe('extractBomRowsFromHtml · 真实拆解页 BOM 解析', () => {
   it('9 个拆解页全部能解析出非空 BOM（位号/名称/规格/材质/数量/重量唯一来源就是页面本身）', () => {
-    expect(PAGE_NAMES).toHaveLength(9);
+    expect(PAGE_NAMES).toHaveLength(10);
     for (const name of PAGE_NAMES) {
       const rows = extractBomRowsFromHtml(read(path.join('public', 'exploded', name)));
       expect(rows, name).not.toBeNull();
@@ -204,7 +204,7 @@ describe('源码契约 · 检修报告全链路', () => {
   });
 
   it('9 个拆解页都已补 preserveDrawingBuffer + __EXPL_CAPTURE（截图与 BOM 同源）', () => {
-    expect(PAGE_NAMES).toHaveLength(9);
+    expect(PAGE_NAMES).toHaveLength(10);
     for (const name of PAGE_NAMES) {
       const src = read(path.join('public', 'exploded', name));
       expect(src.includes('preserveDrawingBuffer: true'), name).toBe(true);

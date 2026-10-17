@@ -30,10 +30,12 @@ describe('DigitalHumanGLB — china_engineer.glb 静态模型验证', () => {
     animations = gltf.animations || [];
   });
 
-  it('模型文件存在且体积正确（~75MB 高模）', () => {
+  it('模型文件存在且体积合理（已压缩至 ~1MB 低模，绑定动画后续补齐）', () => {
     expect(fs.existsSync(glbPath)).toBe(true);
     const stat = fs.statSync(glbPath);
-    expect(stat.size).toBeGreaterThan(50 * 1024 * 1024);
+    // 2026-10-17 提交 e5d3bdc 已将 78MB 高模压缩至 981KB：断言压缩后体积区间
+    expect(stat.size).toBeGreaterThan(300 * 1024); // 不是空壳 / 损坏文件
+    expect(stat.size).toBeLessThan(5 * 1024 * 1024); // 压缩生效，未回退到大文件
   });
 
   it('模型可被 GLTFLoader 正常解析（不抛错）', () => {

@@ -1,6 +1,6 @@
 /**
  * ⚠️ 本文件由 scripts/extract-exploded-catalog.mjs 自动生成 —— 不要手改。
- * 数据来源：public/exploded/*.html（9 份拆解页脚本里的真实零件数组），
+ * 数据来源：public/exploded/*.html（10 份拆解页脚本里的真实零件数组），
  * 位号/名称/规格/材质与拆解页 BOM 完全一致，仅作服务端"工单文本 ↔ 位号"匹配用。
  * 重新生成：node scripts/extract-exploded-catalog.mjs
  */
@@ -1001,6 +1001,80 @@ export const EXPLODED_CATALOG_BY_FILE: Record<string, ExplodedCatalogPart[]> = {
       "name": "强制循环喷油润滑分配管汇与法兰组件",
       "category": "密封与紧固螺栓",
       "material": "316L 不锈钢无缝管路"
+    }
+  ],
+  "machining_center_exploded.html": [
+    {
+      "posNo": "POS-01",
+      "name": "重型铸铁床身底座",
+      "spec": "HT300 4200×2400×550mm",
+      "material": "HT300高强度孕育铸铁"
+    },
+    {
+      "posNo": "POS-02",
+      "name": "X轴重载滚柱直线导轨副",
+      "spec": "INA RUE65-E-L 4000mm",
+      "material": "GCr15轴承钢高频淬火"
+    },
+    {
+      "posNo": "POS-03",
+      "name": "精密T型槽工作台",
+      "spec": "2500×1600mm (7槽 22H7)",
+      "material": "HT300 表面高频淬火研磨"
+    },
+    {
+      "posNo": "POS-04",
+      "name": "龙门双立柱框架",
+      "spec": "箱型双立柱 跨距1900mm",
+      "material": "HT300 蜂巢式筋板铸造"
+    },
+    {
+      "posNo": "POS-05",
+      "name": "龙门横梁与Y轴导轨总成",
+      "spec": "阶梯式横梁 L=2650mm",
+      "material": "HT300 + 三线轨支撑"
+    },
+    {
+      "posNo": "POS-06",
+      "name": "Y/Z轴十字滑鞍与滑枕总成",
+      "spec": "方滑枕 □420×420mm 行程900",
+      "material": "球墨铸铁 QT600-3"
+    },
+    {
+      "posNo": "POS-07",
+      "name": "五轴联动万能铣头",
+      "spec": "HSK-A63 / A/C双摆头 24000rpm",
+      "material": "合金钢渗碳淬火 + 陶瓷轴承"
+    },
+    {
+      "posNo": "POS-08",
+      "name": "Y轴横梁伺服驱动电机总成",
+      "spec": "SIEMENS 1FT7 28Nm + 行星减速机",
+      "material": "航空铝壳体 / 稀土永磁"
+    },
+    {
+      "posNo": "POS-09",
+      "name": "后置液压冷切与电气控制柜",
+      "spec": "IP54 双百叶散热电气柜",
+      "material": "2.5mm冷轧钢板 工业蓝涂装"
+    },
+    {
+      "posNo": "POS-10",
+      "name": "左侧移动式透明视窗防护门",
+      "spec": "折弯钣金舱门 + 防爆夹胶视窗",
+      "material": "SPCC冷轧板喷塑 + 12mm聚碳酸酯"
+    },
+    {
+      "posNo": "POS-11",
+      "name": "右侧移动式透明视窗防护门",
+      "spec": "折弯钣金舱门 + 防爆夹胶视窗",
+      "material": "SPCC冷轧板喷塑 + 12mm聚碳酸酯"
+    },
+    {
+      "posNo": "POS-12",
+      "name": "悬臂式CNC数控操作台",
+      "spec": "SIEMENS SINUMERIK ONE 22寸屏",
+      "material": "压铸铝操作箱 + 旋转悬臂支座"
     }
   ],
   "motor14_exploded.html": [

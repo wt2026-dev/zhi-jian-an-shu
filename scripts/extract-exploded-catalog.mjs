@@ -18,7 +18,7 @@ const SRC_DIR = path.join(ROOT, 'public', 'exploded');
 const OUT_FILE = path.join(ROOT, 'src', 'server', 'services', 'explodedCatalog.generated.ts');
 
 /** 拆解页里真正的零件数组变量名（按脚本扫描核实，与 9 份 HTML 一一对应）。 */
-const PART_ARRAY_NAMES = ['PUMP_PARTS', 'MOTOR_PARTS', 'COMPRESSOR_PARTS', 'PARTS_DATA'];
+const PART_ARRAY_NAMES = ['PUMP_PARTS', 'MOTOR_PARTS', 'COMPRESSOR_PARTS', 'PARTS_DATA', 'MACHINING_PARTS'];
 
 /** 提取顶层 `const NAME = [ ... ];` 数组字面量（方括号配平）。 */
 function extractArrayLiteral(source, name) {
@@ -93,7 +93,7 @@ for (const file of files) {
 
 const banner = `/**
  * ⚠️ 本文件由 scripts/extract-exploded-catalog.mjs 自动生成 —— 不要手改。
- * 数据来源：public/exploded/*.html（9 份拆解页脚本里的真实零件数组），
+ * 数据来源：public/exploded/*.html（${files.length} 份拆解页脚本里的真实零件数组），
  * 位号/名称/规格/材质与拆解页 BOM 完全一致，仅作服务端"工单文本 ↔ 位号"匹配用。
  * 重新生成：node scripts/extract-exploded-catalog.mjs
  */

@@ -130,6 +130,11 @@ export const OBSERVATION_HINTS: Record<string, Partial<Record<FaultMetric, strin
     vibration: ['J1轴电机/减速器', 'J2轴关节', 'J3轴'],
     loadRate: ['J2轴关节', 'J3轴', '小臂'],
   },
+  'eq-109': { // 9# 龙门加工中心（五轴联动数控龙门铣床）
+    temperature: ['万能铣头', '直线导轨副', '防护门'],
+    vibration: ['龙门横梁', '伺服驱动电机', '滑枕'],
+    loadRate: ['工作台', '电气控制柜', '数控操作台'],
+  },
 };
 
 /** 在该设备的真实 BOM 目录里做"名称子串命中"——直接、透明、可解释。 */

@@ -33,6 +33,7 @@ export const EXPLODED_VIEW_FILES: Record<string, string> = {
   'eq-105': 'pump_exploded.html',             // 5# 多级高压锅炉给水泵
   'eq-106': 'compressor_exploded.html',       // 6# 离心式工艺空气压缩机
   'eq-107': 'gearbox_exploded.html',          // 7# 冷轧卷取机主传动硬齿面减速机
+  'eq-109': 'machining_center_exploded.html', // 9# 五轴龙门加工中心
   'eq-112': 'cooling_pump_exploded_v3.html',  // 12# 连铸结晶器冷却循环泵
   'eq-114': 'motor14_exploded.html',          // 14# 成品线变频调速三相异步电机（备用）
   'eq-115': 'robot_exploded_v2.html',         // 15# 成品自动码垛工业机器人（六轴机械臂 005）

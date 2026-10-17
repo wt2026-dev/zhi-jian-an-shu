@@ -39,9 +39,9 @@ const MAP = 'src/components/equipment3d/explodedViewFiles.ts';
 const count = (src: string, needle: string): number => src.split(needle).length - 1;
 
 describe('拆解视图 · 映射表', () => {
-  it('9 台设备各有一条映射，且每个被引用的 HTML 都真的在 public/exploded/ 里', () => {
+  it('10 台设备各有一条映射，且每个被引用的 HTML 都真的在 public/exploded/ 里', () => {
     const entries = Object.entries(EXPLODED_VIEW_FILES);
-    expect(entries).toHaveLength(9);
+    expect(entries).toHaveLength(10);
     for (const [deviceId, file] of entries) {
       expect(deviceId, `映射键 ${deviceId} 不像设备 ID`).toMatch(/^eq-\d+$/);
       const abs = path.join(ROOT, 'public', EXPLODED_VIEW_DIR, file);
@@ -283,7 +283,7 @@ describe('拆解视图 · 按钮组件', () => {
 });
 
 describe('拆解视图 · BOM 物料清单滚动与显示防回归', () => {
-  it('9 份拆解静态页所有 overflow-y-auto 容器必须带 min-h-0，防止 flexbox 高度撑大卡死滚动', () => {
+  it('10 份拆解静态页所有 overflow-y-auto 容器必须带 min-h-0，防止 flexbox 高度撑大卡死滚动', () => {
     for (const file of Object.values(EXPLODED_VIEW_FILES)) {
       const abs = path.join(ROOT, 'public', EXPLODED_VIEW_DIR, file);
       const html = fs.readFileSync(abs, 'utf8');
@@ -295,7 +295,7 @@ describe('拆解视图 · BOM 物料清单滚动与显示防回归', () => {
     }
   });
 
-  it('9 份拆解静态页均配置了显式滚动条样式与宽度', () => {
+  it('10 份拆解静态页均配置了显式滚动条样式与宽度', () => {
     for (const file of Object.values(EXPLODED_VIEW_FILES)) {
       const abs = path.join(ROOT, 'public', EXPLODED_VIEW_DIR, file);
       const html = fs.readFileSync(abs, 'utf8');
