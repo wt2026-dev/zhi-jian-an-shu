@@ -108,7 +108,7 @@ func _top_bar() -> Control:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)
-	row.add_child(_label("庖丁智驭 · 故障侦探（俯视迷宫）", 15, TEXT_DIM))
+	row.add_child(_label("智检安枢 · 故障侦探（俯视迷宫）", 15, TEXT_DIM))
 	return p
 
 

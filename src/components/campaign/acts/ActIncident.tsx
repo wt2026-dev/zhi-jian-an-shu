@@ -98,7 +98,7 @@ export function ActIncident(props: ActProps) {
         equipmentId: equipment.id,
         faultType: incident.faultType,
         priority: incident.priority,
-        description: `${incident.brief}（来自《庖丁检修师》主线第 2 幕；报警依据为台账状态与已落库遥测，无阈值指标不参与判定。）`,
+        description: `${incident.brief}（来自《智检修士》主线第 2 幕；报警依据为台账状态与已落库遥测，无阈值指标不参与判定。）`,
         creator: creatorName,
         // 同一条主线可能反复进第 2 幕（重来/刷新），幂等键避免刷出多条同因工单
         idempotencyKey: `campaign-${equipment.id}-${incident.abnormalLabel ?? 'status'}`,

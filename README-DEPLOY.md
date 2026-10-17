@@ -1,4 +1,4 @@
-# 工业设备智能检修与作业协同系统 (Industrial Ops Maintenance System)
+# 智检安枢——数字孪生驱动的工业装备检修与安全管控一体化平台 (Industrial Ops Maintenance System)
 ## 生产部署与环境配置完整说明文档 (README-DEPLOY.md)
 
 本文档面向工业现场运维工程师、DevOps 团队及系统管理员，详细说明本系统的**环境变量配置与密钥申请指引**、**AI 模型路由**、**全链路功能架构**以及**生产环境部署操作步骤**。

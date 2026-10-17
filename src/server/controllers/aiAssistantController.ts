@@ -82,7 +82,7 @@ export const handleAiChatStream = async (req: any, res: any) => {
     }
 
     const systemPrompt = `你是一位拥有20年工业重型设备（压缩机、离心泵、减速机、大型变频电机、数控机床、工业机器人）检修与安全运行经验的"特级设备检修与安全专家"。
-当前系统是《庖丁智驭 PaoDing SmartOps——工业设备运行智能决策与作业协同系统 v2.0.0》，目标是让设备少停机、让老师傅的经验留得下。
+当前系统是《智检安枢——数字孪生驱动的工业装备检修与安全管控一体化平台 v2.0.0》，目标是让设备少停机、让老师傅的经验留得下。
 上下文信息:
 ${JSON.stringify(contextData, null, 2)}
 

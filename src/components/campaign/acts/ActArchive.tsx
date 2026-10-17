@@ -108,7 +108,7 @@ export function ActArchive(props: ActProps) {
         workHours: hours,
         completionPhotos: run.qcImageUrl ? [run.qcImageUrl] : [],
         operatorName,
-        remark: '《庖丁检修师》七幕主线归档：本单数据由主线各幕真实接口调用汇总。',
+        remark: '《智检修士》七幕主线归档：本单数据由主线各幕真实接口调用汇总。',
         version: fresh.version,
       });
       setCompleted(true);
@@ -150,7 +150,7 @@ export function ActArchive(props: ActProps) {
     setBusy(true);
     try {
       const released = await safetyPermitApi.releaseLotoLock(lock.id, {
-        unlockRemark: `《庖丁检修师》主线第 7 幕：验收后解除能量隔离（${run.orderNo ?? '未开单'}）`,
+        unlockRemark: `《智检修士》主线第 7 幕：验收后解除能量隔离（${run.orderNo ?? '未开单'}）`,
       });
       setLockReleased(true);
       if (released) setLock(released);
@@ -173,7 +173,7 @@ export function ActArchive(props: ActProps) {
     setBusy(true);
     try {
       const res = await safetyPermitApi.close(run.permitId, {
-        closeRemark: `《庖丁检修师》主线第 7 幕：${run.orderNo ?? '本单'} 工完料净场地清，隔离锁 ${run.lotoLockNo ?? '无'} 已释放，作业票注销闭环。`,
+        closeRemark: `《智检修士》主线第 7 幕：${run.orderNo ?? '本单'} 工完料净场地清，隔离锁 ${run.lotoLockNo ?? '无'} 已释放，作业票注销闭环。`,
       });
       setPermitClosed(true);
       pushLog(`作业票 ${run.permitNo ?? ''} 已注销（服务端状态 ${res?.status ?? 'closed'}）。`);

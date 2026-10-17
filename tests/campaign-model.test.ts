@@ -1,4 +1,4 @@
-// 《庖丁检修师》七幕主线纯逻辑测试。
+// 《智检修士》七幕主线纯逻辑测试。
 // 红线：报警与操作题只能由真实台账/规程推导；挑不出来时必须返回 null/空，不得造数。
 import { describe, it, expect } from "vitest";
 import type { Equipment, MaintenanceProcedure } from "../src/types";

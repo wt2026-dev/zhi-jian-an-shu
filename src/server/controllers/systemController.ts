@@ -282,7 +282,7 @@ export function handleApiHealth(req: any, res: any) {
   res.json({
     status: "ok",
     version: "2.0.0",
-    system: "庖丁智驭 PaoDing SmartOps（工业设备运行智能决策与作业协同系统）",
+    system: "智检安枢（数字孪生驱动的工业装备检修与安全管控一体化平台）",
     hasAiKey: !!process.env.DASHSCOPE_API_KEY,
     timestamp: new Date().toISOString(),
   });

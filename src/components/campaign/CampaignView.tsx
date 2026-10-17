@@ -1,5 +1,5 @@
 /**
- * 《庖丁检修师》七幕主线 —— 页面壳。
+ * 《智检修士》七幕主线 —— 页面壳。
  *
  * 职责边界：
  * - 壳只管**幕序、总计时、3D 舞台、结算**；每一幕的玩法与接口调用都在 `acts/*` 里，
@@ -282,7 +282,7 @@ export function CampaignView(props: { currentUser: UserProfile | null }) {
       <div className="pointer-events-none relative z-10 flex h-full flex-col gap-2 p-2.5">
         <header className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-lg border border-cyan-400/25 bg-[rgba(6,13,26,0.85)] px-3 py-2 backdrop-blur">
           <div className="min-w-0">
-            <div className="truncate text-sm font-bold tracking-wide text-cyan-100">庖丁检修师 · 七幕主线</div>
+            <div className="truncate text-sm font-bold tracking-wide text-cyan-100">智检修士 · 七幕主线</div>
             <div className="truncate text-[10px] text-slate-500">
               {phase === 'running'
                 ? `第 ${actDef.index} 幕 ${actDef.title} · 对应功能：${actDef.feature}`

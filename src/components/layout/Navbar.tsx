@@ -191,7 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center space-x-2.5 min-w-0">
           <Logo size="sm" />
           <span className="font-bold text-sm text-slate-900 tracking-tight truncate max-w-[170px] sm:max-w-none">
-            庖丁智驭
+            智检安枢
           </span>
           <span className="hidden sm:inline-flex items-center text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200/70 shadow-2xs shrink-0">
             v2.0.0

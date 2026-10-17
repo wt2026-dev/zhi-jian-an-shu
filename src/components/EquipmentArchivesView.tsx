@@ -676,7 +676,7 @@ export const EquipmentArchivesView: React.FC<EquipmentArchivesViewProps> = ({
                       <p className="text-[11px] text-slate-500 leading-relaxed">
                         {useH5
                           ? '小程序凭证待配置，当前生效为企业 H5 快速报修流式向导。'
-                          : '微信扫一扫即可进入《工业设备运行智能决策与作业协同》小程序 pages/repair/repair。'}
+                          : '微信扫一扫即可进入《智检安枢》小程序 pages/repair/repair。'}
                       </p>
                       <div className="pt-1 flex items-center gap-2">
                         <button

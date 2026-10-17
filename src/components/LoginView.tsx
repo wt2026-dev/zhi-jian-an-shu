@@ -132,7 +132,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <Logo size="lg" />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center justify-center space-x-2">
-            <span>庖丁智驭 PaoDing SmartOps</span>
+            <span>智检安枢</span>
           </h1>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             工业现场状态机互斥 · 高危作业票会签 · Chroma RAG 知识检索 · 设备劣化趋势预警

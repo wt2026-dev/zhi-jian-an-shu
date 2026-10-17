@@ -186,7 +186,7 @@ export function ActPlan(props: ActProps) {
           quantity: row.qty,
           operatorName,
           relatedWorkOrderId: run.workOrderId,
-          notes: `《庖丁检修师》主线第 4 幕领料（${run.orderNo ?? run.workOrderId}）`,
+          notes: `《智检修士》主线第 4 幕领料（${run.orderNo ?? run.workOrderId}）`,
         });
         results.push(`${key} ×${row.qty} 已出库（真实备件 ${row.part.name}）`);
         taken.push({ name: key, quantity: row.qty });
