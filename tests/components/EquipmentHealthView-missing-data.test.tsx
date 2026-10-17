@@ -25,11 +25,12 @@ import type { Equipment } from '../../src/types';
 
 vi.mock('recharts', () => {
   const Box = ({ children }: any) => <div>{children}</div>;
+  const SvgBox = ({ children }: any) => <svg>{children}</svg>;
   return {
     ResponsiveContainer: Box,
-    AreaChart: Box,
+    AreaChart: SvgBox,
     Area: () => null,
-    LineChart: Box,
+    LineChart: SvgBox,
     Line: () => null,
     XAxis: () => null,
     YAxis: () => null,

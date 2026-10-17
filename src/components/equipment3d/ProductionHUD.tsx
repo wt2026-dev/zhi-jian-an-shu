@@ -422,7 +422,10 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
   /** 「异常台数构成」：按设备类别统计台账里的异常台，替代原来写死的两行公差/润滑文案 */
   const abnormalByCategory = useMemo(() => {
     const map = new Map<string, number>();
-    for (const d of faultDevices) map.set(d.category, (map.get(d.category) ?? 0) + 1);
+    for (const d of faultDevices) {
+      const cat = d.category || '未分类';
+      map.set(cat, (map.get(cat) ?? 0) + 1);
+    }
     return Array.from(map.entries())
       .map(([name, count]) => ({ name, count, share: (count / Math.max(1, faultDevices.length)) * 100 }))
       .sort((a, b) => b.count - a.count)
@@ -849,7 +852,7 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                             {z.buildingNames.length > 0 && (
                               <div className="flex flex-col gap-0.5 pt-1 border-t border-cyan-500/15">
                                 {z.buildingNames.map((bn, bi) => {
-                                  const bid = z.buildingIds[bi];
+                                  const bid = z.buildingIds?.[bi] ?? `${z.id}-bld-${bi}`;
                                   const ws = workshopByName(bn);
                                   return (
                                     <div
@@ -1226,8 +1229,8 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                     {/* 列高 = 数值 12 + 间距 4 + 柱 24 + 间距 4 + 名称 12 ≈ 56px；
                         上一版容器只有 h-10(40px)，数值与名称两行文字挤在柱子上沿。 */}
                     <div className="flex items-end justify-between gap-2.5 h-[56px] pt-1 font-mono text-[10px] text-slate-400">
-                      {workshopUptime.map((proc) => (
-                        <div key={proc.name} className="flex flex-col items-center gap-1 group min-w-0">
+                      {workshopUptime.map((proc, pIdx) => (
+                        <div key={`${proc.name || 'proc'}-${pIdx}`} className="flex flex-col items-center gap-1 group min-w-0">
                           <span className="text-[10px] hud-tabular-nums text-slate-300 whitespace-nowrap">
                             {proc.rate.toFixed(1)}%
                           </span>
