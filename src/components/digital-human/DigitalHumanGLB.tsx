@@ -364,11 +364,10 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
           }
           ctx.scene.add(root);
 
-          // 0. 朝向修正：混元3D 图生的模型默认平躺（身高沿 Z 轴），
-          // 绕 X 轴转 90° 立起来——头朝上、脚朝下，之后才能正确按身高归一化。
-          if (url.includes('china_engineer')) {
-            root.rotation.x = Math.PI / 2;
-          }
+          // 0. 朝向修正：模型已经是站立的，不需要额外旋转
+          // if (url.includes('china_engineer')) {
+          //   root.rotation.x = Math.PI / 2;
+          // }
 
           // 1. 模型尺寸归一化：按身高缩放至 1.75m
           const box = new THREE.Box3().setFromObject(root);

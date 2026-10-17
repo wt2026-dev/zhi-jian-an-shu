@@ -62,15 +62,29 @@ function freshAnimState(): AnimState {
 
 // ─── Constants ────────────────────────────────────────────────────
 
-// 相机对准工业工程师上半身（头盔、护目镜、反光工装、工具腰带完整入画）
-const CAM_POS = new THREE.Vector3(0, 0.60, 3.45);
-const CAM_TARGET = new THREE.Vector3(0, 0.60, 0);
+/**
+ * 机位口径（改这里必须同步三处：`tests/digital-human-engineer-model.test.ts` 的 CAMERA_AT
+ * 拿这条视线求交，判断帽壳/刘海/镜框有没有糊住眉眼；`scratch/dh-preview.mjs` 用它拍验收照）。
+ *
+ * 原来 (0, 0.60, 3.45) 是"半身像"机位 —— 那时候模型只做到腰带（−0.575），
+ * 取景框正好卡在腰带下沿，投出来就是一截蓝色方块，用户说的"方块身子"有一半来自这里。
+ * 现在补齐了下半身（髋 −0.63 / 膝 −1.48 / 鞋底线 −2.58，含帽包围盒 1.606 ~ −2.58）。
+ *
+ * 7.1 那一版是按**视线中心平面**算的，而帽子前沿 z≈0.71 比该平面近 10%，投影更靠外，
+ * 截图实测帽顶落在 −8.8px（被上沿切掉）。这里改用 PerspectiveCamera 逐点投影反解：
+ * 画面 262×322 下帽顶 +13px、鞋尖距下沿 +44px（声波条要 42px），人体占画面高 83%。
+ * 相机仍压在髋—膝之间平视（俯角 ≈4°）：仰拍把安全帽顶出画面，俯拍把腿压成半截人。
+ */
+const CAM_POS = new THREE.Vector3(0, -0.24, 7.9);
+const CAM_TARGET = new THREE.Vector3(0, -0.74, 0);
 const FOV = 39;
 
 // Arm rest / speaking rotations
-const ARM_REST_Z = 0.15;
+// 0.15 → 0.09：手臂加长到 1.6（肩峰→腕）之后，再保持 0.15 的外撇角，
+// 手会甩到髋外 0.2 处，整个人像端着两只胳膊；收一点才垂得贴身体。
+const ARM_REST_Z = 0.09;
 const ARM_REST_X = -0.06;
-const ARM_SPEAK_Z = 0.25;
+const ARM_SPEAK_Z = 0.2;
 const ARM_SPEAK_X = -0.11;
 
 // ─── Component ────────────────────────────────────────────────────
@@ -148,18 +162,23 @@ export const DigitalHuman3D = forwardRef<DigitalHuman3DHandle, DigitalHuman3DPro
       mainLight.position.set(2, 3, 4);
       scene.add(mainLight);
 
-      // 环境光（明亮底光）
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+      // 环境光（明亮底光）：补到 0.62，下半身（深藏蓝裤子）原本只靠顶光，糊成一团黑
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.62);
       scene.add(ambientLight);
 
       // 晨曦金轮廓光（勾勒安全帽与肩甲边缘）
-      const rimLight = new THREE.DirectionalLight(0xe8a33d, 0.85);
+      //
+      // ⚠ 强度从 0.85 降到 0.4：这盏琥珀轮廓光直接打在白帽上，
+      // 张工的白安全帽（0xf0f0f0）被染成黄色 —— 用户反馈的"黄色方块头"，
+      // 一半来自这里，另一半来自当时模型根本没有下半身。
+      // 保留暖轮廓光是为了和品牌色一致，但要低到"描边"而不是"换色"。
+      const rimLight = new THREE.DirectionalLight(0xe8a33d, 0.4);
       rimLight.position.set(-2.5, 2.5, -2.5);
       scene.add(rimLight);
 
-      // 天青色辅助反光（工业科技感）
-      const fillLight = new THREE.DirectionalLight(0x06b6d4, 0.6);
-      fillLight.position.set(2.5, -1, 2.5);
+      // 天青色辅助反光（工业科技感）：从侧前方补，不让裤腿和靴子正面陷入死黑
+      const fillLight = new THREE.DirectionalLight(0x06b6d4, 0.35);
+      fillLight.position.set(2.5, 0.2, 2.5);
       scene.add(fillLight);
 
       // --- Model ---

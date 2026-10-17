@@ -5,6 +5,9 @@
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
+import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 import { createApp } from "../server.ts";
 
 let app: any;
@@ -58,5 +61,46 @@ describe("视频上传魔数校验", () => {
       .send({ videoBase64: `data:video/webm;base64,${webmMagic}`, filename: "real.webm" });
     expect(res.status).toBe(201);
     expect(res.body.videoId).toContain(".webm");
+  });
+});
+
+/**
+ * 落盘位置与静态托管位置必须一致。
+ *
+ * 回归背景：`uploadController.handleUploadVideo` 曾写死
+ * `path.join(process.cwd(), "public", "uploads", "videos", videoId)`，
+ * 而 `/uploads` 是由 `express.static(UPLOADS_DIR)` 托管的，`UPLOADS_DIR` 又支持用环境变量
+ * 覆盖为工作区之外的绝对路径（逃出工作区大文件清理的唯一手段）。
+ * 两者一旦分叉：文件写到 A 处、却从 B 处提供服务 → 上传返回 201，但紧接着取回就是 404。
+ * 现改为统一走 config 导出的 `VIDEOS_DIR`。
+ *
+ * 注：vitest.config.ts 的 `env.UPLOADS_DIR` 把它指向系统临时目录，因此本用例是在
+ * **非默认值**下运行的 —— 这恰好是能暴露上述原始 bug 的条件：老代码写死
+ * `process.cwd()/public/uploads/videos`，而 /uploads 从 tmp 托管，两者分叉后
+ * 「落在 VIDEOS_DIR 下」与「url 可取回」两条断言都会失败。
+ */
+describe("视频上传落盘位置与 /uploads 静态托管一致", () => {
+  it("上传后返回的 url 必须能立即取回（写盘路径 == 托管路径）", async () => {
+    const res = await request(app)
+      .post("/api/v1/upload/video")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ videoBase64: `data:video/mp4;base64,${mp4Magic}`, filename: "roundtrip.mp4" });
+    expect(res.status).toBe(201);
+    expect(res.body.url).toBeTruthy();
+
+    // 文件必须落在 config 导出的 VIDEOS_DIR 下，而不是任何写死的路径
+    const { VIDEOS_DIR, UPLOADS_DIR } = await import("../src/server/utils/config.ts");
+    expect(fs.existsSync(path.join(VIDEOS_DIR, res.body.videoId))).toBe(true);
+
+    // 隔离护栏：产物目录必须在 os.tmpdir() 之下。若有人删掉 vitest.config.ts 里的
+    // UPLOADS_DIR，本用例会退化成"在默认值下自证"，同时重新开始往仓库灌垃圾 —— 这里挡住它。
+    expect(UPLOADS_DIR.startsWith(os.tmpdir())).toBe(true);
+
+    // 反向断言：绝不能落进仓库里被 express.static 托管的真实目录
+    expect(fs.existsSync(path.join(process.cwd(), "public", "uploads", "videos", res.body.videoId))).toBe(false);
+
+    // 并且必须能通过返回的 url 取回（写盘路径与托管路径确实是同一个）
+    const got = await request(app).get(res.body.url);
+    expect(got.status).toBe(200);
   });
 });

@@ -11,6 +11,14 @@ export interface PersonaConfig {
   gloveColor: number;
   /** 头发与眉毛同色系（东亚人种偏冷黑，不是欧美的棕褐） */
   hairColor: number;
+  /**
+   * 工装裤色 —— 刻意比上衣更深：现场裤子蹲立蹭油，厂家发的成套工装本来就是
+   * "上衣亮蓝、裤子藏青"，同色反而像穿了一件连体服（观感＝一块蓝色方块）。
+   */
+  trouserColor: number;
+  bootColor: number;
+  /** 帆布工具袋色（挂在右胯，是"这是个干活的人"最直接的记号） */
+  bagColor: number;
 }
 
 export interface EngineerModelResult {
@@ -28,12 +36,14 @@ export interface EngineerModelResult {
 /**
  * 人设配色 —— 口径是「中国工业现场的检修总工」：
  * 肤色取东亚暖黄（不带欧美扫描脸的粉调），头发/眉毛冷黑，
- * 工装藏蓝（电力/机械行业通用色），反光背心荧光黄绿 + 银白反光带（GB 20653）。
+ * 工装取成套「上衣亮蓝 + 裤子藏青」（现场真实的成套工装就是两套色，
+ * 上衣裤子同色反而像一件连体服 → 用户看到的"蓝色方块身子"），
+ * 反光背心荧光黄绿 + 银白反光带（GB 20653）。
  */
 export const PERSONA_CONFIGS: Record<string, PersonaConfig> = {
   zhang: {
     helmetColor: 0xf0f0f0,      // 白帽 = 总工 / 技术管理，工地通行色
-    overallColor: 0x2f4a63,
+    overallColor: 0x2c4a76,     // 靛蓝工装上衣（真实厂家色，不是灰蓝）
     skinTone: 0xe3bd93,
     stripColor: 0xc3d92a,
     goggleTint: 0x38bdf8,       // 天蓝护目镜
@@ -41,10 +51,13 @@ export const PERSONA_CONFIGS: Record<string, PersonaConfig> = {
     badgeAccent: 0x0ea5e9,
     gloveColor: 0x2d3436,
     hairColor: 0x161318,
+    trouserColor: 0x1e3350,
+    bootColor: 0x2a2119,
+    bagColor: 0x5a4a33,
   },
   li: {
     helmetColor: 0x2563eb,      // 蓝帽 = 特种作业 / 技术工人
-    overallColor: 0x1e3a5f,
+    overallColor: 0x24405f,
     skinTone: 0xe8c49c,
     stripColor: 0xc3d92a,
     goggleTint: 0x10b981,       // 翠绿护目镜
@@ -52,10 +65,13 @@ export const PERSONA_CONFIGS: Record<string, PersonaConfig> = {
     badgeAccent: 0x10b981,
     gloveColor: 0x2d3436,
     hairColor: 0x141116,
+    trouserColor: 0x18273f,
+    bootColor: 0x241d16,
+    bagColor: 0x3f4650,
   },
   zhi: {
     helmetColor: 0xf5b301,      // 黄帽 = 现场作业
-    overallColor: 0x334155,
+    overallColor: 0x2d4a6f,     // 原来是 0x334155 灰蓝，投影上像穿了件水泥袋子
     skinTone: 0xe3bd93,
     stripColor: 0xc3d92a,
     goggleTint: 0x06b6d4,       // 青色护目镜
@@ -63,6 +79,9 @@ export const PERSONA_CONFIGS: Record<string, PersonaConfig> = {
     badgeAccent: 0x06b6d4,
     gloveColor: 0x2d3436,
     hairColor: 0x181419,
+    trouserColor: 0x203350,
+    bootColor: 0x28211a,
+    bagColor: 0x4b4234,
   }
 };
 
@@ -84,7 +103,14 @@ function pbrMat(
   metalness = 0.0,
   opts?: Partial<THREE.MeshStandardMaterialParameters>
 ): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness, metalness, ...opts });
+  // 把值为 undefined 的键剔掉再交给 three：`{ map: weave ?? undefined }` 在
+  // node 环境（weave 为 null）会留下一个显式 undefined，触发
+  // "THREE.Material: parameter 'map' has value of undefined" 刷屏。
+  const clean: Record<string, unknown> = { color, roughness, metalness };
+  for (const [k, v] of Object.entries(opts ?? {})) {
+    if (v !== undefined) clean[k] = v;
+  }
+  return new THREE.MeshStandardMaterial(clean as THREE.MeshStandardMaterialParameters);
 }
 
 /**
@@ -93,6 +119,60 @@ function pbrMat(
  */
 function addOutline(_parent: THREE.Object3D, _mesh: THREE.Mesh, _scaleFactor = 1.04): void {
   return;
+}
+
+/**
+ * 工装布料纹理（斜纹 + 纱线噪点），纯 canvas 程序化生成，零网络请求。
+ *
+ * 为什么必须有：用户反馈的"方块身子"一半是几何（原来全身只有圆柱和方块），
+ * 另一半是**布料没有任何纹理** —— 纯色 MeshStandardMaterial 在 286px 的舞台里
+ * 就是塑料积木。这里画的是涤棉工装的 45° 斜纹（twill）再加一层极细的纱线噪点。
+ *
+ * ⚠ 底色必须是接近白的中性灰：`map` 是与 `color` **相乘**的，
+ * 按料子本色画一遍、材质色再给一遍，出来就是暗两档的糊色。
+ *
+ * ⚠ 单测跑在 node 环境（无 `document`），取不到画布就返回 null 走纯色，
+ * 不能在这里直接 new Canvas()，否则整份 EngineerModel 几何护栏全炸。
+ */
+function makeWeaveTexture(repeat = 5): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx2d = canvas.getContext('2d');
+  if (!ctx2d) return null;
+
+  ctx2d.fillStyle = '#f2f2f0';
+  ctx2d.fillRect(0, 0, size, size);
+
+  // 斜纹：4px 一组明暗相间纱线，亮暗只差几个百分点——要的是"看得出是布"，不是条纹衫
+  for (let x = -size; x < size * 2; x += 4) {
+    const grad = ctx2d.createLinearGradient(x, 0, x + 4, size);
+    grad.addColorStop(0, 'rgba(255,255,255,0.75)');
+    grad.addColorStop(0.55, 'rgba(0,0,0,0.09)');
+    grad.addColorStop(1, 'rgba(255,255,255,0.35)');
+    ctx2d.strokeStyle = grad;
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath();
+    ctx2d.moveTo(x, 0);
+    ctx2d.lineTo(x - size, size);
+    ctx2d.stroke();
+  }
+  // 纱线噪点：确定性伪随机（不用 Math.random，否则每次换人设布纹都在跳）
+  for (let i = 0; i < 1500; i++) {
+    const px = (i * 37) % size;
+    const py = (i * 91) % size;
+    ctx2d.fillStyle = i % 3 === 0 ? 'rgba(255,255,255,0.30)' : 'rgba(0,0,0,0.10)';
+    ctx2d.fillRect(px, py, 1, 1);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeat, repeat);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
 }
 
 // ── 写实比例常量（改这里就能整体调头身比，不要散落在代码里硬编码） ──
@@ -129,10 +209,23 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   torsoGroup.name = 'torsoGroup';
   root.add(torsoGroup);
 
+  // 下半身单独一组：呼吸动画只.scale torsoGroup，腿和脚必须钉在地上不动，
+  // 否则整条腿跟着一起伸缩，人会在原地"忽高忽低"。
+  const legsGroup = new THREE.Group();
+  legsGroup.name = 'legsGroup';
+  root.add(legsGroup);
+
   // === Torso ===
+  // 三块布：上衣（领口/袖子）、工装裤、帆布工具袋，共用一张斜纹底图、各自调密度。
+  const weave = makeWeaveTexture(4);
+  const trouserWeave = weave ? weave.clone() : null;
+  if (trouserWeave) { trouserWeave.repeat.set(5, 7); trouserWeave.needsUpdate = true; }
+  const bagWeave = weave ? weave.clone() : null;
+  if (bagWeave) { bagWeave.repeat.set(2, 2); bagWeave.needsUpdate = true; }
+
   // 胸段上沿抬到 0.68（原 0.60）：领口要接住下颌，否则脖子那一段全是裸皮肤
   const chestGeom = new THREE.CylinderGeometry(0.42, 0.36, 0.88, 16);
-  const chestMat = pbrMat(config.overallColor, 0.88); // 工装布料：哑光、几乎无高光
+  const chestMat = pbrMat(config.overallColor, 0.88, 0, { map: weave ?? undefined }); // 工装布料：哑光、几乎无高光
   const chest = new THREE.Mesh(chestGeom, chestMat);
   chest.position.set(0, 0.24, 0);
   torsoGroup.add(chest);
@@ -143,11 +236,32 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   lowerTorso.position.set(0, -0.35, 0);
   torsoGroup.add(lowerTorso);
 
-  const neckGeom = new THREE.CylinderGeometry(0.11, 0.11, 0.15, 12);
+  const neckGeom = new THREE.CylinderGeometry(0.11, 0.128, 0.15, 12);
   const skinMat = pbrMat(config.skinTone, 0.78); // 皮肤：哑光微油，不要塑料感
   const neck = new THREE.Mesh(neckGeom, skinMat);
   neck.position.set(0, 0.715, 0);
   torsoGroup.add(neck);
+  // 喉结：原来到处都是光滑圆柱/球，脖子给一个骨点，"人"的味道主要靠这些转折
+  const adam = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), skinMat);
+  adam.position.set(0, 0.73, 0.112);
+  adam.scale.set(1, 1.25, 0.7);
+  torsoGroup.add(adam);
+  // 工装翻领：脖子根下直接是胸段圆柱，看着像"头插在瓶子里"。
+  // 翻领把颈—肩这一段接上，领子也是现场工装最能读出"制服"的一块布。
+  const collarMat = pbrMat(new THREE.Color(config.overallColor).multiplyScalar(1.12).getHex(), 0.86, 0, {
+    map: weave ?? undefined,
+    side: THREE.DoubleSide,
+  });
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.27, 0.1, 16, 1, true), collarMat);
+  collar.position.set(0, 0.735, 0.012);
+  torsoGroup.add(collar);
+  // 领尖：前襟翻折的两只尖角（不开 V 领，工装领口是合到胸前的）
+  for (const side of [-1, 1]) {
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.075, 0.018), collarMat);
+    tip.position.set(side * 0.1, 0.71, 0.155);
+    tip.rotation.set(-0.5, side * 0.45, 0);
+    torsoGroup.add(tip);
+  }
 
   const shoulderPadGeom = new THREE.BoxGeometry(0.22, 0.07, 0.18);
   const leftShoulderPad = new THREE.Mesh(shoulderPadGeom, chestMat);
@@ -162,7 +276,10 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   // 躯干本身就是圆柱，所以背心用同心的开口圆柱壳就能贴合，不会像 GLB 那样悬空成一只桶。
   // 背心锥度集中在这组参数里，反光带半径一律用 vestRadiusAt() 推，
   // 不要再手写常量——之前带子飘出背心、工牌斜插进布里都是这么来的。
-  const VEST = { rTop: 0.455, rBottom: 0.395, h: 0.78, y: 0.26 };
+  // 反光背心比躯干只大一圈（原来 0.455/0.395 快赶上肩宽）：
+  // 截图里整块上身是一面平整的黄绿色墙，"方块身子"的观感有一半来自这里。
+  // 收到 0.43/0.372 后两侧露出深蓝工装，背心才读作"套在外面的第二层"。
+  const VEST = { rTop: 0.43, rBottom: 0.372, h: 0.78, y: 0.26 };
   const vestRadiusAt = (y: number) =>
     VEST.rBottom + (VEST.rTop - VEST.rBottom) * ((y - (VEST.y - VEST.h / 2)) / VEST.h);
   const vestMat = pbrMat(config.stripColor, 0.8, 0.0, { side: THREE.DoubleSide });
@@ -223,13 +340,56 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   badgeDetail.rotation.y = -0.49;
   torsoGroup.add(badgeDetail);
 
+  // ── 工装细节：胸袋 + 门襟明线 ──
+  // 「工装纹理」不是只有布纹就够：真正让人读出"这是件制服"的是口袋和缝线。
+  // 胸袋挂在右胸（工牌在左胸，两者不叠），袋盖压出一道阴影边。
+  // 颜色必须跟着**背心**走：原来用深蓝工装色，两颗深色方块漂在荧光黄上，
+  // 截图里读作"贴在胸口的像素块"，是"方块人"观感的最后一个来源。
+  const pocketMat = pbrMat(new THREE.Color(config.stripColor).multiplyScalar(0.86).getHex(), 0.92, 0, {
+    map: weave ?? undefined,
+  });
+  const seamMat = pbrMat(new THREE.Color(config.overallColor).multiplyScalar(1.45).getHex(), 0.95);
+  for (const px of [-0.155, 0.155]) {
+    const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.11, 0.02), pocketMat);
+    // 方位角 ±0.36rad，背心壳在该高度外半径约 0.41 → 袋体压出壳面 0.01 才有"缝在上面"的厚度
+    pocket.position.set(px, 0.36, 0.383);
+    pocket.rotation.y = px > 0 ? 0.36 : -0.36;
+    torsoGroup.add(pocket);
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.145, 0.034, 0.024), pocketMat);
+    flap.position.set(px, 0.432, 0.39);
+    flap.rotation.x = 0.12;
+    flap.rotation.y = px > 0 ? 0.36 : -0.36;
+    torsoGroup.add(flap);
+  }
+  // 前中缝：从上领口直落到腰带的一条明线（背心拉链口，也是"衣服有中缝"的读数点）
+  const placket = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.86, 0.012), seamMat);
+  placket.position.set(0, 0.26, 0.435);
+  torsoGroup.add(placket);
+
   // Tool Belt & Tools
   const beltMat = pbrMat(0x1a1a2e);
-  const beltGeom = new THREE.CylinderGeometry(0.34, 0.34, 0.06, 16);
+  // 腰带半径 0.36：必须同时外凸于下摆（0.322）与髋部（0.3345），否则腰带会陷进裤腰里
+  const beltGeom = new THREE.CylinderGeometry(0.36, 0.36, 0.075, 16);
   const toolBelt = new THREE.Mesh(beltGeom, beltMat);
   toolBelt.position.set(0, -0.55, 0);
   torsoGroup.add(toolBelt);
+  // 腰带扣 + 两段皮环：腰带原来是一整圈纯黑圆柱，正身看过去就是一条黑缝
+  const buckleMat = pbrMat(0xb8bec6, 0.35, 0.85);
+  const beltBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.085, 0.022), buckleMat);
+  beltBuckle.position.set(0, -0.55, 0.366);
+  torsoGroup.add(beltBuckle);
+  for (const loopX of [-0.2, 0.24]) {
+    const loop = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.028), beltMat);
+    loop.position.set(loopX, -0.575, 0.315);
+    loop.rotation.y = loopX > 0 ? -0.6 : 0.6;
+    torsoGroup.add(loop);
+  }
 
+  // ── 工具袋（右胯，挂在腰带环上）──
+  // 原来是扳手 + 螺丝刀直接插在腰带前后（±0.28, −0.65, 0.18），
+  // 位置在躯干圆柱内部 → 投影上只露出两小截金属，看不出"带工具"，
+  // 反而像身上长了两个方块。改成一只真正的帆布工具袋：袋体 + 袋盖 + 提带 + 露出的工具柄。
+  // 挂在 legsGroup（下半身）而不是 torsoGroup：躯干呼吸缩放时袋子不该跟着一起拉长。
   const wrenchMat = pbrMat(0x6b7280, 0.34, 0.85); // 扳手：镀铬钢
   const wrenchHandleGeom = new THREE.BoxGeometry(0.035, 0.12, 0.018);
   const wrenchHeadGeom = new THREE.BoxGeometry(0.055, 0.04, 0.018);
@@ -238,8 +398,6 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   const wrenchHead = new THREE.Mesh(wrenchHeadGeom, wrenchMat);
   wrenchHead.position.set(0, 0.08, 0);
   wrenchGroup.add(wrenchHandle, wrenchHead);
-  wrenchGroup.position.set(0.28, -0.65, 0.18);
-  torsoGroup.add(wrenchGroup);
 
   const sdShaftMat = pbrMat(0x9ca3af, 0.22, 0.9); // 螺丝刀杆：抛光金属
   const sdHandleMat = pbrMat(0xef4444);
@@ -250,8 +408,119 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   const sdHandle = new THREE.Mesh(sdHandleGeom, sdHandleMat);
   sdShaft.position.set(0, -0.05, 0);
   screwdriverGroup.add(sdShaft, sdHandle);
-  screwdriverGroup.position.set(-0.28, -0.65, 0.18);
-  torsoGroup.add(screwdriverGroup);
+
+  const bagMat = pbrMat(config.bagColor, 0.92, 0, { map: bagWeave ?? undefined }); // 厚帆布：比工装更哑
+  const bagTrimMat = pbrMat(new THREE.Color(config.bagColor).multiplyScalar(0.7).getHex(), 0.85);
+  // 比大腿外沿（0.178 + 0.178）再往外 0.03：腿加粗后袋体不再嵌进裤子里
+  const BAG_X = 0.352;
+  const bagGroup = new THREE.Group();
+  bagGroup.name = 'dh-toolbag';
+  // 袋体贴着胯部朝外前方（腰侧到膝上这一段是工具袋的真实落位）
+  const bagBody = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.27, 0.115), bagMat);
+  bagBody.position.set(0, -0.735, 0);
+  bagGroup.add(bagBody);
+  // 袋口：加宽的一圈边 + 中间一道隔层，工具从隔层里露出来
+  const bagMouth = new THREE.Mesh(new THREE.BoxGeometry(0.255, 0.045, 0.13), bagTrimMat);
+  bagMouth.position.set(0, -0.605, 0);
+  bagGroup.add(bagMouth);
+  const bagDivider = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.05, 0.125), bagTrimMat);
+  bagDivider.position.set(0.02, -0.6, 0);
+  bagGroup.add(bagDivider);
+  // 前贴袋（卷尺/记录本的位置）+ 一道缝线
+  const bagPocket = new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.13, 0.03), bagMat);
+  bagPocket.position.set(-0.02, -0.79, 0.07);
+  bagGroup.add(bagPocket);
+  const bagSeam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.245, 0.008, 0.008),
+    pbrMat(new THREE.Color(config.bagColor).multiplyScalar(1.5).getHex(), 0.95),
+  );
+  bagSeam.position.set(0, -0.855, 0.058);
+  bagGroup.add(bagSeam);
+  // 提带：从袋口两侧拱起来的一条，手能握、也能挂到腰带环上
+  const strapMat = pbrMat(new THREE.Color(config.bagColor).multiplyScalar(0.55).getHex(), 0.9);
+  const handleStrap = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.012, 6, 16, Math.PI), strapMat);
+  handleStrap.position.set(0, -0.6, 0);
+  handleStrap.rotation.y = Math.PI / 2;
+  bagGroup.add(handleStrap);
+  // 挂带：两条从袋口回到腰带的织带（没有它们，袋子就是"悬空贴在胯上"）
+  for (const hz of [-0.045, 0.045]) {
+    const hanger = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.075, 0.022), strapMat);
+    hanger.position.set(-0.06, -0.578, hz);
+    bagGroup.add(hanger);
+  }
+  wrenchGroup.position.set(0.055, -0.565, 0.01);
+  wrenchGroup.rotation.set(0.1, 0, 0.16);
+  screwdriverGroup.position.set(-0.085, -0.575, -0.01);
+  screwdriverGroup.rotation.set(0.16, 0, -0.22);
+  bagGroup.add(wrenchGroup, screwdriverGroup);
+  bagGroup.position.set(BAG_X, 0, 0.1);
+  bagGroup.rotation.y = -0.42;
+  legsGroup.add(bagGroup);
+
+  // ── 下半身：髋 + 双腿（深藏蓝工装裤）+ 劳保鞋 ──
+  // 头身比口径：颅底 y 0.77 → 颅顶 1.306 ⇒ 一个头高 0.536。
+  // 全站高（鞋底线 −2.58 → 颅顶 1.306）= 3.886 ≈ **7.2 个头**，正常成年男性区间。
+  // 原来的模型做到腰带（−0.575）就收口，下半身根本不存在 ——
+  // 投在 286px 的舞台里就是"一截蓝色方块"，这也是用户说"方块人"的直接原因。
+  const trouserMat = pbrMat(config.trouserColor, 0.9, 0, { map: trouserWeave ?? undefined });
+  const trouserDarkMat = pbrMat(new THREE.Color(config.trouserColor).multiplyScalar(0.82).getHex(), 0.92);
+  // 髋骨：上沿 −0.48 与躯干下摆（−0.575）交叠 0.095，躯干呼吸 ±1.5% 也不会张开裂缝
+  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.31, 0.3, 16), trouserMat);
+  hips.position.set(0, -0.63, 0);
+  legsGroup.add(hips);
+  // 裆部接缝：一条竖明线，避免裤子在两条腿之间糊成一整块
+  const flySeam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.16, 0.012),
+    pbrMat(new THREE.Color(config.trouserColor).multiplyScalar(1.4).getHex(), 0.95),
+  );
+  flySeam.position.set(0, -0.62, 0.315);
+  legsGroup.add(flySeam);
+
+  const bootMat = pbrMat(config.bootColor, 0.6, 0.04);
+  const soleMat = pbrMat(new THREE.Color(config.bootColor).multiplyScalar(0.5).getHex(), 0.95);
+  // 腿围整体加粗 ~9%：截图验收时两条腿是"两根水管"，因为大腿直径只有肩宽的 29%
+  // （真人约 34%）。粗一点 + 两腿略微分开，站姿才像承重的人而不是圆规。
+  for (const side of [-1, 1]) {
+    const leg = new THREE.Group();
+    leg.name = `dh-leg-${side > 0 ? 'r' : 'l'}`;
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.178, 0.142, 0.7, 14), trouserMat);
+    thigh.position.set(0, -1.13, 0);
+    leg.add(thigh);
+    const knee = new THREE.Mesh(new THREE.SphereGeometry(0.142, 14, 10), trouserMat);
+    knee.position.set(0, -1.48, 0.006);
+    knee.scale.set(1, 1, 1.06);
+    leg.add(knee);
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.142, 0.104, 0.9, 14), trouserMat);
+    shin.position.set(0, -1.97, 0);
+    leg.add(shin);
+    // 裤脚收口 + 小腿反光条（检修裤的标配，深色裤子上最能"读出是裤子"的两道细节）
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.113, 0.108, 0.06, 14), trouserDarkMat);
+    cuff.position.set(0, -2.41, 0);
+    leg.add(cuff);
+    const legBand = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.126, 0.122, 0.045, 14, 1, true),
+      bandMat,
+    );
+    legBand.position.set(0, -2.16, 0);
+    leg.add(legBand);
+    // 膝部补强：蹲立磨损最多的地方，现场裤子这里都多一层布
+    const kneePatch = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 0.03), trouserDarkMat);
+    kneePatch.position.set(0, -1.47, 0.142);
+    leg.add(kneePatch);
+    // 劳保鞋：鞋面 + 前掌钢包头 + 橡胶底（底比鞋身宽出一圈，站得住）
+    const bootUpper = new THREE.Mesh(new THREE.BoxGeometry(0.215, 0.16, 0.3), bootMat);
+    bootUpper.position.set(0.005, -2.49, 0.04);
+    leg.add(bootUpper);
+    const toeCap = new THREE.Mesh(new THREE.SphereGeometry(0.086, 12, 8), soleMat);
+    toeCap.position.set(0.005, -2.52, 0.175);
+    toeCap.scale.set(1.18, 0.72, 0.9);
+    leg.add(toeCap);
+    const sole = new THREE.Mesh(new THREE.BoxGeometry(0.232, 0.05, 0.345), soleMat);
+    sole.position.set(0.005, -2.557, 0.045);
+    leg.add(sole);
+    leg.position.set(side * 0.178, 0, 0);
+    legsGroup.add(leg);
+  }
 
   // === Head ===
   const headGroup = new THREE.Group();
@@ -273,6 +542,40 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   skull.scale.set(1, 0.93, 0.96);
   headGroup.add(skull);
   addOutline(headGroup, skull);
+
+  // ── 面部轮廓 ──
+  // 一颗球加几个五官 = "气球上贴了眼睛"，这正是"简陋"的来源。
+  // 真实男脸的识别点是**下颌角 + 颧骨 + 下巴**这三块骨点，
+  // 所以在这里用同肤色的低幅度体块把下半张脸的转折做出来（不是换脸型，是给骨点）。
+  // 落位一律压在眼睛（y 0.04）以下、嘴（y −0.22）以外，避免挡到护栏盯的眉眼口。
+  const skinShadeMat = pbrMat(new THREE.Color(config.skinTone).multiplyScalar(0.96).getHex(), 0.8);
+  for (const side of [-1, 1]) {
+    // 颧骨 / 颊部：颅骨在该处表面 z≈0.38，给出 0.03 的起伏就够读出转折。
+    // 原来 0.13 的球凸出太多，正脸看是两坨鼓包（像斗牛犬），骨点变成"贴球"。
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.112, 14, 10), skinMat);
+    cheek.name = `dh-cheek-${side > 0 ? 'r' : 'l'}`;
+    cheek.position.set(side * 0.235, -0.145, 0.302);
+    cheek.scale.set(1, 0.9, 0.6);
+    headGroup.add(cheek);
+    // 下颌角：方脸的关键骨点，东亚中年男性尤其明显
+    const jawCorner = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 8), skinMat);
+    jawCorner.position.set(side * 0.352, -0.26, 0.14);
+    jawCorner.scale.set(0.9, 1.15, 0.9);
+    headGroup.add(jawCorner);
+    // 耳廓内凹：耳朵不再是一个贴上去的扁球
+    const concha = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.0075, 6, 12), skinShadeMat);
+    concha.position.set(side * 0.474, 0.0, 0.005);
+    concha.rotation.y = Math.PI / 2;
+    concha.scale.set(1, 1.35, 1);
+    headGroup.add(concha);
+  }
+  // 下巴：横向略宽（不是尖下巴），下沿比颅骨底再低一点，收住下半张脸。
+  // 不要往前凸：凸出去就是一个独立的球（截图里像挂了撮山羊胡），下半张脸反而失真。
+  const chin = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 10), skinMat);
+  chin.name = 'dh-chin';
+  chin.position.set(0, -0.40, 0.262);
+  chin.scale.set(1.35, 0.9, 0.95);
+  headGroup.add(chin);
 
   // ── 头发 ──
   // 颅顶被安全帽压住，能看见的只有后脑、两侧和额前刘海，所以发形按这三块单独给：
@@ -370,6 +673,14 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   noseBridge.position.set(0, 0.0, 0.44);
   noseBridge.rotation.x = -0.18;
   headGroup.add(noseBridge);
+  // 鼻翼：鼻梁低 + 鼻头圆宽是东亚鼻型，只给一个鼻头会像扣了颗珠子
+  const alaMat = pbrMat(new THREE.Color(config.skinTone).multiplyScalar(0.94).getHex(), 0.8);
+  for (const side of [-1, 1]) {
+    const ala = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), alaMat);
+    ala.position.set(side * 0.055, -0.1, 0.442);
+    ala.scale.set(1, 0.85, 0.85);
+    headGroup.add(ala);
+  }
 
   // Ears
   const earGeom = new THREE.SphereGeometry(0.06, 8, 6);
@@ -547,44 +858,91 @@ export function buildEngineerModel(personaId: string): EngineerModelResult {
   gogglesGroup.add(rightTemple);
 
   // === Arms ===
-  const armGeom = new THREE.CylinderGeometry(0.09, 0.08, 0.5, 12);
+  // 臂长口径：肩峰→中指 = 0.44 × 站高 = 0.44 × 3.886 ≈ **1.71**。
+  // 原实现（上臂 0.5 + 前臂 0.42 + 一只方块手套）只有 1.25，指尖停在腰上头——
+  // 下半身补齐之后这个短板立刻显形（胳膊短 = 小孩/Q 版比例），所以整条手臂加长。
+  const armGeom = new THREE.CylinderGeometry(0.095, 0.079, 0.75, 12);
   const elbowGeom = new THREE.SphereGeometry(0.08, 12, 8);
-  const forearmGeom = new THREE.CylinderGeometry(0.075, 0.065, 0.42, 12);
-  const gloveGeom = new THREE.BoxGeometry(0.11, 0.09, 0.15);
-  const gloveMat = pbrMat(config.gloveColor);
+  const forearmGeom = new THREE.CylinderGeometry(0.078, 0.062, 0.62, 12);
+  const gloveMat = pbrMat(config.gloveColor, 0.82);
+  const cuffMat = pbrMat(new THREE.Color(config.overallColor).multiplyScalar(0.9).getHex(), 0.9, 0, {
+    map: weave ?? undefined,
+  });
 
-  function createArm(): THREE.Group {
+  /**
+   * 手：掌 + 四指 + 拇指 + 袖口。
+   * 原来是一只 0.11×0.09×0.15 的方块手套 —— 用户说的"方块人"里有一半说的是它。
+   * 低多边形下只要把掌、指、拇分给三个体块并让指节微微内收，
+   * 手就立刻读作"手"而不是"一截管子末端"。
+   */
+  function createHand(side: number): THREE.Group {
+    const hand = new THREE.Group();
+    hand.name = `dh-hand-${side > 0 ? 'r' : 'l'}`;
+
+    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.082, 0.115, 0.05), gloveMat);
+    palm.position.set(0, -0.058, 0);
+    hand.add(palm);
+
+    // 四指：中指最长、两侧递减，微微向前收（松弛垂手，不是十指僵直）
+    const fingerLen = [0.082, 0.092, 0.088, 0.07];
+    for (let i = 0; i < 4; i++) {
+      const finger = new THREE.Mesh(new THREE.BoxGeometry(0.0185, fingerLen[i], 0.042), gloveMat);
+      finger.position.set(-0.0295 + i * 0.0197, -0.115 - fingerLen[i] / 2, 0.004);
+      finger.rotation.x = 0.16 + i * 0.015;
+      hand.add(finger);
+    }
+    // 拇指：斜挂在掌内侧（缺了它，垂手时手掌会被读成一片板）
+    const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.062, 0.038), gloveMat);
+    thumb.position.set(-side * 0.048, -0.06, 0.022);
+    thumb.rotation.set(0.28, 0, side * 0.72);
+    hand.add(thumb);
+
+    // 袖口：工装袖子卷到腕上，遮掉掌—腕接缝，同时多一块布料层次
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.074, 0.068, 0.055, 12), cuffMat);
+    cuff.position.set(0, 0.012, 0);
+    hand.add(cuff);
+    return hand;
+  }
+
+  function createArm(side: number): THREE.Group {
     const armGroup = new THREE.Group();
-    
+
     const upperArm = new THREE.Mesh(armGeom, chestMat);
-    upperArm.position.set(0, -0.25, 0);
+    upperArm.position.set(0, -0.375, 0);
     armGroup.add(upperArm);
     addOutline(armGroup, upperArm);
 
     const elbow = new THREE.Mesh(elbowGeom, chestMat);
-    elbow.position.set(0, -0.5, 0);
+    elbow.position.set(0, -0.75, 0);
     armGroup.add(elbow);
 
     const forearm = new THREE.Mesh(forearmGeom, chestMat);
-    forearm.position.set(0, -0.75, 0.05);
+    forearm.position.set(0, -1.06, 0.05);
     forearm.rotation.x = -0.15;
     armGroup.add(forearm);
 
-    const glove = new THREE.Mesh(gloveGeom, gloveMat);
-    glove.position.set(0, -1.0, 0.08);
-    armGroup.add(glove);
+    // 上臂补一块肱二头肌体块：整条手臂只有一根锥台圆柱时，袖子看着像两根 PVC 管
+    const biceps = new THREE.Mesh(new THREE.SphereGeometry(0.078, 12, 8), chestMat);
+    biceps.position.set(side * 0.02, -0.3, 0.045);
+    biceps.scale.set(0.85, 1.5, 0.9);
+    armGroup.add(biceps);
+
+    const hand = createHand(side);
+    hand.position.set(0, -1.4, 0.085);
+    hand.rotation.y = -side * 0.35;
+    armGroup.add(hand);
 
     return armGroup;
   }
 
-  const leftArmGroup = createArm();
+  const leftArmGroup = createArm(-1);
   // 肩线上移到 0.62（配合领口抬高），手臂挂点跟着上移，保持原来 0.07 的落差
   leftArmGroup.position.set(-0.52, 0.52, 0);
   leftArmGroup.rotation.z = 0.15;
   leftArmGroup.rotation.x = -0.06;
   torsoGroup.add(leftArmGroup);
 
-  const rightArmGroup = createArm();
+  const rightArmGroup = createArm(1);
   rightArmGroup.position.set(0.52, 0.52, 0);
   rightArmGroup.rotation.z = -0.15;
   rightArmGroup.rotation.x = -0.06;
@@ -611,10 +969,16 @@ export function disposeEngineerModel(result: EngineerModelResult): void {
         mesh.geometry.dispose();
       }
       if (mesh.material) {
+        // 布纹贴图必须一起释放：换人设时旧模型不丢纹理，切三次就是一份显存
+        const disposeMat = (m: THREE.Material) => {
+          const std = m as THREE.MeshStandardMaterial;
+          std.map?.dispose();
+          std.dispose();
+        };
         if (Array.isArray(mesh.material)) {
-          mesh.material.forEach((m) => m.dispose());
+          mesh.material.forEach(disposeMat);
         } else {
-          mesh.material.dispose();
+          disposeMat(mesh.material);
         }
       }
     }

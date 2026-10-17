@@ -132,14 +132,12 @@ export const DigitalHumanAvatar = forwardRef<DigitalHumanAvatarHandle, DigitalHu
     }
   });
 
-  // 渲染后端：默认自研程序化 3D —— 肤色/黑发/眉眼/工装全可控，是明确的东亚工程师面孔。
-  // 写实 GLB 的头盔与背心是按骨骼估的尺寸，观感失真；保留 `?dh_backend=glb` 作为
-  // 对照口径（造型那边还在迭代），不保留成默认是因为它现在确实不如程序化好看。
+  // 渲染后端：默认写实 3D 数字人（asian_worker.glb），若加载异常则 onError 自动降级至自研程序化 3D 模型
   const [backend, setBackend] = useState<RenderBackend>(() => {
     try {
-      return new URLSearchParams(window.location.search).get('dh_backend') === 'glb' ? 'glb' : 'procedural';
+      return new URLSearchParams(window.location.search).get('dh_backend') === 'procedural' ? 'procedural' : 'glb';
     } catch {
-      return 'procedural';
+      return 'glb';
     }
   });
   /** 本地发声状态：与父级 isSpeaking 取并集，保证"真实在发声"时一定亮起 */
