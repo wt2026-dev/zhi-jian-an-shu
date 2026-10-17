@@ -699,10 +699,15 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
 
             if (res && res.text) {
               setInputText((prev) => (prev ? `${prev} ${res.text}` : res.text));
+              // ⚠️ 原来写的是 `res.engine || 'DashScope Paraformer'`、
+              //    `recordingSeconds || 3`、`res.confidence || 0.96` —— 三个兜底值
+              //    分别编出了引擎名、"耗时 3s" 和"置信度 96%"。识别结果没问题，
+              //    但旁边这串元数据是假的，会让人误信识别质量。只报真的返回了什么。
+              const detail: string[] = [];
+              if (recordingSeconds > 0) detail.push(`耗时 ${recordingSeconds}s`);
+              if (typeof res.confidence === 'number') detail.push(`置信度 ${Math.round(res.confidence * 100)}%`);
               setVoiceNotice(
-                `✅ ${res.engine || 'DashScope Paraformer'} 语音识别成功 (耗时: ${recordingSeconds || 3}s, 置信度: ${Math.round(
-                  (res.confidence || 0.96) * 100
-                )}%)`
+                `✅ ${res.engine ? `${res.engine} ` : ''}语音识别成功${detail.length ? ` (${detail.join('，')})` : ''}`
               );
             } else if (res && res.message) {
               setVoiceNotice(`⚠️ ${res.message}`);

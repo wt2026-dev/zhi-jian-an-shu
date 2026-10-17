@@ -290,7 +290,9 @@ export const AiPipelineView: React.FC<AiPipelineViewProps> = ({ onGoDispatch }) 
             <span className={`text-sm font-bold ${levelColor}`}>风险等级：{a.riskLevel || '—'}</span>
             {a.lotoAdvice?.required && (
               <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
-                需 LOTO（{a.lotoAdvice.lockCount ?? 2} 把锁）
+                {/* 原先 `lockCount ?? 2` —— 模型没给锁数时凭空写"2 把锁"。
+                    这是挂牌上锁的安全指令，锁数不能猜：给了才显示，没给就只说"需 LOTO"。 */}
+                需 LOTO{a.lotoAdvice.lockCount == null ? '' : `（${a.lotoAdvice.lockCount} 把锁）`}
               </span>
             )}
           </div>

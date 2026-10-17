@@ -122,3 +122,27 @@ describe('数据诚实性守卫：设备分析面板不得本地合成曲线', (
     expect(src).toMatch(/telemetry\??\.equipmentId\s*===\s*card\??\.id/);
   });
 });
+
+/**
+ * 第三类破功方式：**元数据**被补成漂亮值。
+ *
+ * 识别结果本身是真的，但旁边那串"引擎名 / 耗时 / 置信度"、或者安全指令里的
+ * "几把锁"是编的 —— 这类假数字比主数据更危险，因为它不显眼，却直接决定人信不信。
+ */
+describe('数据诚实性守卫：模型元数据与安全指令不得补默认值', () => {
+  const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+  /** 剥掉注释后再断言：修复说明里会引用被删掉的旧写法 */
+  const code = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+
+  it('语音识别不得补「置信度 96%」「耗时 3s」「引擎名」', () => {
+    const src = code('src/components/AiAssistantView.tsx');
+    expect(src).not.toMatch(/res\.confidence\s*\|\|/);
+    expect(src).not.toMatch(/recordingSeconds\s*\|\|\s*3/);
+    expect(src).not.toMatch(/\|\|\s*'DashScope Paraformer'/);
+  });
+
+  it('LOTO 锁数不得用 `?? 2` 兜底（挂牌上锁是安全指令，锁数不能猜）', () => {
+    const src = code('src/components/AiPipelineView.tsx');
+    expect(src).not.toMatch(/lockCount\s*\?\?\s*\d+/);
+  });
+});
