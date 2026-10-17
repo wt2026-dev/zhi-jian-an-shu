@@ -173,7 +173,7 @@ function hasCatalog(deviceId: string): boolean {
  * 按换行/分号/顿号序号切分（与 RepairStepCard 同口径），去掉"1. / (2) / 三、"等前缀。
  * 返回 null 表示工单根本没填步骤（前端据此如实展示，不造假）。
  */
-function parseOrderSteps(resolutionSteps: string | undefined | null): string[] | null {
+export function parseOrderSteps(resolutionSteps: string | undefined | null): string[] | null {
   if (!resolutionSteps || typeof resolutionSteps !== 'string' || !resolutionSteps.trim()) return null;
   const lines = resolutionSteps
     .split(/[\n\r;；]+/)
