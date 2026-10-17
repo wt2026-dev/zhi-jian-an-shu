@@ -38,8 +38,12 @@ const HISTORICAL_LINE_MARK = "口径历史快照";
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "backups", "scratch", "data", ".workbuddy-ai", "public", "miniprogram", "参赛材料"]);
 
 // 基线声明的成对写法：「33 个测试文件 / 237 个用例」「33个测试文件共237个测试用例」等
+// ⚠️ 位数上限是**守卫的盲区**：这里原本是 `\d{1,4}`，于是「999 个测试文件 / 99999 个用例」
+//    这条明显超报的声明**完全匹配不上** ⇒ 守卫打印「✓ 口径一致」。
+//    实测反证时踩过：注入 99999 得到"全绿"，误判成守卫正常；换成 9999 才报红。
+//    放宽到 6 位后，5 位数声明也能被看见（超报必报红）。
 const PAIR_PATTERNS = [
-  /(\d{1,4})\s*个?\s*(?:测试)?文件\s*[\s/、，,共]{1,6}(\d{1,4})\s*个?\s*(?:测试用例|用例|项用例)/g,
+  /(\d{1,6})\s*个?\s*(?:测试)?文件\s*[\s/、，,共]{1,6}(\d{1,6})\s*个?\s*(?:测试用例|用例|项用例)/g,
 ];
 
 // 只有 README / CHANGELOG 是可被 --fix 改写的权威口径来源
@@ -111,7 +115,8 @@ function scan() {
 //    并且顺着抄进了 README / 说明书 / 答辩 PPT。
 // ⚠️ `024_video_progress.sql` 是 ALTER TABLE（只加两列），**不建表** —— 它不贡献表数，
 //    早期文档却据此虚构了一张 `video_progress` 表。
-const TABLE_PATTERNS = [/(\d{1,3})\s*张\s*(?:业务)?表/g];
+// 同上：位数上限即盲区，`\d{1,3}` 会让「1234 张表」这种超报隐形。
+const TABLE_PATTERNS = [/(\d{1,5})\s*张\s*(?:业务)?表/g];
 
 function realTables() {
   const files = [];
@@ -228,7 +233,9 @@ function main() {
   console.log(`  历史快照（低于实测，正常留存）：${historical.length} 处`);
   console.log(`  需修正：${failures.length} 处`);
 
-  const tableFailures = checkTables(realTables());
+  const realTableInfo = realTables();
+  const realTablesCount = realTableInfo.count;
+  const tableFailures = checkTables(realTableInfo);
 
   if (failures.length === 0 && tableFailures.length === 0) {
     console.log("\n✓ 口径一致（无过期主张、无超报）。");
@@ -303,7 +310,56 @@ function main() {
         console.log(`\n✓ 已改写 ${rel}（${touched} 行：${[...targets.keys()].join(", ")}）`);
       }
     }
-    console.log(`\n共改写 ${fixed} 个权威文件。其余文件请据上面清单手工同步。`);
+    console.log(`\n共改写 ${fixed} 个权威文件。`);
+
+    // ── 表数声明也要修 ──────────────────────────────────────────────────────
+    // 此前 --fix 只处理「测试文件 / 用例」这一对，表数声明会被静默留下，
+    // 然后脚本仍然 return（exit 0）—— 于是"修完了"其实没修完。实测踩过：
+    // 注入「12345 张业务表」→ 报红 → --fix → 表数那行原封不动，脚本却退出 0。
+    const tableByFile = new Map();
+    for (const f of tableFailures) {
+      if (!CANONICAL_FILES.includes(f.file)) continue;
+      if (!tableByFile.has(f.file)) tableByFile.set(f.file, new Map());
+      tableByFile.get(f.file).set(f.line, f);
+    }
+    for (const rel of CANONICAL_FILES) {
+      const targets = tableByFile.get(rel);
+      if (!targets || targets.size === 0) continue;
+      const abs = path.join(ROOT, rel);
+      if (!fs.existsSync(abs)) continue;
+      const before = fs.readFileSync(abs, "utf8");
+      const lines = before.split(/(\r?\n)/);
+      let touched = 0;
+      for (const [lineNo] of targets) {
+        const idx = (lineNo - 1) * 2;
+        const raw = lines[idx];
+        if (raw === undefined || raw.includes(HISTORICAL_LINE_MARK)) continue;
+        let next = raw;
+        for (const re of TABLE_PATTERNS) {
+          next = next.replace(new RegExp(re.source, "g"), (full, a) =>
+            full.replace(a, String(realTablesCount)),
+          );
+        }
+        if (next !== raw) {
+          lines[idx] = next;
+          touched++;
+        }
+      }
+      const after = lines.join("");
+      if (after !== before) {
+        fs.writeFileSync(abs, after, "utf8");
+        console.log(`✓ 已改写 ${rel} 的表数声明（${touched} 行）`);
+      }
+    }
+
+    // 非权威文件里的表数超报 --fix 不管，必须让退出码反映出来
+    const unresolved = tableFailures.filter((f) => !CANONICAL_FILES.includes(f.file));
+    if (unresolved.length > 0) {
+      console.log(`\n⚠️ 仍有 ${unresolved.length} 处表数声明需手工同步（非权威文件，--fix 不改）：`);
+      for (const f of unresolved) console.log(`    ${f.file}:${f.line}  声明 ${f.count} 张 → 应为 ${realTablesCount} 张`);
+      process.exit(1);
+    }
+    console.log("其余文件请据上面清单手工同步。");
     return;
   }
 
