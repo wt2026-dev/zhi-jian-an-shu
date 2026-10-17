@@ -66,88 +66,14 @@ import {
   CockpitAbnormalType,
 } from '../api';
 import { TwinScene3D, Anchor3D, TwinDataSign } from './digital-twin/TwinScene3D';
+import { ANCHOR_POS, anchorPct, sandboxStatus } from './cockpit/sandbox';
+import { TwinBackplate, TwinFlowRoutes } from './cockpit/TwinBackplate';
+import { LiveClock } from './cockpit/LiveClock';
 
 /* ==========================================================================
    全景数字孪生智能沙盘（Bright Digital-Twin Sandbox）
    全部为程序化 SVG / CSS 绘制，不引入任何外部图片、模型或字体资源。
    ========================================================================== */
-
-/** 沙盘设备状态语义（浅底深字，与全站状态色规范对齐） */
-const SANDBOX_STATUS: Record<
-  string,
-  { label: string; dot: string; ring: string; text: string; chip: string }
-> = {
-  running: { label: '正常运行', dot: '#10b981', ring: 'rgba(16,185,129,0.55)', text: '#047857', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  warning: { label: '预警关注', dot: '#f59e0b', ring: 'rgba(245,158,11,0.55)', text: '#b45309', chip: 'bg-amber-50 text-amber-700 border-amber-200' },
-  fault: { label: '故障待修', dot: '#ef4444', ring: 'rgba(239,68,68,0.55)', text: '#b91c1c', chip: 'bg-rose-50 text-rose-700 border-rose-200' },
-  overhauling: { label: '检修中', dot: '#3b82f6', ring: 'rgba(59,130,246,0.55)', text: '#1d4ed8', chip: 'bg-blue-50 text-blue-700 border-blue-200' },
-  standby: { label: '停机备用', dot: '#64748b', ring: 'rgba(100,116,139,0.45)', text: '#475569', chip: 'bg-slate-100 text-slate-600 border-slate-200' },
-  scrapped: { label: '已报废', dot: '#94a3b8', ring: 'rgba(148,163,184,0.40)', text: '#64748b', chip: 'bg-slate-100 text-slate-500 border-slate-200' },
-};
-const sandboxStatus = (s: string) => SANDBOX_STATUS[s] || SANDBOX_STATUS.standby;
-
-/** 沙盘坐标系：底图 SVG 与设备锚点共用 1000×420 视图，锚点按百分比落位 */
-const SANDBOX_W = 1000;
-const SANDBOX_H = 420;
-const ANCHOR_POS: [number, number][] = [
-  [130, 296], [205, 322], [285, 292], [360, 330],
-  [440, 300], [515, 336], [590, 298], [665, 330],
-  [740, 300], [815, 334], [890, 296], [955, 330],
-  [250, 372], [400, 386], [620, 372], [790, 384],
-];
-const anchorPct = (i: number) => {
-  const [x, y] = ANCHOR_POS[i % ANCHOR_POS.length];
-  return { left: `${(x / SANDBOX_W) * 100}%`, top: `${(y / SANDBOX_H) * 100}%` };
-};
-
-/** 真实 3D 工业数字孪生全景底图（现代智能重工园区 + 真实透视光影 + 全息微光网格层） */
-const TwinBackplate: React.FC = () => (
-  <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none">
-    {/* 真实 3D 渲染高精数字孪生实景大地图 */}
-    <img
-      src="/assets/digital_twin_map.jpg"
-      alt="工业数字孪生全景沙盘"
-      className="w-full h-full object-cover object-center transform scale-[1.01] filter contrast-[1.05] brightness-[1.02]"
-    />
-    {/* 晨曦柔光与全息景深透光层：保持设备管道真实细节的同时，赋予顶级工业科技美学 */}
-    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-slate-900/15 to-white/10 mix-blend-overlay" />
-    <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-slate-950/20" />
-    {/* 工业高科技坐标矩阵与刻度十字网 */}
-    <div className="absolute inset-0 opacity-30 bg-[linear-gradient(to_right,#0ea5e918_1px,transparent_1px),linear-gradient(to_bottom,#0ea5e918_1px,transparent_1px)] bg-[size:48px_48px]" />
-    {/* 四角高科技装甲 HUD 切角标线 */}
-    <div className="absolute top-2.5 left-2.5 w-4 h-4 border-t-2 border-l-2 border-amber-400/90 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
-    <div className="absolute top-2.5 right-2.5 w-4 h-4 border-t-2 border-r-2 border-amber-400/90 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
-    <div className="absolute bottom-2.5 left-2.5 w-4 h-4 border-b-2 border-l-2 border-amber-400/90 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
-    <div className="absolute bottom-2.5 right-2.5 w-4 h-4 border-b-2 border-r-2 border-amber-400/90 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
-  </div>
-);
-
-/** 流动光轨：巡检（金）与物料输送（青）两条粒子流路径 */
-const TwinFlowRoutes: React.FC = () => (
-  <svg
-    className="absolute inset-0 w-full h-full pointer-events-none"
-    viewBox={`0 0 ${SANDBOX_W} ${SANDBOX_H}`}
-    preserveAspectRatio="none"
-    aria-hidden="true"
-  >
-    <path
-      d="M 96 302 C 220 268, 300 340, 440 300 S 660 266, 800 306 S 918 342, 982 300"
-      fill="none"
-      stroke="#E8A33D"
-      strokeWidth="2.5"
-      opacity="0.85"
-      className="flow-line flow-glow"
-    />
-    <path
-      d="M 60 382 C 200 352, 320 402, 480 372 S 720 346, 882 388"
-      fill="none"
-      stroke="#0EA5E9"
-      strokeWidth="2.5"
-      opacity="0.8"
-      className="flow-line flow-line-slow flow-glow"
-    />
-  </svg>
-);
 
 interface CockpitDashboardViewProps {
   onNavigateTab?: (tab: string) => void;
@@ -206,21 +132,6 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
       document.exitFullscreen().catch(() => {});
     }
   };
-
-/** 独立时钟：每秒只更新自身 DOM，不触发 1600 行驾驶舱整页 re-render（性能修复） */
-function LiveClock({ showTime = true, showDate = true }: { showTime?: boolean; showDate?: boolean }) {
-  const [now, setNow] = React.useState(() => new Date());
-  React.useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <>
-      {showTime && <span>{now.toLocaleTimeString('zh-CN', { hour12: false })}</span>}
-      {showDate && <span>{now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })}</span>}
-    </>
-  );
-}
 
   // Fetch all live data
   const fetchData = async () => {
