@@ -63,6 +63,16 @@ export interface WorkOrderExplodedContext {
   };
   /** 该设备拆解页文件名（无拆解页为 null，前端按 hasExplodedView 判断降级） */
   explodedViewFile: string | null;
+  /**
+   * 工单真实检修步骤（repair_log.resolutionSteps 原文切分，逐行匹配真实 BOM 位号）。
+   * 工单没有填步骤时为空数组 —— 前端如实显示"未填写"，绝不退回硬编码的假步骤。
+   */
+  steps: Array<{
+    index: number;
+    text: string;
+    matchedPart: { posNo: string; name: string } | null;
+    matchedBy: string[];
+  }>;
   /** 真实 BOM 中命中的目标位号；无命中为 null（前端如实提示，不强行高亮） */
   targetPart: {
     posNo: string;
@@ -116,7 +126,11 @@ export async function getWorkOrderExplodedContext(workOrderId: string): Promise<
   }
 
   const log = order.repairLog;
+  const realSteps = parseOrderSteps(typeof log?.resolutionSteps === 'string' ? log.resolutionSteps : null);
   return {
+    steps: realSteps && deviceId && hasCatalog(deviceId)
+      ? matchStepsToParts(deviceId, realSteps)
+      : (realSteps ?? []).map((text, i) => ({ index: i + 1, text, matchedPart: null, matchedBy: [] })),
     workOrder: {
       id: order.id,
       orderNo: order.orderNo,
@@ -144,12 +158,42 @@ export async function getWorkOrderExplodedContext(workOrderId: string): Promise<
     candidateParts,
     dataNote:
       '目标位号由工单真实文本（标题/描述/完工上报耗用备件）与拆解页真实 BOM 名称文本匹配得出'
-      + '，并非人工绑定的强关联；未命中时不强行高亮，前端如实展示"未识别到具体零件"。',
+      + '，并非人工绑定的强关联；未命中时不强行高亮，前端如实展示"未识别到具体零件"。'
+      + '检修步骤列表来自工单实填的 resolutionSteps（若为空面板会如实显示未填写），'
+      + '每步的目标零件同样按步骤原文在真实 BOM 中文本匹配得出。',
   };
 }
 
 function hasCatalog(deviceId: string): boolean {
   return getCatalogForDevice(deviceId).length > 0;
+}
+
+/**
+ * 把工单里的真实步骤文本（repair_log.resolutionSteps）切成有序步骤：
+ * 按换行/分号/顿号序号切分（与 RepairStepCard 同口径），去掉"1. / (2) / 三、"等前缀。
+ * 返回 null 表示工单根本没填步骤（前端据此如实展示，不造假）。
+ */
+function parseOrderSteps(resolutionSteps: string | undefined | null): string[] | null {
+  if (!resolutionSteps || typeof resolutionSteps !== 'string' || !resolutionSteps.trim()) return null;
+  const lines = resolutionSteps
+    .split(/[\n\r;；]+/)
+    .map((s) => s.trim().replace(/^(?:\d+[.、\s]*|[（(]?[一二三四五六七八九十]{1,3}[）)].{0,3})\s*/, ''))
+    .filter((s) => s.length >= 2);
+  return lines;
+}
+
+/** 服务端步骤 → BOM 位号匹配：每步用其真实文本在真实 BOM 目录里打分，取最高分命中。 */
+function matchStepsToParts(deviceId: string, steps: string[]): Array<{ index: number; text: string; matchedPart: { posNo: string; name: string } | null; matchedBy: string[] }> {
+  return steps.map((text, i) => {
+    const ranked = rankCatalog(deviceId, [text], [], [], {});
+    const best = ranked[0] ?? null;
+    return {
+      index: i + 1,
+      text,
+      matchedPart: best && best.score > 0 ? { posNo: best.posNo, name: best.name } : null,
+      matchedBy: best?.matchedBy ?? [],
+    };
+  });
 }
 
 interface CatalogRankOptions {

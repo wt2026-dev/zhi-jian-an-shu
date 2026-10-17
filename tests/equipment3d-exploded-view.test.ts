@@ -347,9 +347,11 @@ describe('维修步骤指引 · iframe 桥洞洞（F3）', () => {
     expect(svc).toContain('resolutionSteps');
     const guide = read(GUIDE);
     const stage = read(STAGE);
-    // 指引面板/舞台绝不能引用 3D 场景里那套演示兜底（getDefaultProcedures 是假数据面）
-    expect(guide).not.toContain('getDefaultProcedures');
-    expect(stage).not.toContain('getDefaultProcedures');
+    // 指引面板/舞台绝不能真正调用/导入 3D 验修流程卡里的演示兜底（那是假数据面）
+    expect(guide, '步骤指引面板调用了 getDefaultProcedures（演示兜底 = 假数据）').not.toMatch(/getDefaultProcedures\s*\(/);
+    expect(stage, '拆解舞台调用了 getDefaultProcedures（演示兜底 = 假数据）').not.toMatch(/getDefaultProcedures\s*\(/);
+    expect(guide).not.toContain("from '../workOrders/RepairStepCard'");
+    expect(stage).not.toContain("from './RepairStepCard'");
     // 空态必须如实说明"没填步骤"，给用户正确预期
     expect(guide).toContain('还没有填写标准作业步骤');
   });

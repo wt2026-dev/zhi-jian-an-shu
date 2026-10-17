@@ -295,6 +295,20 @@ export const equipmentApi = {
 };
 
 // 拆解视图 ↔ 检修业务联动 API（真实 DB 数据；接口定义见 server/routes/explodedView.ts）
+export interface ExplodedOrderStep {
+  /** 序号（从 1 开始，按真实 resolutionSteps 书写顺序） */
+  index: number;
+  /** 步骤原文（真实工单文本原样，仅去掉序号前缀） */
+  text: string;
+  /** 从真实 BOM 中匹配到的目标零件；未匹配为 null */
+  matchedPart: {
+    posNo: string;
+    name: string;
+  } | null;
+  /** 匹配依据（命中的别名/规格词条），透明可解释 */
+  matchedBy: string[];
+}
+
 export interface ExplodedWorkOrderBrief {
   workOrder: {
     id: string;
@@ -312,6 +326,8 @@ export interface ExplodedWorkOrderBrief {
     partsUsed: Array<{ name: string; code?: string; qty?: number; spec?: string }>;
   };
   explodedViewFile: string | null;
+  /** 加工单里的真实检修步骤（repair_log.resolutionSteps 切分）+ 每步的真实 BOM 匹配零件 */
+  steps: ExplodedOrderStep[];
   targetPart: {
     posNo: string;
     name: string;
