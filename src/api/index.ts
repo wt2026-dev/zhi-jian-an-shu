@@ -1,4 +1,19 @@
-import { WorkOrder, Equipment, InspectionTask, NotificationItem, LotoLock, UserProfile, SparePart, SparePartMovement, Hazard } from '../types';
+import {
+  WorkOrder,
+  Equipment,
+  InspectionTask,
+  NotificationItem,
+  LotoLock,
+  UserProfile,
+  SparePart,
+  SparePartMovement,
+  Hazard,
+  FieldWorkLog,
+  FieldLotoRecord,
+  FieldStepRecord,
+  FieldMeasurement,
+  FieldPartPhoto,
+} from '../types';
 import { FORBIDDEN_HINT } from '../utils/rbac';
 
 export interface WorkOrderStats {
@@ -638,6 +653,101 @@ export const explodedViewApi = {
   /** 设备 → 检修报告聚合数据（设备台账 + 拆解页 BOM + 故障/寿命/库存标注 + 完工单历史） */
   getMaintenanceReport: (deviceId: string) =>
     request<MaintenanceReportData>(`/equipments/${deviceId}/maintenance-report`),
+};
+
+/* ==================== 拆解作业终端（现场维修闭环） ====================
+ * 契约与服务端 `fieldOperationService.FieldSession` 一一对应；全部写入直接落
+ * work_orders.repair_log.fieldLog（现有检修工单表），操作人取服务端会话身份。
+ */
+export interface FieldSessionStepInfo {
+  index: number;
+  text: string;
+  matchedPart: { posNo: string; name: string } | null;
+  state: FieldStepRecord | null;
+  recordable: boolean;
+}
+
+export interface FieldSessionOrderInfo {
+  id: string;
+  orderNo: string;
+  title: string;
+  description: string;
+  faultType: string;
+  priority: string;
+  status: string;
+  statusLabel: string;
+  createdAt: string | null;
+  assignee: string | null;
+  completedAt: string | null;
+}
+
+/** 真实点检标准（测量录入的可选科目与限值，来自 inspections.points，不是本地常量） */
+export interface FieldMeasurementItem {
+  key: string;
+  checkPoint: string;
+  standard: string | null;
+  method: string | null;
+  unit: string | null;
+  minLimit: number | null;
+  maxLimit: number | null;
+}
+
+export interface FieldSessionData {
+  deviceId: string;
+  order: FieldSessionOrderInfo | null;
+  canOperate: boolean;
+  blockedReason: string | null;
+  lotoItems: Array<{ key: string; label: string }>;
+  loto: FieldLotoRecord | null;
+  steps: FieldSessionStepInfo[];
+  progress: { total: number; done: number; skipped: number; issue: number; remaining: number; current: number | null };
+  measurements: FieldMeasurement[];
+  partPhotos: FieldPartPhoto[];
+  events: FieldWorkLog['events'];
+  measurementItems: FieldMeasurementItem[];
+  autoCompleted: FieldWorkLog['completed'] | null;
+  version: number | null;
+  dataNote: string;
+}
+
+/**
+ * 步骤记录端点在会话之外额外返回 justCompleted（本次调用是否触发自动完工）；
+ * 会话自身的 autoCompleted 始终是完工留痕对象（未完工为 null）。
+ */
+export type FieldSessionWithCompletion = FieldSessionData & { justCompleted: boolean };
+
+export const fieldOpsApi = {
+  /** 设备 → 现场作业会话（工单 + LOTO + 步骤留痕 + 进度 + 测量/照片 + 时间线） */
+  getSession: (deviceId: string) =>
+    request<FieldSessionData>(`/equipments/${encodeURIComponent(deviceId)}/field-session`),
+
+  /** LOTO 四项强制安全确认（服务端按权威清单复验，全部 confirmed 才放行） */
+  confirmLoto: (orderId: string, items: Array<{ key: string; label: string; confirmed: boolean }>) =>
+    request<FieldSessionData>(`/work-orders/${encodeURIComponent(orderId)}/field-actions/loto`, {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
+
+  /** 记录单步：done / skip / issue（skip 与 issue 必须带原因，服务端硬校验） */
+  recordStep: (orderId: string, data: { index: number; action: 'done' | 'skip' | 'issue'; note?: string }) =>
+    request<FieldSessionWithCompletion>(`/work-orders/${encodeURIComponent(orderId)}/field-actions/step`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** 录入现场测量值（科目与限值取真实点检标准，超标由服务端复算并留痕） */
+  addMeasurement: (orderId: string, data: { posNo: string; checkPoint: string; value: number }) =>
+    request<FieldSessionData>(`/work-orders/${encodeURIComponent(orderId)}/field-actions/measure`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** 关联现场照片（url 必须是先经 /upload/image 真实落盘的 /uploads/ 资源） */
+  addPartPhoto: (orderId: string, data: { posNo: string; url: string; filename?: string; size?: number }) =>
+    request<FieldSessionData>(`/work-orders/${encodeURIComponent(orderId)}/field-actions/photo`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // 认证与权限 API (JWT / RBAC)

@@ -56,17 +56,22 @@ import {
   Package,
   Search,
   CheckCircle2,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import { getExplodedViewUrl } from './explodedViewFiles';
 import { ExplodedPartHistoryPanel } from './ExplodedPartHistoryPanel';
 import { MaintenanceStepGuidePanel } from './MaintenanceStepGuidePanel';
+import { FieldLotoConfirmDialog } from './FieldLotoConfirmDialog';
+import { ExplodedFieldCapturePanel } from './ExplodedFieldCapturePanel';
 import { ExplodedFaultPanel } from './ExplodedFaultPanel';
 import { ExplodedPartLifePanel } from './ExplodedPartLifePanel';
 import { ExplodedPartInventoryPanel } from './ExplodedPartInventoryPanel';
 import { buildMaintenanceReportPdf } from './maintenanceReportPdf';
-import { explodedViewApi } from '../../api';
+import { explodedViewApi, fieldOpsApi } from '../../api';
 import type {
+  FieldSessionData,
+  FieldSessionStepInfo,
   ExplodedOrderStep,
   ExplodedFaultDiagnostics,
   ExplodedPartLifeDiagnostics,
@@ -538,16 +543,123 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     return 'parts';
   });
 
+  /* ---- 现场作业终端状态 ---- */
+  const [fieldSession, setFieldSession] = useState<FieldSessionData | null>(null);
+  const [fieldSessionError, setFieldSessionError] = useState<string | null>(null);
+  const [lotoOpen, setLotoOpen] = useState(false);
+  /** 自动完工后本地覆盖的工单状态（workOrderBrief 是跳入时的快照，不会自己变） */
+  const [liveOrderStatus, setLiveOrderStatus] = useState<string | null>(null);
+
   /* ---- 支持按 Escape 快速收起侧边工作台面板 ---- */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && sidebarOpen) {
-        setSidebarOpen(false);
+      if (e.key === 'Escape') {
+        // 安全确认弹窗打开时，Esc 只关弹窗（作业闸门不能靠快捷键绕过收起后继续记录）
+        if (lotoOpen) {
+          setLotoOpen(false);
+          return;
+        }
+        if (sidebarOpen) {
+          setSidebarOpen(false);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sidebarOpen]);
+  }, [sidebarOpen, lotoOpen]);
+
+  /* ---- 现场作业会话（真实工单 + LOTO + 步骤留痕 + 进度；写库端点的唯一数据源） ---- */
+  const refreshFieldSession = useCallback(async (targetDeviceId: string) => {
+    try {
+      const data = await fieldOpsApi.getSession(targetDeviceId);
+      if (!data || typeof data !== 'object' || !Array.isArray(data.steps)) {
+        throw new Error('现场作业会话数据不完整');
+      }
+      setFieldSession(data);
+      setFieldSessionError(null);
+      return data;
+    } catch (err: unknown) {
+      const msg = err instanceof Error && err.message ? err.message : '现场作业会话读取失败';
+      setFieldSessionError(msg);
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setFieldSession(null);
+    setFieldSessionError(null);
+    setLiveOrderStatus(null);
+    setLotoOpen(false);
+    void (async () => {
+      const data = await refreshFieldSession(deviceId);
+      if (!alive || !data) return;
+      // 从检修工单跳入 = 技师已经开工：先补安全确认，再允许任何拆解操作记录
+      if (workOrderBrief && data.canOperate && !data.loto) {
+        setLotoOpen(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [deviceId, workOrderBrief, refreshFieldSession]);
+
+  /** LOTO 弹窗：写操作被闸门拦下（面板/采集卡点「去确认」） */
+  const openLotoDialog = useCallback(() => {
+    setSidebarOpen(true);
+    setLotoOpen(true);
+  }, []);
+
+  /** 确认成功：会话由服务端返回，闸门随之打开 */
+  const handleLotoConfirmed = useCallback((data: FieldSessionData) => {
+    setFieldSession(data);
+    setFieldSessionError(null);
+    setLotoOpen(false);
+  }, []);
+
+  /** 放弃作业：退出维修模式（不产生任何作业记录） */
+  const handleLotoDeclined = useCallback(() => {
+    setLotoOpen(false);
+    setMaintenanceMode(false);
+  }, []);
+
+  /**
+   * 维修模式开关。
+   *
+   * 作业闸门在前端的表现：进入维修模式即"准备开始操作"，此时若该设备有检修中的
+   * 工单而 LOTO 尚未确认，就弹出四项强制确认；未确认时步骤/测量/照片记录入口全部
+   * 置灰，且服务端对任何写操作返回 403 FIELD_LOTO_REQUIRED（前端拦只是省一次往返，
+   * 真正的闸门在服务层）。
+   */
+  const enterMaintenanceMode = useCallback(() => {
+    setMaintenanceMode(true);
+    setSidebarOpen(true);
+    if (faultInfo && faultInfo.faults.length > 0) {
+      setActiveTab('faults');
+    } else if (lifeInfo && lifeInfo.parts.some((p) => p.status === 'nearing' || p.status === 'replace')) {
+      setActiveTab('faults');
+    } else if (workOrderBrief) {
+      setActiveTab('steps');
+    } else {
+      setActiveTab('parts');
+    }
+    if (fieldSession?.canOperate && !fieldSession.loto) {
+      setLotoOpen(true);
+    }
+  }, [faultInfo, lifeInfo, workOrderBrief, fieldSession]);
+
+  /* ---- 写操作成功后：整体替换会话（服务端为准），并把自动完工的真实状态刷新到工单上下文 ---- */
+  const applyFieldSessionUpdate = useCallback(
+    (data: FieldSessionData) => {
+      setFieldSession(data);
+      setFieldSessionError(null);
+      if (data.autoCompleted && data.order && workOrderBrief && workOrderBrief.id === data.order.id) {
+        setLiveOrderStatus(data.order.status);
+      }
+    },
+    [workOrderBrief]
+  );
+
 
   /* ---- 当抽屉展开时，向 iframe 文档注入 host-sidebar-open 类，让底层左侧浮动卡片避让 ---- */
   useEffect(() => {
@@ -738,25 +850,14 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     );
   }, [maintenanceMode, highlightTick, faultInfo, lifeInfo, inventoryInfo]);
 
-  /* ---- 切换维修模式按钮动作 ---- */
+  /* ---- 维修模式开关：进入要先过 LOTO 作业闸门，退出只关闭高亮（不写任何记录） ---- */
   const handleToggleMaintenanceMode = useCallback(() => {
-    setMaintenanceMode((prev) => {
-      const next = !prev;
-      if (next) {
-        setSidebarOpen(true);
-        if (faultInfo && faultInfo.faults.length > 0) {
-          setActiveTab('faults');
-        } else if (lifeInfo && lifeInfo.parts.some((p) => p.status === 'nearing' || p.status === 'replace')) {
-          setActiveTab('faults');
-        } else if (workOrderBrief) {
-          setActiveTab('steps');
-        } else {
-          setActiveTab('parts');
-        }
-      }
-      return next;
-    });
-  }, [faultInfo, lifeInfo, workOrderBrief]);
+    if (maintenanceMode) {
+      setMaintenanceMode(false);
+      return;
+    }
+    enterMaintenanceMode();
+  }, [maintenanceMode, enterMaintenanceMode]);
 
   /* ---- 寿命面板「定位查看」 ---- */
   const handleLifePartHighlight = useCallback(
@@ -781,7 +882,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
 
   /* ---- 维修步骤指引：点步骤 → 高亮该步目标零件 + 播放页面原生拆解动画 ---- */
   const handleRunStep = useCallback(
-    (step: ExplodedOrderStep) => {
+    (step: FieldSessionStepInfo) => {
       setGuideActiveStep(step.index);
       if (!step.matchedPart || !iframeRef.current) return;
       quietHostAction(() => {
@@ -816,6 +917,14 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   }, [bomList, partCategoryFilter, partSearch]);
 
   const faultCount = faultInfo?.faults.length ?? 0;
+  /** 选中位号的真实零件名（只从服务端 BOM 台账取，取不到就只显示位号，不猜名） */
+  const selectedPartName = useMemo(
+    () => bomList.find((b) => b.posNo === selectedPartId)?.name ?? null,
+    [bomList, selectedPartId]
+  );
+  /** 自动完工后本地覆盖的工单状态优先于跳入时的快照 */
+  const briefStatus = liveOrderStatus ?? workOrderBrief?.status ?? '';
+
   const lifeCount = (lifeInfo?.parts ?? []).filter((p) => p.status === 'nearing' || p.status === 'replace').length;
   const shortageCount = inventoryInfo?.summary?.lowCount ?? (inventoryInfo?.parts ?? []).filter((p) => (p.inventory?.shortage ?? 0) > 0 || p.inventory?.low).length;
 
@@ -852,6 +961,38 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                 维修模式已激活
               </span>
+            )}
+
+            {/* 现场作业状态灯：LOTO 闸门 / 步骤进度 / 自动完工，一键跳到维修步骤页 */}
+            {fieldSession?.order && (
+              <button
+                type="button"
+                data-testid="equipment3d-exploded-field-status"
+                onClick={() => {
+                  setSidebarOpen(true);
+                  setActiveTab('steps');
+                  if (fieldSession.canOperate && !fieldSession.loto) setLotoOpen(true);
+                }}
+                title={
+                  fieldSession.canOperate && !fieldSession.loto
+                    ? '尚未完成 LOTO 安全确认：点击查看四项强制检查'
+                    : '查看现场维修步骤留痕与进度'
+                }
+                className={`shrink-0 ml-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition cursor-pointer ${
+                  fieldSession.autoCompleted
+                    ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
+                    : fieldSession.canOperate && !fieldSession.loto
+                    ? 'border-amber-400/60 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25'
+                    : 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20'
+                }`}
+              >
+                <ShieldCheck className="w-3 h-3" />
+                {fieldSession.autoCompleted
+                  ? '工单已自动完工'
+                  : fieldSession.canOperate && !fieldSession.loto
+                  ? '待 LOTO 安全确认'
+                  : `现场留痕 ${fieldSession.progress.done + fieldSession.progress.skipped + fieldSession.progress.issue}/${fieldSession.progress.total}`}
+              </button>
             )}
           </div>
 
@@ -1293,6 +1434,15 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                         </button>
                       </div>
                     )}
+
+                    {/* 零件详情里的现场采集：测量数据 + 现场照片（写入当前会话工单留痕） */}
+                    <ExplodedFieldCapturePanel
+                      session={fieldSession}
+                      posNo={selectedPartId}
+                      partName={selectedPartName}
+                      onSessionChange={applyFieldSessionUpdate}
+                      onRequestLoto={openLotoDialog}
+                    />
                   </div>
                 )}
 
@@ -1321,8 +1471,8 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                             <div className="flex min-w-0 items-center gap-1.5">
                               <Wrench className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
                               <span className="font-mono text-[11px] text-cyan-300">{workOrderBrief.orderNo}</span>
-                              <span className={`rounded border px-1 py-px text-[9px] font-medium ${STATUS_TEXT[workOrderBrief.status] ? 'border-white/15 bg-white/10 text-slate-300' : 'border-transparent'}`}>
-                                {STATUS_TEXT[workOrderBrief.status] ?? workOrderBrief.status}
+                              <span className={`rounded border px-1 py-px text-[9px] font-medium ${STATUS_TEXT[briefStatus] ? 'border-white/15 bg-white/10 text-slate-300' : 'border-transparent'}`}>
+                                {STATUS_TEXT[briefStatus] ?? briefStatus}
                               </span>
                               <span className={`rounded border px-1 py-px text-[9px] font-medium ${PRIORITY_CLS[workOrderBrief.priority] ?? PRIORITY_CLS.general}`}>
                                 {workOrderBrief.priority === 'urgent' ? '紧急' : workOrderBrief.priority === 'major' ? '重大' : '一般'}
@@ -1390,14 +1540,32 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                       )
                     ) : null}
 
-                    {/* 维修步骤指引 */}
-                    {workOrderBrief ? (
-                      <MaintenanceStepGuidePanel
-                        orderId={workOrderBrief.id}
-                        steps={workOrderBrief.steps ?? null}
-                        activeStepIndex={guideActiveStep}
-                        onRunStep={handleRunStep}
-                      />
+                    {/* 维修步骤作业记录（现场闭环：LOTO 闸门 + 逐步留痕 + 自动完工） */}
+                    {workOrderBrief || fieldSession?.order || fieldSessionError ? (
+                      <>
+                        {/* 未经工单页跳入时，如实说明这张会话工单是从设备真实工单里选出的 */}
+                        {!workOrderBrief && fieldSession?.order && (
+                          <div
+                            data-testid="equipment3d-exploded-session-order"
+                            className="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/30 bg-slate-900/70 px-3 py-2 text-[11px]"
+                          >
+                            <span className="min-w-0 truncate text-cyan-200">
+                              会话工单 {fieldSession.order.orderNo} · {fieldSession.order.title}
+                            </span>
+                            <span className="shrink-0 rounded border border-white/15 bg-white/10 px-1.5 py-px text-[9px] text-slate-300">
+                              {fieldSession.order.statusLabel}
+                            </span>
+                          </div>
+                        )}
+                        <MaintenanceStepGuidePanel
+                          session={fieldSession}
+                          sessionError={fieldSessionError}
+                          activeStepIndex={guideActiveStep}
+                          onRunStep={handleRunStep}
+                          onSessionChange={applyFieldSessionUpdate}
+                          onRequestLoto={openLotoDialog}
+                        />
+                      </>
                     ) : (
                       <div className="p-4 rounded-xl border border-cyan-500/30 bg-slate-900/60 text-slate-300 text-xs flex flex-col gap-2.5">
                         <div className="flex items-center gap-2 text-white font-semibold">
@@ -1414,7 +1582,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                           }}
                           className="mt-1 px-3 py-2 rounded-lg text-xs font-semibold bg-cyan-500/20 text-cyan-100 border border-cyan-400/50 hover:bg-cyan-500/35 transition cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+                          <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
                           <span>▶ 播放标准五级拆解演示</span>
                         </button>
                       </div>
@@ -1476,6 +1644,15 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
               </div>
             </aside>
           )}
+
+          {/* 现场作业闸门：LOTO 四项强制安全确认（未确认前所有记录端点被服务端 403 拦下） */}
+          <FieldLotoConfirmDialog
+            session={fieldSession}
+            open={lotoOpen}
+            onClose={() => setLotoOpen(false)}
+            onConfirmed={handleLotoConfirmed}
+            onDecline={handleLotoDeclined}
+          />
         </div>
 
         {/* ---- 拆解页本体：100% 占满可用区域 ---- */}

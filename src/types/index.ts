@@ -107,6 +107,66 @@ export interface WorkOrderCreatePrefill {
   description: string;
 }
 
+/**
+ * 拆解作业终端现场留痕（挂在 work_orders.repair_log.fieldLog 下，与工单同表同寿）。
+ * 全部记录由真实操作产生：操作人取服务端会话 currentUser，不造假。
+ */
+export interface FieldWorkOperator {
+  id?: string;
+  username?: string;
+  name: string;
+  role?: string;
+}
+/** LOTO 安全确认留档：四项强制检查全部打勾后的记录 */
+export interface FieldLotoRecord {
+  confirmedAt: string;
+  by: FieldWorkOperator;
+  items: Array<{ key: string; label: string; confirmed: boolean }>;
+}
+/** 单条步骤的现场记录：done=完成 / skip=跳过 / issue=有问题；ElapsedMin 为「距上一记录事件的用时（分钟）」 */
+export interface FieldStepRecord {
+  status: 'done' | 'skip' | 'issue';
+  note?: string;
+  by: FieldWorkOperator;
+  at: string;
+  elapsedMin: number | null;
+}
+/** 现场测量记录：value 与真实点检标准（minLimit/maxLimit）比对，无限值时 ok=null 如实留痕 */
+export interface FieldMeasurement {
+  id: string;
+  posNo: string;
+  checkPoint: string;
+  standard: string | null;
+  unit: string | null;
+  minLimit: number | null;
+  maxLimit: number | null;
+  value: number;
+  ok: boolean | null;
+  by: FieldWorkOperator;
+  at: string;
+}
+/** 现场零件照片：url 为真实落盘的 /uploads/ 资源，posNo 关联拆解 BOM 位号 */
+export interface FieldPartPhoto {
+  id: string;
+  posNo: string;
+  url: string;
+  filename: string | null;
+  size: number | null;
+  by: FieldWorkOperator;
+  at: string;
+}
+export interface FieldWorkLog {
+  /** 人类可读全过程时间线（LOTO → 每步 → 测量/照片 → 自动完工），按时间升序 */
+  events: Array<{ at: string; kind: 'loto' | 'step' | 'measure' | 'photo' | 'complete'; text: string; by?: string }>;
+  loto?: FieldLotoRecord | null;
+  /** key = 步骤序号（1-based string） */
+  steps: Record<string, FieldStepRecord>;
+  measurements: FieldMeasurement[];
+  partPhotos: FieldPartPhoto[];
+  /** 步骤全部完成/跳过（无问题项）时服务端自动完工的留档 */
+  completed?: { at: string; by: string; workHours: number; total: number; done: number; skipped: number } | null;
+}
+
 export interface WorkOrder {
   id: string;
   orderNo: string;
@@ -140,6 +200,8 @@ export interface WorkOrder {
     workHours: number;
     completionPhotos: string[];
     remark?: string;
+    /** 拆解作业终端现场留痕（LOTO/步骤/测量/照片/过程时间线），与工单同表同寿 */
+    fieldLog?: FieldWorkLog | null;
   };
   acceptance?: {
     inspectorName: string;
