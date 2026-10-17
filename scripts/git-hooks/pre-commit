@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ============================================================
+# 智检安枢 · 提交前硬闸（AGENTS.md 提交纪律的自动化落地）
+#
+# 背景：2026-10-17 曾发生"模型已压缩入库、GLB 测试仍断言 75MB"以及
+#       "新增第 10 个拆解页后契约测试整片变红"两类事故 —— 根因都是
+#       提交动作本身没有质量门。本 hook 把「tsc 零错误 + 全量测试通过」
+#       变成提交的必要条件。
+#
+# 启用：git config core.hooksPath scripts/git-hooks
+# 关闭：git config --unset core.hooksPath（并行会话被拦时可随时关，但要先说一声）
+# 注意：hook 扫的是工作区（含未提交 WIP），这正是 AGENTS.md 想要的 ——
+#       提交前必须自证清白；其他人未提交的改动也会被同一道门拦下。
+# ============================================================
+set -e
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
+
+echo "[pre-commit] 1/2 tsc --noEmit（类型零错误）..."
+if ! npx tsc --noEmit; then
+  echo "[pre-commit] ✗ TypeScript 类型错误，提交被拦截。" >&2
+  exit 1
+fi
+
+echo "[pre-commit] 2/2 vitest run（全量测试必绿，约 60~90s）..."
+if ! npx vitest run --reporter=dot; then
+  echo "[pre-commit] ✗ 存在失败测试，提交被拦截（先同步测试契约或修复实现）。" >&2
+  exit 1
+fi
+
+echo "[pre-commit] ✓ tsc + 全量测试通过，放行。"
+exit 0
