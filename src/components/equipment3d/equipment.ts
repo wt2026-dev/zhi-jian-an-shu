@@ -1047,15 +1047,20 @@ export function buildEquipment(opts: EquipmentOptions): EquipmentBuild {
       : cachedRecipeParts(`p:${proto}|${lod}`, PROTOTYPE_BUILDERS[proto]);
     const parts = rawParts.filter((p) => (p.detailMin ?? 0) <= detail);
     // Measure the built geometry, including asymmetric and unknown-device recipes.
-    const localBounds = new THREE.Box3();
-    const transform = new THREE.Matrix4();
-    for (const part of parts) {
-      if (!part.geo.boundingBox) part.geo.computeBoundingBox();
-      if (!part.geo.boundingBox) continue;
-      transform.compose(new THREE.Vector3(...part.pos), new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(...(part.rot ?? [0, 0, 0]))), new THREE.Vector3(1, 1, 1));
-      localBounds.union(part.geo.boundingBox.clone().applyMatrix4(transform));
-    }
+    // 抽成可复用函数：附加件 push 之后必须再测一次（见下方 finalBounds），否则包围盒漏算附加件。
+    const measureParts = (list: typeof parts) => {
+      const box = new THREE.Box3();
+      const m = new THREE.Matrix4();
+      for (const part of list) {
+        if (!part.geo.boundingBox) part.geo.computeBoundingBox();
+        if (!part.geo.boundingBox) continue;
+        m.compose(new THREE.Vector3(...part.pos), new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(...(part.rot ?? [0, 0, 0]))), new THREE.Vector3(1, 1, 1));
+        box.union(part.geo.boundingBox.clone().applyMatrix4(m));
+      }
+      return box;
+    };
+    const localBounds = measureParts(parts);
     const size = localBounds.getSize(new THREE.Vector3());
 
     // 工业设备精细化：自动装备工艺管道阀门、不锈钢压力表、数控操作触摸屏（低画质流畅档 detail=0 跳过，确保 ≤25k 三角面与 ≤180 drawcalls 验收）
@@ -1078,6 +1083,13 @@ export function buildEquipment(opts: EquipmentOptions): EquipmentBuild {
       parts.push(...extraParts);
     }
 
+    // 附加件（工艺阀门 / 压力表 / 触摸屏）是按上面的 size 定位的，会把真实包围盒往外撑。
+    // bounds/center 必须在 push 之后重测，否则"声明的包围盒"只覆盖基础零件，与真实几何不一致
+    // —— 焦点取景会系统性偏移（tests/equipment3d-focus.test.ts 用真实几何重算时偏差 0.037，
+    //    曾被 README 误标为"浮点容差"；浮点噪声量级是 1e-5）。
+    const finalBounds = measureParts(parts);
+    const finalSize = finalBounds.getSize(new THREE.Vector3());
+
     entries.push({
       device,
       slot,
@@ -1092,8 +1104,8 @@ export function buildEquipment(opts: EquipmentOptions): EquipmentBuild {
       scale,
       y: hall.reliefAt(slot.x, slot.z),
       parts,
-      bounds: { w: size.x, h: size.y, d: size.z },
-      center: localBounds.getCenter(new THREE.Vector3()),
+      bounds: { w: finalSize.x, h: finalSize.y, d: finalSize.z },
+      center: finalBounds.getCenter(new THREE.Vector3()),
     });
   }
 

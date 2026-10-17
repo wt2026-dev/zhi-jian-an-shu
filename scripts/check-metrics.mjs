@@ -250,21 +250,57 @@ function main() {
   }
 
   if (doFix) {
+    // ⚠️ 必须**逐行、只改判定为失败的那些行**，不能对整份文件做全局 replace。
+    //
+    //    这里曾经是 `after = after.replace(PAIR_PATTERNS...)`（全局替换），它有两个致命后果，
+    //    2026-10-17 实测都发生了：
+    //      1. 把带 `口径历史快照` 标记的历史条目一起改掉 —— CHANGELOG 里
+    //         「33 个测试文件 / 237 个用例全绿」（v2.0.0 当时的基线）被替换成当天的 96/1150，
+    //         「47 文件 / 412 用例」「57 文件 / 556 用例」同样被抹平。**这就是篡改历史记录**，
+    //         而文件头自己写着"带标记的行跳过校验"，检查路径确实跳过了，修复路径却没跳过。
+    //      2. 改写本来正确的行（同一文件里既有过期声明又有正确声明时，全都被写成同一个数字）。
+    //    判定（scan/judge）本来就知道每条声明的 `file` + `line`，修复只需照着改，没有理由全局替换。
+    const byFile = new Map();
+    for (const f of failures) {
+      if (!byFile.has(f.file)) byFile.set(f.file, new Map());
+      byFile.get(f.file).set(f.line, f);
+    }
+
     let fixed = 0;
     for (const rel of CANONICAL_FILES) {
+      const targets = byFile.get(rel);
+      if (!targets || targets.size === 0) continue;
       const abs = path.join(ROOT, rel);
       if (!fs.existsSync(abs)) continue;
       const before = fs.readFileSync(abs, "utf8");
-      let after = before;
-      for (const re of PAIR_PATTERNS) {
-        after = after.replace(new RegExp(re.source, "g"), (full, a, b) =>
-          full.replace(a, String(real.files)).replace(b, String(real.tests))
-        );
+      // 按「行 + 原换行符」切分，join 回去时换行风格逐字节不变
+      const lines = before.split(/(\r?\n)/);
+      let touched = 0;
+      for (const [lineNo, f] of targets) {
+        const idx = (lineNo - 1) * 2;
+        const raw = lines[idx];
+        if (raw === undefined) continue;
+        if (raw.includes(HISTORICAL_LINE_MARK)) {
+          // 双保险：scan() 已经跳过带标记的行，这里再挡一次，防止将来 scan 的过滤被改掉。
+          console.log(`  跳过 ${rel}:${lineNo}（带「${HISTORICAL_LINE_MARK}」标记，保留原值）`);
+          continue;
+        }
+        let next = raw;
+        for (const re of PAIR_PATTERNS) {
+          next = next.replace(new RegExp(re.source, "g"), (full, a, b) =>
+            full.replace(a, String(real.files)).replace(b, String(real.tests)),
+          );
+        }
+        if (next !== raw) {
+          lines[idx] = next;
+          touched++;
+        }
       }
+      const after = lines.join("");
       if (after !== before) {
         fs.writeFileSync(abs, after, "utf8");
         fixed++;
-        console.log(`\n✓ 已改写 ${rel}`);
+        console.log(`\n✓ 已改写 ${rel}（${touched} 行：${[...targets.keys()].join(", ")}）`);
       }
     }
     console.log(`\n共改写 ${fixed} 个权威文件。其余文件请据上面清单手工同步。`);

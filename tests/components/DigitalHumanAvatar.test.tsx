@@ -324,12 +324,20 @@ describe('DigitalHumanAvatar - GLB Primary Render Path', () => {
 });
 
 /**
- * 默认口径（用户选定：国内比赛用可控的东亚工程师面孔，而不是按骨骼估尺寸的写实 GLB）。
- * 这条 describe 守住"打开就是程序化 3D"，防止以后有人把默认值改回 glb 而无人察觉。
+ * 程序化 3D 的**显式**入口（`?dh_backend=procedural`）。
+ *
+ * 历史：这里原先断言"默认就是程序化 3D"，理由写的是"国内比赛要可控的东亚面孔，
+ * 而不是按骨骼估尺寸的写实 GLB"。该理由已被 `china_engineer.glb`（中国男性工程师
+ * 生成模型）取代，默认值随后改为写实 GLB —— 见上方 `GLB Primary Render Path`。
+ * 因此本块改为守住**显式指定程序化后端**这条仍然支持的路径（组件里的 dh_backend 分支），
+ * 而不是继续断言一个已经不成立的默认值。
+ *
+ * ⚠️ 默认 GLB 依赖 `public/models/engineer/china_engineer.glb`，该文件当前**未被 git 跟踪**
+ * ⇒ 全新 clone 会走 onError 降级回本块这条程序化路径（见 ATTRIBUTION.md 的"版本控制缺口"）。
  */
-describe('DigitalHumanAvatar - 默认走自研程序化 3D', () => {
+describe('DigitalHumanAvatar - 程序化 3D（显式 ?dh_backend=procedural）', () => {
   beforeEach(() => {
-    window.history.replaceState(null, '', '/');
+    window.history.replaceState(null, '', '/?dh_backend=procedural');
     localStorage.clear();
     spoken = [];
     mocks.glb.speak.mockClear();
@@ -348,14 +356,14 @@ describe('DigitalHumanAvatar - 默认走自研程序化 3D', () => {
     vi.restoreAllMocks();
   });
 
-  it('不带 query 时挂载程序化 3D，GLB 不占位', () => {
+  it('带 ?dh_backend=procedural 时挂载程序化 3D，GLB 不占位', () => {
     render(<DigitalHumanAvatar isSpeaking={false} speechEnabled onToggleSpeech={vi.fn()} />);
     expect(screen.getByTestId('fallback-3d-component')).toBeTruthy();
     expect(screen.queryByTestId('glb-component')).toBeNull();
     expect(screen.getByText('自研3D数字人・本地渲染')).toBeTruthy();
   });
 
-  it('默认后端的 speak 走程序化 3D，而不是 GLB', async () => {
+  it('显式程序化后端的 speak 走程序化 3D，而不是 GLB', async () => {
     const ref = React.createRef<DigitalHumanAvatarHandle>();
     render(
       <DigitalHumanAvatar ref={ref} isSpeaking={false} speechEnabled onToggleSpeech={vi.fn()} />,
@@ -367,7 +375,7 @@ describe('DigitalHumanAvatar - 默认走自研程序化 3D', () => {
     expect(mocks.glb.speak).not.toHaveBeenCalled();
   });
 
-  it('切形象只换 personaId，不换渲染后端', () => {
+  it('程序化后端下切形象只换 personaId，不换渲染后端', () => {
     render(<DigitalHumanAvatar isSpeaking={false} speechEnabled onToggleSpeech={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /李工/ }));
     expect(screen.getByTestId('fallback-3d-component').getAttribute('data-persona')).toBe('li');
