@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>设备模型干净预览</title>
+<style>
+  html,body { margin:0; padding:0; background:#ffffff; }
+  #stage { display:block; margin:0 auto; background:#ffffff; }
+  #loading { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+              font:18px "Microsoft YaHei",sans-serif; color:#666; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/": "/node_modules/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="loading">正在加载设备模型...</div>
+<canvas id="stage" width="1800" height="1560"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// 11 个独立 GLB 模型 → 对应车间设备编号
+const MODELS = [
+  { file:'/models/equipment/centrifugal_pump.glb',            label:'1# 离心主循环给水泵 / 12# 结晶器泵' },
+  { file:'/models/equipment/hydraulic_press.glb',            label:'2# 无油螺杆空压机' },
+  { file:'/models/equipment/machinery_device_1.glb',            label:'3# 轧机行星减速箱 / 13# 制冷压缩机组' },
+  { file:'/models/equipment/electric_motor.glb',             label:'4# 10kV 主电机' },
+  { file:'/models/equipment/double_suction_pump.glb',          label:'5# 多级锅炉给水泵' },
+  { file:'/models/equipment/machinery_device_2.glb',            label:'6# 工艺空压机 / 11# 板式换热器 / 16# 热管换热器' },
+  { file:'/models/equipment/lathe_machine.glb',               label:'7# 卷取减速机' },
+  { file:'/models/equipment/electric_motor_high_poly.glb',    label:'8# 同步电机' },
+  { file:'/models/equipment/milling_machine.glb',              label:'9# 龙门加工中心' },
+  { file:'/models/robotarm/6_axis_industrial_robot_arm.glb',   label:'10# 搬运机器人 / 15# 码垛机器人' },
+  { file:'/models/equipment/exhaust_fan_motor.glb',           label:'14# 备用电机' },
+];
+
+const stage = document.getElementById('stage');
+const sctx = stage.getContext('2d');
+sctx.fillStyle = '#ffffff';
+sctx.fillRect(0,0,stage.width,stage.height);
+
+// 离屏渲染画布
+const off = document.createElement('canvas');
+const OW = 440, OH = 380;
+off.width = OW; off.height = OH;
+const renderer = new THREE.WebGLRenderer({ canvas: off, antialias:true, alpha:false });
+renderer.setSize(OW, OH, false);
+renderer.setPixelRatio(2);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+// 环境反射（让金属/漆面像产品图）
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const loader = new GLTFLoader();
+
+const COLS = 4, PAD = 24;
+const cellW = (stage.width - PAD*(COLS+1)) / COLS;
+const cellH = 480;
+
+function loadGLB(url){
+  return new Promise((res, rej)=> loader.load(url, g=>res(g.scene), undefined, rej));
+}
+
+function normalize(obj){
+  // 1) 先算所有 mesh 的尺寸，找出天空球（Sketchfab 模型常见：一个超大包围盒的球形背景）
+  const meshes = [];
+  obj.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const dims = meshes.map(m => {
+    const b = new THREE.Box3().setFromObject(m);
+    const s = b.getSize(new THREE.Vector3());
+    return Math.max(s.x, s.y, s.z);
+  });
+  // 排序取第 2 大作为"主体尺寸"参考（最大的那个可能就是天空球）
+  const sorted = [...dims].sort((a,b)=>b-a);
+  const mainSize = sorted[1] || sorted[0] || 1;
+  meshes.forEach((m, i) => {
+    if (dims[i] > mainSize * 10) {
+      m.visible = false;  // 天空球/环境球
+      return;
+    }
+  });
+  const box = new THREE.Box3();
+  meshes.forEach((m, i) => {
+    if (!m.visible) return;
+    m.updateWorldMatrix(true, false);
+    box.expandByObject(m);
+  });
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const scale = 2.2 / maxDim;
+  obj.scale.setScalar(scale);
+  obj.position.set(-center.x*scale, -center.y*scale, -center.z*scale);
+  // 关键：更新世界矩阵后再算包围盒，否则"落底"用的是缩放前的旧矩阵
+  obj.updateMatrixWorld(true);
+  const box2 = new THREE.Box3();
+  meshes.forEach((m) => { if (m.visible) box2.expandByObject(m); });
+  obj.position.y -= box2.min.y;
+  obj.updateMatrixWorld(true);
+  obj.rotation.y = Math.PI * 0.18;
+}
+
+async function renderOne(model, idx){
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x4a4a4a);
+  scene.environment = envTex;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.1));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(6, 10, 7);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.9);
+  rim.position.set(-6, 4, -6);
+  scene.add(rim);
+
+  const cam = new THREE.PerspectiveCamera(32, OW/OH, 0.1, 200);
+  cam.position.set(5.2, 3.8, 6.8);
+  cam.lookAt(0, 1.2, 0);
+
+  const glb = await loadGLB(model.file);
+  normalize(glb);
+  scene.add(glb);
+
+  renderer.render(scene, cam);
+
+  const col = idx % COLS;
+  const row = Math.floor(idx / COLS);
+  const x = PAD + col*(cellW+PAD);
+  const y = PAD + row*(cellH+PAD);
+
+  sctx.fillStyle = '#4a4a4a';
+  sctx.fillRect(x, y, cellW, cellH);
+  sctx.drawImage(off, x + 10, y + 10, cellW - 20, OH);
+  // 名字：长标签自动分两行
+  sctx.fillStyle = '#ffffff';
+  sctx.textAlign = 'center';
+  sctx.textBaseline = 'middle';
+  const label = model.label;
+  if (label.length > 16) {
+    // 在 " / " 处断行
+    const parts = label.split(' / ');
+    sctx.font = 'bold 16px "Microsoft YaHei", sans-serif';
+    sctx.fillText(parts[0], x + cellW/2, y + OH + 30);
+    sctx.font = 'bold 15px "Microsoft YaHei", sans-serif';
+    sctx.fillText(' / ' + parts.slice(1).join(' / '), x + cellW/2, y + OH + 58);
+  } else {
+    sctx.font = 'bold 17px "Microsoft YaHei", sans-serif';
+    sctx.fillText(label, x + cellW/2, y + OH + 44);
+  }
+}
+
+for (let i=0; i<MODELS.length; i++){
+  try {
+    await renderOne(MODELS[i], i);
+    document.getElementById('loading').textContent = `已渲染 ${i+1} / ${MODELS.length}`;
+  } catch(e){
+    console.error('加载失败', MODELS[i].file, e);
+  }
+}
+document.getElementById('loading').remove();
+window.__DONE__ = true;
+
+</script>
+</body>
+</html>

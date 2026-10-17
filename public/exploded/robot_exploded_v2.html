@@ -166,7 +166,35 @@
             pointer-events: none;
             z-index: 9;
         }
-    </style>
+    
+    /* Enhanced BOM & Global Scrollbar */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56, 189, 248, 0.65) rgba(15, 23, 42, 0.8);
+    }
+    ::-webkit-scrollbar {
+      width: 8px !important;
+      height: 8px !important;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.8) !important;
+      border-radius: 4px !important;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.5) !important;
+      border-radius: 4px !important;
+      border: 1px solid rgba(56, 189, 248, 0.25) !important;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 229, 255, 0.9) !important;
+    }
+    /* 强制 BOM 表格滚动容器 min-height: 0，确保在 flexbox 布局中正常上下滚动且出现滚动条 */
+    #bomTableBody, #bom-tbody, #bom-table-body, .bom-table-scroll, div:has(> #bom-tbody), div:has(> table) {
+      min-height: 0 !important;
+      overflow-y: auto !important;
+    }
+
+  </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden select-none">
 
@@ -308,7 +336,7 @@
     </aside>
 
     <!-- 右侧：BOM 物料清单面板 -->
-    <aside id="bom-panel" class="tech-panel fixed right-3 top-20 bottom-24 w-85 md:w-[410px] rounded-xl flex flex-col z-30 transition-transform duration-300">
+    <aside id="bom-panel" class="tech-panel fixed right-3 top-12 bottom-3 w-85 md:w-[410px] rounded-xl flex flex-col z-30 transition-transform duration-300">
         <div class="tech-panel-header px-4 py-3 flex items-center justify-between shrink-0">
             <div class="flex items-center gap-2">
                 <i class="fa-solid fa-clipboard-list text-cyan-400"></i>
@@ -347,7 +375,7 @@
         </div>
 
         <!-- BOM 列表内容区 -->
-        <div id="bom-table-body" class="flex-1 overflow-y-auto divide-y divide-slate-800/60 text-xs">
+        <div id="bom-table-body" class="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-800/60 text-xs">
             <!-- JS 动态渲染 -->
         </div>
 

@@ -178,6 +178,34 @@
       border-bottom: 2px solid #38bdf8;
       border-right: 2px solid #38bdf8;
     }
+  
+    /* Enhanced BOM & Global Scrollbar */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56, 189, 248, 0.65) rgba(15, 23, 42, 0.8);
+    }
+    ::-webkit-scrollbar {
+      width: 8px !important;
+      height: 8px !important;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.8) !important;
+      border-radius: 4px !important;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.5) !important;
+      border-radius: 4px !important;
+      border: 1px solid rgba(56, 189, 248, 0.25) !important;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 229, 255, 0.9) !important;
+    }
+    /* 强制 BOM 表格滚动容器 min-height: 0，确保在 flexbox 布局中正常上下滚动且出现滚动条 */
+    #bomTableBody, #bom-tbody, #bom-table-body, .bom-table-scroll, div:has(> #bom-tbody), div:has(> table) {
+      min-height: 0 !important;
+      overflow-y: auto !important;
+    }
+
   </style>
 </head>
 <body class="flex flex-col h-screen w-screen overflow-hidden select-none">
@@ -498,7 +526,7 @@
         </div>
 
         <!-- Scrollable BOM Rows -->
-        <div id="bomTableBody" class="flex-1 overflow-y-auto divide-y divide-slate-800/60 bg-slate-950/40">
+        <div id="bomTableBody" class="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-800/60 bg-slate-950/40">
           <!-- Populated dynamically by JS -->
         </div>
       </section>
