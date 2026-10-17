@@ -17,6 +17,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Equipment, UserProfile, WorkOrder } from '../types';
+import { buildChatHistory, readWireError } from '../utils/chatWire';
 import {
   DiagnosisPanel,
   VisionPanel,
@@ -33,7 +34,6 @@ import { useToast } from '../context/ToastContext';
  * AiAssistantPanel 仍会全局渲染并使用 Hook 实现；修改 AI 对话逻辑时须两处同步，
  * 或后续版本迁移至单一实现。
  */
-const MAX_CHAT_HISTORY = 12;
 
 interface AiAssistantViewProps {
   currentUser: UserProfile;
@@ -311,16 +311,13 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         body: JSON.stringify({
           message: text,
           userRole: currentUser.roleTitle,
-          history: messages.slice(-MAX_CHAT_HISTORY).map((m) => ({
-            role: m.sender === 'user' ? 'user' : 'assistant',
-            content: m.text,
-          })),
+          history: buildChatHistory(messages),
         }),
       });
 
       if (!res.ok || !res.body) {
         let msg = `HTTP ${res.status}`;
-        try { msg = (await res.json()).error || msg; } catch {}
+        try { msg = readWireError(await res.json(), msg); } catch {}
         throw new Error(msg);
       }
 

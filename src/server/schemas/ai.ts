@@ -1,6 +1,10 @@
 // 重构说明：本模块自 server.ts 拆出，仅承载 Zod 输入校验 Schema，逻辑保持原样。
 import { z } from "zod";
 
+// ⚠️ 这里对 history 是**硬拒绝**（单条 >2000 字 或 超过 12 条 → 整包 400 INVALID_INPUT）。
+// AI 一条回答本身就容易超 2000 字，所以调用方必须自己先压到预算内：
+// Web 端走 src/utils/chatWire.ts 的 buildChatHistory()，小程序端见 miniprogram/pages/ai/chat.js。
+// 契约由 tests/ai-features.test.ts（400 分支）与 tests/ai-chat-wire.test.ts（客户端输出必过本 schema）双向钉住。
 export const aiChatSchema = z.object({
   message: z.string().min(1, { message: "消息内容必填" }),
   history: z

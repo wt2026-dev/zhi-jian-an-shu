@@ -2,6 +2,16 @@ var { ssePost } = require("../../utils/sse.js");
 var { request } = require("../../utils/request.js");
 var { mdToHtml } = require("../../utils/markdown.js");
 
+// 与 Web 端 src/utils/chatWire.ts 同口径：出网前把单条历史压到 2000 个字符以内
+// （与后端 zod 的 .max(2000) 一样按 UTF-16 码元计），否则整包 400、会话永久发不出。
+var HISTORY_ITEM_MAX_CHARS = 2000;
+var TRUNCATE_MARK = "…（已截断）";
+function clampContent(text) {
+  var s = text || "";
+  if (s.length <= HISTORY_ITEM_MAX_CHARS) return s;
+  return s.slice(0, HISTORY_ITEM_MAX_CHARS - TRUNCATE_MARK.length) + TRUNCATE_MARK;
+}
+
 // 快捷指令：横向滚动 chips，点击直接发送
 var QUICK_CHIPS = [
   "设备故障排查",
@@ -223,9 +233,10 @@ Page({
     var uid = "u" + Date.now();
     var aid = "a" + Date.now();
 
-    // 多轮上下文：携带最近 10 轮历史
+    // 多轮上下文：携带最近 10 轮历史，并按后端 aiChatSchema 的预算压单条 ≤2000 字
+    // （后端对超长是硬拒绝 → 整包 400，一条长回答会让之后每次发送都失败）
     var history = this.data.messages.slice(-10).map(function (m) {
-      return { role: m.role === "user" ? "user" : "assistant", content: m.text };
+      return { role: m.role === "user" ? "user" : "assistant", content: clampContent(m.text) };
     });
 
     this.setData({

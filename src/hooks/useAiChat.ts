@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { aiApi, safeStorage } from '../api';
+import { buildChatHistory, readWireError } from '../utils/chatWire';
 
 /** 会话消息结构（与 AI 助手页保持一致，保证同一会话数组可跨组件共享） */
 export interface ChatMessage {
@@ -21,8 +22,6 @@ const WELCOME = `你好，我是 **智检安枢的工业设备检修 AI 专家**
 - 现场 LOTO 能量隔离与高危作业票安全规范
 - 根据轴温与电流遥测数据研判劣化趋势
 - 设备外观或破损照片的视觉损伤识别要点`;
-
-const MAX_CHAT_HISTORY = 12;
 
 /**
  * 通用 AI 对话 Hook：会话请求 / 流式解析 / 上下文管理 / 语音转写 / 语音朗读
@@ -166,17 +165,14 @@ export function useAiChat(userRoleTitle?: string) {
         body: JSON.stringify({
           message: text,
           userRole: userRoleTitle,
-          history: messages.slice(-MAX_CHAT_HISTORY).map((m) => ({
-            role: m.sender === 'user' ? 'user' : 'assistant',
-            content: m.text,
-          })),
+          history: buildChatHistory(messages),
         }),
       });
 
       if (!res.ok || !res.body) {
         let msg = `HTTP ${res.status}`;
         try {
-          msg = (await res.json()).error || msg;
+          msg = readWireError(await res.json(), msg);
         } catch {}
         throw new Error(msg);
       }
