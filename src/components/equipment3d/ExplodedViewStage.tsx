@@ -116,6 +116,17 @@ const hideBuiltinBackLink = (frame: HTMLIFrameElement | null): void => {
       aside#detail-card, div#detail-card.absolute, div#detail-card.fixed, #detail-card:not([class*="border-b"]) {
         left: 60px !important;
       }
+      /* 当宿主侧边工作台展开时，自动避让或暂时隐藏 iframe 内部的左侧浮动卡片 */
+      body.host-sidebar-open aside#detail-card,
+      body.host-sidebar-open div#detail-card.absolute,
+      body.host-sidebar-open div#detail-card.fixed,
+      body.host-sidebar-open #refPopup,
+      body.host-sidebar-open #ref-popup,
+      body.host-sidebar-open #ref-card {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 0.25s ease-in-out !important;
+      }
       /* 强制所有 BOM 滚动容器 min-height: 0，确保在 flex 容器中正常触发滚动，不被截断卡死 */
       #bomTableBody, #bom-tbody, #bom-table-body, div:has(> #bom-tbody), div:has(> table), .overflow-y-auto {
         min-height: 0 !important;
@@ -538,6 +549,17 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sidebarOpen]);
 
+  /* ---- 当抽屉展开时，向 iframe 文档注入 host-sidebar-open 类，让底层左侧浮动卡片避让 ---- */
+  useEffect(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body) return;
+    if (sidebarOpen) {
+      doc.body.classList.add('host-sidebar-open');
+    } else {
+      doc.body.classList.remove('host-sidebar-open');
+    }
+  }, [sidebarOpen]);
+
   /* ---- 零件清单（从服务端聚合端点拉取 BOM） ---- */
   const [bomList, setBomList] = useState<MaintenanceReportBomRow[]>([]);
   const [bomLoading, setBomLoading] = useState(false);
@@ -653,9 +675,12 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const frame = e.currentTarget;
     hideBuiltinBackLink(frame);
+    if (sidebarOpen && frame.contentDocument?.body) {
+      frame.contentDocument.body.classList.add('host-sidebar-open');
+    }
     installIframeBridge(frame, (partId) => reportRef.current(partId));
     setHighlightTick((t) => t + 1);
-  }, []);
+  }, [sidebarOpen]);
 
   /* ---- 自动高亮定位工单目标零件 ---- */
   useEffect(() => {
@@ -810,27 +835,27 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
       >
         {/* ---- 专属独立顶栏：包含设备标识、维修模式激活提示与核心操作组，彻底消除与 iframe 原生工具栏的重叠冲突 ---- */}
         <header className="h-10 shrink-0 px-3 bg-slate-950/95 border-b border-cyan-500/30 flex items-center justify-between z-30 pointer-events-auto">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center shrink-0">
               <Wrench className="w-3.5 h-3.5 text-cyan-400" />
             </div>
-            <span className="text-xs font-bold text-slate-100 tracking-wide">3D 拆解与维修工作台</span>
-            <span className="text-slate-600 text-xs">/</span>
-            <span className="text-cyan-300 font-medium text-xs truncate max-w-[200px]">{deviceName ?? deviceId}</span>
+            <span className="text-xs font-bold text-slate-100 tracking-wide shrink-0 hidden sm:inline">3D 拆解与维修工作台</span>
+            <span className="text-slate-600 text-xs shrink-0 hidden sm:inline">/</span>
+            <span className="text-cyan-300 font-medium text-xs truncate max-w-[160px] sm:max-w-[220px]">{deviceName ?? deviceId}</span>
             {deviceCode && (
-              <span className="px-1.5 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-500/30 text-[10px] font-mono">
+              <span className="px-1.5 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-500/30 text-[10px] font-mono shrink-0 hidden md:inline">
                 {deviceCode}
               </span>
             )}
             {maintenanceMode && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 text-[10px] font-medium animate-pulse ml-1">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 text-[10px] font-medium animate-pulse ml-1 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                 维修模式已激活
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* 维修模式开关：深蓝底色 + 青色科技感（深色系一体化设计） */}
             <button
               type="button"
@@ -922,7 +947,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                   setActiveTab('parts');
                   setSidebarOpen(true);
                 }}
-                title="零件清单"
+                title={bomList.length > 0 ? `零件清单 (${bomList.length} 件)` : '零件清单'}
                 className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors relative cursor-pointer"
               >
                 <ListOrdered className="w-4 h-4" />
@@ -934,7 +959,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                   setActiveTab('history');
                   setSidebarOpen(true);
                 }}
-                title="维修历史"
+                title={selectedPartId ? `维修历史 (当前选中: ${selectedPartId})` : '维修历史 (点击零件查看)'}
                 className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors relative cursor-pointer"
               >
                 <History className="w-4 h-4" />
@@ -946,7 +971,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                   setActiveTab('steps');
                   setSidebarOpen(true);
                 }}
-                title="维修步骤"
+                title={workOrderBrief ? `维修步骤 (工单 ${workOrderBrief.orderNo})` : '维修步骤指引'}
                 className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors relative cursor-pointer"
               >
                 <Wrench className="w-4 h-4" />
@@ -958,7 +983,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                   setActiveTab('faults');
                   setSidebarOpen(true);
                 }}
-                title="故障提醒"
+                title={faultCount + lifeCount > 0 ? `故障提醒 (${faultCount + lifeCount} 项需注意)` : '故障提醒 (指标良好)'}
                 className="p-2 rounded-lg text-rose-300 hover:text-rose-100 hover:bg-rose-500/20 transition-colors relative cursor-pointer"
               >
                 <AlertTriangle className="w-4 h-4" />
@@ -973,7 +998,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                   setActiveTab('inventory');
                   setSidebarOpen(true);
                 }}
-                title="备件库存"
+                title={shortageCount > 0 ? `备件库存 (${shortageCount} 项缺件)` : '备件库存 (储备充足)'}
                 className="p-2 rounded-lg text-amber-300 hover:text-amber-100 hover:bg-amber-500/20 transition-colors relative cursor-pointer"
               >
                 <Package className="w-4 h-4" />
