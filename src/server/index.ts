@@ -95,8 +95,13 @@ export async function createApp() {
           defaultSrc:  ["'self'"],
           scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-eval'",
                         "webapi.amap.com", "restapi.amap.com", "*.amap.com",
-                        "dhplayer.moxian.ai"],
-          styleSrc:    ["'self'", "'unsafe-inline'", "*.amap.com"],
+                        "dhplayer.moxian.ai",
+                        // public/exploded/*.html 拆解视图静态页依赖的 CDN：
+                        "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "cdn.tailwindcss.com"],
+          // 拆解页大量使用内联事件（onclick=...），helmet 默认 script-src-attr 'none' 会拦
+          scriptSrcAttr: ["'unsafe-inline'"],
+          styleSrc:    ["'self'", "'unsafe-inline'", "*.amap.com",
+                        "fonts.googleapis.com", "cdn.tailwindcss.com"],
           imgSrc:      ["'self'", "data:", "blob:", "*.amap.com", "*.aliyuncs.com",
                         "*.aliyun.com"],
           connectSrc:  ["'self'", "blob:",
@@ -104,7 +109,7 @@ export async function createApp() {
                         "*.amap.com", "restapi.amap.com",
                         "dhplayer.moxian.ai",
                         "ws://localhost:*", "wss://localhost:*"],   // Vite HMR
-          fontSrc:     ["'self'", "data:"],
+          fontSrc:     ["'self'", "data:", "fonts.gstatic.com"],
           mediaSrc:    ["'self'", "blob:", "*.aliyuncs.com"],
           // 'self' 而非 'none'：Godot 导出页（/godot-maze、/godot-game-2d）以同源
           // iframe 挂载，'none' 会在生产（下方 reportOnly=false）把引擎整个拦掉。
