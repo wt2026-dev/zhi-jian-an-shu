@@ -42,7 +42,7 @@ import {
   Monitor,
   Building2,
 } from 'lucide-react';
-import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type ExplodedFaultDiagnostics, type ExplodedPartLifeDiagnostics } from '../../api';
+import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type ExplodedFaultDiagnostics, type ExplodedPartLifeDiagnostics, type ExplodedPartInventoryDiagnostics, type SpareProcurePrefill } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
 import { useOptionalAuth } from '../../context/AuthContext';
@@ -144,6 +144,11 @@ export interface Equipment3DViewProps {
    */
   onNavigateToWorkOrderCreate?: (prefill: WorkOrderCreatePrefill) => void;
   /**
+   * 备件库存联动 →「一键生成采购申请」回调（App 深链切到备件库存页并预填采购入库单）。
+   * prefill 的字段全部来自 spare_parts 真实台账命中的备件（缺口/位置/采购周期）。
+   */
+  onNavigateToSpareProcure?: (prefill: SpareProcurePrefill) => void;
+  /**
    * 地图轴（全国地图 / 城市 / 厂区）路径节点，由下钻壳给到；本层把它接在自己的
    * 「车间 / 单设备」两级之前，渲染成顶部唯一的那条下钻路径条。
    * 2026-09-23 用户「太拥挤了」：此前地图轴那条面包屑绝对定位浮在工具栏正中、厂区轴那条
@@ -152,7 +157,7 @@ export interface Equipment3DViewProps {
   mapTrail?: DrillCrumbNode[];
 }
 
-export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onNavigateToWorkOrderCreate, mapTrail }: Equipment3DViewProps = {}): React.ReactElement {
+export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onNavigateToWorkOrderCreate, onNavigateToSpareProcure, mapTrail }: Equipment3DViewProps = {}): React.ReactElement {
   const { equipments: contextEquipments, handleUpdateWorkOrder: contextUpdateWorkOrder } = useAppData();
   const auth = useOptionalAuth();
   const currentUser = auth?.currentUser ?? null;
@@ -281,6 +286,37 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
       .catch(() => {
         // 寿命接口不可达 / 设备无台账：拆解页照常打开，只是不出寿命面板（不造假）
         if (!cancelled) setExplodedLifeInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [explodedHtmlDeviceId]);
+
+  /**
+   * 备件库存联动（F6）：拆解舞台打开的设备的真实备件库存诊断。
+   * 服务端一次拉全 spare_parts 真实台账后按位号归属（未命中如实"无备件记录"），
+   * 侧边给库存四要素卡与低库存采购申请入口（跳备件库存页预填采购入库单）。
+   */
+  const [explodedInventoryInfo, setExplodedInventoryInfo] = useState<ExplodedPartInventoryDiagnostics | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!explodedHtmlDeviceId) {
+      // 关闭拆解页时清诊断：微任务延迟一轮（避免 effect 内同步 setState 级联渲染）
+      queueMicrotask(() => {
+        if (!cancelled) setExplodedInventoryInfo(null);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    explodedViewApi
+      .getPartInventory(explodedHtmlDeviceId)
+      .then((diagnostics) => {
+        if (!cancelled) setExplodedInventoryInfo(diagnostics);
+      })
+      .catch(() => {
+        // 库存接口不可达 / 设备无台账：拆解页照常打开，只是不出库存面板（不造假）
+        if (!cancelled) setExplodedInventoryInfo(null);
       });
     return () => {
       cancelled = true;
@@ -1839,6 +1875,29 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
   );
 
   /**
+   * 库存面板「一键生成采购申请」（F6）：优先走宿主回调（App 切备件库存页 + 预填采购
+   * 入库单，字段来自 spare_parts 真实台账命中）；无宿主时退回 sessionStorage +
+   * spare_parts 深链（备件页挂载时取走）。
+   */
+  const handleOpenProcureFromInventory = useCallback(
+    (prefill: SpareProcurePrefill) => {
+      if (onNavigateToSpareProcure) {
+        onNavigateToSpareProcure(prefill);
+        return;
+      }
+      try {
+        window.sessionStorage.setItem('spare-procure-prefill', JSON.stringify(prefill));
+      } catch {
+        /* ignore */
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'spare_parts');
+      window.location.href = url.toString();
+    },
+    [onNavigateToSpareProcure]
+  );
+
+  /**
    * 故障面板「创建维修工单」：优先走宿主回调（App 切工单页 + 预填建单表单，字段全部
    * 来自真实遥测诊断）；无宿主时退回 sessionStorage + work_orders 深链（建单页挂载时取走）。
    */
@@ -2168,6 +2227,8 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
             onOpenWorkOrder={handleOpenWorkOrderFromExploded}
             faultInfo={explodedFaultInfo}
             lifeInfo={explodedLifeInfo}
+            inventoryInfo={explodedInventoryInfo}
+            onOpenProcure={handleOpenProcureFromInventory}
             onOpenWorkOrderCreate={handleCreateWorkOrderFromFault}
           />
         )}

@@ -30,7 +30,7 @@ import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/Header';
-import { authApi } from './api';
+import { authApi, type SpareProcurePrefill } from './api';
 import { logger } from './utils/logger';
 // ─── Context Providers（状态管理层，已从本文件拆出）────────────────────────────
 import { AppDataProvider, useAppData } from './context/AppDataContext';
@@ -269,6 +269,8 @@ function AppShell() {
   const [showGlobalCreateWorkOrder, setShowGlobalCreateWorkOrder] = useState(false);
   /** 故障定位 →「创建维修工单」深链预填（真实遥测故障详情；工单页消费后回调清空） */
   const [workOrderCreatePrefill, setWorkOrderCreatePrefill] = useState<WorkOrderCreatePrefill | null>(null);
+  /** 库存联动 →「一键生成采购申请」深链预填（spare_parts 真实台账命中；备件页消费后回调清空） */
+  const [spareProcurePrefill, setSpareProcurePrefill] = useState<SpareProcurePrefill | null>(null);
   const [showGlobalCreateSafetyPermit, setShowGlobalCreateSafetyPermit] = useState(false);
   const [showQrScannerModal, setShowQrScannerModal] = useState(false);
   const [qrModalTab, setQrModalTab] = useState<'simulate' | 'real_qrcode'>('simulate');
@@ -580,6 +582,8 @@ function AppShell() {
             <SparePartsView
               currentUser={currentUser}
               onNavigateToWorkOrders={() => setActiveTab('work_orders')}
+              initialProcurePrefill={spareProcurePrefill}
+              onProcurePrefillConsumed={() => setSpareProcurePrefill(null)}
             />
           )}
 
@@ -624,6 +628,11 @@ function AppShell() {
                 // 故障定位 → 创建维修工单：切工单页 + 预填建单表单（字段来自真实遥测诊断）
                 setActiveTab('work_orders');
                 setWorkOrderCreatePrefill(prefill);
+              }}
+              onNavigateToSpareProcure={(prefill) => {
+                // 库存联动 → 采购申请：切备件库存页 + 预填采购入库单（字段来自 spare_parts 真实台账）
+                setActiveTab('spare_parts');
+                setSpareProcurePrefill(prefill);
               }}
             />
           )}

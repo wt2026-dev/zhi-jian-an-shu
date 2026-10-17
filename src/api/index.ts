@@ -478,6 +478,64 @@ export interface ExplodedPartLifeDiagnostics {
   dataNote: string;
 }
 
+export interface ExplodedPartInventoryMatch {
+  id: string;
+  name: string;
+  spec: string;
+  model: string;
+  unit: string;
+  /** 当前库存（spare_parts.stock 真实台账值） */
+  stock: number;
+  /** 库存预警阈值（spare_parts.safe_stock；≤ 该值即需采购，与备件页同口径） */
+  safeStock: number;
+  /** 缺口（预警阈值 − 当前库存，下限 0） */
+  shortage: number;
+  /** 低库存（当前库存 ≤ 预警阈值） */
+  low: boolean;
+  /** 存放位置（仓库/货架，真实台账） */
+  location: string;
+  price: number;
+  /** 采购前置期（天；库内无前置期字段，按分类配置给出，如实标注） */
+  purchaseLeadDays: number;
+  purchaseLeadLabel: string;
+}
+
+export interface CatalogPartInventory {
+  posNo: string;
+  name: string;
+  category?: string;
+  /** 命中的真实备件台账；无命中 = null（如实展示"无备件记录"） */
+  inventory: ExplodedPartInventoryMatch | null;
+}
+
+export interface ExplodedPartInventoryDiagnostics {
+  deviceId: string;
+  deviceName: string;
+  deviceCode: string;
+  explodedViewFile: string | null;
+  generatedAt: string;
+  parts: CatalogPartInventory[];
+  summary: {
+    lowCount: number;
+    matchedCount: number;
+    totalParts: number;
+    totalShortage: number;
+  };
+  dataNote: string;
+}
+
+/** 一键生成采购申请的预填载荷（跳备件库存页的采购入库流程） */
+export interface SpareProcurePrefill {
+  /** 真实备件台账 id（spare_parts 主键） */
+  partId: string;
+  partName: string;
+  unit: string;
+  /** 建议采购量（缺口值） */
+  qty: number;
+  /** 申请事由（含来源拆解位号与设备，真实上下文） */
+  note: string;
+}
+
 export const explodedViewApi = {
   /** 工单 → 拆解视图上下文（设备 + 真实 BOM 命中的目标位号） */
   getWorkOrderBrief: (workOrderId: string) =>
@@ -494,6 +552,10 @@ export const explodedViewApi = {
   /** 设备 → 真实零件寿命预警（真实更换记录 × 运行时钟；黄色/红色寿命高亮 + 保养建议用） */
   getPartLifeDiagnostics: (deviceId: string) =>
     request<ExplodedPartLifeDiagnostics>(`/equipments/${deviceId}/part-life-diagnostics`),
+
+  /** 设备 → 真实备件库存联动（spare_parts 台账；库存四要素 + 采购申请用） */
+  getPartInventory: (deviceId: string) =>
+    request<ExplodedPartInventoryDiagnostics>(`/equipments/${deviceId}/part-inventory`),
 };
 
 // 认证与权限 API (JWT / RBAC)

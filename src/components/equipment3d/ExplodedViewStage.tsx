@@ -48,7 +48,8 @@ import { ExplodedPartHistoryPanel } from './ExplodedPartHistoryPanel';
 import { MaintenanceStepGuidePanel } from './MaintenanceStepGuidePanel';
 import { ExplodedFaultPanel } from './ExplodedFaultPanel';
 import { ExplodedPartLifePanel } from './ExplodedPartLifePanel';
-import type { ExplodedOrderStep, ExplodedFaultDiagnostics, ExplodedPartLifeDiagnostics } from '../../api';
+import { ExplodedPartInventoryPanel } from './ExplodedPartInventoryPanel';
+import type { ExplodedOrderStep, ExplodedFaultDiagnostics, ExplodedPartLifeDiagnostics, ExplodedPartInventoryDiagnostics, SpareProcurePrefill } from '../../api';
 import type { WorkOrderCreatePrefill } from '../../types';
 
 /** 注入到拆解页里的样式表 id —— 幂等标记，重复注入靠它去重。 */
@@ -273,6 +274,10 @@ export interface ExplodedViewStageProps {
   faultInfo?: ExplodedFaultDiagnostics | null;
   /** 零件寿命预警（真实更换记录 × 运行时钟 → 拆解页黄/暗红寿命高亮 + 侧边汇总） */
   lifeInfo?: ExplodedPartLifeDiagnostics | null;
+  /** 备件库存联动（spare_parts 真实台账 → 库存四要素 + 低库存采购申请） */
+  inventoryInfo?: ExplodedPartInventoryDiagnostics | null;
+  /** 库存面板「一键生成采购申请」→ App 切备件库存页并预填采购入库单 */
+  onOpenProcure?: (prefill: SpareProcurePrefill) => void;
   /** 故障面板「创建维修工单」→ App 深链切换到工单页并预填建单表单 */
   onOpenWorkOrderCreate?: (prefill: WorkOrderCreatePrefill) => void;
 }
@@ -302,6 +307,8 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   onOpenWorkOrder,
   faultInfo = null,
   lifeInfo = null,
+  inventoryInfo = null,
+  onOpenProcure,
   onOpenWorkOrderCreate,
 }) => {
   const url = getExplodedViewUrl(deviceId);
@@ -456,7 +463,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
         </button>
 
         {/* ---- 左侧栏：工单上下文卡（F1：从检修工单跳入时显示工单关键信息）+ 零件维修历史面板（F2：点零件显示真实历史） ---- */}
-        {(workOrderBrief || selectedPartId || (lifeInfo != null && lifeInfo.parts.length > 0)) && (
+        {(workOrderBrief || selectedPartId || (lifeInfo != null && lifeInfo.parts.length > 0) || (inventoryInfo != null && inventoryInfo.parts.length > 0)) && (
           <div className="absolute left-2 top-2 bottom-3 z-50 w-[340px] max-w-[36vw] flex flex-col gap-2 pointer-events-none overflow-y-auto overflow-x-hidden" data-testid="equipment3d-exploded-leftcol">
             {/* 故障定位（F4）：设备遥测真实读数超标 → 红色脉冲高亮观察部位 + 故障详情卡 */}
             {faultInfo && (
@@ -473,6 +480,13 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                 life={lifeInfo}
                 onHighlightPart={handleLifePartHighlight}
                 onCreateMaintenanceWorkOrder={onOpenWorkOrderCreate}
+              />
+            )}
+            {/* 备件库存联动（F6）：spare_parts 真实台账 → 库存四要素 + 低库存采购申请 */}
+            {inventoryInfo && inventoryInfo.parts.length > 0 && (
+              <ExplodedPartInventoryPanel
+                inventory={inventoryInfo}
+                onOpenProcure={onOpenProcure}
               />
             )}
             {workOrderBrief &&

@@ -14,6 +14,7 @@ import {
 import { getCatalogForDevice } from "../services/partMatchService.ts";
 import { getDeviceFaultDiagnostics } from "../services/equipmentFaultLocatorService.ts";
 import { getDevicePartLifeDiagnostics } from "../services/partLifeService.ts";
+import { getDevicePartInventory } from "../services/partInventoryService.ts";
 
 export async function handleGetWorkOrderExplodedBrief(req: Request, res: Response) {
   try {
@@ -82,5 +83,22 @@ export async function handleGetDevicePartLifeDiagnostics(req: Request, res: Resp
     }
     const msg = err instanceof Error ? err.message : String(err);
     return res.status(500).json({ error: "查询零件寿命预警失败: " + msg });
+  }
+}
+
+/** GET /api/v1/equipments/:deviceId/part-inventory —— 真实备件库存联动（拆解页库存四要素 + 采购申请用） */
+export async function handleGetDevicePartInventory(req: Request, res: Response) {
+  try {
+    const deviceId = String(req.params.deviceId ?? "");
+    if (!deviceId) {
+      return res.status(400).json({ error: "deviceId 必填", code: "INVALID_INPUT" });
+    }
+    return res.json(await getDevicePartInventory(deviceId));
+  } catch (err: unknown) {
+    if ((err as { code?: string })?.code === "EQUIPMENT_NOT_FOUND") {
+      return res.status(404).json({ error: "设备未找到", code: "EQUIPMENT_NOT_FOUND" });
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error: "查询备件库存联动失败: " + msg });
   }
 }

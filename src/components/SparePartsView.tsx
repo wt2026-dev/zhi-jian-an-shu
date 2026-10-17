@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   AlertTriangle,
@@ -18,16 +18,24 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { SparePart, SparePartMovement, UserProfile } from '../types';
-import { sparePartsApi } from '../api';
+import { sparePartsApi, type SpareProcurePrefill } from '../api';
 
 interface SparePartsViewProps {
   currentUser: UserProfile;
   onNavigateToWorkOrders?: () => void;
+  /**
+   * 拆解视图库存联动 → 采购申请预填（F6）：真实备件台账命中的零件与缺口信息。
+   * 本页消费后把「采购入库」弹窗按缺口预填，提交即生成真实出入库流水。
+   */
+  initialProcurePrefill?: SpareProcurePrefill | null;
+  onProcurePrefillConsumed?: () => void;
 }
 
 export const SparePartsView: React.FC<SparePartsViewProps> = ({
   currentUser,
   onNavigateToWorkOrders,
+  initialProcurePrefill = null,
+  onProcurePrefillConsumed,
 }) => {
   const [parts, setParts] = useState<SparePart[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +90,47 @@ export const SparePartsView: React.FC<SparePartsViewProps> = ({
   useEffect(() => {
     loadParts();
   }, []);
+
+  /**
+   * 库存联动（F6）：消费「一键生成采购申请」预填 → 预填采购入库弹窗。
+   * appliedRef 去重；无宿主深链场景从 sessionStorage 'spare-procure-prefill' 兜底取走；
+   * parts 未加载完就先等待（不然 find 不到目标备件）。
+   */
+  const appliedProcurePrefillRef = useRef<SpareProcurePrefill | null>(null);
+  useEffect(() => {
+    let prefill = initialProcurePrefill;
+    if (!prefill) {
+      try {
+        const raw = window.sessionStorage.getItem('spare-procure-prefill');
+        if (raw) {
+          prefill = JSON.parse(raw) as SpareProcurePrefill;
+          window.sessionStorage.removeItem('spare-procure-prefill');
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!prefill || isLoading || parts.length === 0) return;
+    if (appliedProcurePrefillRef.current?.partId === prefill.partId) return;
+    appliedProcurePrefillRef.current = prefill;
+    // 预填入库弹窗：微任务延迟一轮（effect 内同步 setState 会触发级联渲染告警）
+    queueMicrotask(() => {
+      const target = parts.find((p) => p.id === prefill.partId);
+      if (!target) {
+        // 台账里查不到该备件：只清状态，不伪造——数据诚实口径
+        onProcurePrefillConsumed?.();
+        return;
+      }
+      setInOutPart(target);
+      setInOutType('in');
+      const shortage = Math.max(1, (target.safe_stock ?? 0) - (target.stock ?? 0));
+      setInOutQuantity(prefill.qty && prefill.qty > 0 ? prefill.qty : shortage);
+      setInOutReason(prefill.note || '拆解视图库存预警采购');
+      setInOutError(null);
+      onProcurePrefillConsumed?.();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProcurePrefill, isLoading, parts]);
 
   // Filtered parts
   const categories = Array.from(new Set(parts.map((p) => p.category))).filter(Boolean);
