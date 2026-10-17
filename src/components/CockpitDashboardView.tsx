@@ -82,6 +82,12 @@ interface CockpitDashboardViewProps {
   onAskAi?: (prompt: string) => void;
 }
 
+/**
+ * 百分比格式化：null → 「—」。
+ * 驾驶舱里所有比率都走这里，避免出现「—%」这种半截文案，也避免为了好看去编分母。
+ */
+const fmtPct = (v: string | null) => (v == null ? '—' : `${v}%`);
+
 export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
   onNavigateTab,
   onSelectEquipment,
@@ -199,17 +205,21 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
   }, [isAutoRefresh]);
 
   // Derived KPI Calculations
+  // ⚠️ 分母为 0 时**不再回退到写死的漂亮数字**（原来是 98.5 / 87.5 / 92.0）。
+  //    驾驶舱是全屏展示面，这几个数是"厂区运行状况"的结论；接口没数据时写 98.5%
+  //    等于凭空宣布设备几乎全在线。没有就是没有，渲染成「—」。
   const totalEquipments = equipments.length;
   const runningEquipments = equipments.filter((e) => e.status === 'running').length;
-  const onlineRate = totalEquipments > 0 ? ((runningEquipments / totalEquipments) * 100).toFixed(1) : '98.5';
+  const onlineRate = totalEquipments > 0 ? ((runningEquipments / totalEquipments) * 100).toFixed(1) : null;
 
   const totalOrders = workOrders.length;
   const completedOrders = workOrders.filter((w) => w.status === 'completed').length;
-  const woCompletionRate = totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(1) : '87.5';
+  const woCompletionRate = totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(1) : null;
 
   const totalInspections = inspections.length;
   const completedInspections = inspections.filter((i) => i.status === 'completed').length;
-  const inspCompletionRate = totalInspections > 0 ? ((completedInspections / totalInspections) * 100).toFixed(1) : '92.0';
+  const inspCompletionRate =
+    totalInspections > 0 ? ((completedInspections / totalInspections) * 100).toFixed(1) : null;
 
   const pendingHazards = hazards.filter((h) => h.status !== 'closed');
   const majorHazards = pendingHazards.filter((h) => h.level === 'major');
@@ -324,40 +334,57 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
   };
 
   // AI calls from real /api/v1/ai-stats backend API
-  const aiCallsCount = aiStats?.totalCalls || (186 + knowledgeList.length * 3 + workOrders.length);
+  // ⚠️ 原来这里是 `aiStats?.totalCalls || (186 + knowledgeList.length * 3 + workOrders.length)`
+  //    —— 接口没回来时用一条公式**现算**出一个像真数的调用量。取不到就显示「—」。
+  const aiCallsCount: number | null = aiStats?.totalCalls ?? null;
 
-  const mistakeRate = complianceStats?.mistake_rate !== undefined 
-    ? (complianceStats.mistake_rate * 100).toFixed(1) 
-    : '2.8';
+  // ⚠️ 原来取不到就写死 '2.8'（2.8% 违章率），是个凭空捏造的合规结论
+  const mistakeRate: string | null =
+    complianceStats?.mistake_rate !== undefined && complianceStats?.mistake_rate !== null
+      ? (complianceStats.mistake_rate * 100).toFixed(1)
+      : null;
 
   // Chart 1: Equipment Status Donut
   const warningEquipments = equipments.filter((e) => e.status === 'warning').length;
   const faultEquipments = equipments.filter((e) => e.status === 'fault' || e.status === 'overhauling').length;
   const offlineEquipments = equipments.filter((e) => e.status === 'standby').length;
 
+  // ⚠️ 原来是 `runningEquipments || 7` / `|| 2` / `|| 1` —— 一台设备都没运行时，
+  //    环形图会画出「7 台正常 / 2 台预警 / 1 台故障」的完整厂区状态。0 就是 0。
   const eqStatusData = [
-    { name: '正常运行', value: runningEquipments || 7, color: '#10b981' },
-    { name: '预警监测', value: warningEquipments || 2, color: '#f59e0b' },
-    { name: '故障检修', value: faultEquipments || 1, color: '#ef4444' },
-    { name: '待机离线', value: offlineEquipments || 0, color: '#64748b' },
+    { name: '正常运行', value: runningEquipments, color: '#10b981' },
+    { name: '预警监测', value: warningEquipments, color: '#f59e0b' },
+    { name: '故障检修', value: faultEquipments, color: '#ef4444' },
+    { name: '待机离线', value: offlineEquipments, color: '#64748b' },
   ];
 
-  // Chart 2: 14-day Trend Data
-  const trendData = [
-    { day: '02-25', orders: 4, faults: 1, aiCalls: 8 },
-    { day: '02-26', orders: 6, faults: 2, aiCalls: 12 },
-    { day: '02-27', orders: 5, faults: 1, aiCalls: 10 },
-    { day: '02-28', orders: 8, faults: 0, aiCalls: 15 },
-    { day: '03-01', orders: 7, faults: 3, aiCalls: 19 },
-    { day: '03-02', orders: 9, faults: 1, aiCalls: 14 },
-    { day: '03-03', orders: 6, faults: 2, aiCalls: 11 },
-    { day: '03-04', orders: 11, faults: 1, aiCalls: 22 },
-    { day: '03-05', orders: 8, faults: 0, aiCalls: 18 },
-    { day: '03-06', orders: 12, faults: 2, aiCalls: 25 },
-    { day: '03-07', orders: 7, faults: 1, aiCalls: 16 },
-    { day: '03-08', orders: 10, faults: 1, aiCalls: 20 },
-    { day: '03-09', orders: totalOrders, faults: faultEquipments, aiCalls: 28 },
-  ];
+  // Chart 2: 近 14 日趋势
+  // ⚠️ 原先这里是一张**写死的 13 天假数据表**（02-25 到 03-08，orders/faults/aiCalls 全是
+  //    编的），只有最后一天接了真值 —— 图表标题却写"14天…走势"。现在整条序列都由
+  //    workOrders.createdAt 真实分桶：
+  //      orders = 当日新建工单数
+  //      faults = 当日新建工单中"真故障"（排除定期润滑维保）的数量
+  //    AI 调用没有按日明细接口（/api/v1/ai-stats 只给累计值），所以不再画那条线，
+  //    面板标题同步去掉"智能排查"，不拿估算糊弄。
+  const trendData = (() => {
+    const DAYS = 14;
+    const buckets = new Map<string, { orders: number; faults: number }>();
+    const now = new Date();
+    for (let i = DAYS - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const key = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      buckets.set(key, { orders: 0, faults: 0 });
+    }
+    for (const w of workOrders) {
+      if (!w.createdAt) continue;
+      const key = String(w.createdAt).slice(5, 10); // 'YYYY-MM-DD...' → 'MM-DD'
+      const b = buckets.get(key);
+      if (!b) continue;
+      b.orders += 1;
+      if (w.faultType !== '定期润滑维保') b.faults += 1;
+    }
+    return Array.from(buckets.entries()).map(([day, v]) => ({ day, ...v }));
+  })();
 
   // Chart 3: Workshop load
   const workshopLoadMap: Record<string, { total: number; running: number }> = {};
@@ -398,9 +425,9 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
         { label: '设备数量', value: `${item.value} 台` },
         { label: '占比', value: `${pct}%` },
         { label: '设备总数', value: `${total} 台` },
-        { label: '在线率', value: `${onlineRate}%` },
+        { label: '在线率', value: fmtPct(onlineRate) },
       ],
-      prompt: `驾驶舱设备状态环形图显示：${item.name} ${item.value} 台（占比 ${pct}%），设备总数 ${total} 台，在线率 ${onlineRate}%，故障检修 ${faultEquipments} 台、预警 ${warningEquipments} 台。请分析该状态分布反映的风险，给出最需要关注的 3 个问题与处置建议。`,
+      prompt: `驾驶舱设备状态环形图显示：${item.name} ${item.value} 台（占比 ${pct}%），设备总数 ${total} 台，在线率 ${fmtPct(onlineRate)}，故障检修 ${faultEquipments} 台、预警 ${warningEquipments} 台。请分析该状态分布反映的风险，给出最需要关注的 3 个问题与处置建议。`,
     });
   };
 
@@ -412,20 +439,19 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
       items: [
         { label: '检修工单', value: `${point.orders} 单` },
         { label: '故障报警', value: `${point.faults} 次` },
-        { label: 'AI 问答排查', value: `${point.aiCalls} 次` },
-        { label: '工单完成率', value: `${woCompletionRate}%` },
+        { label: '工单完成率', value: fmtPct(woCompletionRate) },
       ],
-      prompt: `驾驶舱 14 天趋势图显示 ${point.day}：检修工单 ${point.orders} 单、故障报警 ${point.faults} 次、AI 问答排查 ${point.aiCalls} 次。当前工单完成率 ${woCompletionRate}%，设备在线率 ${onlineRate}%，待处理隐患 ${pendingHazards.length} 项。请分析该日数据变化的原因并给出深入建议。`,
+      prompt: `驾驶舱 14 天趋势图显示 ${point.day}：检修工单 ${point.orders} 单、故障工单 ${point.faults} 单。当前工单完成率 ${fmtPct(woCompletionRate)}，设备在线率 ${fmtPct(onlineRate)}，待处理隐患 ${pendingHazards.length} 项。请分析该日数据变化的原因并给出深入建议。`,
     });
   };
 
   // 右上角「AI 解读」：附带当前统计摘要唤起全局悬浮 AI 面板
   const handleAiInterpret = () => {
-    const summary = `设备总数 ${totalEquipments} 台（在线率 ${onlineRate}%）；检修工单 ${totalOrders} 单，完成率 ${woCompletionRate}%；巡检任务 ${totalInspections} 项，完成率 ${inspCompletionRate}%；待处理隐患 ${pendingHazards.length} 项（重大 ${majorHazards.length} 项）；AI 调用次数 ${aiCallsCount} 次。`;
+    const summary = `设备总数 ${totalEquipments} 台（在线率 ${fmtPct(onlineRate)}）；检修工单 ${totalOrders} 单，完成率 ${fmtPct(woCompletionRate)}；巡检任务 ${totalInspections} 项，完成率 ${fmtPct(inspCompletionRate)}；待处理隐患 ${pendingHazards.length} 项（重大 ${majorHazards.length} 项）；AI 调用次数 ${aiCallsCount == null ? '未接入' : `${aiCallsCount} 次`}。`;
     const eqDist = eqStatusData.map((d) => `${d.name} ${d.value} 台`).join('，');
     const recentTrend = trendData
       .slice(-5)
-      .map((d) => `${d.day}: 工单 ${d.orders} 单 / AI ${d.aiCalls} 次`)
+      .map((d) => `${d.day}: 工单 ${d.orders} 单 / 故障 ${d.faults} 单`)
       .join('；');
     onAskAi?.(
       `请解读当前驾驶舱数据，指出最需要关注的 3 个问题。\n\n【统计摘要】\n${summary}\n\n【设备状态分布】\n${eqDist}\n\n【近 5 日趋势】\n${recentTrend}`
@@ -688,7 +714,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">综合在网率</span>
-            <span className="text-slate-900 font-mono font-bold">{onlineRate}%</span>
+            <span className="text-slate-900 font-mono font-bold">{fmtPct(onlineRate)}</span>
           </div>
           {/* 监测 → 定位 → 干预 闭环链路指示 */}
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
@@ -719,7 +745,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">工单完结率</span>
-            <span className="text-blue-600 font-mono font-bold">{woCompletionRate}%</span>
+            <span className="text-blue-600 font-mono font-bold">{fmtPct(woCompletionRate)}</span>
           </div>
           {/* 监测 → 定位 → 干预 闭环链路指示 */}
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
@@ -745,7 +771,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-1.5">
-            <span className="data-number text-2xl text-emerald-700 tracking-tight">{inspCompletionRate}%</span>
+            <span className="data-number text-2xl text-emerald-700 tracking-tight">{fmtPct(inspCompletionRate)}</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">已点检</span>
@@ -806,7 +832,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-1">
-            <span className="data-number text-2xl text-blue-700 tracking-tight">{aiCallsCount}</span>
+            <span className="data-number text-2xl text-blue-700 tracking-tight">{aiCallsCount ?? '—'}</span>
             <span className="text-xs text-slate-500 font-sans">次</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
@@ -824,7 +850,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             </div>
           </div>
           <div className="mt-2 flex items-baseline space-x-1">
-            <span className="data-number text-2xl text-rose-700 tracking-tight">{mistakeRate}%</span>
+            <span className="data-number text-2xl text-rose-700 tracking-tight">{fmtPct(mistakeRate)}</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">安全准入受控</span>
@@ -1104,7 +1130,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
               {onAskAi && (
                 <button
                   type="button"
-                  onClick={() => onAskAi(`解读一下当前设备健康分布与在行状态反映的设备状态趋势，3 句话以内。正常运行 ${runningEquipments} 台，预警 ${warningEquipments} 台，故障 ${faultEquipments} 台，在线率 ${onlineRate}%。`)}
+                  onClick={() => onAskAi(`解读一下当前设备健康分布与在行状态反映的设备状态趋势，3 句话以内。正常运行 ${runningEquipments} 台，预警 ${warningEquipments} 台，故障 ${faultEquipments} 台，在线率 ${fmtPct(onlineRate)}。`)}
                   className="chip-cyan shrink-0 text-[10px] px-2 py-1"
                   title="问 AI 解读此图表"
                 >
@@ -1208,21 +1234,21 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
 
         {/* Center Column (5 cols): 14-day Orders & Faults Trend + Workshop Load */}
         <div className="lg:col-span-5 flex flex-col gap-4">
-          {/* Line Chart: 14天检修工单与报警频次趋势 */}
+          {/* Line Chart: 近 14 日检修工单与故障工单频次 */}
           <div className="glass-card p-4 shadow-sm flex flex-col flex-1">
             <div className="mb-2 flex items-start justify-between">
               <div>
                 <h3 className="text-xs font-bold text-slate-800 flex items-center">
                   <span className="w-1 h-3.5 rounded-full bg-emerald-500 mr-2" />
                   <TrendingUp className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
-                  14天检修工单下发与智能排查走势
+                  近 14 日检修工单下发与故障工单走势
                 </h3>
-                <span className="text-[10px] text-slate-500 mt-0.5 block">日频次波动统计</span>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">按 workOrders.createdAt 真实分桶（AI 调用无按日明细，未画）</span>
               </div>
               {onAskAi && (
                 <button
                   type="button"
-                  onClick={() => onAskAi(`解读一下当前14天检修工单与智能排查走势反映的设备状态趋势，3 句话以内。工单完成率 ${woCompletionRate}%，在线率 ${onlineRate}%。`)}
+                  onClick={() => onAskAi(`解读一下当前近 14 日检修工单与故障工单走势反映的设备状态趋势，3 句话以内。工单完成率 ${fmtPct(woCompletionRate)}，在线率 ${fmtPct(onlineRate)}。`)}
                   className="chip-cyan shrink-0 text-[10px] px-2 py-1"
                   title="问 AI 解读此图表"
                 >
@@ -1247,7 +1273,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.02} />
                     </linearGradient>
-                    <linearGradient id="aiGrad" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="faultGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.25} />
                       <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
                     </linearGradient>
@@ -1266,7 +1292,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
                     }}
                   />
                   <Area type="monotone" dataKey="orders" name="检修工单" stroke="#3b82f6" fill="url(#orderGrad)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="aiCalls" name="AI问答排查" stroke="#06b6d4" fill="url(#aiGrad)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="faults" name="故障工单" stroke="#f59e0b" fill="url(#faultGrad)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -1331,7 +1357,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
             <div className="space-y-2 text-xs">
               <div className="flex justify-between items-center p-2 rounded-lg bg-slate-50/80 border border-slate-100">
                 <span className="text-slate-500">已入库 SOP 规程</span>
-                <span className="font-mono font-bold text-slate-900">{knowledgeList.length || 8} 篇</span>
+                <span className="font-mono font-bold text-slate-900">{knowledgeList.length} 篇</span>
               </div>
               <div className="flex justify-between items-center p-2 rounded-lg bg-slate-50/80 border border-slate-100">
                 <span className="text-slate-500">向量检索库 (Chroma/DashScope)</span>
