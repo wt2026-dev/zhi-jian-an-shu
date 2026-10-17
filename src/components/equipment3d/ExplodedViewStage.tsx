@@ -46,7 +46,9 @@ import { ArrowLeft, Boxes, X, Wrench } from 'lucide-react';
 import { getExplodedViewUrl } from './explodedViewFiles';
 import { ExplodedPartHistoryPanel } from './ExplodedPartHistoryPanel';
 import { MaintenanceStepGuidePanel } from './MaintenanceStepGuidePanel';
-import type { ExplodedOrderStep } from '../../api';
+import { ExplodedFaultPanel } from './ExplodedFaultPanel';
+import type { ExplodedOrderStep, ExplodedFaultDiagnostics } from '../../api';
+import type { WorkOrderCreatePrefill } from '../../types';
 
 /** 注入到拆解页里的样式表 id —— 幂等标记，重复注入靠它去重。 */
 const EMBED_STYLE_ID = 'equipment3d-embed-overrides';
@@ -266,6 +268,10 @@ export interface ExplodedViewStageProps {
   targetPartPosNo?: string | null;
   /** 点击面板里的工单号 / 「返回工单详情」 */
   onOpenWorkOrder?: (orderId: string) => void;
+  /** 设备遥测故障诊断（真实 equipment_telemetry 读数超标 → 拆解页红色脉冲定位观察部位） */
+  faultInfo?: ExplodedFaultDiagnostics | null;
+  /** 故障面板「创建维修工单」→ App 深链切换到工单页并预填建单表单 */
+  onOpenWorkOrderCreate?: (prefill: WorkOrderCreatePrefill) => void;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -291,6 +297,8 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   workOrderBrief = null,
   targetPartPosNo = null,
   onOpenWorkOrder,
+  faultInfo = null,
+  onOpenWorkOrderCreate,
 }) => {
   const url = getExplodedViewUrl(deviceId);
   const title = `${deviceName ?? deviceId} · 设备拆解视图`;
@@ -300,6 +308,8 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   const [briefCollapsed, setBriefCollapsed] = useState(false);
   const [highlightTick, setHighlightTick] = useState(0);
   const [guideActiveStep, setGuideActiveStep] = useState<number | null>(null);
+  /** 故障红色脉冲高亮的「观察部位」位号（页面原生 setFaultHighlight 的入参） */
+  const [faultPartPosNo, setFaultPartPosNo] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // useRef 而非 useCallback 常驻：installIframeBridge 里闭包捕获的是 ref，桥内调用永远最新
   const reportRef: ReportRef = useRef<(partId: string | null) => void>(() => {});
@@ -326,6 +336,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     setSelectedPartId(null);
     setBriefCollapsed(false);
     setGuideActiveStep(null);
+    setFaultPartPosNo(null);
   }, [deviceId]);
 
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
@@ -342,6 +353,41 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     quietHostAction(() => tryHighlightPart(iframeRef.current, targetPartPosNo));
     // highlightTick: iframe onLoad 后再补试一次（此时尚未渲染完成的 BOM 行也能点到）
   }, [targetPartPosNo, highlightTick]);
+
+  /* ---- 故障红色脉冲（F4）：位号变化 / iframe 重载都经页面原生 setFaultHighlight 下发 ---- */
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow as (Window & Record<string, unknown>) | null;
+    if (!win) return; // onLoad 后 highlightTick 变化会补发
+    const fn = win['setFaultHighlight'];
+    if (typeof fn === 'function') {
+      try {
+        fn.call(win, faultPartPosNo);
+      } catch {
+        /* 页面未就绪时忽略，等下一次位号/onLoad 再试 */
+      }
+    }
+    // highlightTick: iframe onLoad 后重放一次，避免早于页面脚本就绪的下发丢失
+  }, [faultPartPosNo, highlightTick]);
+
+  /* ---- 故障数据到位：自动脉冲第一观察部位 + 相机聚焦（不打开维修历史面板） ---- */
+  useEffect(() => {
+    const primary = faultInfo?.faults[0]?.observationParts[0]?.posNo ?? null;
+    setFaultPartPosNo(primary);
+    if (primary && iframeRef.current) {
+      quietHostAction(() => tryHighlightPart(iframeRef.current, primary));
+    }
+  }, [faultInfo, quietHostAction]);
+
+  /* ---- 故障面板「定位查看」：脉冲切换 +（同一部位时）重复触发相机聚焦 ---- */
+  const handleFaultPartHighlight = useCallback(
+    (posNo: string) => {
+      setFaultPartPosNo(posNo);
+      if (iframeRef.current) {
+        quietHostAction(() => tryHighlightPart(iframeRef.current, posNo));
+      }
+    },
+    [quietHostAction]
+  );
 
   /* ---- 维修步骤指引：点步骤 → 高亮该步目标零件 + 播放页面原生拆解动画 ---- */
   const handleRunStep = useCallback(
@@ -383,6 +429,15 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
         {/* ---- 左侧栏：工单上下文卡（F1：从检修工单跳入时显示工单关键信息）+ 零件维修历史面板（F2：点零件显示真实历史） ---- */}
         {(workOrderBrief || selectedPartId) && (
           <div className="absolute left-2 top-2 bottom-3 z-50 w-[340px] max-w-[36vw] flex flex-col gap-2 pointer-events-none overflow-y-auto overflow-x-hidden" data-testid="equipment3d-exploded-leftcol">
+            {/* 故障定位（F4）：设备遥测真实读数超标 → 红色脉冲高亮观察部位 + 故障详情卡 */}
+            {faultInfo && (
+              <ExplodedFaultPanel
+                fault={faultInfo}
+                highlightedPosNo={faultPartPosNo}
+                onHighlightPart={handleFaultPartHighlight}
+                onCreateWorkOrder={onOpenWorkOrderCreate}
+              />
+            )}
             {workOrderBrief &&
               (briefCollapsed ? (
                 <button

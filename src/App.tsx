@@ -77,6 +77,7 @@ import {
   UserProfile,
   NotificationItem,
   LotoLock,
+  WorkOrderCreatePrefill,
 } from './types';
 import { QrCode, X, Scan, Sparkles, Wrench, ShieldCheck, AlertTriangle, RefreshCw } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -266,6 +267,8 @@ function AppShell() {
 
   // Quick Action Modals Trigger Flag
   const [showGlobalCreateWorkOrder, setShowGlobalCreateWorkOrder] = useState(false);
+  /** 故障定位 →「创建维修工单」深链预填（真实遥测故障详情；工单页消费后回调清空） */
+  const [workOrderCreatePrefill, setWorkOrderCreatePrefill] = useState<WorkOrderCreatePrefill | null>(null);
   const [showGlobalCreateSafetyPermit, setShowGlobalCreateSafetyPermit] = useState(false);
   const [showQrScannerModal, setShowQrScannerModal] = useState(false);
   const [qrModalTab, setQrModalTab] = useState<'simulate' | 'real_qrcode'>('simulate');
@@ -617,6 +620,11 @@ function AppShell() {
             <Equipment3DView
               initialWorkOrderId={targetWorkOrderIdFor3D}
               onOpenWorkOrderDetail={openWorkOrderDetail}
+              onNavigateToWorkOrderCreate={(prefill) => {
+                // 故障定位 → 创建维修工单：切工单页 + 预填建单表单（字段来自真实遥测诊断）
+                setActiveTab('work_orders');
+                setWorkOrderCreatePrefill(prefill);
+              }}
             />
           )}
 
@@ -633,6 +641,8 @@ function AppShell() {
               onNavigateTo3D={(workOrderId) => navigateTo3D({ workOrderId })}
               initialWorkOrderId={targetWorkOrderIdForDetail}
               initialCreateOpen={showGlobalCreateWorkOrder}
+              initialCreatePrefill={workOrderCreatePrefill}
+              onCreatePrefillConsumed={() => setWorkOrderCreatePrefill(null)}
             />
           )}
 

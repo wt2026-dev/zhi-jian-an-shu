@@ -4,6 +4,7 @@ import { validateParams, idParamSchema } from "../middleware/validate.ts";
 import {
   handleGetWorkOrderExplodedBrief,
   handleGetPartMaintenanceHistory,
+  handleGetDeviceFaultDiagnostics,
 } from "../controllers/explodedViewController.ts";
 
 export function registerExplodedViewRoutes(app: express.Express) {
@@ -15,4 +16,8 @@ export function registerExplodedViewRoutes(app: express.Express) {
   //    注意 :partId 允许 `P-01`/`BOM-03` 这类含连字符的位号
   app.get("/api/v1/equipments/:deviceId/parts/:partId/maintenance-history", handleGetPartMaintenanceHistory);
   app.get("/api/equipments/:deviceId/parts/:partId/maintenance-history", handleGetPartMaintenanceHistory);
+
+  // 3. 设备 → 真实遥测故障诊断（拆解页自动高亮「未处理故障」的红色脉冲高亮）
+  app.get("/api/v1/equipments/:deviceId/fault-diagnostics", handleGetDeviceFaultDiagnostics);
+  app.get("/api/equipments/:deviceId/fault-diagnostics", handleGetDeviceFaultDiagnostics);
 }

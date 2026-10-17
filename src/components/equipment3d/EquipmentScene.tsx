@@ -42,7 +42,7 @@ import {
   Monitor,
   Building2,
 } from 'lucide-react';
-import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep } from '../../api';
+import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type ExplodedFaultDiagnostics } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
 import { useOptionalAuth } from '../../context/AuthContext';
@@ -55,6 +55,7 @@ import { DeviceAnalysisPanel, type TelemetryHistory } from './DeviceAnalysisPane
 import { ExplodedViewButton } from './ExplodedViewButton';
 import { WorkshopZoneNav } from './WorkshopZoneNav';
 import { ExplodedViewStage, type ExplodedViewWorkOrderContext } from './ExplodedViewStage';
+import type { WorkOrderCreatePrefill } from '../../types';
 import { hasExplodedView, setExplodedViewHost } from './explodedViewFiles';
 import { RepairStepCard } from './RepairStepCard';
 import { can } from '../../utils/rbac';
@@ -138,6 +139,11 @@ export interface Equipment3DViewProps {
    */
   onOpenWorkOrderDetail?: (workOrderId: string) => void;
   /**
+   * 故障定位 →「创建维修工单」回调（App 深链切到工单页并预填建单表单的真实故障信息）。
+   * prefill 的字段全部来自真实遥测故障诊断（equipment_telemetry 读数 × 报警阈值）。
+   */
+  onNavigateToWorkOrderCreate?: (prefill: WorkOrderCreatePrefill) => void;
+  /**
    * 地图轴（全国地图 / 城市 / 厂区）路径节点，由下钻壳给到；本层把它接在自己的
    * 「车间 / 单设备」两级之前，渲染成顶部唯一的那条下钻路径条。
    * 2026-09-23 用户「太拥挤了」：此前地图轴那条面包屑绝对定位浮在工具栏正中、厂区轴那条
@@ -146,7 +152,7 @@ export interface Equipment3DViewProps {
   mapTrail?: DrillCrumbNode[];
 }
 
-export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, mapTrail }: Equipment3DViewProps = {}): React.ReactElement {
+export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onNavigateToWorkOrderCreate, mapTrail }: Equipment3DViewProps = {}): React.ReactElement {
   const { equipments: contextEquipments, handleUpdateWorkOrder: contextUpdateWorkOrder } = useAppData();
   const auth = useOptionalAuth();
   const currentUser = auth?.currentUser ?? null;
@@ -229,6 +235,31 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, map
    * 由 iframe 桥 selectPart 定位）。targetPart 未识别时明确显示"未识别到具体零件"。
    */
   const [explodedHtmlContext, setExplodedHtmlContext] = useState<ExplodedViewWorkOrderContext | null>(null);
+  /**
+   * 故障定位（F4）：拆解舞台打开的设备的真实遥测故障诊断。
+   * 服务端把 equipment_telemetry 真实读数与真实阈值比对后返回超标指标 + 观察部位位号，
+   * 舞台自动脉冲定位，侧边给故障详情（描述/时间/严重度/建议）与「创建维修工单」。
+   */
+  const [explodedFaultInfo, setExplodedFaultInfo] = useState<ExplodedFaultDiagnostics | null>(null);
+  useEffect(() => {
+    if (!explodedHtmlDeviceId) {
+      setExplodedFaultInfo(null);
+      return;
+    }
+    let cancelled = false;
+    explodedViewApi
+      .getFaultDiagnostics(explodedHtmlDeviceId)
+      .then((diagnostics) => {
+        if (!cancelled) setExplodedFaultInfo(diagnostics);
+      })
+      .catch(() => {
+        // 诊断接口不可达 / 设备无台账：拆解页照常打开，只是不出故障面板（不造假）
+        if (!cancelled) setExplodedFaultInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [explodedHtmlDeviceId]);
 
   // ---- 安全边界可视化 ----
   const [showSafetyBoundary, setShowSafetyBoundary] = useState(true);
@@ -1781,6 +1812,29 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, map
     [onOpenWorkOrderDetail]
   );
 
+  /**
+   * 故障面板「创建维修工单」：优先走宿主回调（App 切工单页 + 预填建单表单，字段全部
+   * 来自真实遥测诊断）；无宿主时退回 sessionStorage + work_orders 深链（建单页挂载时取走）。
+   */
+  const handleCreateWorkOrderFromFault = useCallback(
+    (prefill: WorkOrderCreatePrefill) => {
+      if (onNavigateToWorkOrderCreate) {
+        onNavigateToWorkOrderCreate(prefill);
+        return;
+      }
+      try {
+        window.sessionStorage.setItem('wo-create-prefill', JSON.stringify(prefill));
+      } catch {
+        /* ignore */
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'work_orders');
+      url.searchParams.set('createOpen', '1');
+      window.location.href = url.toString();
+    },
+    [onNavigateToWorkOrderCreate]
+  );
+
   /* ---------- 8. 选中设备的展示数据 ---------- */
   const selectedDevice = useMemo(
     () => equipments.find((e) => e.id === selectedId) ?? null,
@@ -2086,6 +2140,8 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, map
             workOrderBrief={explodedHtmlContext}
             targetPartPosNo={explodedHtmlContext?.targetPart?.posNo ?? null}
             onOpenWorkOrder={handleOpenWorkOrderFromExploded}
+            faultInfo={explodedFaultInfo}
+            onOpenWorkOrderCreate={handleCreateWorkOrderFromFault}
           />
         )}
 

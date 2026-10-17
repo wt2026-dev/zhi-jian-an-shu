@@ -15,6 +15,7 @@ import { MapOverviewView } from "./MapOverview";
 import { CityOverviewView } from "./CityOverview";
 import { Equipment3DView } from "./EquipmentScene";
 import { DrillTrail, type DrillCrumbNode } from "./DrillTrail";
+import type { WorkOrderCreatePrefill } from "../../types";
 import "./drilldown-transitions.css";
 import "./equipment-industrial.css";
 
@@ -34,10 +35,13 @@ function parseLevelFromUrl(): DrillLevel {
 export function Equipment3DShell({
   initialWorkOrderId,
   onOpenWorkOrderDetail,
+  onNavigateToWorkOrderCreate,
 }: {
   initialWorkOrderId?: string | null;
   /** 拆解侧栏「返回工单详情」回调，原样透传给 Equipment3DView（App 收尾联动工单抽屉） */
   onOpenWorkOrderDetail?: (workOrderId: string) => void;
+  /** 拆解故障面板「创建维修工单」回调，原样透传给 Equipment3DView（App 切工单页并预填） */
+  onNavigateToWorkOrderCreate?: (prefill: WorkOrderCreatePrefill) => void;
 }) {
   const [level, setLevel] = useState<DrillLevel>(() => parseLevelFromUrl());
   const [factory, setFactory] = useState<FactorySummary | null>(null);
@@ -136,7 +140,7 @@ export function Equipment3DShell({
     <div key={lvl} className={lvl === transition?.from ? "dd-stage-leaving absolute inset-0" : transition ? "dd-stage-entering absolute inset-0" : "absolute inset-0"}>
       {lvl === "map" && <MapOverviewView onDrillCity={drillCity} />}
       {lvl === "city" && <CityOverviewView factory={factory} onEnterFactory={enterFactory} />}
-      {lvl === "factory" && <Equipment3DView initialWorkOrderId={initialWorkOrderId} onOpenWorkOrderDetail={onOpenWorkOrderDetail} mapTrail={mapTrail} />}
+      {lvl === "factory" && <Equipment3DView initialWorkOrderId={initialWorkOrderId} onOpenWorkOrderDetail={onOpenWorkOrderDetail} onNavigateToWorkOrderCreate={onNavigateToWorkOrderCreate} mapTrail={mapTrail} />}
     </div>
   );
 

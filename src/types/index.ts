@@ -92,6 +92,21 @@ export interface SparePartUsage {
   unitPrice: number;
 }
 
+/** 工单类型（fault_type 枚举口径 —— 建单页 6 宫格分类的来源） */
+export type WorkOrderFaultType = WorkOrder['faultType'];
+
+/**
+ * 建单预填载荷（故障定位红色脉冲高亮 →「创建维修工单」跳转用）。
+ * fields 全部来自真实遥测故障详情：设备 / 指标 / 严重度 / 观察部位，不造数据。
+ */
+export interface WorkOrderCreatePrefill {
+  equipmentId: string;
+  title: string;
+  faultType: WorkOrderFaultType;
+  priority: WorkOrderPriority;
+  description: string;
+}
+
 export interface WorkOrder {
   id: string;
   orderNo: string;

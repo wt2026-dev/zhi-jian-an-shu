@@ -17,9 +17,8 @@
  *     证据原样透传 matchedBy；命中不到就空着并如实说明，绝不编一个零件位号。
  *   · 遥测窗口无读数 / 指标全部正常 → faults 返回空 + dataNote 如实说明。
  */
-import { TelemetryRepository } from '../../db/repository.ts';
-import { EquipmentRepository } from '../../db/repositories/equipmentRepository.ts';
-import { THRESHOLDS, telemetryToStatus } from '../../components/equipment3d/statusMapping.ts';
+import { EquipmentRepository, TelemetryRepository } from '../../db/repositories/index.ts';
+import { THRESHOLDS, telemetryToStatus, type TelemetryLike } from '../../components/equipment3d/statusMapping.ts';
 import { getCatalogForDevice, type CatalogPart } from './partMatchService.ts';
 import { EXPLODED_VIEW_FILES } from '../../components/equipment3d/explodedViewFiles.ts';
 
@@ -83,8 +82,9 @@ const METRIC_SUGGESTIONS: Record<FaultMetric, string> = {
 /**
  * 指标 → 拆解页观察部位的关键词表（取该 metric 最有检查价值的真实零件）。
  * 只声明"应在拆解页重点看的部位"，不是部件级诊断；命中不到就空，不编位号。
+ * 导出供回归守卫测试对账（key 必须只覆盖有拆解视图的 9 台设备）。
  */
-const OBSERVATION_HINTS: Record<string, Partial<Record<FaultMetric, string[]>>> = {
+export const OBSERVATION_HINTS: Record<string, Partial<Record<FaultMetric, string[]>>> = {
   'eq-102': { // 2# 无油螺杆空压机主机
     temperature: ['永磁电机', '圆柱滚子轴承组', '推力球轴承组'],
     vibration: ['推力球轴承组', '圆柱滚子轴承组', '螺旋轴'],
@@ -172,12 +172,14 @@ export function classifyMetricFault(metric: FaultMetric, rows: FaultSampleRow[])
   if (!withValue.length) return null;
   const latest = withValue[withValue.length - 1];
   const value = Number(latest[metric]);
-  const severity = telemetryToStatus({ [metric]: value } as any) as FaultSeverity | null;
+  const point: TelemetryLike = { [metric]: value };
+  const severity = telemetryToStatus(point) as FaultSeverity | null;
   if (!severity) return null;
   const warningThreshold = THRESHOLDS[metric].warning;
   // 窗口内第一次"达到当前严重程度"的采样时间（更早历史截在 24h 窗口内，如实）
   const firstHit = withValue.find((r) => {
-    const s = telemetryToStatus({ [metric]: r[metric] } as any) as FaultSeverity | null;
+    const samplePoint: TelemetryLike = { [metric]: r[metric] as number };
+    const s = telemetryToStatus(samplePoint) as FaultSeverity | null;
     return s != null && SEVERITY_RANK[s] >= SEVERITY_RANK[severity];
   });
   return {

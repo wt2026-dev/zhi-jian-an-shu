@@ -48,6 +48,7 @@ import {
   VideoAnalysisResult,
   SparePart,
   Hazard,
+  WorkOrderCreatePrefill,
 } from '../types';
 import { workOrderApi, ApiError, aiApi, complianceApi, sparePartsApi, hazardsApi } from '../api';
 import { request } from '../api';
@@ -84,6 +85,9 @@ interface WorkOrdersViewProps {
   /** 深链：进来时自动展开这张工单的详情抽屉（从 3D 拆解视图「返回工单详情」跳回时用） */
   initialWorkOrderId?: string | null;
   initialCreateOpen?: boolean;
+  /** 故障定位面板「创建维修工单」预填（真实遥测故障信息；消费后回调 App 清空） */
+  initialCreatePrefill?: WorkOrderCreatePrefill | null;
+  onCreatePrefillConsumed?: () => void;
 }
 
 export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
@@ -98,6 +102,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   onNavigateTo3D,
   initialWorkOrderId = null,
   initialCreateOpen = false,
+  initialCreatePrefill = null,
+  onCreatePrefillConsumed,
 }) => {
   const { show: showToast } = useToast();
   const [activeStatusTab, setActiveStatusTab] = useState<string>('all');
@@ -125,6 +131,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   /** 深链自动展开：从 3D 拆解视图「返回工单详情」带 initialWorkOrderId 回来时，
       等工单列表到位后自动打开那张单的抽屉（每张单只自动开一次，用户手动关了不再弹）。 */
   const autoOpenedOrderRef = useRef<string | null>(null);
+  /** F4 建单预填去重：同一 prefill 对象只应用一次（App 状态未清空时防重复弹窗） */
+  const appliedCreatePrefillRef = useRef<WorkOrderCreatePrefill | null>(null);
   useEffect(() => {
     if (!initialWorkOrderId) return;
     if (autoOpenedOrderRef.current === initialWorkOrderId) return;
@@ -400,6 +408,45 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       setShowCreateModal(true);
     }
   }, [initialCreateOpen]);
+
+  /**
+   * 故障定位 → 建单预填（F4）：优先消费父层传入的 prefill（真实遥测故障详情），
+   * 直接深链进来（无父层）时兜底读同源 sessionStorage（3D 无宿主回调时写入）。
+   * 应用一次后回调清空父层状态 / 清 sessionStorage，避免回到本页再次弹建单窗。
+   */
+  useEffect(() => {
+    let prefill = initialCreatePrefill;
+    if (!prefill) {
+      try {
+        const raw = window.sessionStorage.getItem('wo-create-prefill');
+        if (raw) prefill = JSON.parse(raw) as WorkOrderCreatePrefill;
+      } catch {
+        prefill = null;
+      }
+    }
+    if (!prefill || !prefill.equipmentId) return;
+    if (appliedCreatePrefillRef.current === prefill) return;
+    appliedCreatePrefillRef.current = prefill;
+    setNewOrderForm((prev) => ({
+      ...prev,
+      equipmentId: prefill.equipmentId,
+      title: prefill.title || prev.title,
+      faultType: prefill.faultType || prev.faultType,
+      priority: prefill.priority || prev.priority,
+      description: prefill.description || prev.description,
+    }));
+    if (canCreate) {
+      setShowCreateModal(true);
+      setCreateStep(2);
+    }
+    try {
+      window.sessionStorage.removeItem('wo-create-prefill');
+    } catch {
+      /* ignore */
+    }
+    onCreatePrefillConsumed?.();
+    // 触发依赖只有 prefill 本体；新建表单其余字段走函数式更新，不进依赖
+  }, [initialCreatePrefill, canCreate]);
 
   // Form States
   const [newOrderForm, setNewOrderForm] = useState({

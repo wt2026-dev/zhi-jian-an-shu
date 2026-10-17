@@ -403,6 +403,35 @@ export interface ExplodedPartHistory {
   dataNote: string;
 }
 
+export interface ExplodedFaultObservation {
+  posNo: string;
+  name: string;
+  category?: string;
+  matchedBy: string[];
+}
+
+export interface ExplodedFaultMetric {
+  metric: 'temperature' | 'vibration' | 'loadRate';
+  metricLabel: string;
+  value: number;
+  unit: string;
+  warningThreshold: number;
+  severity: 'warning' | 'fault' | 'critical';
+  occurredAt: string | null;
+  observationParts: ExplodedFaultObservation[];
+  suggestion: string;
+}
+
+export interface ExplodedFaultDiagnostics {
+  deviceId: string;
+  deviceName: string;
+  deviceCode: string;
+  explodedViewFile: string | null;
+  faults: ExplodedFaultMetric[];
+  latestSampleAt: string | null;
+  dataNote: string;
+}
+
 export const explodedViewApi = {
   /** 工单 → 拆解视图上下文（设备 + 真实 BOM 命中的目标位号） */
   getWorkOrderBrief: (workOrderId: string) =>
@@ -411,6 +440,10 @@ export const explodedViewApi = {
   /** 拆解位号 → 真实维修历史（真实工单 / 备件库存 / 出入库流水） */
   getPartHistory: (deviceId: string, partId: string) =>
     request<ExplodedPartHistory>(`/equipments/${deviceId}/parts/${partId}/maintenance-history`),
+
+  /** 设备 → 真实遥测故障诊断（拆解视图红色脉冲高亮「未处理故障」用） */
+  getFaultDiagnostics: (deviceId: string) =>
+    request<ExplodedFaultDiagnostics>(`/equipments/${deviceId}/fault-diagnostics`),
 };
 
 // 认证与权限 API (JWT / RBAC)

@@ -166,7 +166,19 @@
       overflow-y: auto !important;
     }
 
-  </style>
+  
+    /* 故障红色脉冲（拆解视图 ↔ 故障定位联动）：宿主经 setFaultHighlight 加 .fault-alert */
+    tr[data-part-id].fault-alert td, .bom-row.fault-alert {
+      animation: faultRowPulse 1.8s ease-in-out infinite !important;
+    }
+    tr[data-part-id].fault-alert td, .bom-row.fault-alert {
+      box-shadow: inset 3px 0 0 0 rgba(239, 68, 68, 0.85);
+    }
+    @keyframes faultRowPulse {
+      0%, 100% { background-color: rgba(239, 68, 68, 0.06); }
+      50% { background-color: rgba(239, 68, 68, 0.22); }
+    }
+</style>
 </head>
 <body class="relative select-none">
 
@@ -2164,6 +2176,25 @@
     }
 
     // Refresh glowing blue highlight (零件高亮发蓝光)
+    /* ==================== 故障红色脉冲高亮（拆解视图 ↔ 故障定位联动） ====================
+       宿主注入口：顶层 function setFaultHighlight(位号) —— 拆解页脚本顶层声明即 window 全局。
+       3D 网格红色脉动由渲染循环每帧读取 faultHighlightPartId 实现；BOM 行 / 列表项走 CSS .fault-alert。
+       partId 传 null / 空串 = 清除故障高亮（读数恢复正常后宿主撤除）。 */
+    let faultHighlightPartId = null;
+    function setFaultHighlight(partId) {
+      faultHighlightPartId = (partId && typeof partId === 'string') ? partId : null;
+      document.querySelectorAll('tr[data-part-id].fault-alert, .bom-row.fault-alert').forEach(
+        (el) => el.classList.remove('fault-alert')
+      );
+      if (faultHighlightPartId) {
+        const target = document.querySelector(
+          `tr[data-part-id="${faultHighlightPartId}"], .bom-row[data-id="${faultHighlightPartId}"]`
+        );
+        if (target) target.classList.add('fault-alert');
+      }
+      return faultHighlightPartId;
+    }
+
     function refreshPartHighlights(elapsedSec) {
       const pulse = 0.68 + 0.32 * Math.sin(elapsedSec * 5.2);
 
@@ -2204,6 +2235,12 @@
             mat.emissive.copy(child.userData.origEmissive);
             mat.emissiveIntensity = child.userData.origEmissiveIntensity;
             mat.color.copy(child.userData.origColor);
+          }
+          if (faultHighlightPartId === part.id) {
+            const faultPulse = 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 4.6);
+            mat.emissive.setHex(0xef4444);
+            mat.emissiveIntensity = 0.5 + 0.38 * faultPulse;
+            mat.color.lerpColors(child.userData.origColor, new THREE.Color(0xef4444), 0.34);
           }
         });
 
