@@ -101,7 +101,9 @@ describe('AI 助手头部按钮与拖拽区的指针捕获互斥', () => {
 
   it('按在头部的非按钮区域仍然捕获指针（跨 iframe 拖拽不退化）', () => {
     render(<AiAssistantPanel />);
-    press(screen.getByText('张工 · AI 助手'));
+    // 只匹配"品牌后缀"这一段，不锁死 persona 名字与品牌全称：
+    // 品牌文案由 866b89b 从「AI 助手」改为「智检安枢 AI 助手」，此处用正则避免再次漂移。
+    press(screen.getByText(/·\s*智检安枢 AI 助手$/));
     expect(captureCalls.length).toBe(1);
   });
 });
