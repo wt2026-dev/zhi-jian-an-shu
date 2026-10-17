@@ -103,6 +103,19 @@ const hideBuiltinBackLink = (frame: HTMLIFrameElement | null): void => {
     style.id = EMBED_STYLE_ID;
     style.textContent = `
       a[href="exploded_index.html"] { display: none !important; }
+      /* BOM 物料清单面板：确保顶部留出 76px 间隙，彻底避开顶部工具栏按钮（轴测/正视/平铺/标注等） */
+      #bom-panel {
+        top: 76px !important;
+        bottom: 16px !important;
+      }
+      /* 针对带底部高控制台的页面（如机械臂底部 h-18 工具栏），底部留出 88px 间隙 */
+      body:has(footer.h-18) #bom-panel, footer.h-18 ~ #bom-panel, #bom-panel.w-85 {
+        bottom: 88px !important;
+      }
+      /* 左侧详情卡片在宿主手柄旁留出 60px 间隙，绝不发生重叠 */
+      #detail-card {
+        left: 60px !important;
+      }
       /* 强制所有 BOM 滚动容器 min-height: 0，确保在 flex 容器中正常触发滚动，不被截断卡死 */
       #bomTableBody, #bom-tbody, #bom-table-body, div:has(> #bom-tbody), div:has(> table), .overflow-y-auto {
         min-height: 0 !important;
@@ -213,6 +226,20 @@ const hideBuiltinBackLink = (frame: HTMLIFrameElement | null): void => {
         }
       }
     });
+  }
+
+  // BOM 面板安全边距适配（避免在机械臂与压缩机等页面中顶格遮挡工具栏或被底部控制条截断）
+  const bomPanel = doc.getElementById('bom-panel');
+  if (bomPanel) {
+    bomPanel.style.setProperty('top', '76px', 'important');
+    const hasTallFooter = Boolean(doc.querySelector('footer.h-18, footer[class*="h-18"]'));
+    bomPanel.style.setProperty('bottom', hasTallFooter ? '88px' : '16px', 'important');
+  }
+
+  // 默认收起左侧独立弹出的详情卡片（如机械臂工程档案），避免初始加载时遮挡 3D 主体模型
+  const robotDetail = doc.getElementById('detail-card');
+  if (robotDetail && !robotDetail.classList.contains('-translate-x-[120%]')) {
+    robotDetail.classList.add('-translate-x-[120%]');
   }
 };
 
