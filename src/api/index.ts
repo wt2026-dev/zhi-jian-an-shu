@@ -536,6 +536,84 @@ export interface SpareProcurePrefill {
   note: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* 检修报告导出（拆解视图 F7）：聚合数据端点                              */
+/* ------------------------------------------------------------------ */
+export interface MaintenanceReportBomRow {
+  posNo: string;
+  name: string;
+  category: string | null;
+  spec: string | null;
+  material: string | null;
+  /** 单个位号代表零件的实体数量（拆解页 PARTS 原值；缺失 = null，报告显示"—"） */
+  qty: number | null;
+  weight: number | null;
+  desc: string | null;
+  flags: { fault: boolean; lifeNearing: boolean; lifeReplace: boolean; lowStock: boolean };
+  faultDetail: string | null;
+  lifeStatus: 'healthy' | 'nearing' | 'replace' | 'unknown' | null;
+  lifeRemainingPct: number | null;
+  inventory: {
+    stock: number;
+    safeStock: number;
+    shortage: number;
+    location: string;
+    unit: string;
+  } | null;
+}
+
+export interface MaintenanceReportHistoryEntry {
+  orderNo: string;
+  title: string;
+  faultType: string | null;
+  completedAt: string | null;
+  causeAnalysis: string | null;
+  resolutionSteps: string | null;
+  usedParts: Array<{ name: string; code: string; spec: string; qty: number; unit: string }> | null;
+}
+
+export interface MaintenanceReportData {
+  generatedAt: string;
+  explodedViewFile: string | null;
+  device: {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    model: string | null;
+    manufacturer: string | null;
+    workshop: string | null;
+    location: string | null;
+    installDate: string | null;
+    status: string;
+    healthScore: number | null;
+    criticality: string | null;
+    nextInspectionDate: string | null;
+    specs: Array<{ label: string; value: string }>;
+  };
+  /** BOM 行（拆解页 PARTS 全量原样解析；页面缺失 = 回退服务端目录并注明） */
+  bom: MaintenanceReportBomRow[];
+  bomSource: 'page-parts' | 'server-catalog' | 'none';
+  faults: Array<{
+    metricLabel: string;
+    value: number;
+    unit: string;
+    warningThreshold: number;
+    severity: string;
+    suggestion: string;
+  }>;
+  latestSampleAt: string | null;
+  life: { replaceCount: number; nearingCount: number; suggestedMaintenanceBefore: string | null };
+  inventory: { lowCount: number; matchedCount: number; totalParts: number; totalShortage: number };
+  history: MaintenanceReportHistoryEntry[];
+  recommendations: {
+    mustReplaceNow: Array<{ posNo: string; name: string; reason: string }>;
+    scheduleSoon: Array<{ posNo: string; name: string; reason: string }>;
+    stockShortages: Array<{ posNo: string; name: string; shortage: number; location: string }>;
+  };
+  dataNote: string;
+}
+
 export const explodedViewApi = {
   /** 工单 → 拆解视图上下文（设备 + 真实 BOM 命中的目标位号） */
   getWorkOrderBrief: (workOrderId: string) =>
@@ -556,6 +634,10 @@ export const explodedViewApi = {
   /** 设备 → 真实备件库存联动（spare_parts 台账；库存四要素 + 采购申请用） */
   getPartInventory: (deviceId: string) =>
     request<ExplodedPartInventoryDiagnostics>(`/equipments/${deviceId}/part-inventory`),
+
+  /** 设备 → 检修报告聚合数据（设备台账 + 拆解页 BOM + 故障/寿命/库存标注 + 完工单历史） */
+  getMaintenanceReport: (deviceId: string) =>
+    request<MaintenanceReportData>(`/equipments/${deviceId}/maintenance-report`),
 };
 
 // 认证与权限 API (JWT / RBAC)

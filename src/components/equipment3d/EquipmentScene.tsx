@@ -2230,6 +2230,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
             inventoryInfo={explodedInventoryInfo}
             onOpenProcure={handleOpenProcureFromInventory}
             onOpenWorkOrderCreate={handleCreateWorkOrderFromFault}
+            exporterName={currentUser?.name ?? null}
           />
         )}
 

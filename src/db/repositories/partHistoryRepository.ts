@@ -280,4 +280,53 @@ export const PartHistoryRepository = {
       };
     });
   },
+
+  /**
+   * 检修报告（拆解视图 F7）专用：某设备全部已完工单的概览（含标题/故障类型/完工
+   * 时间/根本原因分析/作业步骤/更换备件）。只读聚合查询，不改任何状态。
+   */
+  async getCompletedOrdersSummary(equipmentId: string): Promise<Array<{
+    orderNo: string;
+    title: string;
+    faultType: string | null;
+    completedAt: string | null;
+    causeAnalysis: string | null;
+    resolutionSteps: string | null;
+    usedParts: PartUsageRow[] | null;
+  }>> {
+    if (!equipmentId) return [];
+    const db = await getDb();
+    const { rows } = await db.query(
+      `
+      SELECT order_no, title, fault_type, completed_at, description, repair_log
+      FROM work_orders
+      WHERE equipment_id = $1 AND status = 'completed'
+      ORDER BY completed_at DESC NULLS LAST, id ASC
+      LIMIT 120;
+      `,
+      [equipmentId]
+    );
+    return (rows as Record<string, unknown>[]).map((r) => {
+      // repair_log JSONB 或字符串两种存储形态统一解析（解析失败 = null，不编造）
+      const log = ((): Record<string, unknown> | null => {
+        let parsed: unknown = r.repair_log;
+        if (typeof parsed === 'string') {
+          try { parsed = JSON.parse(parsed); } catch { parsed = null; }
+        }
+        return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+      })();
+      const rawUsed = Array.isArray(log?.parts_used) ? log.parts_used : Array.isArray(log?.partsUsed) ? log.partsUsed : null;
+      const usedParts = rawUsed ? rawUsed.map(mapPartUsage).filter((x): x is PartUsageRow => !!x) : [];
+      const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
+      return {
+        orderNo: String(r.order_no ?? ''),
+        title: str(r.title) ?? '',
+        faultType: str(r.fault_type),
+        completedAt: asIso(r.completed_at ?? r.completed_at_dt),
+        causeAnalysis: str(log?.cause_analysis) ?? str(log?.causeAnalysis),
+        resolutionSteps: str(log?.resolution_steps) ?? str(log?.resolutionSteps),
+        usedParts: usedParts.length ? usedParts : null,
+      };
+    });
+  },
 };

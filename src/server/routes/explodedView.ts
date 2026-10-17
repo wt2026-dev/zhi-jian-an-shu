@@ -7,6 +7,7 @@ import {
   handleGetDeviceFaultDiagnostics,
   handleGetDevicePartLifeDiagnostics,
   handleGetDevicePartInventory,
+  handleGetMaintenanceReport,
 } from "../controllers/explodedViewController.ts";
 
 export function registerExplodedViewRoutes(app: express.Express) {
@@ -30,4 +31,8 @@ export function registerExplodedViewRoutes(app: express.Express) {
   // 5. 设备 → 真实备件库存联动（spare_parts 台账；拆解页库存四要素 + 采购申请用）
   app.get("/api/v1/equipments/:deviceId/part-inventory", handleGetDevicePartInventory);
   app.get("/api/equipments/:deviceId/part-inventory", handleGetDevicePartInventory);
+
+  // 6. 设备 → 检修报告聚合数据（设备台账 + 拆解页 BOM + 故障/寿命/库存标注 + 完工单历史，PDF 导出用）
+  app.get("/api/v1/equipments/:deviceId/maintenance-report", validateParams(idParamSchema), handleGetMaintenanceReport);
+  app.get("/api/equipments/:deviceId/maintenance-report", validateParams(idParamSchema), handleGetMaintenanceReport);
 }

@@ -42,15 +42,16 @@
  * 应用自己的顶部工具栏（面包屑 / 视图设置）在 workspace **之外**，不受影响。
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Boxes, X, Wrench } from 'lucide-react';
+import { ArrowLeft, Boxes, X, Wrench, FileDown } from 'lucide-react';
 import { getExplodedViewUrl } from './explodedViewFiles';
 import { ExplodedPartHistoryPanel } from './ExplodedPartHistoryPanel';
 import { MaintenanceStepGuidePanel } from './MaintenanceStepGuidePanel';
 import { ExplodedFaultPanel } from './ExplodedFaultPanel';
 import { ExplodedPartLifePanel } from './ExplodedPartLifePanel';
 import { ExplodedPartInventoryPanel } from './ExplodedPartInventoryPanel';
-import type { ExplodedOrderStep, ExplodedFaultDiagnostics, ExplodedPartLifeDiagnostics, ExplodedPartInventoryDiagnostics, SpareProcurePrefill } from '../../api';
-import type { WorkOrderCreatePrefill } from '../../types';
+import { buildMaintenanceReportPdf } from './maintenanceReportPdf';
+import { explodedViewApi } from '../../api';
+import type { ExplodedOrderStep, ExplodedFaultDiagnostics, ExplodedPartLifeDiagnostics, ExplodedPartInventoryDiagnostics, SpareProcurePrefill } from '../../api';import type { WorkOrderCreatePrefill } from '../../types';
 
 /** 注入到拆解页里的样式表 id —— 幂等标记，重复注入靠它去重。 */
 const EMBED_STYLE_ID = 'equipment3d-embed-overrides';
@@ -280,6 +281,8 @@ export interface ExplodedViewStageProps {
   onOpenProcure?: (prefill: SpareProcurePrefill) => void;
   /** 故障面板「创建维修工单」→ App 深链切换到工单页并预填建单表单 */
   onOpenWorkOrderCreate?: (prefill: WorkOrderCreatePrefill) => void;
+  /** 检修报告导出人（当前登录用户名；来自会话，不造假） */
+  exporterName?: string | null;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -310,6 +313,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   inventoryInfo = null,
   onOpenProcure,
   onOpenWorkOrderCreate,
+  exporterName = null,
 }) => {
   const url = getExplodedViewUrl(deviceId);
   const title = `${deviceName ?? deviceId} · 设备拆解视图`;
@@ -349,6 +353,37 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     setGuideActiveStep(null);
     setFaultPartPosNo(null);
   }, [deviceId]);
+
+  /* ---- 检修报告导出（F7）：聚合端点取真实数据 + iframe 实时画面截图 → 前端组装 PDF ---- */
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const handleExportReport = useCallback(async () => {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      // 1) 服务端聚合（设备台账 / 拆解页 BOM / 遥测故障 / 寿命 / 库存 / 完工单历史）
+      const report = await explodedViewApi.getMaintenanceReport(deviceId);
+      // 2) 从已打开的拆解 iframe 取实时 3D 画面（页面暴露 __EXPL_CAPTURE；同源安全）
+      let screenshot: string | null = null;
+      try {
+        const win = iframeRef.current?.contentWindow as (Window & { __EXPL_CAPTURE?: () => string | null }) | null;
+        const dataUrl = win && typeof win.__EXPL_CAPTURE === 'function' ? win.__EXPL_CAPTURE() : null;
+        screenshot = typeof dataUrl === 'string' ? dataUrl : null;
+      } catch {
+        screenshot = null;
+      }
+      // 3) 前端组装 A4 PDF 并触发下载（打不开数据接口 / 生成失败都在此兜底）
+      await buildMaintenanceReportPdf(report, {
+        exporterName: exporterName || '（未署名会话）',
+        screenshotDataUrl: screenshot,
+      });
+    } catch (err: unknown) {
+      setExportError(err instanceof Error && err.message ? err.message : '报告生成失败，请稍后重试');
+    } finally {
+      setExportBusy(false);
+    }
+  }, [exportBusy, deviceId, exporterName]);
 
   /* ---- 寿命预警（F5）：到期零件经页面原生 setLifeAlert 下发黄/暗红高亮 ---- */
   useEffect(() => {
@@ -450,17 +485,39 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
         data-testid="equipment3d-exploded-panel"
         className={`absolute inset-0 flex flex-col overflow-hidden ${className}`}
       >
-        {/* ---- 右上角浮动返回按钮：小巧精致、不占独立标题栏高度 ---- */}
-        <button
-          type="button"
-          data-testid="equipment3d-exploded-back"
-          onClick={onBack}
-          title="关闭拆解视图，回到 3D 设备模型"
-          className="absolute top-3 right-3 z-50 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-cyan-200 bg-slate-900/85 hover:bg-slate-800/95 hover:text-white border border-cyan-500/40 hover:border-cyan-400 shadow-[0_4px_16px_rgba(0,0,0,0.6)] backdrop-blur transition-all cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>返回 3D 设备视图</span>
-        </button>
+        {/* ---- 右上角浮动按钮组：导出检修报告（F7）+ 返回 3D 设备视图 ---- */}
+        <div className="absolute top-3 right-3 z-50 flex items-start gap-1.5">
+          <button
+            type="button"
+            data-testid="equipment3d-exploded-export-report"
+            onClick={handleExportReport}
+            disabled={exportBusy}
+            title="生成 PDF 检修报告（设备台账 / BOM / 故障 / 寿命 / 库存 / 维修历史，全部真实数据 + 3D 实时截图）"
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border shadow-[0_4px_16px_rgba(0,0,0,0.6)] backdrop-blur transition-all ${exportBusy ? 'opacity-60 cursor-wait text-slate-300 bg-slate-900/85 border-cyan-500/30' : 'cursor-pointer text-emerald-200 bg-slate-900/85 hover:bg-slate-800/95 hover:text-white border-emerald-500/40 hover:border-emerald-400'}`}
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            <span>{exportBusy ? '生成中…' : '导出检修报告'}</span>
+          </button>
+          {exportError && (
+            <span
+              data-testid="equipment3d-exploded-export-error"
+              title={exportError}
+              className="max-w-[220px] truncate rounded-lg border border-rose-500/40 bg-rose-950/80 px-2 py-1.5 text-[11px] text-rose-200"
+            >
+              {exportError}
+            </span>
+          )}
+          <button
+            type="button"
+            data-testid="equipment3d-exploded-back"
+            onClick={onBack}
+            title="关闭拆解视图，回到 3D 设备模型"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-cyan-200 bg-slate-900/85 hover:bg-slate-800/95 hover:text-white border border-cyan-500/40 hover:border-cyan-400 shadow-[0_4px_16px_rgba(0,0,0,0.6)] backdrop-blur transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>返回 3D 设备视图</span>
+          </button>
+        </div>
 
         {/* ---- 左侧栏：工单上下文卡（F1：从检修工单跳入时显示工单关键信息）+ 零件维修历史面板（F2：点零件显示真实历史） ---- */}
         {(workOrderBrief || selectedPartId || (lifeInfo != null && lifeInfo.parts.length > 0) || (inventoryInfo != null && inventoryInfo.parts.length > 0)) && (
