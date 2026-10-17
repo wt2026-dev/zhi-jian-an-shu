@@ -46,11 +46,20 @@ interface EquipmentHealthViewProps {
 
 interface TelemetrySample {
   time: string;
-  temperature: number;
-  vibration: number;
-  current: number;
-  voltage: number;
-  loadRate: number;
+  // ⚠️ 允许 null：equipment_telemetry 表里 temperature / vibration / current / voltage /
+  //    load_rate 全部**没有 NOT NULL**（见 002_inspections_telemetry.sql:43-48），
+  //    所以接口完全可能返回只上报了部分指标的采样点。缺测必须是 null，
+  //    绝不能填一个"看起来合理"的默认值（原代码是 ?? 65.0 / ?? 2.5 / ?? 45 / ?? 380 / ?? 75）。
+  temperature: number | null;
+  vibration: number | null;
+  current: number | null;
+  voltage: number | null;
+  loadRate: number | null;
+}
+
+/** 读数格式化：缺测显示 —（与 DeviceAnalysisPanel 同一口径），不补零、不估算。 */
+function fmtReading(value: number | null | undefined, unit: string): string {
+  return value == null ? '—' : `${value}${unit}`;
 }
 
 export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
@@ -169,11 +178,12 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
       if (res && Array.isArray(res.points) && res.points.length > 0) {
         const points: TelemetrySample[] = res.points.map((p: any) => ({
           time: p.timestamp || p.time || '12:00',
-          temperature: p.temperature ?? 65.0,
-          vibration: p.vibration ?? 2.5,
-          current: p.current ?? 45.0,
-          voltage: p.voltage ?? 380.0,
-          loadRate: p.loadRate ?? 75.0,
+          // 缺测就是 null（图表断线、读数显示 —），不补"看起来合理"的默认值。
+          temperature: p.temperature ?? null,
+          vibration: p.vibration ?? null,
+          current: p.current ?? null,
+          voltage: p.voltage ?? null,
+          loadRate: p.loadRate ?? null,
         }));
         setHistoryData(points);
         return;
@@ -250,18 +260,22 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
     return () => clearInterval(interval);
   }, [isSimulating, sampleSpeed, currentEquipment]);
 
-  const latest = historyData[historyData.length - 1] || {
-    temperature: currentEquipment?.telemetry.temperature || 60,
-    vibration: currentEquipment?.telemetry.vibration || 2.5,
-    current: currentEquipment?.telemetry.current || 45,
-    voltage: currentEquipment?.telemetry.voltage || 380,
-    loadRate: currentEquipment?.telemetry.loadRate || 75,
-  };
+  // 没有落库时序时退回设备档案里的当前遥测（同样是真实数据）；
+  // 连档案都没有就留 null —— 不再用 60 / 2.5 / 45 / 380 / 75 这类占位值伪造一次读数。
+  const latest: TelemetrySample =
+    historyData[historyData.length - 1] || {
+      time: '—',
+      temperature: currentEquipment?.telemetry?.temperature ?? null,
+      vibration: currentEquipment?.telemetry?.vibration ?? null,
+      current: currentEquipment?.telemetry?.current ?? null,
+      voltage: currentEquipment?.telemetry?.voltage ?? null,
+      loadRate: currentEquipment?.telemetry?.loadRate ?? null,
+    };
 
-  // Health Score dynamic calculation
-  const isVibAlert = latest.vibration > 4.5;
-  const isTempAlert = latest.temperature > 75;
-  const isCurrentAlert = latest.loadRate > 90;
+  // 阈值告警只在**有值**时判定：缺测不等于"正常"，不能把 null 当 0 静默放行。
+  const isVibAlert = latest.vibration != null && latest.vibration > 4.5;
+  const isTempAlert = latest.temperature != null && latest.temperature > 75;
+  const isCurrentAlert = latest.loadRate != null && latest.loadRate > 90;
 
   const runAiAnalysis = async () => {
     setAiAnalyzing(true);
@@ -279,7 +293,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
           equipmentName: currentEquipment.name,
           equipmentCode: currentEquipment.code,
           category: currentEquipment.category,
-          symptoms: `现场监测遥测数据: 轴温 ${latest.temperature}°C, 振动速度 ${latest.vibration}mm/s, 负荷率 ${latest.loadRate}%`,
+          symptoms: `现场监测遥测数据: 轴温 ${fmtReading(latest.temperature, '°C')}, 振动速度 ${fmtReading(latest.vibration, 'mm/s')}, 负荷率 ${fmtReading(latest.loadRate, '%')}`,
           telemetry: latest,
         }),
       });
@@ -551,26 +565,26 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
               <div className="flex justify-between items-center p-2 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-slate-600">轴承温度 (PT100)</span>
                 <span className={`font-mono font-bold ${isTempAlert ? 'text-rose-600' : 'text-slate-800'}`}>
-                  {latest.temperature} °C
+                  {latest.temperature ?? '—'} °C
                 </span>
               </div>
               <div className="flex justify-between items-center p-2 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-slate-600">振动速度 (IEPE)</span>
                 <span className={`font-mono font-bold ${isVibAlert ? 'text-rose-600' : 'text-slate-800'}`}>
-                  {latest.vibration} mm/s
+                  {latest.vibration ?? '—'} mm/s
                 </span>
               </div>
               <div className="flex justify-between items-center p-2 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-slate-600">工作电压</span>
-                <span className="font-mono font-bold text-slate-800">{latest.voltage} V</span>
+                <span className="font-mono font-bold text-slate-800">{latest.voltage ?? '—'} V</span>
               </div>
               <div className="flex justify-between items-center p-2 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-slate-600">三相电流</span>
-                <span className="font-mono font-bold text-slate-800">{latest.current} A</span>
+                <span className="font-mono font-bold text-slate-800">{latest.current ?? '—'} A</span>
               </div>
               <div className="flex justify-between items-center p-2 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-slate-600">工况负荷率</span>
-                <span className="font-mono font-bold text-slate-800">{latest.loadRate} %</span>
+                <span className="font-mono font-bold text-slate-800">{latest.loadRate ?? '—'} %</span>
               </div>
             </div>
           </div>

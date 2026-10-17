@@ -218,10 +218,17 @@ function main() {
   // 不会凭空变多，所以复核一次、取较高值重判即可消除这类假红。
   if (failures.length > 0 && !noRun) {
     const again = realCounts();
-    if (again.tests > real.tests || again.files !== real.files) {
+    // ⚠️ 只要两次不一致就要说出来，**不能只在取高值时打印**。
+    //    2026-10-17 实测：首测 100/1178，复核 100/452（vitest 跑到一半被环境打断，
+    //    JSON 报告只落了部分用例）。旧逻辑因 452 < 1178 走不进 if，于是两行互相矛盾的
+    //    「实测」并排打印、却没有任何解释 —— 看日志的人只会以为守卫自己算错了。
+    if (again.files !== real.files || again.tests !== real.tests) {
+      const dropped = again.tests < real.tests;
       console.log(
-        `\n⚠️ 复核：两次实测不一致（${real.files}/${real.tests} → ${again.files}/${again.tests}）——` +
-          " tests/ 很可能正在被其它会话编辑，取较高值重判。",
+        `\n⚠️ 复核：两次实测不一致（${real.files}/${real.tests} → ${again.files}/${again.tests}）` +
+          (dropped
+            ? " —— 第二次明显偏少，判为运行被打断/文件半写，**丢弃**，沿用首测值。"
+            : " —— 取较高值重判（半写只会让用例数变少，不会凭空变多）。"),
       );
       if (again.tests > real.tests) real = again;
       ({ failures, historical } = judge(findings, real));
