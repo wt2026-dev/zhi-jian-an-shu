@@ -739,7 +739,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center">
             <Sparkles className="w-5 h-5 mr-2 text-blue-600" />
-            工业检修AI助手（通义千问 qwen-plus）
+            智检安枢 · 工业检修AI助手（通义千问 qwen-plus）
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             融合知识图谱、遥测时序、故障树专家模型与多模态工业视觉诊断能力

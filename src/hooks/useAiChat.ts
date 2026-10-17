@@ -12,7 +12,7 @@ export interface ChatMessage {
   chatId?: string;
 }
 
-const WELCOME = `你好，我是 **工业设备检修 AI 专家**。已连接工厂知识库与设备遥测中枢。
+const WELCOME = `你好，我是 **智检安枢的工业设备检修 AI 专家**。已连接工厂知识库与设备遥测中枢。
 
 你可以向我询问：
 - 离心泵、压缩机、减速箱等典型故障树与振动对中分析

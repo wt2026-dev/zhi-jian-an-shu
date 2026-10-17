@@ -242,7 +242,7 @@ export const AiAssistantPanel: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="text-xs font-bold text-slate-800 truncate">{persona.name} · AI 助手</span>
+                  <span className="text-xs font-bold text-slate-800 truncate">{persona.name} · 智检安枢 AI 助手</span>
                 </div>
                 <p className="text-[10px] text-slate-500 truncate">{persona.roleTitle}</p>
                 <p className="text-[10px] text-blue-600 truncate font-medium">
