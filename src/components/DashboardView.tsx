@@ -122,16 +122,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [complianceStats, setComplianceStats] = useState<ComplianceStats | null>(null);
   const [lowStockParts, setLowStockParts] = useState<SparePart[]>([]);
   const [pendingHazardsList, setPendingHazardsList] = useState<Hazard[]>([]);
+  // ⚠️ 加载失败 ≠ 没有数据。这两张卡片带**安全语义**（"备件充足" / "厂区无隐患"），
+  // 一旦把接口失败渲染成"一切正常"，就等于替系统编造了一个安全结论 ——
+  // 比编造故障更隐蔽，因为它看起来是好消息。所以失败必须单独记一笔。
+  const [sparePartsLoadFailed, setSparePartsLoadFailed] = useState(false);
+  const [hazardsLoadFailed, setHazardsLoadFailed] = useState(false);
 
   React.useEffect(() => {
     complianceApi.getStats().then(setComplianceStats).catch((e) => console.warn('合规统计加载失败:', e));
     auditLogApi.list({ limit: 4 }).then((res) => setRecentAuditLogs(Array.isArray(res) ? res : [])).catch(() => {});
-    sparePartsApi.getLowStock().then((res) => setLowStockParts(Array.isArray(res) ? res : [])).catch(() => {});
-    hazardsApi.list({ status: 'all' }).then((res) => {
-      if (Array.isArray(res)) {
-        setPendingHazardsList(res.filter((h) => h.status !== 'closed'));
-      }
-    }).catch(() => {});
+    sparePartsApi
+      .getLowStock()
+      .then((res) => {
+        setLowStockParts(Array.isArray(res) ? res : []);
+        setSparePartsLoadFailed(false);
+      })
+      .catch((e) => {
+        console.warn('低库存备件加载失败:', e);
+        setSparePartsLoadFailed(true);
+      });
+    hazardsApi
+      .list({ status: 'all' })
+      .then((res) => {
+        if (Array.isArray(res)) {
+          setPendingHazardsList(res.filter((h) => h.status !== 'closed'));
+        }
+        setHazardsLoadFailed(false);
+      })
+      .catch((e) => {
+        console.warn('隐患列表加载失败:', e);
+        setHazardsLoadFailed(true);
+      });
   }, []);
 
   // 角色专属工作台模块扩展状态
@@ -599,7 +620,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="min-w-0">
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold text-slate-800">工业备件安全库存</span>
-                {lowStockParts.length > 0 ? (
+                {sparePartsLoadFailed ? (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                    未知
+                  </span>
+                ) : lowStockParts.length > 0 ? (
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
                     {lowStockParts.length} 项告急
                   </span>
@@ -610,9 +635,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 )}
               </div>
               <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                {lowStockParts.length > 0
-                  ? `包括 ${lowStockParts.slice(0, 2).map((p) => p.name).join('、')} 等低于安全阈值`
-                  : '全厂 22+ 项备件在库充盈，满足维保周转'}
+                {sparePartsLoadFailed
+                  ? '备件数据加载失败，无法判断库存是否充足'
+                  : lowStockParts.length > 0
+                    ? `包括 ${lowStockParts.slice(0, 2).map((p) => p.name).join('、')} 等低于安全阈值`
+                    : '全部备件均在安全阈值之上'}
               </p>
             </div>
           </div>
@@ -643,13 +670,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </span>
                 )}
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold">
-                  {pendingHazardsList.length} 在控
+                  {hazardsLoadFailed ? '—' : `${pendingHazardsList.length} 在控`}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                {pendingHazardsList.length > 0
-                  ? `最新: ${pendingHazardsList[0]?.title.slice(0, 24)}...`
-                  : '厂区无未消缺隐患，处于安全平稳期'}
+                {hazardsLoadFailed
+                  ? '隐患数据加载失败，无法判断是否存在未消缺隐患'
+                  : pendingHazardsList.length > 0
+                    ? `最新: ${pendingHazardsList[0]?.title.slice(0, 24)}...`
+                    : '当前无未闭环隐患'}
               </p>
             </div>
           </div>
@@ -1293,7 +1322,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))}
                   {pendingHazardsList.length === 0 && (
-                    <div className="p-3 text-center text-slate-500 text-[11px]">当前全厂无未闭环隐患</div>
+                    <div className="p-3 text-center text-slate-500 text-[11px]">
+                      {hazardsLoadFailed ? '隐患数据加载失败，请刷新重试' : '当前全厂无未闭环隐患'}
+                    </div>
                   )}
                 </div>
               </div>
