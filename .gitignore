@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 build/
 dist/
 coverage/
@@ -49,6 +49,9 @@ _dir_listing*.txt
 
 data.bak*/
 .workbuddy-ai/
+.workbuddy/
+public/preview-selected.html
+/选定设备模型.png
 
 # Godot 编辑器的导入缓存与美术自检产物（源码 godot-game/ 入库，缓存不入库）
 godot-game/.godot/

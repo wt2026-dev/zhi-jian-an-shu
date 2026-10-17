@@ -28,6 +28,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HISTORICAL = new Set([
   "docs/口径数字同步核对表.md",
   "docs/测试运行记录-口径同步与flaky验证.md",
+  "docs/history/测试运行记录-口径同步与flaky验证.md",
 ]);
 
 // 行级历史标记：CHANGELOG 里按日期分节的发布条目，写的是**当时**的基线。
@@ -35,7 +36,7 @@ const HISTORICAL = new Set([
 // 用法：在那一行末尾加 `<!-- 口径历史快照 -->`（md 注释，不渲染）。
 const HISTORICAL_LINE_MARK = "口径历史快照";
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "backups", "scratch", "data", ".workbuddy-ai", "public", "miniprogram", "参赛材料"]);
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "backups", "scratch", "data", ".workbuddy-ai", ".workbuddy", "public", "miniprogram", "参赛材料", "history"]);
 
 // 基线声明的成对写法：「33 个测试文件 / 237 个用例」「33个测试文件共237个测试用例」等
 // ⚠️ 位数上限是**守卫的盲区**：这里原本是 `\d{1,4}`，于是「999 个测试文件 / 99999 个用例」
