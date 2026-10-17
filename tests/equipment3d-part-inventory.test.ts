@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 // 「拆解视图 · 备件库存联动」回归守卫（F6）。
 //
 // 功能口径（诚实性为主）：
@@ -289,7 +289,7 @@ describe('源码契约 · 库存联动全链路接线', () => {
   });
 
   it('App 深链：切 spare_parts 页 + 传递预填状态', () => {
-    const src = read(APP);
+    const src = read(APP) + (fs.existsSync(path.join(ROOT, 'src/components/layout/AppViewDispatcher.tsx')) ? read('src/components/layout/AppViewDispatcher.tsx') : '');
     expect(src).toContain('spareProcurePrefill');
     expect(src).toContain("'spare_parts'");
     expect(src).toContain('initialProcurePrefill');

@@ -1,106 +1,31 @@
 /**
- * 无权限页面的兜底跳转目标。
- * 只有"业务上明确要求直接跳走、而不是给提示卡"的页面才登记在这里 ——
- * 目前是数据驾驶舱：operator / inspector 禁止访问，直接送回工作台。
- * 未登记的页面（系统管理 / 3D 场景等）走 `<PermissionDenied>` 提示卡。
+ * TAB_FALLBACK: 无权限页面的兜底跳转目标（如驾驶舱默认送回 dashboard）。
+ * App.tsx: 顶层根组件与组合层（状态已拆离至 AppDataContext / AuthContext / AppViewDispatcher / QrScannerModal，目标 < 250 行）。
  */
-const TAB_FALLBACK: Record<string, string> = {
-  cockpit: 'dashboard',
-};
-
-/**
- * App.tsx — 应用根组件（组合层）
- *
- * 重构状态（2026-09）：
- *   原文件为 885 行"上帝组件"：equipments/workOrders/inspections/safetyPermits/
- *   articles/lotoLocks 等全局状态 + 全部 CRUD handler + UI 骨架全部堆在此处。
- *
- *   当前重构进度：
- *   ✅ 业务数据状态 → AppDataContext（src/context/AppDataContext.tsx）
- *   ✅ 认证/用户/通知状态 → AuthContext（src/context/AuthContext.tsx）
- *   ✅ AI 聊天状态 → AiChatContext（已有）
- *   🔄 子视图 props 替换为 useAppData()/useAuth() ← 渐进式迁移中
- *      （当前仍保留 props 透传作为过渡，不破坏功能）
- *
- * 目标架构（完成后）：
- *   App.tsx 只负责：Provider 组合 + 路由切换 + 全局 Modal
- *   预期行数：< 250 行（当前：885 行）
- */
+const TAB_FALLBACK: Record<string, string> = { cockpit: 'dashboard' };
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
-import { Header } from './components/Header';
 import { authApi, type SpareProcurePrefill } from './api';
 import { logger } from './utils/logger';
-// ─── Context Providers（状态管理层，已从本文件拆出）────────────────────────────
 import { AppDataProvider, useAppData } from './context/AppDataContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-
-// Lazy-loaded view components (code-split per route)
-const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
-const EquipmentArchivesView = React.lazy(() => import('./components/EquipmentArchivesView').then(m => ({ default: m.EquipmentArchivesView })));
-const EquipmentHealthView = React.lazy(() => import('./components/EquipmentHealthView').then(m => ({ default: m.EquipmentHealthView })));
-const WorkOrdersView = React.lazy(() => import('./components/WorkOrdersView').then(m => ({ default: m.WorkOrdersView })));
-const InspectionView = React.lazy(() => import('./components/InspectionView').then(m => ({ default: m.InspectionView })));
-const SafetyManagementView = React.lazy(() => import('./components/SafetyManagementView').then(m => ({ default: m.SafetyManagementView })));
-const KnowledgeBaseView = React.lazy(() => import('./components/KnowledgeBaseView').then(m => ({ default: m.KnowledgeBaseView })));
-const ProceduresView = React.lazy(() => import('./components/ProceduresView').then(m => ({ default: m.ProceduresView })));
-const KnowledgeGraphView = React.lazy(() => import('./components/KnowledgeGraphView').then(m => ({ default: m.KnowledgeGraphView })));
-const AiAssistantView = React.lazy(() => import('./components/AiAssistantView').then(m => ({ default: m.AiAssistantView })));
-const UserManagementView = React.lazy(() => import('./components/UserManagementView').then(m => ({ default: m.UserManagementView })));
-const LoginView = React.lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
-const CockpitDashboardView = React.lazy(() => import('./components/CockpitDashboardView').then(m => ({ default: m.CockpitDashboardView })));
-const AiPipelineView = React.lazy(() => import('./components/AiPipelineView').then(m => ({ default: m.AiPipelineView })));
-const AdminAiReviewsView = React.lazy(() => import('./components/AdminAiReviewsView').then(m => ({ default: m.AdminAiReviewsView })));
-const AdminAiModelsView = React.lazy(() => import('./components/AdminAiModelsView').then(m => ({ default: m.AdminAiModelsView })));
-const DispatchBoardView = React.lazy(() => import('./components/DispatchBoardView').then(m => ({ default: m.DispatchBoardView })));
-const SparePartsView = React.lazy(() => import('./components/SparePartsView').then(m => ({ default: m.SparePartsView })));
-const HazardsView = React.lazy(() => import('./components/HazardsView').then(m => ({ default: m.HazardsView })));
-// 设备 3D 场景（three.js 程序化生成；独立视图，按需加载，不影响既有页面）
-const Equipment3DView = React.lazy(() => import('./components/equipment3d/DrilldownShell').then(m => ({ default: m.Equipment3DShell })));
-// 检修闯关 = Godot 4 Web 导出（iframe + postMessage 双向通信）。
-// 旧 Canvas 版 `MaintenanceGameView` 文件保留为降级 fallback，但不再被引用。
-// 检修闯关模块已下线：不再挂载（组件文件保留 —— `mazeLevels.ts` 仍引用其 `GodotStepDTO` 类型）。
-// const GodotGameView = React.lazy(() => import('./components/game/GodotGameView').then(m => ({ default: m.GodotGameView })));
-// 《故障侦探 · 俯视迷宫》：同一套 Godot↔React 桥，另一份导出（public/godot-maze/）与另一份关卡表（maze-data）
-const MazeGameView = React.lazy(() => import('./components/game/MazeGameView').then(m => ({ default: m.MazeGameView })));
-// 《智检修士》七幕主线：模块已下线，下方 lazy import 与渲染分支一并注释，恢复时取消注释
-// const CampaignView = React.lazy(() => import('./components/campaign/CampaignView').then(m => ({ default: m.CampaignView })));
-
-import {
-  Equipment,
-  WorkOrder,
-  InspectionTask,
-  InspectionItem,
-  SafetyPermit,
-  KnowledgeArticle,
-  UserProfile,
-  NotificationItem,
-  LotoLock,
-  WorkOrderCreatePrefill,
-} from './types';
-import { QrCode, X, Scan, Sparkles, Wrench, ShieldCheck, AlertTriangle, RefreshCw } from 'lucide-react';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { SkeletonKpis, SkeletonCards, SkeletonBlock } from './components/Skeleton';
-import { AiChatProvider, useAiChatContext } from './context/AiChatContext';
-import { ToastProvider } from './context/ToastContext';
+import { AiChatProvider } from './context/AiChatContext';
+import { ToastProvider, useToast } from './context/ToastContext';
 import { ToastContainer } from './components/ui/Toast';
-import { useToast } from './context/ToastContext';
 import { PageHeader } from './components/layout/PageHeader';
 import { getBreadcrumb } from './components/layout/navConfig';
 import { isTabAllowed, getRoleHome } from './utils/rbac';
 import { PermissionDenied } from './components/PermissionDenied';
 import { AiAssistantPanel } from './components/AiAssistantPanel';
 import { OnboardingGuide } from './components/OnboardingGuide';
+import { AppLoadingScreen, AppLoadErrorScreen } from './components/layout/AppStatusScreens';
+import { QrScannerModal } from './components/modals/QrScannerModal';
+import { AppViewDispatcher } from './components/layout/AppViewDispatcher';
+import type { Equipment, UserProfile, KnowledgeArticle, WorkOrderCreatePrefill } from './types';
 
-/**
- * 根组件：只负责 Provider 组合，不持有任何业务状态。
- *
- * 状态分层（重构前 App.tsx 为 885 行上帝组件，状态/逻辑/UI 三类职责混杂）：
- *   - 认证与通知 → AuthContext（src/context/AuthContext.tsx）
- *   - 业务数据   → AppDataContext（src/context/AppDataContext.tsx）
- *   - UI 骨架    → 本文件 AppShell（导航/侧边栏/模态框等纯视图状态）
- */
+const LoginView = React.lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
+
 export default function App() {
   return (
     <AuthProvider>
@@ -112,191 +37,88 @@ export default function App() {
   );
 }
 
-/**
- * 登录页挂载点。
- * LoginView 是 React.lazy 懒加载组件，必须置于 Suspense 边界内，
- * 否则首次挂起时会被 RootErrorBoundary 误判为渲染异常。
- */
 function LoginScreen({ onLoginSuccess }: { onLoginSuccess: (user: UserProfile, token: string) => void }) {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center text-slate-500 text-sm">
-          正在加载登录页...
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-500 text-sm">正在加载登录页...</div>}>
       <LoginView onLoginSuccess={onLoginSuccess} />
     </Suspense>
   );
 }
 
-/**
- * 认证守卫 + 业务数据 Provider 桥接层。
- * 未登录时不挂载 AppDataProvider，因此不会发起任何业务数据请求。
- */
 function AppDataBridge() {
   const { authToken, setAuthToken, setCurrentUser, setAllUsers, refreshNotifications } = useAuth();
 
-  // 数据加载完成后回填认证态（currentUser / allUsers 归 AuthContext 单一数据源）
-  const handleDataLoaded = useCallback(
-    (user: UserProfile | null, users: UserProfile[]) => {
-      setCurrentUser(user);
-      setAllUsers(users);
-    },
-    [setCurrentUser, setAllUsers]
-  );
+  const handleDataLoaded = useCallback((user: UserProfile | null, users: UserProfile[]) => {
+    setCurrentUser(user);
+    setAllUsers(users);
+  }, [setCurrentUser, setAllUsers]);
 
-  const handleRefreshNotifications = useCallback(
-    (userId?: string) => {
-      void refreshNotifications(userId);
-    },
-    [refreshNotifications]
-  );
+  const handleRefreshNotifications = useCallback((userId?: string) => {
+    void refreshNotifications(userId);
+  }, [refreshNotifications]);
 
-  // 全局路由守卫：未登录直接拦截并跳转至统一登录页，严禁直接访问系统内部页面
   if (!authToken) {
-    return (
-      <LoginScreen
-        onLoginSuccess={(_user, token) => {
-          setAuthToken(token);
-        }}
-      />
-    );
+    return <LoginScreen onLoginSuccess={(_user, token) => setAuthToken(token)} />;
   }
 
   return (
-    <AppDataProvider
-      authToken={authToken}
-      onDataLoaded={handleDataLoaded}
-      onRefreshNotifications={handleRefreshNotifications}
-    >
+    <AppDataProvider authToken={authToken} onDataLoaded={handleDataLoaded} onRefreshNotifications={handleRefreshNotifications}>
       <AppShell />
     </AppDataProvider>
   );
 }
 
-/**
- * 应用外壳：只保留 UI 骨架状态与视图编排。
- * 业务数据/认证状态一律从 Context 读取，不再逐层 useState + prop-drilling。
- */
 function AppShell() {
   const { show: showToast } = useToast();
   const {
-    currentUser,
-    allUsers,
-    notifications,
-    handleLogout,
-    handleSwitchUser,
-    handleMarkNotificationRead,
-    handleMarkAllNotificationsRead,
-    handleAddUser,
-    setAuthToken,
-    setCurrentUser,
-    setAllUsers,
+    currentUser, allUsers, notifications,
+    handleLogout, handleSwitchUser, handleMarkNotificationRead,
+    handleMarkAllNotificationsRead, handleAddUser, setAuthToken, setCurrentUser, setAllUsers,
   } = useAuth();
+  const { isInitialLoading, loadError, loadAllBackendData, equipments } = useAppData();
 
-  const {
-    equipments,
-    workOrders,
-    inspections,
-    safetyPermits,
-    articles,
-    lotoLocks,
-    isInitialLoading,
-    loadError,
-    loadAllBackendData,
-    handleAddEquipment,
-    handleUpdateEquipment,
-    handleDeleteEquipment,
-    handleAddWorkOrder,
-    handleUpdateWorkOrder,
-    handleUpdateInspection,
-    handleConvertAbnormalToWorkOrder,
-    handleAddSafetyPermit,
-    handleUpdateSafetyPermit,
-    handleDeleteSafetyPermit,
-    handleAddArticle,
-    handleCreateWorkOrderFromAi,
-  } = useAppData();
-
-  // ── 纯 UI 状态（导航 / 跨模块跳转 / 模态框，不属于业务数据）──────────────────
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  // 调度大屏预选：从检修工单「就近派单」或 AI 协同「前往调度」跳入时携带
   const [dispatchPreset, setDispatchPreset] = useState<{ workOrderId?: string | null; equipmentId?: string | null }>({});
   const navigateToDispatch = useCallback((preset: { workOrderId?: string | null; equipmentId?: string | null }) => {
     setDispatchPreset(preset);
     setActiveTab('dispatch');
   }, []);
 
-  // 3D 场景预选：从检修工单「3D 查看」或健康监测「3D 定位」跳入时携带
   const [targetWorkOrderIdFor3D, setTargetWorkOrderIdFor3D] = useState<string | null>(null);
-  // 工单列表自动展开抽屉：拆解侧栏「返回工单详情」跳回 work_orders 时携带（F1 联动回环）
   const [targetWorkOrderIdForDetail, setTargetWorkOrderIdForDetail] = useState<string | null>(null);
   const openWorkOrderDetail = useCallback((workOrderId: string) => {
     setTargetWorkOrderIdForDetail(workOrderId);
     setActiveTab('work_orders');
   }, []);
   const navigateTo3D = useCallback((preset: { workOrderId?: string | null; equipmentId?: string | null }) => {
-    if (preset.workOrderId) {
-      setTargetWorkOrderIdFor3D(preset.workOrderId);
-    }
+    if (preset.workOrderId) setTargetWorkOrderIdFor3D(preset.workOrderId);
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('view', 'equipment_3d');
-      if (preset.workOrderId) {
-        url.searchParams.set('workOrderId', preset.workOrderId);
-      }
-      if (preset.equipmentId) {
-        url.searchParams.set('equipmentId', preset.equipmentId);
-      }
+      if (preset.workOrderId) url.searchParams.set('workOrderId', preset.workOrderId);
+      if (preset.equipmentId) url.searchParams.set('equipmentId', preset.equipmentId);
       window.history.pushState({}, '', url.toString());
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
     setActiveTab('equipment_3d');
   }, []);
 
-  // 手机扫码直达巡检目标设备 ID
   const [mobileScanEquipmentId, setMobileScanEquipmentId] = useState<string | null>(null);
-
-  // Cross-module states
   const [selectedEquipmentForHealth, setSelectedEquipmentForHealth] = useState<Equipment | null>(null);
   const [aiTargetEquipment, setAiTargetEquipment] = useState<Equipment | null>(null);
   const [aiPrefilledQuery, setAiPrefilledQuery] = useState<string | null>(null);
-
-  // Quick Action Modals Trigger Flag
   const [showGlobalCreateWorkOrder, setShowGlobalCreateWorkOrder] = useState(false);
-  /** 故障定位 →「创建维修工单」深链预填（真实遥测故障详情；工单页消费后回调清空） */
   const [workOrderCreatePrefill, setWorkOrderCreatePrefill] = useState<WorkOrderCreatePrefill | null>(null);
-  /** 库存联动 →「一键生成采购申请」深链预填（spare_parts 真实台账命中；备件页消费后回调清空） */
   const [spareProcurePrefill, setSpareProcurePrefill] = useState<SpareProcurePrefill | null>(null);
-  const [showGlobalCreateSafetyPermit, setShowGlobalCreateSafetyPermit] = useState(false);
   const [showQrScannerModal, setShowQrScannerModal] = useState(false);
-  const [qrModalTab, setQrModalTab] = useState<'simulate' | 'real_qrcode'>('simulate');
-  const [selectedQrEquipId, setSelectedQrEquipId] = useState<string>('');
-
-  // 侧边栏折叠状态：<1024px 默认折叠为 64px 图标栏；移动端开启汉堡抽屉
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth < 1024;
-    }
-    return false;
-  });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 1024);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
 
-  // 监听窗口尺寸自动适配折叠
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 1024) {
-        setIsSidebarCollapsed(true);
-      }
-    };
+    const handleResize = () => { if (window.innerWidth < 1024) setIsSidebarCollapsed(true); };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 检查手机扫码与工单 URL 深度链接 (?view=inspections&equipmentId=eq-001 或 ?view=equipment_3d&workOrderId=wo-xxx)
   useEffect(() => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
@@ -306,14 +128,12 @@ function AppShell() {
 
       if (targetWorkOrderId) {
         if (targetView === 'work_orders') {
-          // 拆解视图联动：拆解侧栏「返回工单详情」深链 —— 定位工单列表并自动展开抽屉
           setTargetWorkOrderIdForDetail(targetWorkOrderId);
         } else {
           setTargetWorkOrderIdFor3D(targetWorkOrderId);
           showToast({ type: 'info', title: '已定位至工单', message: `工单 #${targetWorkOrderId}，点击 3D 场景中红色脉冲设备查看详情`, duration: 5000 });
         }
       }
-
       if (targetView === 'inspections' || targetView === 'inspection') {
         setActiveTab('inspections');
         if (targetEquipmentId) {
@@ -326,616 +146,106 @@ function AppShell() {
     } catch (e) {
       logger.warn('URL search parse fallback:', e);
     }
-  }, []);
+  }, [showToast]);
 
-  /**
-   * 角色权限守卫。
-   *
-   * 覆盖两个真实场景：
-   *   ① 手敲 / 分享 URL 深链（?view=equipment_3d）直达无权限页面；
-   *   ② 在 Navbar 切换角色后仍停留在上一个角色的页面。
-   *
-   * 处置策略分两种：
-   *   - 配了兜底页的（operator / inspector 进数据驾驶舱 → 工作台）：静默跳走，
-   *     符合"禁止访问"的演示口径，不留提示卡；
-   *   - 其余：保持在当前 tab，由 `<PermissionDenied>` 给友好提示（不白屏、不抛堆栈）。
-   */
   useEffect(() => {
-    if (!currentUser) return;
-    if (isTabAllowed(activeTab, currentUser.role)) return;
+    if (!currentUser || isTabAllowed(activeTab, currentUser.role)) return;
     const fallback = TAB_FALLBACK[activeTab];
     if (fallback) {
       const target = isTabAllowed(fallback, currentUser.role) ? fallback : getRoleHome(currentUser.role);
       if (target !== activeTab) {
         setActiveTab(target);
-        showToast({
-          type: 'info',
-          title: '已返回有权限的页面',
-          message: `当前角色（${currentUser.roleTitle}）无权限访问该页面，已切换至可访问页面`,
-          duration: 4000,
-        });
+        showToast({ type: 'info', title: '已返回有权限的页面', message: `当前角色（${currentUser.roleTitle}）无权限访问该页面，已切换至可访问页面`, duration: 4000 });
       }
     }
-    // 无兜底页的 tab 不动，交给 PermissionDenied 渲染提示
-  }, [activeTab, currentUser?.id, currentUser?.role, currentUser?.roleTitle, showToast]);
+  }, [activeTab, currentUser?.role, currentUser?.roleTitle, showToast]);
 
-  // 切换角色后自动落到该角色默认首页（演示流程：谁登录就先看自己该看的页）
-  const handleSwitchUserWithHome = useCallback(
-    (user: UserProfile) => {
-      handleSwitchUser(user);
-      setActiveTab(getRoleHome(user?.role));
-    },
-    [handleSwitchUser]
-  );
+  const handleSwitchUserWithHome = useCallback((user: UserProfile) => {
+    handleSwitchUser(user);
+    setActiveTab(getRoleHome(user?.role));
+  }, [handleSwitchUser]);
 
-  // Cross-Navigation Shortcuts
-  const handleSelectEquipmentForHealth = (eq: Equipment) => {
-    setSelectedEquipmentForHealth(eq);
-    setActiveTab('health');
-  };
-
-  const handleOpenWorkOrderForEquipment = (eq: Equipment) => {
-    setActiveTab('work_orders');
-  };
-
+  const handleSelectEquipmentForHealth = (eq: Equipment) => { setSelectedEquipmentForHealth(eq); setActiveTab('health'); };
+  const handleOpenWorkOrderForEquipment = () => { setActiveTab('work_orders'); };
   const handleOpenAiDiagnoseForEquipment = (eq: Equipment) => {
     setAiTargetEquipment(eq);
     setAiPrefilledQuery(`请对 ${eq.name} (${eq.code}) 当前轴温 ${eq.telemetry.temperature}°C 与振动 ${eq.telemetry.vibration}mm/s 进行故障树分析与处置建议`);
     setActiveTab('ai_assistant');
   };
+  const handleAskAiWithContext = (query: string) => { setAiPrefilledQuery(query); setActiveTab('ai_assistant'); };
 
-  const handleAskAiWithContext = (query: string, contextArticle: KnowledgeArticle) => {
-    setAiPrefilledQuery(query);
-    setActiveTab('ai_assistant');
-  };
+  if (isInitialLoading) return <AppLoadingScreen />;
+  if (loadError) return <AppLoadErrorScreen loadError={loadError} onRetry={loadAllBackendData} onLogout={() => { authApi.logout(); setAuthToken(null); }} />;
+  if (!currentUser) return <LoginScreen onLoginSuccess={(_user, token) => setAuthToken(token)} />;
 
-  // 首屏数据加载中：仪表盘骨架屏（非转圈 loading），绝不展示任何 mock 假数据
-  if (isInitialLoading) {
-    return (
-      <div className="min-h-screen bg-[var(--page-bg)] text-[var(--text-body)]">
-        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-          <div className="flex items-center justify-center space-x-3 py-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <div className="text-sm font-semibold text-slate-700">正在连接后端服务并加载真实业务数据...</div>
-          </div>
-          <SkeletonKpis count={6} />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 shadow-sm">
-                <SkeletonBlock className="h-4 w-40" />
-                <SkeletonCards count={4} />
-              </div>
-            </div>
-            <div className="space-y-6">
-              <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 shadow-sm">
-                <SkeletonBlock className="h-4 w-32" />
-                <SkeletonCards count={3} />
-              </div>
-              <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 shadow-sm">
-                <SkeletonBlock className="h-4 w-28" />
-                <SkeletonCards count={2} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 接口加载失败：展示错误提示与重试按钮，绝不使用 mock 数据兜底
-  if (loadError) {
-    return (
-      <div className="min-h-screen bg-[var(--page-bg)] text-[var(--text-body)] flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white border border-rose-200 rounded-lg p-6 shadow-sm space-y-4 text-center">
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-lg w-fit mx-auto border border-rose-100">
-            <AlertTriangle className="w-8 h-8" />
-          </div>
-          <h2 className="text-base font-bold text-slate-900">后端数据加载失败</h2>
-          <p className="text-xs text-slate-600 leading-relaxed break-all">{loadError}</p>
-          <p className="text-[11px] text-slate-500">
-            系统已禁止使用本地模拟数据兜底，请确认后端服务与数据库正常后重试。
-          </p>
-          <button
-            onClick={loadAllBackendData}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 mx-auto cursor-pointer transition-colors shadow-sm"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>重新加载数据</span>
-          </button>
-          <button
-            onClick={() => {
-              authApi.logout();
-              setAuthToken(null);
-            }}
-            className="block mx-auto text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
-          >
-            返回重新登录
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // 后端返回当前用户为空（Token 失效）时回登录页
-  if (!currentUser) {
-    return (
-      <LoginScreen
-        onLoginSuccess={(_user, token) => {
-          // 仅更新 token；用户态与业务数据由 AppDataBridge / AppDataProvider 重新拉取
-          setAuthToken(token);
-        }}
-      />
-    );
-  }
-
-  // 当前角色是否看得见当前 tab（菜单已过滤，这里是给深链 / 角色切换兜底）
   const tabAllowed = isTabAllowed(activeTab, currentUser?.role);
 
   return (
     <AiChatProvider userRoleTitle={currentUser.roleTitle}>
-    <div className="h-screen bg-[#f8fafc] text-slate-800 flex flex-col overflow-hidden font-sans selection:bg-blue-100 selection:text-blue-900">
-      {/* Top 56px Navbar */}
-      <Navbar
-        activeTab={activeTab}
-        onTabChange={(tab) => {
-          setActiveTab(tab);
-          setAiPrefilledQuery(null);
-          setShowGlobalCreateWorkOrder(false);
-        }}
-        isSidebarCollapsed={isSidebarCollapsed}
-        onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
-        currentUser={currentUser}
-        onSwitchUser={handleSwitchUserWithHome}
-        onUpdateCurrentUser={(updated) => {
-          setCurrentUser(updated);
-          setAllUsers(allUsers.map((u) => (u.id === updated.id ? updated : u)));
-        }}
-        allUsers={allUsers}
-        onLogout={handleLogout}
-        onOpenQuickWorkOrder={() => {
-          setActiveTab('work_orders');
-          setShowGlobalCreateWorkOrder(true);
-        }}
-        onOpenQrScanner={() => {
-          setShowQrScannerModal(true);
-        }}
-        unreadCount={notifications.filter((n) => !n.read).length}
-        notifications={notifications}
-        onMarkNotificationRead={handleMarkNotificationRead}
-        onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
-      />
-
-      {/* Horizontal Split: Fixed Left Sidebar + Right Responsive Content */}
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar
-          role={currentUser?.role}
-          activeTab={activeTab}
-          onTabChange={(tab) => {
-            setActiveTab(tab);
-            setAiPrefilledQuery(null);
-            setShowGlobalCreateWorkOrder(false);
-          }}
-          isCollapsed={isSidebarCollapsed}
-          isMobileOpen={isMobileDrawerOpen}
-          onCloseMobile={() => setIsMobileDrawerOpen(false)}
+      <div className="h-screen bg-[#f8fafc] text-slate-800 flex flex-col overflow-hidden font-sans selection:bg-blue-100 selection:text-blue-900">
+        <Navbar
+          activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); setAiPrefilledQuery(null); setShowGlobalCreateWorkOrder(false); }}
+          isSidebarCollapsed={isSidebarCollapsed} onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)} currentUser={currentUser} onSwitchUser={handleSwitchUserWithHome}
+          onUpdateCurrentUser={(updated) => { setCurrentUser(updated); setAllUsers(allUsers.map((u) => (u.id === updated.id ? updated : u))); }}
+          allUsers={allUsers} onLogout={handleLogout}
+          onOpenQuickWorkOrder={() => { setActiveTab('work_orders'); setShowGlobalCreateWorkOrder(true); }}
+          onOpenQrScanner={() => setShowQrScannerModal(true)} unreadCount={notifications.filter((n) => !n.read).length}
+          notifications={notifications} onMarkNotificationRead={handleMarkNotificationRead} onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
         />
 
-        {/* Right Content Area */}
-        <main className="flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-5 lg:p-6 transition-all duration-200 flex flex-col">
-          <div
-            key={activeTab}
-            className={`mx-auto w-full flex-1 flex flex-col min-h-0 transition-opacity duration-200 animate-in fade-in duration-200 ${
-              activeTab === 'cockpit' ? 'max-w-[1920px]' : 'max-w-[1440px]'
-            }`}
-          >
-            {/* 无权限页面：友好提示占位（不白屏、不抛堆栈），并可一键回到自己角色的首页 */}
-            {!tabAllowed && (
-              <PermissionDenied
-                tabId={activeTab}
-                role={currentUser?.role}
-                userName={currentUser?.name}
-                onBackHome={() => setActiveTab(getRoleHome(currentUser?.role))}
-              />
-            )}
-            {tabAllowed && activeTab !== 'dashboard' && (
-            <PageHeader
-              group={getBreadcrumb(activeTab).group}
-              title={getBreadcrumb(activeTab).label}
-              subtitle={
-                activeTab === 'work_orders' ? '检修工单全生命周期管理与工单闭环跟踪' :
-                activeTab === 'health' ? '采集温度、振动加速度(RMS)、三相电流、电压与工况负荷率' :
-                activeTab === 'procedures' ? '标准化检修作业指导书与合规执行' :
-                undefined
-              }
-            />
-            )}
-        {tabAllowed && (
-        <ErrorBoundary>
-          <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400 text-sm">页面加载中...</div>}>
-          {activeTab === 'dashboard' && (
-            <DashboardView
-              currentUser={currentUser}
-              equipments={equipments}
-              workOrders={workOrders}
-              inspections={inspections}
-              safetyPermits={safetyPermits}
-              lotoLocks={lotoLocks}
-              onNavigate={setActiveTab}
-              onSelectEquipment={handleSelectEquipmentForHealth}
-              onSelectWorkOrder={(wo) => {
-                setActiveTab('work_orders');
-              }}
-              onOpenCreateWorkOrder={() => setActiveTab('work_orders')}
-              onOpenCreateSafetyPermit={() => setActiveTab('safety')}
-            />
-          )}
+        <div className="flex-1 flex overflow-hidden">
+          <Sidebar
+            role={currentUser?.role} activeTab={activeTab}
+            onTabChange={(tab) => { setActiveTab(tab); setAiPrefilledQuery(null); setShowGlobalCreateWorkOrder(false); }}
+            isCollapsed={isSidebarCollapsed} isMobileOpen={isMobileDrawerOpen} onCloseMobile={() => setIsMobileDrawerOpen(false)}
+          />
 
-          {activeTab === 'cockpit' && (
-            <CockpitWithAiBridge
-              onNavigateTab={setActiveTab}
-              onSelectEquipment={handleSelectEquipmentForHealth}
-            />
-          )}
-
-          {activeTab === 'spare_parts' && currentUser && (
-            <SparePartsView
-              currentUser={currentUser}
-              onNavigateToWorkOrders={() => setActiveTab('work_orders')}
-              initialProcurePrefill={spareProcurePrefill}
-              onProcurePrefillConsumed={() => setSpareProcurePrefill(null)}
-            />
-          )}
-
-          {activeTab === 'hazards' && currentUser && (
-            <HazardsView
-              currentUser={currentUser}
-              equipments={equipments}
-              allUsers={allUsers}
-              onNavigateToWorkOrders={() => setActiveTab('work_orders')}
-            />
-          )}
-
-          {(activeTab === 'equipments' || activeTab === 'archives') && (
-            <EquipmentArchivesView
-              currentUser={currentUser}
-              equipments={equipments}
-              onAddEquipment={handleAddEquipment}
-              onUpdateEquipment={handleUpdateEquipment}
-              onDeleteEquipment={handleDeleteEquipment}
-              onOpenWorkOrderForEquipment={handleOpenWorkOrderForEquipment}
-              onOpenAiDiagnoseForEquipment={handleOpenAiDiagnoseForEquipment}
-            />
-          )}
-
-          {activeTab === 'health' && (
-            <EquipmentHealthView
-              equipments={equipments}
-              selectedEquipmentId={selectedEquipmentForHealth?.id}
-              onOpenWorkOrder={handleOpenWorkOrderForEquipment}
-              onOpenAiDiagnose={handleOpenAiDiagnoseForEquipment}
-              onCreateWorkOrder={handleAddWorkOrder}
-              onNavigateTo3D={(equipmentId) => navigateTo3D({ equipmentId })}
-              currentUser={currentUser}
-            />
-          )}
-
-          {activeTab === 'equipment_3d' && (
-            <Equipment3DView
-              initialWorkOrderId={targetWorkOrderIdFor3D}
-              onOpenWorkOrderDetail={openWorkOrderDetail}
-              onNavigateToWorkOrderCreate={(prefill) => {
-                // 故障定位 → 创建维修工单：切工单页 + 预填建单表单（字段来自真实遥测诊断）
-                setActiveTab('work_orders');
-                setWorkOrderCreatePrefill(prefill);
-              }}
-              onNavigateToSpareProcure={(prefill) => {
-                // 库存联动 → 采购申请：切备件库存页 + 预填采购入库单（字段来自 spare_parts 真实台账）
-                setActiveTab('spare_parts');
-                setSpareProcurePrefill(prefill);
-              }}
-            />
-          )}
-
-          {activeTab === 'work_orders' && (
-            <WorkOrdersView
-              currentUser={currentUser}
-              workOrders={workOrders}
-              equipments={equipments}
-              allUsers={allUsers}
-              onCreateWorkOrder={handleAddWorkOrder}
-              onUpdateWorkOrder={handleUpdateWorkOrder}
-              onOpenAiDiagnose={handleOpenAiDiagnoseForEquipment}
-              onNavigateDispatch={(workOrderId) => navigateToDispatch({ workOrderId })}
-              onNavigateTo3D={(workOrderId) => navigateTo3D({ workOrderId })}
-              initialWorkOrderId={targetWorkOrderIdForDetail}
-              initialCreateOpen={showGlobalCreateWorkOrder}
-              initialCreatePrefill={workOrderCreatePrefill}
-              onCreatePrefillConsumed={() => setWorkOrderCreatePrefill(null)}
-            />
-          )}
-
-          {activeTab === 'inspections' && (
-            <InspectionView
-              currentUser={currentUser}
-              inspections={inspections}
-              equipments={equipments}
-              targetEquipmentId={mobileScanEquipmentId || undefined}
-              onUpdateInspection={handleUpdateInspection}
-              onConvertAbnormalToWorkOrder={async (point, equipmentName) => {
-                // 转单成功后才跳转工单页；失败时 Context 内已 alert 提示，保持停留当前页
-                try {
-                  await handleConvertAbnormalToWorkOrder(point, equipmentName);
-                  setActiveTab('work_orders');
-                } catch {
-                  /* 错误提示已在 AppDataContext 内完成 */
-                }
-              }}
-              onCreateWorkOrder={handleAddWorkOrder}
-            />
-          )}
-
-          {activeTab === 'procedures' && (
-            <ProceduresView
-              currentUser={currentUser}
-              onSelectProcedure={(proc) => {
-                logger.log('Selected procedure:', proc);
-              }}
-            />
-          )}
-
-          {activeTab === 'safety' && (
-            <SafetyManagementView
-              currentUser={currentUser}
-              safetyPermits={safetyPermits}
-              equipments={equipments}
-              lotoLocks={lotoLocks}
-              onAddSafetyPermit={handleAddSafetyPermit}
-              onUpdateSafetyPermit={handleUpdateSafetyPermit}
-              onDeleteSafetyPermit={handleDeleteSafetyPermit}
-            />
-          )}
-
-          {activeTab === 'knowledge' && (
-            <KnowledgeBaseView
-              currentUser={currentUser}
-              articles={articles}
-              onAddArticle={handleAddArticle}
-              onAskAiWithContext={handleAskAiWithContext}
-            />
-          )}
-
-          {activeTab === 'knowledge_graph' && (
-            <KnowledgeGraphView
-              currentUser={currentUser}
-            />
-          )}
-
-          {activeTab === 'ai_assistant' && (
-            <AiAssistantView
-              currentUser={currentUser}
-              equipments={equipments}
-              prefilledEquipment={aiTargetEquipment}
-              prefilledQuery={aiPrefilledQuery}
-              onCreateWorkOrderFromAi={(title, equipmentName, description) =>
-                handleCreateWorkOrderFromAi(
-                  title,
-                  equipmentName,
-                  description,
-                  currentUser,
-                  () => setActiveTab('work_orders')
-                )
-              }
-            />
-          )}
-          {activeTab === 'ai_pipeline' && <AiPipelineView onGoDispatch={navigateToDispatch} />}
-          {activeTab === 'dispatch' && (
-            <DispatchBoardView
-              presetWorkOrderId={dispatchPreset.workOrderId}
-              presetEquipmentId={dispatchPreset.equipmentId}
-              onNavigateWorkOrders={() => setActiveTab('work_orders')}
-            />
-          )}
-          {activeTab === 'ai_reviews' && <AdminAiReviewsView onNavigate={setActiveTab} />}
-          {/* {activeTab === 'maintenance_game' && <GodotGameView currentUser={currentUser} />} —— 检修闯关模块已下线，恢复时取消注释 */}
-          {activeTab === 'maintenance_maze' && (
-            <MazeGameView currentUser={currentUser} />
-          )}
-          {/* {activeTab === 'campaign' && <CampaignView currentUser={currentUser} />} —— 智检修士模块已下线，恢复时取消注释 */}
-
-          {activeTab === 'ai_models' && <AdminAiModelsView />}
-
-          {activeTab === 'users' && (
-            <UserManagementView
-              currentUser={currentUser}
-              allUsers={allUsers}
-              onAddUser={handleAddUser}
-              onSwitchUser={handleSwitchUserWithHome}
-            />
-          )}
-          </Suspense>
-        </ErrorBoundary>
-        )}
-          </div>
-        </main>
-      </div>
-
-      {/* 全局设备扫码巡检 / 电子铭牌真机二维码 Modal */}
-      {showQrScannerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 card-industrial">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
-                  <Scan className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800">工业设备电子铭牌与扫码中心</h3>
-                  <p className="text-[11px] text-slate-500">桌面端快捷核验模拟 · 手机端微信真机扫码直达</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowQrScannerModal(false)}
-                className="text-slate-500 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* 模式切换 Tab */}
-            <div className="flex rounded-lg bg-slate-100 p-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setQrModalTab('simulate')}
-                className={`flex-1 py-1.5 rounded-md font-medium text-center transition-all cursor-pointer ${
-                  qrModalTab === 'simulate'
-                    ? 'bg-white text-blue-600 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                桌面虚拟扫码模拟
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setQrModalTab('real_qrcode');
-                  if (!selectedQrEquipId && equipments.length > 0) {
-                    setSelectedQrEquipId(equipments[0].id);
+          <main className="flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-5 lg:p-6 transition-all duration-200 flex flex-col">
+            <div key={activeTab} className={`mx-auto w-full flex-1 flex flex-col min-h-0 transition-opacity duration-200 animate-in fade-in duration-200 ${activeTab === 'cockpit' ? 'max-w-[1920px]' : 'max-w-[1440px]'}`}>
+              {!tabAllowed && <PermissionDenied tabId={activeTab} role={currentUser?.role} userName={currentUser?.name} onBackHome={() => setActiveTab(getRoleHome(currentUser?.role))} />}
+              {tabAllowed && activeTab !== 'dashboard' && (
+                <PageHeader
+                  group={getBreadcrumb(activeTab).group}
+                  title={getBreadcrumb(activeTab).label}
+                  subtitle={
+                    activeTab === 'work_orders' ? '检修工单全生命周期管理与工单闭查跟踪' :
+                    activeTab === 'health' ? '采集温度、振动加速度(RMS)、三相电流、电压与工况负荷率' :
+                    activeTab === 'procedures' ? '标准化检修作业指导书与合规执行' : undefined
                   }
-                }}
-                className={`flex-1 py-1.5 rounded-md font-medium text-center transition-all cursor-pointer ${
-                  qrModalTab === 'real_qrcode'
-                    ? 'bg-white text-blue-600 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                真机电子铭牌二维码
-              </button>
+                />
+              )}
+              {tabAllowed && (
+                <AppViewDispatcher
+                  activeTab={activeTab} setActiveTab={setActiveTab}
+                  currentUser={currentUser} allUsers={allUsers}
+                  dispatchPreset={dispatchPreset} navigateToDispatch={navigateToDispatch}
+                  targetWorkOrderIdFor3D={targetWorkOrderIdFor3D}
+                  targetWorkOrderIdForDetail={targetWorkOrderIdForDetail} openWorkOrderDetail={openWorkOrderDetail}
+                  navigateTo3D={navigateTo3D} mobileScanEquipmentId={mobileScanEquipmentId}
+                  selectedEquipmentForHealth={selectedEquipmentForHealth} handleSelectEquipmentForHealth={handleSelectEquipmentForHealth}
+                  handleOpenWorkOrderForEquipment={handleOpenWorkOrderForEquipment} handleOpenAiDiagnoseForEquipment={handleOpenAiDiagnoseForEquipment}
+                  handleAskAiWithContext={handleAskAiWithContext} aiTargetEquipment={aiTargetEquipment} aiPrefilledQuery={aiPrefilledQuery}
+                  showGlobalCreateWorkOrder={showGlobalCreateWorkOrder} workOrderCreatePrefill={workOrderCreatePrefill} setWorkOrderCreatePrefill={setWorkOrderCreatePrefill}
+                  spareProcurePrefill={spareProcurePrefill} setSpareProcurePrefill={setSpareProcurePrefill}
+                  handleAddUser={handleAddUser} handleSwitchUserWithHome={handleSwitchUserWithHome}
+                />
+              )}
             </div>
-
-            {qrModalTab === 'simulate' ? (
-              <>
-                {/* 模拟摄像头取景器 */}
-                <div className="relative h-40 bg-slate-50 rounded-lg border border-slate-200 flex flex-col items-center justify-center overflow-hidden">
-                  <div className="w-32 h-32 border-2 border-dashed border-blue-400/80 rounded-lg relative flex items-center justify-center bg-white/80">
-                    <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent absolute top-1/2 -translate-y-1/2 animate-pulse" />
-                    <QrCode className="w-14 h-14 text-blue-500/30" />
-                  </div>
-                  <span className="text-[11px] text-blue-600 font-mono mt-2 z-10 font-medium">
-                    摄像头取景中 · 请在下方点击设备模拟扫码识别
-                  </span>
-                </div>
-
-                {/* 快捷识别模拟列表 */}
-                <div className="space-y-2 text-xs">
-                  <span className="text-slate-500 font-medium block">点击机组立即模拟识别入单：</span>
-                  <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                    {equipments.map((eq) => (
-                      <button
-                        key={eq.id}
-                        onClick={() => {
-                          setShowQrScannerModal(false);
-                          setMobileScanEquipmentId(eq.id);
-                          setActiveTab('inspections');
-                        }}
-                        className="w-full flex items-center justify-between p-2.5 rounded-lg bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 text-left transition-colors cursor-pointer group"
-                      >
-                        <div>
-                          <div className="font-semibold text-slate-700 group-hover:text-blue-600">{eq.name}</div>
-                          <div className="text-[10px] text-slate-500 font-mono">
-                            {eq.code} | {eq.workshop} · {eq.location}
-                          </div>
-                        </div>
-                        <span className="text-[11px] px-2 py-1 bg-blue-50 text-blue-600 rounded font-medium group-hover:bg-blue-600 group-hover:text-white transition-colors border border-blue-100">
-                          识别入单
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              /* 真机扫码与电子铭牌二维码视图 */
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="text-slate-600 font-medium block mb-1.5">选择目标机组以生成现场二维码：</label>
-                  <select
-                    value={selectedQrEquipId || (equipments[0]?.id ?? '')}
-                    onChange={(e) => setSelectedQrEquipId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  >
-                    {equipments.map((eq) => (
-                      <option key={eq.id} value={eq.id}>
-                        {eq.name}（{eq.code}）- {eq.workshop}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 动态二维码展示区 */}
-                {(() => {
-                  const currId = selectedQrEquipId || equipments[0]?.id;
-                  const currEq = equipments.find((e) => e.id === currId) || equipments[0];
-                  if (!currEq) return null;
-                  return (
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-center gap-3.5">
-                      <div className="w-32 h-32 bg-white p-2 border border-slate-200 rounded-lg shrink-0 shadow-xs flex items-center justify-center">
-                        <img
-                          src={`/api/v1/equipments/${currEq.id}/qrcode`}
-                          alt={`${currEq.name} 专属二维码`}
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="font-bold text-slate-900 text-sm truncate">{currEq.name}</div>
-                        <div className="text-[11px] font-mono text-blue-600 font-semibold">{currEq.code}</div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
-                          ✅ 真实工业二维码：手机微信或工业 PDA 扫码直达现场巡检或报修工单。
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowQrScannerModal(false);
-                            setActiveTab('equipments');
-                          }}
-                          className="text-[11px] text-blue-600 hover:underline font-medium cursor-pointer block mt-1"
-                        >
-                          前往设备档案查看高清打印铭牌 →
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
+          </main>
         </div>
-      )}
 
-      {/* 全局悬浮 AI 助手：渲染在根层级，所有页面（含数据驾驶舱）之上 */}
-      <AiAssistantPanel />
+        <QrScannerModal
+          isOpen={showQrScannerModal}
+          onClose={() => setShowQrScannerModal(false)}
+          equipments={equipments}
+          onSelectEquipmentForInspection={(eqId) => { setMobileScanEquipmentId(eqId); setActiveTab('inspections'); }}
+          onNavigateToEquipments={() => setActiveTab('equipments')}
+        />
 
-      {/* 新用户首次引导 */}
-      <OnboardingGuide />
-    </div>
+        <AiAssistantPanel />
+        <OnboardingGuide />
+      </div>
     </AiChatProvider>
   );
 }
-
-/**
- * 驾驶舱 AI 联动桥接组件：
- * 在 Provider 内部读取 askAi，注入给驾驶舱，用于"AI 解读"与图表"问 AI 深入分析"。
- */
-const CockpitWithAiBridge: React.FC<{
-  onNavigateTab: (tab: string) => void;
-  onSelectEquipment: (eq: Equipment) => void;
-}> = ({ onNavigateTab, onSelectEquipment }) => {
-  const chat = useAiChatContext();
-  return (
-    <CockpitDashboardView
-      onNavigateTab={onNavigateTab}
-      onSelectEquipment={onSelectEquipment}
-      onAskAi={(text: string) => chat.askAi(text)}
-    />
-  );
-};

@@ -195,8 +195,8 @@ describe('故障定位 · 源码契约（防静默删功能）', () => {
     expect(scene).toContain('handleCreateWorkOrderFromFault');
     const shell = read(SHELL);
     expect(shell).toContain('onNavigateToWorkOrderCreate');
-    const app = read(APP);
-    expect(app).toContain('initialCreatePrefill={workOrderCreatePrefill}');
+    const appAndDispatcher = read(APP) + (fs.existsSync(path.join(ROOT, 'src/components/layout/AppViewDispatcher.tsx')) ? read('src/components/layout/AppViewDispatcher.tsx') : '');
+    expect(appAndDispatcher).toContain('initialCreatePrefill={workOrderCreatePrefill}');
   });
 
   it('工单页：预填进建单表单并消费（App 状态清空 + sessionStorage 清除），无权限不弹窗', () => {
