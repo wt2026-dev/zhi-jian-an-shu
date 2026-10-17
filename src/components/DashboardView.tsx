@@ -122,15 +122,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [complianceStats, setComplianceStats] = useState<ComplianceStats | null>(null);
   const [lowStockParts, setLowStockParts] = useState<SparePart[]>([]);
   const [pendingHazardsList, setPendingHazardsList] = useState<Hazard[]>([]);
-  // ⚠️ 加载失败 ≠ 没有数据。这两张卡片带**安全语义**（"备件充足" / "厂区无隐患"），
-  // 一旦把接口失败渲染成"一切正常"，就等于替系统编造了一个安全结论 ——
-  // 比编造故障更隐蔽，因为它看起来是好消息。所以失败必须单独记一笔。
+  // ⚠️ 加载失败 ≠ 没有数据。这些卡片带**安全语义**（"备件充足" / "厂区无隐患" /
+  // "平均合规得分 100" / "已入库 N 篇"），一旦把接口失败渲染成"一切正常"，就等于替
+  // 系统编造了一个结论 —— 比编造故障更隐蔽，因为它看起来是好消息。所以失败必须单独记一笔。
+  //
+  // 2026-10-17 复核：本文件此前有 9 处 `.catch(() => {})`，且渲染端用 `?? 100` / `|| 8` /
+  // `|| 18` / 硬编码「4 篇·3 篇·2 篇」兜底，接口全挂时页面照样显示"0 单审计、100 分、0% 违章"。
   const [sparePartsLoadFailed, setSparePartsLoadFailed] = useState(false);
   const [hazardsLoadFailed, setHazardsLoadFailed] = useState(false);
+  const [complianceLoadFailed, setComplianceLoadFailed] = useState(false);
+  const [auditLogsLoadFailed, setAuditLogsLoadFailed] = useState(false);
+  const [pendingReviewLoadFailed, setPendingReviewLoadFailed] = useState(false);
+  const [knowledgeLoadFailed, setKnowledgeLoadFailed] = useState(false);
+  const [graphLoadFailed, setGraphLoadFailed] = useState(false);
+  const [proceduresLoadFailed, setProceduresLoadFailed] = useState(false);
 
   React.useEffect(() => {
-    complianceApi.getStats().then(setComplianceStats).catch((e) => console.warn('合规统计加载失败:', e));
-    auditLogApi.list({ limit: 4 }).then((res) => setRecentAuditLogs(Array.isArray(res) ? res : [])).catch(() => {});
+    complianceApi
+      .getStats()
+      .then((s) => {
+        setComplianceStats(s);
+        setComplianceLoadFailed(false);
+      })
+      .catch((e) => {
+        console.warn('合规统计加载失败:', e);
+        setComplianceLoadFailed(true);
+      });
+    auditLogApi
+      .list({ limit: 4 })
+      .then((res) => {
+        setRecentAuditLogs(Array.isArray(res) ? res : []);
+        setAuditLogsLoadFailed(false);
+      })
+      .catch((e) => {
+        console.warn('审计日志加载失败:', e);
+        setAuditLogsLoadFailed(true);
+      });
     sparePartsApi
       .getLowStock()
       .then((res) => {
@@ -158,8 +185,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // 角色专属工作台模块扩展状态
   const [recentAuditLogs, setRecentAuditLogs] = useState<any[]>([]);
   const [pendingReviewArticles, setPendingReviewArticles] = useState<any[]>([]);
-  const [knowledgeStats, setKnowledgeStats] = useState<{ total: number; categories: Record<string, number> }>({ total: 0, categories: {} });
-  const [graphEntityCount, setGraphEntityCount] = useState<number>(0);
+  // null = 还没取到（含失败）。用 null 而不是 { total: 0 }，否则"没加载完"会被渲染成
+  // "已入库 0 篇" —— 0 是个看起来合法的统计值，用户分不出它和"真的空了"。
+  const [knowledgeStats, setKnowledgeStats] = useState<{ total: number; categories: Record<string, number> } | null>(null);
+  // 图谱用 { nodes, edges } 两个真数，取代原先的 graphEntityCount 单值 + 渲染端 `|| 18`
+  const [graphStats, setGraphStats] = useState<{ nodes: number; edges: number } | null>(null);
   const [recommendProcedures, setRecommendProcedures] = useState<any[]>([]);
   const [isExtractingGraph, setIsExtractingGraph] = useState(false);
   const [extractFeedback, setExtractFeedback] = useState<string | null>(null);
@@ -167,21 +197,64 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // 专属模块异步数据拉取 (随 currentUser.role 切换即时更新)
   useEffect(() => {
     if (currentUser.role === 'admin') {
-      auditLogApi.list({ limit: 4 }).then((res) => setRecentAuditLogs(Array.isArray(res) ? res : [])).catch(() => {});
+      auditLogApi
+        .list({ limit: 4 })
+        .then((res) => {
+          setRecentAuditLogs(Array.isArray(res) ? res : []);
+          setAuditLogsLoadFailed(false);
+        })
+        .catch((e) => {
+          console.warn('审计日志加载失败:', e);
+          setAuditLogsLoadFailed(true);
+        });
     }
     if (currentUser.role === 'archivist' || currentUser.role === 'admin') {
-      knowledgeApi.reviewList('pending').then((res) => setPendingReviewArticles(Array.isArray(res) ? res : [])).catch(() => {});
-      knowledgeApi.list().then((list) => {
-        if (Array.isArray(list)) {
-          const cats: Record<string, number> = {};
-          list.forEach((item: any) => { cats[item.category] = (cats[item.category] || 0) + 1; });
-          setKnowledgeStats({ total: list.length, categories: cats });
-        }
-      }).catch(() => {});
-      knowledgeApi.graph().then((g) => setGraphEntityCount(g?.nodes?.length || 0)).catch(() => {});
+      knowledgeApi
+        .reviewList('pending')
+        .then((res) => {
+          setPendingReviewArticles(Array.isArray(res) ? res : []);
+          setPendingReviewLoadFailed(false);
+        })
+        .catch((e) => {
+          console.warn('待审知识条目加载失败:', e);
+          setPendingReviewLoadFailed(true);
+        });
+      knowledgeApi
+        .list()
+        .then((list) => {
+          if (Array.isArray(list)) {
+            const cats: Record<string, number> = {};
+            list.forEach((item: any) => { cats[item.category] = (cats[item.category] || 0) + 1; });
+            setKnowledgeStats({ total: list.length, categories: cats });
+          }
+          setKnowledgeLoadFailed(false);
+        })
+        .catch((e) => {
+          console.warn('知识库列表加载失败:', e);
+          setKnowledgeLoadFailed(true);
+        });
+      knowledgeApi
+        .graph()
+        .then((g) => {
+          setGraphStats({ nodes: g?.nodes?.length ?? 0, edges: g?.edges?.length ?? 0 });
+          setGraphLoadFailed(false);
+        })
+        .catch((e) => {
+          console.warn('知识图谱加载失败:', e);
+          setGraphLoadFailed(true);
+        });
     }
     if (['technician', 'operator', 'user'].includes(currentUser.role)) {
-      procedureApi.list().then((res) => setRecommendProcedures(Array.isArray(res) ? res.slice(0, 4) : [])).catch(() => {});
+      procedureApi
+        .list()
+        .then((res) => {
+          setRecommendProcedures(Array.isArray(res) ? res.slice(0, 4) : []);
+          setProceduresLoadFailed(false);
+        })
+        .catch((e) => {
+          console.warn('推荐规程加载失败:', e);
+          setProceduresLoadFailed(true);
+        });
     }
   }, [currentUser.id, currentUser.role]);
 
@@ -321,7 +394,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setIsExtractingGraph(false);
       setExtractFeedback(`✅ 图谱抽取成功！新增关联 ${res.extractedArticles || 0} 篇规程实体`);
       const g = await knowledgeApi.graph();
-      setGraphEntityCount(g?.nodes?.length || 0);
+      setGraphStats({ nodes: g?.nodes?.length ?? 0, edges: g?.edges?.length ?? 0 });
+      setGraphLoadFailed(false);
       setTimeout(() => setExtractFeedback(null), 4000);
     } catch (e: any) {
       setIsExtractingGraph(false);
@@ -1055,25 +1129,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* 右侧：3 个指标 (竖线分隔) */}
-          <div className="flex items-center divide-x divide-slate-200 shrink-0 self-start lg:self-auto">
+          <div
+            className="flex items-center divide-x divide-slate-200 shrink-0 self-start lg:self-auto"
+            title={complianceLoadFailed ? '合规统计接口请求失败，指标无法计算（不是 0，也不是满分）' : undefined}
+          >
             {/* 指标 1：累计审计工单 */}
             <div className="px-3 sm:px-4 first:pl-0">
               <div className="text-[11px] text-slate-500">累计审计工单</div>
               <div className="text-base sm:text-lg font-bold text-slate-800 font-mono mt-0.5">
-                {complianceStats?.totalAuditedOrders ?? complianceStats?.totalOrders ?? 0}{' '}
+                {complianceStats?.totalAuditedOrders ?? complianceStats?.totalOrders ?? '—'}{' '}
                 <span className="text-xs font-normal text-slate-500">单</span>
               </div>
             </div>
 
-            {/* 指标 2：平均合规得分 */}
+            {/* 指标 2：平均合规得分
+                ⚠️ 原来写 `?? 100`：接口一挂就显示「100 分」+ 绿色，等于凭空给出满分结论。 */}
             <div className="px-3 sm:px-4">
               <div className="text-[11px] text-slate-500">平均合规得分</div>
               <div
                 className={`text-base sm:text-lg font-bold font-mono mt-0.5 ${
-                  (complianceStats?.avgScore ?? 100) >= 90 ? 'text-emerald-600' : 'text-amber-600'
+                  complianceStats?.avgScore == null
+                    ? 'text-slate-400'
+                    : complianceStats.avgScore >= 90
+                      ? 'text-emerald-600'
+                      : 'text-amber-600'
                 }`}
               >
-                {complianceStats?.avgScore ?? 100}{' '}
+                {complianceStats?.avgScore ?? '—'}{' '}
                 <span className="text-xs font-normal text-slate-500">分</span>
               </div>
             </div>
@@ -1082,7 +1164,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="px-3 sm:px-4 last:pr-0">
               <div className="text-[11px] text-slate-500">失误/违章率</div>
               {(() => {
-                const rawRate = complianceStats?.mistakeRate ?? 0;
+                // 同上：原来 `?? 0` 会把"没取到"渲染成 0%（看起来完美）
+                const rawRate = complianceStats?.mistakeRate;
+                if (rawRate == null) {
+                  return <div className="text-base sm:text-lg font-bold font-mono mt-0.5 text-slate-400">—</div>;
+                }
                 const rateNum = Number(rawRate) <= 1 ? Math.round(Number(rawRate) * 100) : Math.round(Number(rawRate));
                 return (
                   <div
@@ -1122,7 +1208,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   安全合规审计日志
                 </span>
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">
-                  最新 {Math.min(recentAuditLogs.length, 4)} 条
+                  最新 {auditLogsLoadFailed ? '—' : recentAuditLogs.length} 条
                 </span>
               </div>
 
@@ -1277,7 +1363,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))}
                   {recentAuditLogs.length === 0 && (
-                    <div className="p-3 text-center text-slate-500 text-[11px]">暂无最近审计流水</div>
+                    <div className="p-3 text-center text-slate-500 text-[11px]">
+                      {auditLogsLoadFailed ? '审计日志加载失败，无法判断是否留有合规流水' : '暂无最近审计流水'}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1581,8 +1669,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ))}
                   {recommendProcedures.length === 0 && (
+                    // ⚠️ 这里原本硬编码渲染《硬齿面减速机高速轴轴承更换SOP规程》已就绪 ——
+                    // 一条**库里不存在的规程**，长得跟真实推荐记录一模一样。空列表就该说空列表。
                     <div className="p-2 rounded bg-slate-50 text-slate-600 text-[11px]">
-                      《硬齿面减速机高速轴轴承更换SOP规程》已就绪
+                      {proceduresLoadFailed ? '推荐规程加载失败，请刷新重试' : '暂无推荐规程'}
                     </div>
                   )}
                 </div>
@@ -1884,7 +1974,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   ))}
                   {pendingReviewArticles.length === 0 && (
                     <div className="p-3 text-center text-slate-500 text-[11px]">
-                      暂无待审核知识条目，所有提交规程均已完成入库归档
+                      {pendingReviewLoadFailed
+                        ? '待审列表加载失败，无法判断是否还有未审核条目'
+                        : '暂无待审核知识条目，所有提交规程均已完成入库归档'}
                     </div>
                   )}
                 </div>
@@ -1910,23 +2002,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span className="text-xs font-bold text-slate-800">数字知识中枢资产</span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold">
-                    已入库 {knowledgeStats.total || 8}+ 篇
+                    {/* 原先 `knowledgeStats.total || 8` —— 取不到就写死 8 篇 */}
+                    已入库 {knowledgeLoadFailed || knowledgeStats == null ? '—' : `${knowledgeStats.total} 篇`}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mb-2">规程/典型故障案例/结构图纸分类</p>
+                <p className="text-xs text-slate-500 mb-2">按库内真实分类统计（取篇数最多的 3 类）</p>
                 <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-[11px]">
-                    <span className="text-slate-600">标准化作业规程 (SOP)</span>
-                    <span className="font-bold text-blue-600 font-mono">4 篇</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-[11px]">
-                    <span className="text-slate-600">典型故障分析与案例</span>
-                    <span className="font-bold text-indigo-600 font-mono">3 篇</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-[11px]">
-                    <span className="text-slate-600">设备机械结构与参数手册</span>
-                    <span className="font-bold text-emerald-600 font-mono">2 篇</span>
-                  </div>
+                  {/* 原先这里是三个写死的行：标准化作业规程 4 篇 / 典型故障分析 3 篇 /
+                      设备机械结构手册 2 篇 —— 三个分类名在 knowledge_articles 里一个都不存在，
+                      而且 4+3+2=9 与上方的"8 篇"自相矛盾。 */}
+                  {knowledgeStats == null || Object.keys(knowledgeStats.categories).length === 0 ? (
+                    <div className="p-2 rounded bg-slate-50 text-slate-500 text-[11px]">
+                      {knowledgeLoadFailed ? '知识库统计加载失败，无法判断资产规模' : '知识库暂无分类数据'}
+                    </div>
+                  ) : (
+                    Object.entries(knowledgeStats.categories)
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 3)
+                      .map(([name, count], idx) => (
+                        <div
+                          key={name}
+                          className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-[11px]"
+                        >
+                          <span className="text-slate-600 truncate">{name}</span>
+                          <span
+                            className={`font-bold font-mono shrink-0 ${
+                              ['text-blue-600', 'text-indigo-600', 'text-emerald-600'][idx] || 'text-slate-600'
+                            }`}
+                          >
+                            {count} 篇
+                          </span>
+                        </div>
+                      ))
+                  )}
                 </div>
               </div>
               <div className="pt-3 border-t border-slate-100 mt-3">
@@ -1950,18 +2058,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span className="text-xs font-bold text-slate-800">工业知识图谱动态维护</span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                    {graphEntityCount || 18} 实体节点
+                    {graphLoadFailed || graphStats == null ? '—' : graphStats.nodes} 实体节点
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mb-2">实体抽取: 设备-部件-故障现象-备件</p>
                 <div className="p-3 rounded-lg bg-emerald-50/50 border border-emerald-100 text-xs text-slate-700 space-y-2">
                   <div className="flex justify-between text-[11px]">
                     <span className="text-slate-600">关联关系统计</span>
-                    <span className="font-bold text-emerald-700 font-mono">26 条关联关系</span>
+                    <span className="font-bold text-emerald-700 font-mono">
+                      {graphLoadFailed || graphStats == null ? '—' : `${graphStats.edges} 条关联关系`}
+                    </span>
                   </div>
                   <div className="flex justify-between text-[11px]">
                     <span className="text-slate-600">图谱覆盖设备种类</span>
-                    <span className="font-bold text-slate-800 font-mono">100% 核心动力设备</span>
+                    {/* 原先写死「100% 核心动力设备」—— 没有任何接口提供覆盖率，属于凭空断言 */}
+                    <span className="font-bold text-slate-800 font-mono">
+                      {graphLoadFailed || graphStats == null ? '—' : '覆盖率未接入'}
+                    </span>
                   </div>
                   <button
                     onClick={handleExtractGraph}
