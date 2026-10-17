@@ -2,11 +2,15 @@ import { getDb } from "../db.ts";
 import { parseJson, VersionConflictError } from "./shared.ts";
 
 export const SafetyPermitRepository = {
-  async getAll(filters?: { riskLevel?: string; status?: string; workshop?: string; search?: string }) {
+  async getAll(filters?: { equipmentId?: string; riskLevel?: string; status?: string; workshop?: string; search?: string }) {
     const db = await getDb();
     let sql = `SELECT * FROM safety_permits WHERE 1=1`;
     const params: any[] = [];
 
+    if (filters?.equipmentId) {
+      params.push(filters.equipmentId);
+      sql += ` AND equipment_id = $${params.length}`;
+    }
     if (filters?.riskLevel && filters.riskLevel !== "all") {
       params.push(filters.riskLevel);
       sql += ` AND risk_level = $${params.length}`;

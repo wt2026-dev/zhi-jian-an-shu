@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import {
   SafetyPermitRepository,
   LotoLockRepository,
+  WorkOrderRepository,
   VersionConflictError,
   UserRepository,
 } from "../../db/repositories/index.ts";
@@ -120,6 +121,13 @@ export const handleApproveSafetyPermit = async (req: any, res: any) => {
     return res.status(403).json({ error: errorMsg, code: "RBAC_SUPERVISOR_REQUIRED" });
   }
 
+  if (permit.status !== "pending_approval") {
+    return res.status(409).json({ code: "PERMIT_STATE_CONFLICT", error: "仅待审批作业票可会签或驳回，生效或已结束的票据不得改签" });
+  }
+  const otherApproval = step === "guardian" ? permit.supervisorApproval : permit.guardianApproval;
+  if (pass && otherApproval?.signed && (otherApproval.userId === user.id || (!otherApproval.userId && otherApproval.name === user.name))) {
+    return res.status(409).json({ code: "SAFETY_INTERLOCK_BLOCKED", error: "监护与主管节点必须由两个不同账户签署" });
+  }
   const nowStr = new Date().toISOString();
 
   if (!pass) {
@@ -205,6 +213,7 @@ export const handleApproveSafetyPermit = async (req: any, res: any) => {
       permit.guardianApproval = {
         signed: true,
         name: user.name,
+        userId: user.id,
         role: "现场安全监护员",
         signedAt: nowStr,
         comment: comment || "现场安全防范措施就绪，准予会签",
@@ -216,6 +225,7 @@ export const handleApproveSafetyPermit = async (req: any, res: any) => {
       permit.supervisorApproval = {
         signed: true,
         name: user.name,
+        userId: user.id,
         role: "车间安全总监/主管",
         signedAt: nowStr,
         comment: comment || "安全条件审核合格，核准生效",
@@ -289,6 +299,19 @@ export const handleCloseSafetyPermit = async (req: any, res: any) => {
     });
   }
 
+  if (permit.equipmentId) {
+    const orders = await WorkOrderRepository.getAll({ equipmentId: permit.equipmentId });
+    if (orders.some((order: any) => order.status === "in_progress")) {
+      return res.status(409).json({ code: "SAFETY_INTERLOCK_BLOCKED", error: "设备仍有检修中的工单，请先完工上报再注销作业票" });
+    }
+  }
+  const { assertPermitLocksReleased, respondSafetyInterlock } = await import("../services/safetyInterlock.ts");
+  try {
+    await assertPermitLocksReleased(permit);
+  } catch (err: any) {
+    return respondSafetyInterlock(err, res) ? undefined : res.status(500).json({ error: "锁具释放校验失败: " + err.message });
+  }
+
   permit.status = "closed";
   permit.closedAt = new Date().toISOString();
   permit.closedBy = `${user.name} (${user.roleTitle})`;
@@ -335,7 +358,7 @@ export const handleCloseSafetyPermit = async (req: any, res: any) => {
 // DELETE /api/v1/safety-permits/:id —— 删除作业票 (仅限 admin 和 manager)
 export const handleDeleteSafetyPermit = async (req: any, res: any) => {
   const user = authenticateBearer(req);
-  const permit = dbSafetyPermits.find((p) => p.id === req.params.id);
+  const permit = await SafetyPermitRepository.getById(req.params.id);
   if (!permit) return res.status(404).json({ error: "作业票未找到" });
 
   if (!user) {
@@ -359,6 +382,10 @@ export const handleDeleteSafetyPermit = async (req: any, res: any) => {
     });
   }
 
+  const linkedLocks = (await LotoLockRepository.getAll()).filter((lock: any) => lock.permitNo === permit.permitNo || (permit.lotoNumber && lock.lockNo === permit.lotoNumber));
+  if (permit.status !== "pending_approval" || permit.guardianApproval?.signed || permit.supervisorApproval?.signed || linkedLocks.length) {
+    return res.status(409).json({ code: "SAFETY_INTERLOCK_BLOCKED", error: "已会签或关联锁具的作业票必须保留追溯记录，不能删除；请按注销流程处理" });
+  }
   const idx = dbSafetyPermits.findIndex((p) => p.id === req.params.id);
   dbSafetyPermits.splice(idx, 1);
   // 真实落库：同步删除数据库记录
@@ -383,6 +410,52 @@ export const handleGetLotoLocks = async (req: any, res: any) => {
     res.json(locks);
   } catch (err: any) {
     res.status(500).json({ error: "获取 LOTO 锁具数据失败: " + err.message });
+  }
+};
+
+export const handleCreateLotoLock = async (req: any, res: any) => {
+  const user = authenticateBearer(req);
+  if (!user) return res.status(401).json({ error: "未登录" });
+  try {
+    const permits = await SafetyPermitRepository.getAll();
+    const permit = permits.find((p: any) => p.permitNo === req.body.permitNo);
+    if (!permit) return res.status(404).json({ error: "关联作业票不存在" });
+    if (!["pending_approval", "approved", "active"].includes(permit.status)) {
+      return res.status(409).json({ error: "已驳回或注销的作业票不能登记锁具" });
+    }
+    const lock = await LotoLockRepository.create({
+      ...req.body, permitTitle: permit.title, workshop: permit.workshop,
+      lockedBy: `${user.name} (${user.id})`, status: "locked",
+    });
+    if (!lock) return res.status(409).json({ code: "LOCK_NUMBER_EXISTS", error: "锁号已登记，不能覆盖既有记录" });
+    addAuditLog(req, { actionType: "LOTO_REGISTER", module: "安全作业票", detail: `登记隔离锁 ${lock.lockNo}，关联 ${permit.permitNo}`, status: "SUCCESS" });
+    return res.status(201).json(lock);
+  } catch (err: any) {
+    return res.status(500).json({ error: "登记锁具失败: " + err.message });
+  }
+};
+
+export const handleReleaseLotoLock = async (req: any, res: any) => {
+  const user = authenticateBearer(req);
+  if (!user) return res.status(401).json({ error: "未登录" });
+  try {
+    const lock = await LotoLockRepository.getById(req.params.id);
+    if (!lock) return res.status(404).json({ error: "锁具记录不存在" });
+    const permits = await SafetyPermitRepository.getAll();
+    const linkedPermits = permits.filter((p: any) => p.permitNo === lock.permitNo || p.lotoNumber === lock.lockNo);
+    for (const permit of linkedPermits) {
+      if (!permit.equipmentId) continue;
+      const orders = await WorkOrderRepository.getAll({ equipmentId: permit.equipmentId });
+      if (orders.some((order: any) => order.status === "in_progress")) {
+        return res.status(409).json({ code: "SAFETY_INTERLOCK_BLOCKED", error: "设备仍有检修中的工单，请先完工上报再记录隔离锁释放" });
+      }
+    }
+    const released = await LotoLockRepository.release(lock.id, `${user.name} (${user.id})`, req.body.unlockRemark);
+    if (!released) return res.status(409).json({ error: "锁具已释放，请刷新后查看" });
+    addAuditLog(req, { actionType: "LOTO_RELEASE", module: "安全作业票", detail: `记录隔离锁 ${lock.lockNo} 释放：${req.body.unlockRemark}`, status: "SUCCESS" });
+    return res.json(released);
+  } catch (err: any) {
+    return res.status(500).json({ error: "记录锁具释放失败: " + err.message });
   }
 };
 

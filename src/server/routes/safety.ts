@@ -2,7 +2,7 @@
 import express from "express";
 import { validateBody, validateParams, validateQuery, idParamSchema } from "../middleware/validate.ts";
 import { requireAuth, requireRole } from "../middleware/auth.ts";
-import { safetyPermitsQuerySchema, createSafetyPermitSchema, approveSafetyPermitSchema, closeSafetyPermitSchema } from "../schemas/safety.ts";
+import { safetyPermitsQuerySchema, createSafetyPermitSchema, approveSafetyPermitSchema, closeSafetyPermitSchema, createLotoLockSchema, releaseLotoLockSchema } from "../schemas/safety.ts";
 import {
   handleGetSafetyPermits,
   handleGetSafetyPermitById,
@@ -11,6 +11,8 @@ import {
   handleCloseSafetyPermit,
   handleDeleteSafetyPermit,
   handleGetLotoLocks,
+  handleCreateLotoLock,
+  handleReleaseLotoLock,
   handleGetLotoLockById,
   loadSafetyPermitsIntoMemory,
 } from "../controllers/safetyController.ts";
@@ -38,6 +40,8 @@ export function registerSafetyRoutes(app: express.Express) {
   // ==================== 16.4 通知中心 / LOTO 锁具 / 账号与设备创建 ====================
 
   // LOTO 能量隔离锁具看板 (工作台 LOTO 面板与安全看板真实数据源)：登录可读
+  app.post("/api/v1/loto-locks", requireRole(["admin", "manager", "inspector"], "登记隔离锁"), validateBody(createLotoLockSchema), handleCreateLotoLock);
+  app.post("/api/v1/loto-locks/:id/release", requireRole(["admin", "manager", "inspector"], "记录隔离锁释放"), validateParams(idParamSchema), validateBody(releaseLotoLockSchema), handleReleaseLotoLock);
   app.get("/api/v1/loto-locks", requireAuth, handleGetLotoLocks);
   app.get("/api/loto-locks", requireAuth, handleGetLotoLocks);
   app.get("/api/v1/loto-locks/:id", requireAuth, validateParams(idParamSchema), handleGetLotoLockById);

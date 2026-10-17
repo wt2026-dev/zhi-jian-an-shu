@@ -5,6 +5,7 @@ import { createApp } from "../server.ts";
 let app: any;
 let adminToken: string;
 let techToken: string;
+let inspectorToken: string;
 
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
@@ -19,6 +20,13 @@ beforeAll(async () => {
     .post("/api/v1/auth/login")
     .send({ username: "tech1", password: "Tech1@2026#Work" });
   techToken = techLogin.body.token;
+
+  const inspectorLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .send({ username: "inspector", password: "Inspect@2026#Check" });
+  expect(inspectorLogin.status).toBe(200);
+  expect(inspectorLogin.body.token).toBeTruthy();
+  inspectorToken = inspectorLogin.body.token;
 });
 
 describe("工单状态机与互斥校验 (Work Order State Machine Suite)", () => {
@@ -51,6 +59,53 @@ describe("工单状态机与互斥校验 (Work Order State Machine Suite)", () =
     return res.body;
   }
 
+  async function createApprovedPermit(equipmentId: string) {
+    const created = await request(app)
+      .post("/api/v1/safety-permits")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        title: "状态机测试安全作业票",
+        equipmentId,
+        validUntil: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        // 未声明 LOTO 锁号，无需登记隔离锁。
+        lotoNumber: null,
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.status).toBe("pending_approval");
+    expect(created.body.equipmentId).toBe(equipmentId);
+    expect(created.body.lotoNumber).toBeNull();
+
+    const guardian = await request(app)
+      .post(`/api/v1/safety-permits/${created.body.id}/approve`)
+      .set("Authorization", `Bearer ${inspectorToken}`)
+      .send({ step: "guardian", pass: true });
+    expect(guardian.status).toBe(200);
+    expect(guardian.body.guardianApproval.signed).toBe(true);
+
+    const supervisor = await request(app)
+      .post(`/api/v1/safety-permits/${created.body.id}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ step: "supervisor", pass: true });
+    expect(supervisor.status).toBe(200);
+    expect(supervisor.body.status).toBe("approved");
+    expect(supervisor.body.guardianApproval.signed).toBe(true);
+    expect(supervisor.body.supervisorApproval.signed).toBe(true);
+    expect(supervisor.body.guardianApproval.userId).toBeTruthy();
+    expect(supervisor.body.supervisorApproval.userId).toBeTruthy();
+    expect(supervisor.body.guardianApproval.userId).not.toBe(supervisor.body.supervisorApproval.userId);
+    expect(Date.parse(supervisor.body.validUntil)).toBeGreaterThan(Date.now());
+    return supervisor.body.id;
+  }
+
+  async function closePermit(permitId: string) {
+    const closed = await request(app)
+      .post(`/api/v1/safety-permits/${permitId}/close`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ closeRemark: "检修完工，现场收尾完成，注销作业票后验收" });
+    expect(closed.status).toBe(200);
+    expect(closed.body.status).toBe("closed");
+  }
+
   it("完整生命周期：created → dispatched → in_progress → pending_acceptance → completed，时间线日志 ≥5 条", async () => {
     const eqId = await createEquipment("FULL");
     const order = await createOrder(eqId, "FULL");
@@ -63,6 +118,8 @@ describe("工单状态机与互斥校验 (Work Order State Machine Suite)", () =
       .send({ assigneeId: "u-tech1", assigneeName: "张建国 (高级技师)", estimatedHours: 2 });
     expect(dispatch.status).toBe(200);
     expect(dispatch.body.status).toBe("dispatched");
+
+    const permitId = await createApprovedPermit(eqId);
 
     // 接单
     const claim = await request(app)
@@ -79,6 +136,8 @@ describe("工单状态机与互斥校验 (Work Order State Machine Suite)", () =
       .send({ causeAnalysis: "轴承磨损", resolutionSteps: "更换轴承并重新对中", workHours: 3 });
     expect(complete.status).toBe(200);
     expect(complete.body.status).toBe("pending_acceptance");
+
+    await closePermit(permitId);
 
     // 质检验收归档
     const accept = await request(app)
@@ -118,6 +177,7 @@ describe("工单状态机与互斥校验 (Work Order State Machine Suite)", () =
       .post(`/api/v1/work-orders/${order.id}/dispatch`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({ assigneeId: "u-tech1" });
+    const permitId = await createApprovedPermit(eqId);
     await request(app)
       .post(`/api/v1/work-orders/${order.id}/claim`)
       .set("Authorization", `Bearer ${techToken}`)
@@ -126,6 +186,7 @@ describe("工单状态机与互斥校验 (Work Order State Machine Suite)", () =
       .post(`/api/v1/work-orders/${order.id}/complete`)
       .set("Authorization", `Bearer ${techToken}`)
       .send({ causeAnalysis: "x", resolutionSteps: "y", workHours: 1 });
+    await closePermit(permitId);
     const accept = await request(app)
       .post(`/api/v1/work-orders/${order.id}/accept`)
       .set("Authorization", `Bearer ${adminToken}`)

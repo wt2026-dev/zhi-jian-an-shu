@@ -32,6 +32,18 @@ export const approveSafetyPermitSchema = z.object({
   signatureMethod: z.enum(["password_verified", "quick_sign", "biometric_simulated"]).optional(),
 });
 
+export const createLotoLockSchema = z.object({
+  lockNo: z.string().trim().min(1).max(64),
+  permitNo: z.string().trim().min(1).max(64),
+  pointName: z.string().trim().min(1).max(255),
+  energySource: z.string().trim().max(255).optional(),
+  location: z.string().trim().max(255).optional(),
+});
+
+export const releaseLotoLockSchema = z.object({
+  unlockRemark: z.string().trim().min(1).max(2000),
+});
+
 export const closeSafetyPermitSchema = z.object({
   closeRemark: z.string().optional(),
   version: z.number().optional(),

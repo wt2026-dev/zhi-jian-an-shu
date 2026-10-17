@@ -49,28 +49,41 @@ export function getWorkOrderStatusInfo(status: WorkOrderStatus): StatusInfo {
   }
 }
 
+/** 状态对应圆点颜色 */
+const STATUS_DOT_COLOR: Record<string, string> = {
+  created: 'bg-orange-500',
+  dispatched: 'bg-blue-500',
+  in_progress: 'bg-indigo-500',
+  pending_acceptance: 'bg-purple-500',
+  completed: 'bg-emerald-500',
+};
+
 /**
  * 工单状态徽章组件
  *
  * @param status   - 工单状态值
  * @param size     - 'sm'（默认）| 'xs'，控制字体与内边距
- * @param showDot  - 是否在标签前显示状态圆点（默认 false）
+ * @param showDot  - 是否在标签前显示状态圆点（默认 true，带动画）
  */
 export const WorkOrderStatusBadge: React.FC<{
   status: WorkOrderStatus;
   size?: 'xs' | 'sm';
   showDot?: boolean;
-}> = ({ status, size = 'sm', showDot = false }) => {
+}> = ({ status, size = 'sm', showDot = true }) => {
   const { label, color } = getWorkOrderStatusInfo(status);
   const sizeClass = size === 'xs' ? 'text-[10px] px-1.5 py-0.5' : 'text-[11px] px-2 py-0.5';
+  const dotColor = STATUS_DOT_COLOR[status] || 'bg-slate-400';
+  const isActive = status === 'in_progress' || status === 'dispatched';
 
   return (
-    <span className={`inline-flex items-center gap-1 rounded border font-medium ${sizeClass} ${color}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded border font-medium ${sizeClass} ${color}`}>
       {showDot && (
-        <span
-          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: 'currentColor', opacity: 0.6 }}
-        />
+        <span className="relative flex h-1.5 w-1.5 shrink-0">
+          {isActive && (
+            <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-pulse ${dotColor}`} />
+          )}
+          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${dotColor}`} />
+        </span>
       )}
       {label}
     </span>

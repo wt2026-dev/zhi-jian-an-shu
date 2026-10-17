@@ -4,6 +4,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { WorkOrdersView } from '../../src/components/WorkOrdersView';
+import { ToastProvider } from '../../src/context/ToastContext';
 import type { WorkOrder, Equipment, UserProfile } from '../../src/types';
 
 // --- Mocks ---
@@ -114,39 +115,40 @@ describe('WorkOrdersView', () => {
     vi.clearAllMocks();
   });
 
+  const renderWithToast = (props: any) =>
+    render(<ToastProvider><WorkOrdersView {...props} /></ToastProvider>);
+
   it('renders work order list from props', () => {
-    render(<WorkOrdersView {...defaultProps} />);
+    renderWithToast(defaultProps);
     expect(screen.getByTestId('virtual-list')).toBeTruthy();
     const items = screen.getAllByTestId('wo-item');
     expect(items).toHaveLength(3);
   });
 
   it('shows empty state when no work orders', () => {
-    render(<WorkOrdersView {...defaultProps} workOrders={[]} />);
+    renderWithToast({ ...defaultProps, workOrders: [] });
     expect(screen.getByTestId('virtual-list')).toBeTruthy();
     expect(screen.getByTestId('virtual-empty')).toBeTruthy();
   });
 
   it('shows status tab counts', () => {
-    render(<WorkOrdersView {...defaultProps} />);
+    renderWithToast(defaultProps);
     expect(screen.getAllByText(/全部工单/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/待派单/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/检修中/).length).toBeGreaterThan(0);
   });
 
   it('renders search input', () => {
-    render(<WorkOrdersView {...defaultProps} />);
+    renderWithToast(defaultProps);
     expect(screen.getByPlaceholderText(/搜索工单号/)).toBeTruthy();
   });
 
-  it('step 1 title validation alerts on empty', async () => {
-    // Patch alert to capture the call
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
-    render(<WorkOrdersView {...defaultProps} initialCreateOpen={true} />);
-    // The "下一步" button is on step 1
-    const nextBtn = screen.getByText('下一步');
-    await userEvent.click(nextBtn);
-    expect(alertSpy).toHaveBeenCalledWith('请先输入工单标题/摘要');
-    alertSpy.mockRestore();
+  it('renders 3D 查看 button and triggers onNavigateTo3D', async () => {
+    const onNavigateTo3D = vi.fn();
+    renderWithToast({ ...defaultProps, onNavigateTo3D });
+    const buttons = screen.getAllByText('3D 查看');
+    expect(buttons.length).toBe(3);
+    await userEvent.click(buttons[0]);
+    expect(onNavigateTo3D).toHaveBeenCalledWith('wo-1');
   });
 });

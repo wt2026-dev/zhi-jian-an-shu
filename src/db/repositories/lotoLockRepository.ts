@@ -43,4 +43,50 @@ export const LotoLockRepository = {
     if (!rows[0]) return null;
     return this.mapRow(rows[0]);
   },
+
+  async create(lock: {
+    id?: string;
+    lockNo: string;
+    permitNo?: string | null;
+    permitTitle?: string | null;
+    pointName?: string | null;
+    energySource?: string | null;
+    location?: string | null;
+    workshop?: string | null;
+    lockedBy: string;
+    status?: string;
+  }) {
+    const db = await getDb();
+    const id = lock.id || `lock-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const { rows } = await db.query(
+      `INSERT INTO loto_locks (id, lock_no, permit_no, permit_title, point_name, energy_source, location, workshop, locked_by, locked_at, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (lock_no) DO NOTHING RETURNING *;`,
+      [
+        id,
+        lock.lockNo,
+        lock.permitNo || null,
+        lock.permitTitle || null,
+        lock.pointName || null,
+        lock.energySource || null,
+        lock.location || null,
+        lock.workshop || null,
+        lock.lockedBy,
+        new Date().toISOString(),
+        lock.status || "locked",
+      ]
+    );
+    return rows[0] ? this.mapRow(rows[0]) : null;
+  },
+
+  async release(id: string, releasedBy: string, unlockRemark: string) {
+    const db = await getDb();
+    const { rowCount } = await db.query(
+      `UPDATE loto_locks SET status = 'unlocked', unlocked_at = $2, unlock_remark = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND status = 'locked';`,
+      [id, new Date().toISOString(), `${releasedBy}：${unlockRemark}`]
+    );
+    if (rowCount === 0) return null;
+    return this.getById(id);
+  },
 };

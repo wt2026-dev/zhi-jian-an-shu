@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   Sparkles,
   ShieldCheck,
@@ -25,6 +25,8 @@ import { SafetyPermit, RiskLevel, UserProfile, Equipment, LotoLock } from '../ty
 import { safetyPermitApi, aiApi } from '../api';
 import { AiResultModal } from './ai/AiResultModal';
 import { AiSafetyAssessment } from '../api';
+import AppDataContext from '../context/AppDataContext';
+import { can, describeActionOwner } from '../utils/rbac';
 
 interface SafetyManagementViewProps {
   currentUser: UserProfile;
@@ -40,7 +42,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
   currentUser,
   safetyPermits,
   equipments,
-  lotoLocks = [],
+  lotoLocks,
   onAddSafetyPermit,
   onUpdateSafetyPermit,
   onDeleteSafetyPermit,
@@ -48,6 +50,35 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
   const [selectedRiskLevel, setSelectedRiskLevel] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [activePermit, setActivePermit] = useState<SafetyPermit | null>(null);
+
+  // 优先消费全局 LOTO 台账；未挂 Provider（旧用例直接渲染）时回退 props
+  const appData = useContext(AppDataContext);
+  const [fallbackLotoLocks, setFallbackLotoLocks] = useState<LotoLock[] | null>(null);
+  const lotoLockList = appData?.lotoLocks ?? fallbackLotoLocks ?? lotoLocks ?? [];
+  const refreshLotoLocks = async () => {
+    if (appData) {
+      await appData.refreshLotoLocks();
+    } else {
+      const locks = await safetyPermitApi.getLotoLocks();
+      if (!Array.isArray(locks)) throw new Error('LOTO 台账响应格式错误');
+      setFallbackLotoLocks(locks);
+    }
+  };
+  useEffect(() => setFallbackLotoLocks(null), [lotoLocks]);
+  const canWriteLoto = ['admin', 'manager', 'inspector'].includes(currentUser.role);
+  // 双人会签的两道闸门：① 现场安全监护会签（点检）→ ② 车间主管终审签发（主管）
+  const canGuardianSign = can('safety:guardianConfirm', currentUser.role);
+  const canFinalApprove = can('safety:finalApprove', currentUser.role);
+  const [lockForm, setLockForm] = useState({ lockNo: '', pointName: '', energySource: '', location: '' });
+  const [releaseRemarks, setReleaseRemarks] = useState<Record<string, string>>({});
+  const [lotoBusy, setLotoBusy] = useState<string | null>(null);
+  const [lotoError, setLotoError] = useState<string | null>(null);
+  const [lotoNeedsRefresh, setLotoNeedsRefresh] = useState(false);
+  useEffect(() => {
+    setLockForm({ lockNo: '', pointName: '', energySource: '', location: '' });
+    setReleaseRemarks({});
+    setLotoError(null);
+  }, [activePermit?.id]);
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -71,6 +102,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
       '专人现场看火并落实防火毯覆盖',
     ],
     lotoNumber: '',
+    validUntil: '',
   });
 
   const riskLevels: { id: string; label: string; count: number; color: string }[] = [
@@ -136,6 +168,12 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingPermit) return;
+    const deadline = new Date(formData.validUntil);
+    if (!formData.validUntil || !Number.isFinite(deadline.getTime()) || deadline.getTime() <= Date.now()) {
+      setSubmitError('请选择晚于当前时间的有效截止时限');
+      return;
+    }
     const targetEq = equipments.find((e) => e.id === formData.equipmentId);
     setIsSubmittingPermit(true);
     setSubmitError(null);
@@ -151,28 +189,30 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
         location: formData.location || targetEq?.location || '指定区域',
         precautions: formData.precautions,
         lotoNumber: formData.lotoNumber || null,
+        validUntil: deadline.toISOString(),
       });
       onAddSafetyPermit(created);
       setShowCreateModal(false);
+      setFormData({
+        permitType: '动火作业票',
+        riskLevel: '较大风险 (Level 2)',
+        title: '',
+        equipmentId: equipments[0]?.id || '',
+        workshop: '一号动力车间',
+        location: '',
+        precautions: [
+          '作业现场配备 2 具 4kg ABC 干粉灭火器',
+          '清理周边 10 米内易燃易爆杂物',
+          '专人现场看火并落实防火毯覆盖',
+        ],
+        lotoNumber: '',
+        validUntil: '',
+      });
     } catch (err: any) {
       setSubmitError(err?.message || '提交安全审批流失败，请稍后重试');
     } finally {
       setIsSubmittingPermit(false);
     }
-    setFormData({
-      permitType: '动火作业票',
-      riskLevel: '较大风险 (Level 2)',
-      title: '',
-      equipmentId: equipments[0]?.id || '',
-      workshop: '一号动力车间',
-      location: '',
-      precautions: [
-        '作业现场配备 2 具 4kg ABC 干粉灭火器',
-        '清理周边 10 米内易燃易爆杂物',
-        '专人现场看火并落实防火毯覆盖',
-      ],
-      lotoNumber: '',
-    });
   };
 
   const handleApprovalAction = async (approved: boolean) => {
@@ -182,6 +222,16 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
     try {
       // 真实落库：调用后端双人会签审批流转 (现场监护节点 → 主管终审节点)
       const step = activePermit.guardianApproval?.signed ? 'supervisor' : 'guardian';
+      // 前端闸门（后端 403 兜底）：监护会签只有点检能签，终审签发只有主管能签
+      const allowed = step === 'guardian' ? canGuardianSign : canFinalApprove;
+      if (!allowed) {
+        setSubmitError(
+          step === 'guardian'
+            ? `当前角色无权限执行现场监护确认，仅${describeActionOwner('safety:guardianConfirm')}可操作，请切换角色`
+            : `当前角色无权限执行终审签发，仅${describeActionOwner('safety:finalApprove')}可操作，请切换角色`
+        );
+        return;
+      }
       const updated = await safetyPermitApi.approve(activePermit.id, {
         step,
         pass: approved,
@@ -197,7 +247,64 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
     }
   };
 
-  const activeLotoLocks = lotoLocks.filter((l) => l.status === 'locked');
+  const handleLotoSubmit = async (e: React.FormEvent, lock?: LotoLock) => {
+    e.preventDefault();
+    if (!activePermit || lotoBusy || lotoNeedsRefresh) return;
+    if (!canWriteLoto) {
+      setLotoError('仅管理员、主管或安全巡检员可写入人工记录');
+      return;
+    }
+    const unlockRemark = lock ? (releaseRemarks[lock.id] || '').trim() : '';
+    if (lock ? !unlockRemark : !lockForm.lockNo.trim() || !lockForm.pointName.trim()) {
+      setLotoError(lock ? '请填写释放备注' : '请填写锁号和隔离点名称');
+      return;
+    }
+    if (lock && (lock.permitNo !== activePermit.permitNo || lock.status !== 'locked')) return;
+    setLotoBusy(lock?.id || 'register');
+    setLotoError(null);
+    let recorded = false;
+    try {
+      if (lock) {
+        await safetyPermitApi.releaseLotoLock(lock.id, { unlockRemark });
+      } else {
+        await safetyPermitApi.registerLotoLock({
+          lockNo: lockForm.lockNo.trim(),
+          permitNo: activePermit.permitNo,
+          pointName: lockForm.pointName.trim(),
+          energySource: lockForm.energySource.trim() || undefined,
+          location: lockForm.location.trim() || undefined,
+        });
+      }
+      recorded = true;
+      setLotoNeedsRefresh(true);
+      if (lock) setReleaseRemarks((prev) => ({ ...prev, [lock.id]: '' }));
+      else setLockForm({ lockNo: '', pointName: '', energySource: '', location: '' });
+      await refreshLotoLocks();
+      setLotoNeedsRefresh(false);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '请求失败，请稍后重试';
+      setLotoError(recorded ? `人工记录已保存，但台账刷新失败，请重试刷新，勿重复提交。${message}` : message);
+    } finally {
+      setLotoBusy(null);
+    }
+  };
+
+  const handleRefreshLoto = async () => {
+    if (lotoBusy) return;
+    setLotoBusy('refresh');
+    setLotoError(null);
+    try {
+      await refreshLotoLocks();
+      setLotoNeedsRefresh(false);
+    } catch (err: unknown) {
+      setLotoError(err instanceof Error ? err.message : '台账刷新失败，请重试');
+    } finally {
+      setLotoBusy(null);
+    }
+  };
+
+  const activeLotoLocks = lotoLockList.filter((l) => l.status === 'locked');
+  const relatedLotoLocks = lotoLockList.filter((l) => l.permitNo === activePermit?.permitNo);
 
   // AI 作业票风险评估状态 (功能 6)
   const [riskAssessState, setRiskAssessState] = useState<{ open: boolean; loading: boolean; error: string | null; degraded?: boolean; reviewId?: string | null; data?: AiSafetyAssessment | null }>({ open: false, loading: false, error: null });
@@ -362,23 +469,23 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <span className="text-xs font-bold px-2 py-0.5 rounded bg-purple-600 text-white">
-                LOTO 能量隔离联锁看板
+                LOTO 能量隔离人工台账
               </span>
               <span className="text-xs font-semibold text-purple-900">
-                当前 {activeLotoLocks.length} 组动力回路挂锁执行中
+                当前 {activeLotoLocks.length} 条人工挂锁记录未释放
                 {activeLotoLocks.length > 0 && `: ${activeLotoLocks.map((l) => l.lockNo).join(' / ')}`}
               </span>
             </div>
             <p className="text-xs text-slate-600 mt-0.5">
               {activeLotoLocks.length > 0
-                ? `隔离点: ${activeLotoLocks[0].pointName || '—'} | 动力源: ${activeLotoLocks[0].energySource || '—'} (零能确认已完成)`
-                : '当前无挂锁执行中的能量隔离作业，全部锁具已解除'}
+                ? `隔离点: ${activeLotoLocks[0].pointName || '—'} | 动力源: ${activeLotoLocks[0].energySource || '—'} (人工记录，现场状态须核验)`
+                : '当前无未释放的人工挂锁记录，不代表现场锁具已解除'}
             </p>
           </div>
         </div>
         <div className="flex items-center space-x-2 shrink-0">
           <span className="text-xs px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-            防误合闸闭锁有效
+            人工台账 · 非硬件控制
           </span>
         </div>
       </div>
@@ -515,6 +622,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
               </div>
 
               <button
+                disabled={!!lotoBusy}
                 onClick={() => setActivePermit(null)}
                 className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800"
               >
@@ -537,6 +645,84 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
                 </p>
               </div>
             )}
+
+            {/* 人工 LOTO 台账，不执行硬件控制 */}
+            <section aria-busy={!!lotoBusy} className="p-4 rounded-xl border border-purple-200 bg-purple-50/40 space-y-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="font-bold text-purple-900">LOTO 锁具人工记录</h4>
+                <button type="button" onClick={handleRefreshLoto} disabled={!!lotoBusy}
+                  className="px-3 py-1.5 rounded-lg border border-purple-200 text-purple-700 disabled:opacity-50">
+                  {lotoBusy === 'refresh' ? '刷新中...' : '刷新人工台账'}
+                </button>
+              </div>
+              <p className="text-slate-600">仅人工登记现场挂锁与释放情况，不控制硬件、不执行远程解锁，也不代表已核验零能量。现场操作须遵守安全规程。</p>
+              {lotoError && <p role="alert" className="p-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200">{lotoError}</p>}
+              {lotoNeedsRefresh && <p role="status" className="text-amber-700">台账尚待刷新，完成刷新后方可继续写入人工记录。</p>}
+              {canWriteLoto ? (
+                <form onSubmit={(e) => handleLotoSubmit(e)}>
+                  <fieldset disabled={!!lotoBusy || lotoNeedsRefresh} className="space-y-3 disabled:opacity-60">
+                    <legend className="font-semibold text-slate-800 mb-2">人工登记挂锁记录</legend>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="block text-slate-700">锁号 *
+                        <input required maxLength={64} value={lockForm.lockNo}
+                          onChange={(e) => setLockForm({ ...lockForm, lockNo: e.target.value })}
+                          className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-white" />
+                      </label>
+                      <label className="block text-slate-700">隔离点名称 *
+                        <input required maxLength={255} value={lockForm.pointName}
+                          onChange={(e) => setLockForm({ ...lockForm, pointName: e.target.value })}
+                          className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-white" />
+                      </label>
+                      <label className="block text-slate-700">能量源
+                        <input maxLength={255} value={lockForm.energySource}
+                          onChange={(e) => setLockForm({ ...lockForm, energySource: e.target.value })}
+                          className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-white" />
+                      </label>
+                      <label className="block text-slate-700">现场位置
+                        <input maxLength={255} value={lockForm.location}
+                          onChange={(e) => setLockForm({ ...lockForm, location: e.target.value })}
+                          className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-white" />
+                      </label>
+                    </div>
+                    <button type="submit" className="px-3 py-2 rounded-lg bg-purple-600 text-white">
+                      {lotoBusy === 'register' ? '保存并刷新中...' : '保存人工挂锁记录'}
+                    </button>
+                  </fieldset>
+                </form>
+              ) : <p className="text-slate-500">只读：仅管理员、主管或安全巡检员可登记和释放人工记录。</p>}
+              <h5 className="font-semibold text-slate-800">本作业票关联的人工记录 ({relatedLotoLocks.length})</h5>
+              {relatedLotoLocks.length === 0 ? <p className="text-slate-500">暂无关联锁具记录。</p> : (
+                <ul className="space-y-3">
+                  {relatedLotoLocks.map((lock) => (
+                    <li key={lock.id} className="p-3 rounded-lg bg-white border border-slate-200 space-y-2">
+                      <div className="flex justify-between gap-2 font-semibold text-slate-800">
+                        <span>{lock.lockNo} · {lock.pointName || '未填写隔离点'}</span>
+                        <span>{lock.status === 'locked' ? '人工记录：挂锁中' : lock.status === 'unlocked' ? '人工记录：已释放' : `记录状态：${lock.status}`}</span>
+                      </div>
+                      <p className="text-slate-600">能量源：{lock.energySource || '—'} · 位置：{lock.location || '—'}</p>
+                      <p className="text-slate-500">登记人：{lock.lockedBy || '—'} · 登记时间：{lock.lockedAt || '—'}</p>
+                      {lock.status === 'unlocked' && (
+                        <p className="text-slate-600 whitespace-pre-wrap">释放记录时间：{lock.unlockedAt || '—'} · 释放备注：{lock.unlockRemark || '—'}</p>
+                      )}
+                      {lock.status === 'locked' && canWriteLoto && (
+                        <form onSubmit={(e) => handleLotoSubmit(e, lock)}>
+                          <fieldset disabled={!!lotoBusy || lotoNeedsRefresh} className="space-y-2 disabled:opacity-60">
+                            <label className="block text-slate-700">释放备注（人工记录） *
+                              <textarea required maxLength={2000} rows={2} value={releaseRemarks[lock.id] || ''}
+                                onChange={(e) => setReleaseRemarks((prev) => ({ ...prev, [lock.id]: e.target.value }))}
+                                className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200" />
+                            </label>
+                            <button type="submit" className="px-3 py-2 rounded-lg border border-amber-200 text-amber-800 bg-amber-50">
+                              {lotoBusy === lock.id ? '保存并刷新中...' : '保存人工释放记录'}
+                            </button>
+                          </fieldset>
+                        </form>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
             {/* Precautions List */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
@@ -653,10 +839,12 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 {currentUser.role === 'admin'
-                  ? '👑 管理员/车间总工：具备高危作业票终审审批、闭环验收以及高危作业票永久注销与删除的最高权限。'
+                  ? '👑 管理员/车间总工：具备监护会签、终审签发与高危作业票注销删除的全部最高权限。'
+                  : currentUser.role === 'manager'
+                  ? '🏭 车间主管：具备高危作业票终审签发与注销删除权限；现场监护会签由点检工程师完成。'
                   : currentUser.role === 'inspector'
-                  ? '🛡️ 专职安全巡检员：具备现场动火/受限空间安全条件初审会签权限，无高危票注销删除权限。'
-                  : '⚠️ 普通操作员：仅具备申报与查阅权限。根据安监规程，普通操作员严禁删除或跳过审批高危作业票。'}
+                  ? '🛡️ 点检工程师/专职安全监护员：具备现场安全条件监护会签权限，无终审签发与注销删除权限。'
+                  : '⚠️ 当前角色：仅具备申报与查阅权限。根据安监规程，严禁删除或跳过审批高危作业票。'}
               </p>
             </div>
 
@@ -685,7 +873,7 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
               </button>
 
               <div className="flex items-center space-x-2 justify-end">
-                {activePermit.status === 'pending_approval' && (currentUser.role === 'admin' || currentUser.role === 'inspector') ? (
+                {activePermit.status === 'pending_approval' && (activePermit.guardianApproval?.signed ? canFinalApprove : canGuardianSign) ? (
                   <>
                     <button
                       onClick={() => handleApprovalAction(false)}
@@ -696,17 +884,19 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
                       <span>{isSubmittingPermit ? '处理中...' : '驳回申请'}</span>
                     </button>
                     <button
+                      id="btn-safety-approve"
                       onClick={() => handleApprovalAction(true)}
                       disabled={isSubmittingPermit}
                       className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>批准放行安全票</span>
+                      <span>{activePermit.guardianApproval?.signed ? '终审签发准许令' : '安全监护确认会签'}</span>
                     </button>
                   </>
                 ) : (
                   <button
-                    onClick={() => setActivePermit(null)}
+                    disabled={!!lotoBusy}
+                onClick={() => setActivePermit(null)}
                     className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs cursor-pointer font-medium"
                   >
                     关闭
@@ -813,6 +1003,16 @@ export const SafetyManagementView: React.FC<SafetyManagementViewProps> = ({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label htmlFor="permit-valid-until" className="block text-slate-700 mb-1 font-medium">有效截止时限（本地时间） *</label>
+                <input id="permit-valid-until" type="datetime-local" required
+                  disabled={isSubmittingPermit}
+                  value={formData.validUntil}
+                  onChange={(e) => setFormData({ ...formData, validUntil: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-purple-500" />
+                <p className="mt-1 text-slate-500">必须晚于当前时间，提交时转换为 ISO 时间。</p>
               </div>
 
               <div>
