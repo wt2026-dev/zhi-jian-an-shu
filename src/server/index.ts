@@ -1,15 +1,17 @@
-import "express-async-errors";
+﻿import "express-async-errors";
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { existsSync } from "fs";
 import helmet from "helmet";
 import cors from "cors";
 // 说明：vite 仅在开发模式（isDevMode 分支）按需动态 import，生产运行时无需安装 vite，
 // 因此 vite 归入 devDependencies，生产镜像 `npm ci --omit=dev` 不再拉取它。
 import { initDatabase, getDb } from "../db/db.ts";
+import { syncVideoHistoryWithSnapshot } from "../db/videoHistorySnapshot.ts";
 import { createEmbedding } from "./services/aiClient.ts";
 import { ensureAiModelSeed } from "./services/aiModelRouter.ts";
-import { initAuthCache } from "./services/authService.ts";
+import { initAuthCache, verifyJwtToken } from "./services/authService.ts";
 import { installAuditHook } from "./services/auditService.ts";
 import { loadSafetyPermitsIntoMemory } from "./controllers/safetyController.ts";
 import { requestLogger } from "./middleware/requestLogger.ts";
@@ -18,6 +20,8 @@ import { globalAuthGuard } from "./middleware/auth.ts";
 import { globalErrorHandler } from "./middleware/errorHandler.ts";
 import { logger } from "../utils/logger.ts";
 import { UPLOADS_DIR } from "./utils/config.ts";
+import { ProcedureVideoRepository } from "../db/repositories/index.ts";
+import { sweepStaleVideoTasks } from "./services/videoGenerationService.ts";
 import { registerSystemRoutes } from "./routes/system.ts";
 import { registerDashboardRoutes } from "./routes/dashboard.ts";
 import { registerEquipmentRoutes } from "./routes/equipment.ts";
@@ -36,6 +40,8 @@ import { registerHazardRoutes } from "./routes/hazards.ts";
 import { registerWechatRoutes } from "./routes/wechat.ts";
 import { registerWxRoutes } from "./routes/wx.ts";
 import { registerDispatchRoutes } from "./routes/dispatch.ts";
+import { registerFactoryRoutes } from "./routes/factories.ts";
+import { registerExplodedViewRoutes } from "./routes/explodedView.ts";
 
 // 重构说明：本文件为应用装配与启动入口，自 server.ts（原 7329 行单文件）拆出。
 // 各业务域路由/控制器/服务见同目录 routes/、controllers/、services/、middleware/、schemas/、utils/。
@@ -47,6 +53,16 @@ import { registerDispatchRoutes } from "./routes/dispatch.ts";
 export async function createApp() {
   // 1. 初始化真实 PostgreSQL 数据库 (自动执行建表迁移与初始化种子)
   await initDatabase();
+
+  // 1b. 视频生成历史自愈：`procedure_videos` 不在 seed-data 里，而 PGlite 数据目录一旦被
+  //     非正常终止（SIGKILL / 沙箱回收）就会损坏并被改名重建 —— 重建后这张表是空的，
+  //     历史会被静默清空（其它业务表全被重新灌满，看不出异常）。这里按磁盘快照回填。
+  //     详见 src/db/videoHistorySnapshot.ts。
+  try {
+    await syncVideoHistoryWithSnapshot();
+  } catch (e: any) {
+    console.warn("[VideoHistory] 快照同步失败（不影响启动）:", e?.message || e);
+  }
 
   const app = express();
   const PORT = 3000;
@@ -74,7 +90,7 @@ export async function createApp() {
           styleSrc:    ["'self'", "'unsafe-inline'", "*.amap.com"],
           imgSrc:      ["'self'", "data:", "blob:", "*.amap.com", "*.aliyuncs.com",
                         "*.aliyun.com"],
-          connectSrc:  ["'self'",
+          connectSrc:  ["'self'", "blob:",
                         "dashscope.aliyuncs.com", "api.dashscope.aliyuncs.com",
                         "*.amap.com", "restapi.amap.com",
                         "dhplayer.moxian.ai",
@@ -103,12 +119,23 @@ export async function createApp() {
   // 3. 可配置 CORS 白名单
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
     ? process.env.CORS_ALLOWED_ORIGINS.split(",").map((s) => s.trim())
-    : ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"];
+    : ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173", "https://servicewechat.com"];
 
   // 3.1 CSRF 兜底防护：针对有状态写方法 (POST/PUT/PATCH/DELETE) 校验 Origin/Referer 与白名单一致
   app.use((req, res, next) => {
     const method = req.method.toUpperCase();
     if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+      // Bearer token 认证的 API 请求免疫 CSRF：跨站请求无法自动携带自定义 Authorization 头，
+      // 该通道覆盖小程序（wx.request 强制携带 Referer: https://servicewechat.com）与自动化测试。
+      // 收紧点：判据必须是"令牌验签通过"，而不是"请求头存在且以 Bearer 开头"。
+      // 原实现只看前缀，任意请求伪造一个 Bearer 字符串即可整体跳过 CSRF 校验。
+      const authHeader = req.headers["authorization"];
+      if (authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+        const bearerToken = authHeader.slice("Bearer ".length).trim();
+        if (bearerToken && verifyJwtToken(bearerToken)) {
+          return next();
+        }
+      }
       const origin = req.headers["origin"];
       const referer = req.headers["referer"];
 
@@ -222,6 +249,52 @@ export async function createApp() {
   // ==================== 用户与 RBAC 鉴权（PostgreSQL users 表持久化） ====================
   await initAuthCache();
 
+  // 自愈：视频生成任务只存在于进程内存，进程重启后库里残留的 processing/queued 必为孤儿，
+  // 不标记掉的话前端会一直转圈（且永远不会再有更新）。
+  // 只清理超过 AGNES_STALE_AFTER_MIN（默认 60 分钟）的僵死任务，避免误杀正在慢跑的任务。
+  try {
+    const n = await sweepStaleVideoTasks();
+    if (n > 0) console.log(`[Startup] 已把 ${n} 条僵死的视频生成任务标记为 failed`);
+  } catch (e: any) {
+    console.warn("[Startup] 清理僵死视频任务失败（不影响启动）:", e?.message || e);
+  }
+
+  // 自愈：核对成片产物与库内状态是否一致。
+  //
+  // 两个方向都要修：
+  //  a) 文件被外部清走（实测工作区会清走 ≥10MiB 的大文件）但库里仍是 completed → 前端播空播放器，置 failed
+  //  b) 此前被本自检**误判**为 failed 的（远程 URL 或文件其实还在）→ 恢复 completed
+  //
+  // ⚠️ 只能校验**本地** videoUrl：单段视频存的是 Agnes 远程 URL（https://cos-...），
+  // 若不加判断就拿去 existsSync，会把好端端的远程视频误判成"成片文件已丢失"（踩过这个坑）。
+  const LOST_MSG = "成片文件已丢失（可能被工作区清理），请重新生成";
+  const localArtifactExists = (videoUrl?: string | null): boolean | null => {
+    if (!videoUrl) return false;
+    if (!videoUrl.startsWith("/")) return null; // 远程 URL：不做本地校验，视为无法判断
+    const abs = path.join(UPLOADS_DIR, videoUrl.replace(/^\/uploads\//, "").replace(/^\//, ""));
+    return existsSync(abs);
+  };
+  try {
+    let lost = 0;
+    let restored = 0;
+    for (const v of await ProcedureVideoRepository.listByStatus("completed")) {
+      if (localArtifactExists(v.videoUrl) === false) {
+        await ProcedureVideoRepository.updateStatus(v.taskId, { status: "failed", error: LOST_MSG });
+        lost++;
+      }
+    }
+    for (const v of await ProcedureVideoRepository.listByStatus("failed")) {
+      if (v.error !== LOST_MSG) continue;              // 只修本自检留下的，别动真正的失败
+      if (localArtifactExists(v.videoUrl) === false) continue; // 确实没了，保持 failed
+      await ProcedureVideoRepository.updateStatus(v.taskId, { status: "completed", error: null });
+      restored++;
+    }
+    if (lost > 0) console.log(`[Startup] 已把 ${lost} 条成片文件缺失的完成任务标记为 failed`);
+    if (restored > 0) console.log(`[Startup] 已把 ${restored} 条被误判的完成任务恢复为 completed`);
+  } catch (e: any) {
+    console.warn("[Startup] 校验成片文件失败（不影响启动）:", e?.message || e);
+  }
+
   // 注入模块级 AI 审计钩子，供 AI 扩展功能的统一异常处理写审计日志
   installAuditHook();
 
@@ -263,6 +336,8 @@ export async function createApp() {
   registerWechatRoutes(app); // 微信 / 星云数字人
   registerWxRoutes(app); // 微信扫码报修
   registerDispatchRoutes(app); // 内部师傅距离调度
+  registerFactoryRoutes(app); // 多厂区层级（全国地图下钻）
+  registerExplodedViewRoutes(app); // 拆解视图 ↔ 检修业务联动（工单跳转 / 零件维修历史）
 
   // 全局异常处理中间件 (Global Error Handling Middleware)
   app.use(globalErrorHandler);
@@ -291,6 +366,9 @@ export async function startServer() {
   const app = await createApp();
   const PORT = Number(process.env.PORT) || 3000;
 
+  // vite 实例需在退出时一并关闭，故提升到外层作用域（仅开发模式会赋值）。
+  let viteServer: { close: () => Promise<void> } | null = null;
+
   const distIndex = path.join(process.cwd(), "dist", "index.html");
   if (process.env.NODE_ENV === "production" || (fs.existsSync(distIndex) && process.argv[1]?.includes(".cjs"))) {
     const distPath = path.join(process.cwd(), "dist");
@@ -306,11 +384,69 @@ export async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+    viteServer = vite as unknown as { close: () => Promise<void> };
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const httpServer = app.listen(PORT, "0.0.0.0", () => {
     logger.info(`[Industrial Ops System v2.0.0] Server running at http://0.0.0.0:${PORT}`);
   });
+
+  // 优雅退出：先停 HTTP，再关 vite，最后关数据库。
+  //
+  // 背景（实测，非推测）：本机曾因进程被强杀（沙箱护栏异常 / 手动 kill）导致 PGlite
+  // 数据目录损坏 —— `global/pg_control` 在启动中途被写坏后**不可修复**（PGlite 没有
+  // pg_resetwal 等价物），只能把整个数据目录改名重建再重灌种子。
+  // 没有退出处理时，`npm run dev` 的每次重启都是一次非正常关闭，
+  // 因此补上：让数据库有机会干净落盘，显著降低再次损坏的概率。
+  //
+  // ⚠️ 平台限制（务必知晓，不要误以为万能）：
+  // Windows 没有真正的信号。本处理只在**终端里 Ctrl+C**（SIGINT / SIGBREAK）时可靠触发，
+  // 也就是用户手动停止 `npm run dev` 的常见路径。
+  // 而 `taskkill /F`、`process.kill(pid)`、任务管理器结束进程、沙箱 TaskStop 等
+  // **外部强杀一律绕过本处理**（Node 在 Windows 上用 TerminateProcess，不会回调 handler）。
+  // 因此它降低风险但不等于保险；真正稳妥的重启方式是在终端按 Ctrl+C。
+  if (process.env.NODE_ENV !== "test") {
+    let closing = false;
+    const shutdown = async (signal: string) => {
+      if (closing) return;
+      closing = true;
+      logger.info(`[Shutdown] 收到 ${signal}，开始优雅关闭（停 HTTP → 关 vite → 关数据库）...`);
+
+      // 兜底：若 10s 内未能完成（例如有长连接挂着），强制退出，避免卡死。
+      const force = setTimeout(() => {
+        logger.warn("[Shutdown] 超时 10s，强制退出");
+        process.exit(0);
+      }, 10_000);
+      force.unref?.();
+
+      try {
+        await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+        logger.info("[Shutdown] HTTP 服务已停止");
+      } catch (e: any) {
+        logger.warn("[Shutdown] 停止 HTTP 服务出错:", e?.message);
+      }
+
+      try {
+        await viteServer?.close();
+      } catch (e: any) {
+        logger.warn("[Shutdown] 关闭 vite 出错:", e?.message);
+      }
+
+      try {
+        const db = await getDb();
+        await db.close();
+        logger.info("[Shutdown] 数据库已干净关闭");
+      } catch (e: any) {
+        logger.warn("[Shutdown] 关闭数据库出错:", e?.message);
+      }
+
+      process.exit(0);
+    };
+
+    process.on("SIGTERM", () => void shutdown("SIGTERM"));
+    process.on("SIGINT", () => void shutdown("SIGINT"));
+    process.on("SIGBREAK", () => void shutdown("SIGBREAK"));
+  }
 }
 
 if (process.env.NODE_ENV !== "test") {

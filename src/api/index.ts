@@ -1,4 +1,5 @@
 import { WorkOrder, Equipment, InspectionTask, NotificationItem, LotoLock, UserProfile, SparePart, SparePartMovement, Hazard } from '../types';
+import { FORBIDDEN_HINT } from '../utils/rbac';
 
 export interface WorkOrderStats {
   totalCount: number;
@@ -104,6 +105,15 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
       errorData = await response.json();
     } catch {
       errorData = { message: response.statusText };
+    }
+    // 403（后端 RBAC 拒绝）：转成一句人话再抛，页面直接展示即可。
+    // 原始后端载荷仍完整保留在 err.data 里（含 code / RBAC_DELETE_FORBIDDEN 等），
+    // 需要精确分支的页面照旧读 err.data，不会被这句友好文案覆盖。
+    if (response.status === 403) {
+      const forbidden = new ApiError(403, errorData);
+      const backendMsg = errorData?.message || errorData?.error;
+      forbidden.message = backendMsg ? `${FORBIDDEN_HINT}（${backendMsg}）` : FORBIDDEN_HINT;
+      throw forbidden;
     }
     throw new ApiError(response.status, errorData);
   }
@@ -262,7 +272,8 @@ export const equipmentApi = {
 
   getQrCodeUrl: (id: string) => `${API_BASE}/equipments/${id}/qrcode`,
 
-  getTelemetryHistory: (id: string) => request<any>(`/equipments/${id}/telemetry-history`),
+  getTelemetryHistory: (id: string, hours?: number) =>
+    request<any>(`/equipments/${id}/telemetry-history${hours ? `?hours=${hours}` : ''}`),
 
   // 新增设备档案 (真实落库，RBAC: 仅管理员/主管)
   create: (data: {
@@ -281,6 +292,109 @@ export const equipmentApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+};
+
+// 拆解视图 ↔ 检修业务联动 API（真实 DB 数据；接口定义见 server/routes/explodedView.ts）
+export interface ExplodedWorkOrderBrief {
+  workOrder: {
+    id: string;
+    orderNo: string;
+    title: string;
+    description: string;
+    faultType: string;
+    priority: string;
+    status: string;
+    createdAt: string | null;
+    equipmentId: string;
+    equipmentName: string;
+    equipmentCode: string;
+    workshop: string;
+    partsUsed: Array<{ name: string; code?: string; qty?: number; spec?: string }>;
+  };
+  explodedViewFile: string | null;
+  targetPart: {
+    posNo: string;
+    name: string;
+    category?: string;
+    spec?: string;
+    matchedBy: string[];
+    matchSource: 'parts_used' | 'description';
+  } | null;
+  candidateParts: Array<{ posNo: string; name: string; matchedBy: string[] }>;
+  dataNote: string;
+}
+
+export interface ExplodedPartHistory {
+  deviceId: string;
+  part: { posNo: string; name: string; category?: string; spec?: string };
+  matchedSparePart: {
+    id: string;
+    name: string;
+    spec: string;
+    model: string;
+    stock: number;
+    safeStock: number;
+    unit: string;
+    location: string;
+    price: number;
+  } | null;
+  stats: {
+    replacementCount: number;
+    lastReplacedAt: string | null;
+    avgLifeDays: number | null;
+    avgWorkHours: number | null;
+    relatedOrderCount: number;
+  };
+  replacements: Array<{
+    workOrderId: string;
+    orderNo: string;
+    title: string;
+    status: string;
+    replacedAt: string | null;
+    matchedPartName: string;
+    qty: number | null;
+    causeAnalysis: string;
+    resolutionSteps: string;
+    workHours: number | null;
+  }>;
+  relatedWorkOrders: Array<{
+    id: string;
+    orderNo: string;
+    title: string;
+    status: string;
+    faultType: string;
+    priority: string;
+    equipmentName: string;
+    equipmentCode: string;
+    workshop: string;
+    description: string;
+    createdAt: string | null;
+    acceptedAt: string | null;
+    completedAt: string | null;
+    matchTypes: string[];
+  }>;
+  spareMovements: Array<{
+    id: string;
+    partId: string;
+    partName: string;
+    partCode: string;
+    type: 'in' | 'out';
+    quantity: number;
+    relatedWorkOrderNo: string | null;
+    notes: string;
+    createdAt: string | null;
+  }>;
+  dataNote: string;
+}
+
+export const explodedViewApi = {
+  /** 工单 → 拆解视图上下文（设备 + 真实 BOM 命中的目标位号） */
+  getWorkOrderBrief: (workOrderId: string) =>
+    request<ExplodedWorkOrderBrief>(`/work-orders/${workOrderId}/exploded-brief`),
+
+  /** 拆解位号 → 真实维修历史（真实工单 / 备件库存 / 出入库流水） */
+  getPartHistory: (deviceId: string, partId: string) =>
+    request<ExplodedPartHistory>(`/equipments/${deviceId}/parts/${partId}/maintenance-history`),
 };
 
 // 认证与权限 API (JWT / RBAC)
@@ -399,6 +513,25 @@ export const safetyPermitApi = {
     return request<LotoLock[]>(`/loto-locks${qs ? `?${qs}` : ''}`);
   },
 
+  // 人工登记/释放记录：仅更新台账，不控制现场硬件。
+  registerLotoLock: (data: {
+    lockNo: string;
+    permitNo: string;
+    pointName: string;
+    energySource?: string;
+    location?: string;
+  }) =>
+    request<LotoLock>('/loto-locks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  releaseLotoLock: (id: string, data: { unlockRemark: string }) =>
+    request<LotoLock>(`/loto-locks/${encodeURIComponent(id)}/release`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   approve: (id: string, data: { step: 'guardian' | 'supervisor'; pass: boolean; comment?: string; gasTestResults?: any; signerPassword?: string; signatureMethod?: string }) =>
     request<any>(`/safety-permits/${id}/approve`, {
       method: 'POST',
@@ -482,15 +615,32 @@ export const procedureApi = {
       `/procedures/${id}/generate-video-full`,
       { method: 'POST', body: '{}' }
     ),
+  // createdAt：任务入库时间（ISO 字符串）。前端用它算"真实已耗时"，
+  // 不能用轮询启动时刻 —— 刷新页面会重新开始轮询，那样耗时会被清零。
+  // totalTimeoutMin：后端按段数推导的全局超时（分钟），前端据此决定何时停止轮询，
+  // 避免前端写死一个数与后端脱节。
   getVideoStatus: (taskId: string) =>
-    request<{ status: string; videoUrl?: string; error?: string }>(
-      `/procedures/video-status?taskId=${encodeURIComponent(taskId)}`
-    ),
+    request<{
+      status: string;
+      videoUrl?: string;
+      error?: string;
+      progressPct?: number | null;
+      internalStatus?: string | null;
+      elapsedSec?: number | null;
+      createdAt?: string;
+      totalTimeoutMin?: number;
+      fullMode?: boolean;
+    }>(`/procedures/video-status?taskId=${encodeURIComponent(taskId)}`),
   getVideos: (id: string) =>
     request<any[]>(`/procedures/${id}/videos`),
   deleteVideo: (id: string) =>
     request<{ success: boolean; message: string }>(`/procedures/videos/${id}`, {
       method: 'DELETE',
+    }),
+  cancelVideo: (taskId: string) =>
+    request<{ success: boolean }>(`/procedures/videos/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ taskId }),
     }),
 };
 

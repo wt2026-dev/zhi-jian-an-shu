@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Navigation,
   Loader2,
@@ -25,6 +25,7 @@ import {
   Video,
   ShieldCheck,
   Box,
+  Boxes,
   Layers,
   Activity,
   Flame,
@@ -63,6 +64,9 @@ import {
   WorkOrderStatusBadge,
   WorkOrderPriorityBadge,
 } from './workorders/WorkOrderStatusBadge';
+import { useToast } from '../context/ToastContext';
+import { can, describeActionOwner } from '../utils/rbac';
+import { hasExplodedView } from './equipment3d/explodedViewFiles';
 
 
 interface WorkOrdersViewProps {
@@ -75,6 +79,10 @@ interface WorkOrdersViewProps {
   onOpenAiDiagnose: (eq: Equipment) => void;
   /** 跳转调度大屏并预选该工单（就近派单） */
   onNavigateDispatch?: (workOrderId: string) => void;
+  /** 跳转 3D 场景并自动聚焦对应设备 */
+  onNavigateTo3D?: (workOrderId: string) => void;
+  /** 深链：进来时自动展开这张工单的详情抽屉（从 3D 拆解视图「返回工单详情」跳回时用） */
+  initialWorkOrderId?: string | null;
   initialCreateOpen?: boolean;
 }
 
@@ -87,12 +95,22 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   onUpdateWorkOrder,
   onOpenAiDiagnose,
   onNavigateDispatch,
+  onNavigateTo3D,
+  initialWorkOrderId = null,
   initialCreateOpen = false,
 }) => {
+  const { show: showToast } = useToast();
   const [activeStatusTab, setActiveStatusTab] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [onlyMyOrders, setOnlyMyOrders] = useState<boolean>(currentUser.role === 'operator' || currentUser.role === 'user');
+
+  // ── 细粒度操作权限（口径统一在 utils/rbac，避免每处各写一遍 role === 'xxx'）──────
+  //   报修(operator) → 派单/审核(manager) → 接单/完工(technician) 的演示闭环
+  const canCreate = can('workOrder:create', currentUser.role);
+  const canClaim = can('workOrder:claim', currentUser.role);
+  const canComplete = can('workOrder:complete', currentUser.role);
+  const canApprove = can('workOrder:approve', currentUser.role);
 
   useEffect(() => {
     if (currentUser.role === 'operator' || currentUser.role === 'user') {
@@ -103,8 +121,44 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   // Selected Order for Detail Drawer
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
 
+  // ── 拆解视图 ↔ 检修业务联动 ───────────────────────────────────────────
+  /** 深链自动展开：从 3D 拆解视图「返回工单详情」带 initialWorkOrderId 回来时，
+      等工单列表到位后自动打开那张单的抽屉（每张单只自动开一次，用户手动关了不再弹）。 */
+  const autoOpenedOrderRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialWorkOrderId) return;
+    if (autoOpenedOrderRef.current === initialWorkOrderId) return;
+    const wo = workOrders.find((o) => o.id === initialWorkOrderId);
+    if (wo) {
+      autoOpenedOrderRef.current = initialWorkOrderId;
+      setSelectedOrder(wo);
+    }
+  }, [initialWorkOrderId, workOrders]);
+
+  /** F1：打开该工单对应设备的拆解视图（flash `showExplodedView=1` 参数 → 3D 深链会一并消费）。
+      先用 replaceState 把参数写进当前 URL，再走 onNavigateTo3D 的 pushState —— pushState
+      复制的是当前 URL，正好把参数带过去；无回调时退回整页 URL 直跳。 */
+  const openInExploded = (order: WorkOrder) => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('showExplodedView', '1');
+      window.history.replaceState(window.history.state, '', url.toString());
+    } catch {
+      /* ignore */
+    }
+    if (onNavigateTo3D) {
+      onNavigateTo3D(order.id);
+    } else {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'equipment_3d');
+      url.searchParams.set('workOrderId', order.id);
+      window.location.href = url.toString();
+    }
+  };
+
   // Modals
-  const [showCreateModal, setShowCreateModal] = useState(initialCreateOpen);
+  // 深链 / 顶部"快速报修"带进来的 initialCreateOpen，同样要过角色闸门
+  const [showCreateModal, setShowCreateModal] = useState(initialCreateOpen && canCreate);
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [showRepairLogModal, setShowRepairLogModal] = useState(false);
   const [showAcceptanceModal, setShowAcceptanceModal] = useState(false);
@@ -117,10 +171,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   // 生产级：防重复报单与状态互斥提示状态
   const [duplicateAlert, setDuplicateAlert] = useState<{ message: string; existingOrder?: any } | null>(null);
   const [createFormError, setCreateFormError] = useState<string | null>(null);
-  const [mutexErrorToast, setMutexErrorToast] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
 
   // 视频智能诊断模态框状态 (功能二)
   const [showVideoModal, setShowVideoModal] = useState(false);
@@ -330,16 +382,14 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
 
   const handleExportOrders = async () => {
     setIsExporting(true);
-    setExportSuccessMsg(null);
     try {
       await workOrderApi.exportExcel({
         status: activeStatusTab === 'all' ? undefined : activeStatusTab,
         priority: selectedPriority === 'all' ? undefined : selectedPriority,
       });
-      setExportSuccessMsg('工单台账 Excel (CSV UTF-8 BOM) 导出成功，已下载本地！');
-      setTimeout(() => setExportSuccessMsg(null), 3500);
+      showToast({ type: 'success', title: '导出成功', message: '工单台账 Excel (CSV UTF-8 BOM) 已下载本地！' });
     } catch (err: any) {
-      alert(err.message || '导出工单失败');
+      showToast({ type: 'error', title: '导出工单失败', message: err.message });
     } finally {
       setIsExporting(false);
     }
@@ -493,7 +543,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
           existingOrder: err.data.existingOrder,
         });
       } else {
-        alert(err.message || '创建工单失败，请检查网络或参数');
+        showToast({ type: 'error', title: '创建工单失败', message: err.message || '请检查网络或参数' });
       }
     } finally {
       setIsSubmitting(false);
@@ -526,7 +576,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
         safetyRequirements: ['穿戴劳保鞋与安全帽', '实施 LOTO 停电挂牌'],
       });
     } catch (err: any) {
-      alert(err.message || '强制提交失败');
+      showToast({ type: 'error', title: '强制提交失败', message: err.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -548,7 +598,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       setShowDispatchModal(false);
     } catch (err: any) {
       const msg = err.data?.message || err.message || '派单失败';
-      setMutexErrorToast(msg);
+      showToast({ type: 'warning', title: '状态互斥拦截', message: msg });
     }
   };
 
@@ -563,7 +613,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       setSelectedOrder(updated);
     } catch (err: any) {
       const msg = err.data?.message || err.message || '接单失败';
-      setMutexErrorToast(msg);
+      showToast({ type: 'warning', title: '状态互斥拦截', message: msg });
     }
   };
 
@@ -585,7 +635,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       setShowRepairLogModal(false);
     } catch (err: any) {
       const msg = err.data?.message || err.message || '完工上报失败';
-      setMutexErrorToast(msg);
+      showToast({ type: 'warning', title: '状态互斥拦截', message: msg });
     }
   };
 
@@ -604,7 +654,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       setShowAcceptanceModal(false);
     } catch (err: any) {
       const msg = err.data?.message || err.message || '验收归档失败';
-      setMutexErrorToast(msg);
+      showToast({ type: 'warning', title: '状态互斥拦截', message: msg });
     }
   };
 
@@ -658,14 +708,17 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             <span>视频智能诊断</span>
           </button>
 
-          <button
-            id="btn-create-work-order"
-            onClick={() => setShowCreateModal(true)}
-            className="px-3.5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-lg transition-all flex items-center space-x-1.5 shadow-sm shadow-blue-500/20 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>快速创建检修单</span>
-          </button>
+          {/* 报修入口：仅操作工（+总工）可创建工单，演示流程的第一步 */}
+          {canCreate && (
+            <button
+              id="btn-create-work-order"
+              onClick={() => setShowCreateModal(true)}
+              className="px-3.5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-lg transition-all flex items-center space-x-1.5 shadow-sm shadow-blue-500/20 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>快速创建检修单</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -725,38 +778,6 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
           </span>
         </div>
       </div>
-
-      {/* 导出成功 Toast */}
-      {exportSuccessMsg && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-800 text-xs animate-in fade-in">
-          <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-            <span>{exportSuccessMsg}</span>
-          </div>
-          <button
-            onClick={() => setExportSuccessMsg(null)}
-            className="text-emerald-600 hover:text-emerald-800 p-1 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* 状态互斥拦截告警 Toast */}
-      {mutexErrorToast && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-amber-800 text-xs animate-in fade-in">
-          <div className="flex items-center space-x-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-            <span><strong>状态互斥拦截：</strong>{mutexErrorToast}</span>
-          </div>
-          <button
-            onClick={() => setMutexErrorToast(null)}
-            className="text-amber-600 hover:text-amber-800 p-1 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* 检修特色：工单状态流转管线 (待派单→待接单→检修中→待验收→已闭环 横排节点图) */}
       <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-xs space-y-2">
@@ -935,6 +956,44 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                   <span className="font-mono text-xs text-slate-600">{wo.createdAt}</span>
                 </div>
 
+                {/* 3D 查看 */}
+                <button
+                  type="button"
+                  data-testid={`workorder-3d-view-${wo.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onNavigateTo3D) {
+                      onNavigateTo3D(wo.id);
+                    } else {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('view', 'equipment_3d');
+                      url.searchParams.set('workOrderId', wo.id);
+                      window.location.href = url.toString();
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-500/60 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                  title="跳转 3D 场景并自动聚焦设备"
+                >
+                  <Boxes className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>3D 查看</span>
+                </button>
+
+                {hasExplodedView(wo.equipmentId) && (
+                  <button
+                    type="button"
+                    data-testid={`workorder-exploded-view-${wo.id}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openInExploded(wo);
+                    }}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-500/60 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                    title="打开该设备的拆解视图，自动定位维修目标零件"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>拆解视图</span>
+                  </button>
+                )}
+
                 <button className="px-3.5 py-1.5 bg-blue-50 group-hover:bg-blue-600 text-blue-700 group-hover:text-white border border-blue-200 group-hover:border-blue-600 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer">
                   <span>处理/详情</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -965,12 +1024,45 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 </p>
               </div>
 
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-500 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="workorder-drawer-3d-view"
+                  onClick={() => {
+                    if (onNavigateTo3D) {
+                      onNavigateTo3D(selectedOrder.id);
+                    } else {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('view', 'equipment_3d');
+                      url.searchParams.set('workOrderId', selectedOrder.id);
+                      window.location.href = url.toString();
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  title="跳转 3D 场景并自动聚焦设备"
+                >
+                  <Boxes className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>3D 场景查看</span>
+                </button>
+                {hasExplodedView(selectedOrder.equipmentId) && (
+                  <button
+                    type="button"
+                    data-testid="workorder-drawer-exploded-view"
+                    onClick={() => openInExploded(selectedOrder)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    title="打开该设备的拆解视图，自动定位维修目标零件"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>拆解视图</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedOrder(null)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-500 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Lifecycle Progress Bar */}
@@ -1261,7 +1353,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
 
               <div className="flex items-center space-x-2">
                 {/* Stage 1 -> 2: Dispatch (Admin/Dispatcher) */}
-                {selectedOrder.status === 'created' && (currentUser.role === 'admin' || currentUser.role === 'manager') && onNavigateDispatch && (
+                {selectedOrder.status === 'created' && canApprove && onNavigateDispatch && (
                   <button
                     onClick={() => onNavigateDispatch(selectedOrder.id)}
                     className="px-4 py-2 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/40 rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer"
@@ -1271,7 +1363,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     <span>就近派单</span>
                   </button>
                 )}
-                {selectedOrder.status === 'created' && currentUser.role === 'admin' && (
+                {selectedOrder.status === 'created' && canApprove && (
                   <button
                     onClick={() => setShowDispatchModal(true)}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer"
@@ -1282,7 +1374,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 )}
 
                 {/* Stage 2 -> 3: Claim / Accept (Technician) */}
-                {selectedOrder.status === 'dispatched' && (
+                {selectedOrder.status === 'dispatched' && canClaim && (
                   <button
                     onClick={handleAcceptOrder}
                     className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer"
@@ -1293,7 +1385,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 )}
 
                 {/* Stage 3 -> 4: Repair Log / Complete (Technician) */}
-                {selectedOrder.status === 'in_progress' && (
+                {selectedOrder.status === 'in_progress' && canComplete && (
                   <button
                     onClick={() => setShowRepairLogModal(true)}
                     className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer"
@@ -1304,7 +1396,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 )}
 
                 {/* Stage 4 -> 5: Acceptance (Inspector/Admin) */}
-                {selectedOrder.status === 'pending_acceptance' && ['inspector', 'admin'].includes(currentUser.role) && (
+                {selectedOrder.status === 'pending_acceptance' && canApprove && (
                   <button
                     onClick={() => setShowAcceptanceModal(true)}
                     className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer"
@@ -1695,7 +1787,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                           <div className="flex items-center space-x-1.5">
                             <button
                               type="button"
-                              onClick={() => alert(`查看凭证预览：${f.name}`)}
+                              onClick={() => showToast({ type: 'info', title: '凭证预览', message: f.name })}
                               className="p-1 text-slate-500 hover:text-blue-600 cursor-pointer"
                               title="预览"
                             >
@@ -1924,7 +2016,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     type="button"
                     onClick={() => {
                       if (createStep === 1 && !newOrderForm.title.trim()) {
-                        alert('请先输入工单标题/摘要');
+                        showToast({ type: 'warning', title: '请先输入工单标题/摘要' });
                         return;
                       }
                       setCreateStep(createStep + 1);

@@ -1,4 +1,14 @@
 /**
+ * 无权限页面的兜底跳转目标。
+ * 只有"业务上明确要求直接跳走、而不是给提示卡"的页面才登记在这里 ——
+ * 目前是数据驾驶舱：operator / inspector 禁止访问，直接送回工作台。
+ * 未登记的页面（系统管理 / 3D 场景等）走 `<PermissionDenied>` 提示卡。
+ */
+const TAB_FALLBACK: Record<string, string> = {
+  cockpit: 'dashboard',
+};
+
+/**
  * App.tsx — 应用根组件（组合层）
  *
  * 重构状态（2026-09）：
@@ -46,16 +56,16 @@ const AdminAiModelsView = React.lazy(() => import('./components/AdminAiModelsVie
 const DispatchBoardView = React.lazy(() => import('./components/DispatchBoardView').then(m => ({ default: m.DispatchBoardView })));
 const SparePartsView = React.lazy(() => import('./components/SparePartsView').then(m => ({ default: m.SparePartsView })));
 const HazardsView = React.lazy(() => import('./components/HazardsView').then(m => ({ default: m.HazardsView })));
-const MaintenanceGameView = React.lazy(() => import('./components/game/MaintenanceGameView').then(m => ({ default: m.MaintenanceGameView })));
-
-// 检修闯关 = Godot 4 Web 导出（iframe + postMessage 双向通信）
-// 旧 Canvas 版 `MaintenanceGameView` 文件保留为降级 fallback，但不再被引用
+// 设备 3D 场景（three.js 程序化生成；独立视图，按需加载，不影响既有页面）
+const Equipment3DView = React.lazy(() => import('./components/equipment3d/DrilldownShell').then(m => ({ default: m.Equipment3DShell })));
+// 检修闯关 = Godot 4 Web 导出（iframe + postMessage 双向通信）。
+// 旧 Canvas 版 `MaintenanceGameView` 文件保留为降级 fallback，但不再被引用。
 // 检修闯关模块已下线：不再挂载（组件文件保留 —— `mazeLevels.ts` 仍引用其 `GodotStepDTO` 类型）。
 // const GodotGameView = React.lazy(() => import('./components/game/GodotGameView').then(m => ({ default: m.GodotGameView })));
 // 《故障侦探 · 俯视迷宫》：同一套 Godot↔React 桥，另一份导出（public/godot-maze/）与另一份关卡表（maze-data）
 const MazeGameView = React.lazy(() => import('./components/game/MazeGameView').then(m => ({ default: m.MazeGameView })));
-// 《庖丁检修师》七幕主线：项目的可玩缩影，独立视图按需加载
-const CampaignView = React.lazy(() => import('./components/campaign/CampaignView').then(m => ({ default: m.CampaignView })));
+// 《智检修士》七幕主线：模块已下线，下方 lazy import 与渲染分支一并注释，恢复时取消注释
+// const CampaignView = React.lazy(() => import('./components/campaign/CampaignView').then(m => ({ default: m.CampaignView })));
 
 import {
   Equipment,
@@ -72,6 +82,13 @@ import { QrCode, X, Scan, Sparkles, Wrench, ShieldCheck, AlertTriangle, RefreshC
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SkeletonKpis, SkeletonCards, SkeletonBlock } from './components/Skeleton';
 import { AiChatProvider, useAiChatContext } from './context/AiChatContext';
+import { ToastProvider } from './context/ToastContext';
+import { ToastContainer } from './components/ui/Toast';
+import { useToast } from './context/ToastContext';
+import { PageHeader } from './components/layout/PageHeader';
+import { getBreadcrumb } from './components/layout/navConfig';
+import { isTabAllowed, getRoleHome } from './utils/rbac';
+import { PermissionDenied } from './components/PermissionDenied';
 import { AiAssistantPanel } from './components/AiAssistantPanel';
 import { OnboardingGuide } from './components/OnboardingGuide';
 
@@ -86,7 +103,10 @@ import { OnboardingGuide } from './components/OnboardingGuide';
 export default function App() {
   return (
     <AuthProvider>
-      <AppDataBridge />
+      <ToastProvider>
+        <AppDataBridge />
+        <ToastContainer />
+      </ToastProvider>
     </AuthProvider>
   );
 }
@@ -160,6 +180,7 @@ function AppDataBridge() {
  * 业务数据/认证状态一律从 Context 读取，不再逐层 useState + prop-drilling。
  */
 function AppShell() {
+  const { show: showToast } = useToast();
   const {
     currentUser,
     allUsers,
@@ -207,6 +228,34 @@ function AppShell() {
     setActiveTab('dispatch');
   }, []);
 
+  // 3D 场景预选：从检修工单「3D 查看」或健康监测「3D 定位」跳入时携带
+  const [targetWorkOrderIdFor3D, setTargetWorkOrderIdFor3D] = useState<string | null>(null);
+  // 工单列表自动展开抽屉：拆解侧栏「返回工单详情」跳回 work_orders 时携带（F1 联动回环）
+  const [targetWorkOrderIdForDetail, setTargetWorkOrderIdForDetail] = useState<string | null>(null);
+  const openWorkOrderDetail = useCallback((workOrderId: string) => {
+    setTargetWorkOrderIdForDetail(workOrderId);
+    setActiveTab('work_orders');
+  }, []);
+  const navigateTo3D = useCallback((preset: { workOrderId?: string | null; equipmentId?: string | null }) => {
+    if (preset.workOrderId) {
+      setTargetWorkOrderIdFor3D(preset.workOrderId);
+    }
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'equipment_3d');
+      if (preset.workOrderId) {
+        url.searchParams.set('workOrderId', preset.workOrderId);
+      }
+      if (preset.equipmentId) {
+        url.searchParams.set('equipmentId', preset.equipmentId);
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch {
+      /* ignore */
+    }
+    setActiveTab('equipment_3d');
+  }, []);
+
   // 手机扫码直达巡检目标设备 ID
   const [mobileScanEquipmentId, setMobileScanEquipmentId] = useState<string | null>(null);
 
@@ -242,25 +291,77 @@ function AppShell() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 检查手机扫码 URL 深度链接 (?view=inspections&equipmentId=eq-001)
+  // 检查手机扫码与工单 URL 深度链接 (?view=inspections&equipmentId=eq-001 或 ?view=equipment_3d&workOrderId=wo-xxx)
   useEffect(() => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const targetView = searchParams.get('view');
       const targetEquipmentId = searchParams.get('equipmentId');
+      const targetWorkOrderId = searchParams.get('workOrderId');
+
+      if (targetWorkOrderId) {
+        if (targetView === 'work_orders') {
+          // 拆解视图联动：拆解侧栏「返回工单详情」深链 —— 定位工单列表并自动展开抽屉
+          setTargetWorkOrderIdForDetail(targetWorkOrderId);
+        } else {
+          setTargetWorkOrderIdFor3D(targetWorkOrderId);
+          showToast({ type: 'info', title: '已定位至工单', message: `工单 #${targetWorkOrderId}，点击 3D 场景中红色脉冲设备查看详情`, duration: 5000 });
+        }
+      }
 
       if (targetView === 'inspections' || targetView === 'inspection') {
         setActiveTab('inspections');
         if (targetEquipmentId) {
           setMobileScanEquipmentId(targetEquipmentId);
+          showToast({ type: 'info', title: '已定位至设备', message: `设备 ${targetEquipmentId}，点击 3D 场景中红色脉冲设备查看详情`, duration: 5000 });
         }
-      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch', 'maintenance_maze', 'campaign'].includes(targetView)) {
+      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch', 'equipment_3d', 'maintenance_maze'].includes(targetView)) {
         setActiveTab(targetView === 'equipment' ? 'equipments' : targetView);
       }
     } catch (e) {
       logger.warn('URL search parse fallback:', e);
     }
   }, []);
+
+  /**
+   * 角色权限守卫。
+   *
+   * 覆盖两个真实场景：
+   *   ① 手敲 / 分享 URL 深链（?view=equipment_3d）直达无权限页面；
+   *   ② 在 Navbar 切换角色后仍停留在上一个角色的页面。
+   *
+   * 处置策略分两种：
+   *   - 配了兜底页的（operator / inspector 进数据驾驶舱 → 工作台）：静默跳走，
+   *     符合"禁止访问"的演示口径，不留提示卡；
+   *   - 其余：保持在当前 tab，由 `<PermissionDenied>` 给友好提示（不白屏、不抛堆栈）。
+   */
+  useEffect(() => {
+    if (!currentUser) return;
+    if (isTabAllowed(activeTab, currentUser.role)) return;
+    const fallback = TAB_FALLBACK[activeTab];
+    if (fallback) {
+      const target = isTabAllowed(fallback, currentUser.role) ? fallback : getRoleHome(currentUser.role);
+      if (target !== activeTab) {
+        setActiveTab(target);
+        showToast({
+          type: 'info',
+          title: '已返回有权限的页面',
+          message: `当前角色（${currentUser.roleTitle}）无权限访问该页面，已切换至可访问页面`,
+          duration: 4000,
+        });
+      }
+    }
+    // 无兜底页的 tab 不动，交给 PermissionDenied 渲染提示
+  }, [activeTab, currentUser?.id, currentUser?.role, currentUser?.roleTitle, showToast]);
+
+  // 切换角色后自动落到该角色默认首页（演示流程：谁登录就先看自己该看的页）
+  const handleSwitchUserWithHome = useCallback(
+    (user: UserProfile) => {
+      handleSwitchUser(user);
+      setActiveTab(getRoleHome(user?.role));
+    },
+    [handleSwitchUser]
+  );
 
   // Cross-Navigation Shortcuts
   const handleSelectEquipmentForHealth = (eq: Equipment) => {
@@ -362,6 +463,9 @@ function AppShell() {
     );
   }
 
+  // 当前角色是否看得见当前 tab（菜单已过滤，这里是给深链 / 角色切换兜底）
+  const tabAllowed = isTabAllowed(activeTab, currentUser?.role);
+
   return (
     <AiChatProvider userRoleTitle={currentUser.roleTitle}>
     <div className="h-screen bg-[#f8fafc] text-slate-800 flex flex-col overflow-hidden font-sans selection:bg-blue-100 selection:text-blue-900">
@@ -377,7 +481,7 @@ function AppShell() {
         onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
         currentUser={currentUser}
-        onSwitchUser={handleSwitchUser}
+        onSwitchUser={handleSwitchUserWithHome}
         onUpdateCurrentUser={(updated) => {
           setCurrentUser(updated);
           setAllUsers(allUsers.map((u) => (u.id === updated.id ? updated : u)));
@@ -420,6 +524,28 @@ function AppShell() {
               activeTab === 'cockpit' ? 'max-w-[1920px]' : 'max-w-[1440px]'
             }`}
           >
+            {/* 无权限页面：友好提示占位（不白屏、不抛堆栈），并可一键回到自己角色的首页 */}
+            {!tabAllowed && (
+              <PermissionDenied
+                tabId={activeTab}
+                role={currentUser?.role}
+                userName={currentUser?.name}
+                onBackHome={() => setActiveTab(getRoleHome(currentUser?.role))}
+              />
+            )}
+            {tabAllowed && activeTab !== 'dashboard' && (
+            <PageHeader
+              group={getBreadcrumb(activeTab).group}
+              title={getBreadcrumb(activeTab).label}
+              subtitle={
+                activeTab === 'work_orders' ? '检修工单全生命周期管理与工单闭环跟踪' :
+                activeTab === 'health' ? '采集温度、振动加速度(RMS)、三相电流、电压与工况负荷率' :
+                activeTab === 'procedures' ? '标准化检修作业指导书与合规执行' :
+                undefined
+              }
+            />
+            )}
+        {tabAllowed && (
         <ErrorBoundary>
           <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400 text-sm">页面加载中...</div>}>
           {activeTab === 'dashboard' && (
@@ -482,7 +608,15 @@ function AppShell() {
               onOpenWorkOrder={handleOpenWorkOrderForEquipment}
               onOpenAiDiagnose={handleOpenAiDiagnoseForEquipment}
               onCreateWorkOrder={handleAddWorkOrder}
+              onNavigateTo3D={(equipmentId) => navigateTo3D({ equipmentId })}
               currentUser={currentUser}
+            />
+          )}
+
+          {activeTab === 'equipment_3d' && (
+            <Equipment3DView
+              initialWorkOrderId={targetWorkOrderIdFor3D}
+              onOpenWorkOrderDetail={openWorkOrderDetail}
             />
           )}
 
@@ -496,6 +630,8 @@ function AppShell() {
               onUpdateWorkOrder={handleUpdateWorkOrder}
               onOpenAiDiagnose={handleOpenAiDiagnoseForEquipment}
               onNavigateDispatch={(workOrderId) => navigateToDispatch({ workOrderId })}
+              onNavigateTo3D={(workOrderId) => navigateTo3D({ workOrderId })}
+              initialWorkOrderId={targetWorkOrderIdForDetail}
               initialCreateOpen={showGlobalCreateWorkOrder}
             />
           )}
@@ -583,8 +719,11 @@ function AppShell() {
           )}
           {activeTab === 'ai_reviews' && <AdminAiReviewsView onNavigate={setActiveTab} />}
           {/* {activeTab === 'maintenance_game' && <GodotGameView currentUser={currentUser} />} —— 检修闯关模块已下线，恢复时取消注释 */}
-          {activeTab === 'maintenance_maze' && <MazeGameView currentUser={currentUser} />}
-          {activeTab === 'campaign' && <CampaignView currentUser={currentUser} />}
+          {activeTab === 'maintenance_maze' && (
+            <MazeGameView currentUser={currentUser} />
+          )}
+          {/* {activeTab === 'campaign' && <CampaignView currentUser={currentUser} />} —— 智检修士模块已下线，恢复时取消注释 */}
+
           {activeTab === 'ai_models' && <AdminAiModelsView />}
 
           {activeTab === 'users' && (
@@ -592,11 +731,12 @@ function AppShell() {
               currentUser={currentUser}
               allUsers={allUsers}
               onAddUser={handleAddUser}
-              onSwitchUser={handleSwitchUser}
+              onSwitchUser={handleSwitchUserWithHome}
             />
           )}
           </Suspense>
         </ErrorBoundary>
+        )}
           </div>
         </main>
       </div>

@@ -42,7 +42,7 @@ import {
   Monitor,
   Building2,
 } from 'lucide-react';
-import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, type DutyTechnician, type EquipmentPoint } from '../../api';
+import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
 import { useOptionalAuth } from '../../context/AuthContext';
@@ -52,11 +52,17 @@ import { SCENE_PRESETS, PRESET_ORDER, QUALITY, type QualityKey, type LayoutPatte
 import { STATUS_META, type DeviceLike, type StatusKey } from './equipment';
 import { DEVICE_RECIPES } from './deviceProfiles';
 import { DeviceAnalysisPanel, type TelemetryHistory } from './DeviceAnalysisPanel';
+import { ExplodedViewButton } from './ExplodedViewButton';
+import { WorkshopZoneNav } from './WorkshopZoneNav';
+import { ExplodedViewStage, type ExplodedViewWorkOrderContext } from './ExplodedViewStage';
+import { hasExplodedView, setExplodedViewHost } from './explodedViewFiles';
 import { RepairStepCard } from './RepairStepCard';
 import { can } from '../../utils/rbac';
 import type { ShellMode } from './hall';
 import { telemetryToStatus } from './statusMapping';
 import { ProductionHUD } from './ProductionHUD';
+import { DrillTrail, type DrillCrumbNode } from './DrillTrail';
+import { SceneLegend } from './SceneLegend';
 import type { SceneLevel } from './scene';
 import type { FactoryBuildingSpec, FactoryZoneSpec, FactoryZoneView, FactoryRankMetric } from './factoryOverview';
 import { PART_OBSERVATION_ZONES } from './partEvidence';
@@ -126,9 +132,21 @@ function telemetryFeed(status: string, sample?: { temperature?: number; vibratio
 
 export interface Equipment3DViewProps {
   initialWorkOrderId?: string | null;
+  /**
+   * 拆解视图 ↔ 检修业务联动：点击拆解侧栏里的工单号 /「返回工单详情」时回调宿主
+   * （App 把用户带回工单列表并自动展开那张单的详情抽屉）；不传则按 URL 深链兜底。
+   */
+  onOpenWorkOrderDetail?: (workOrderId: string) => void;
+  /**
+   * 地图轴（全国地图 / 城市 / 厂区）路径节点，由下钻壳给到；本层把它接在自己的
+   * 「车间 / 单设备」两级之前，渲染成顶部唯一的那条下钻路径条。
+   * 2026-09-23 用户「太拥挤了」：此前地图轴那条面包屑绝对定位浮在工具栏正中、厂区轴那条
+   * 挤在大屏栏左侧，顶部有两条面包屑、当前层级名写两遍；合并成一条并放进工具栏的文档流里。
+   */
+  mapTrail?: DrillCrumbNode[];
 }
 
-export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {}): React.ReactElement {
+export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, mapTrail }: Equipment3DViewProps = {}): React.ReactElement {
   const { equipments: contextEquipments, handleUpdateWorkOrder: contextUpdateWorkOrder } = useAppData();
   const auth = useOptionalAuth();
   const currentUser = auth?.currentUser ?? null;
@@ -143,7 +161,9 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   const readyRef = useRef(false);
   const selectionRequestRef = useRef(0);
 
-  const [params, setParams] = useState<SceneParams>(() => ({ ...DEFAULT_PARAMS }));
+  // 默认状态收敛（可视化层不再喧宾夺主）：介质粒子流默认关 —— 地面上的
+  // 粒子最花，10 台设备同时流动会盖住设备本体；需要时在「可视化图层」里开。
+  const [params, setParams] = useState<SceneParams>(() => ({ ...DEFAULT_PARAMS, fluidFlow: false }));
   const [stats, setStats] = useState<SceneStats | null>(null);
   const [fps, setFps] = useState(0);
   const [ready, setReady] = useState(false);
@@ -181,7 +201,7 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   const [recentOrders, setRecentOrders] = useState<WorkOrder[]>([]);
   const [cardError, setCardError] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryHistory | null>(null);
-  /** 右侧面板标签：场景参数 / 设备分析 */
+  /** 右侧面板标签：场景参数 / 设备分析 / 拆解视图 */
   const [rightTab, setRightTab] = useState<'params' | 'analysis'>('analysis');
 
   // ---- 遥测回放 ----
@@ -191,21 +211,41 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   const playbackIndexRef = useRef(-1);
 
   // ---- 拆解视图 ----
+  /** 3D 场景内的拆解动画（零件分离，`ExplodedView.ts`）——与下面的 HTML 拆解页是两件事 */
   const [explodedDeviceId, setExplodedDeviceId] = useState<string | null>(null);
   const [explodedParts, setExplodedParts] = useState<ExplodedPartData[]>([]);
   const [isExplodedAnimating, setIsExplodedAnimating] = useState(false);
   const explodedCleanupRef = useRef<(() => void) | null>(null);
 
+  /**
+   * 当前正在**页内**展示的拆解视图 HTML 对应设备（`public/exploded/*.html`）。
+   * 非 null 时主显示区域被 `ExplodedViewStage` 接管（3D 画布仍在下面，只是被盖住），
+   * 右侧面板与顶部工具栏不动。用户口径（2026-10-16）：不新开窗口、不整页跳走。
+   */
+  const [explodedHtmlDeviceId, setExplodedHtmlDeviceId] = useState<string | null>(null);
+  /**
+   * 拆解视图 ↔ 检修业务联动上下文（F1）：从工单「查看拆解视图」跳入时，携带工单
+   * 关键信息（左侧卡）与服务端按真实 parts_used/描述匹配出的目标零件位号（自动高亮、
+   * 由 iframe 桥 selectPart 定位）。targetPart 未识别时明确显示"未识别到具体零件"。
+   */
+  const [explodedHtmlContext, setExplodedHtmlContext] = useState<ExplodedViewWorkOrderContext | null>(null);
+
   // ---- 安全边界可视化 ----
   const [showSafetyBoundary, setShowSafetyBoundary] = useState(true);
   const safetyDataRef = useRef<Map<string, { permits: any[]; locks: any[] }>>(new Map());
+
+  // ---- 故障定位环（红色脉冲环 / 绿色恢复环）总开关，默认开 ----
+  // 它是"哪台设备哪里坏了"的第一视觉线索，属于常开层；其余彩色层默认收敛。
+  const [showFaultLocator, setShowFaultLocator] = useState(true);
 
   // ---- 超限观测 ----
   /** 预取全量遥测缓存（16 台最新48h），避免每次选中都重拉 */
   const allTelemetryRef = useRef<Map<string, any[]>>(new Map());
 
   // ---- 人员与工位动线 ----
-  const [showWorkers, setShowWorkers] = useState(true);
+  /** 默认关：技师轨迹 + 人形 + 指引虚线太密，需要时在「可视化图层」里开。
+   *  例外：选中设备时该设备的派工指引虚线仍会出现（见下方人员动线 effect）。 */
+  const [showWorkers, setShowWorkers] = useState(false);
   const [technicians, setTechnicians] = useState<DutyTechnician[]>([]);
   /** 轨迹缓存：Map<userId, {mapX,mapY}[]>（最多10个点） */
   const trajectoryRef = useRef<Map<string, Array<{ mapX: number; mapY: number }>>>(new Map());
@@ -214,6 +254,12 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
 
   // ---- 三级层级（厂区 / 车间 / 单设备）与生产线开关 ----
   const [level, setLevel] = useState<SceneLevel>('factory');
+  /** 当前层级的镜像。`selectZone` / `handlePick` 这类 useCallback 需要读"此刻"的层级，
+   *  但又不能把 level 放进依赖（会把回调整体换新、连带重建下游 effect），故用 ref 镜像。 */
+  const levelRef = useRef<SceneLevel>(level);
+  useEffect(() => {
+    levelRef.current = level;
+  }, [level]);
   const [activeBuilding, setActiveBuilding] = useState<{ id: string; name: string } | null>(null);
   const [beltAnimation, setBeltAnimation] = useState(true);
   const [lineEnabled, setLineEnabled] = useState(true);
@@ -435,6 +481,15 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     sceneRef.current?.setSafetyBoundaryVisible(showSafetyBoundary);
   }, [showSafetyBoundary]);
 
+  /**
+   * 故障定位环开关：随开关即时生效。
+   * 依赖里带上 ready —— 场景是异步构建的，首帧 ready 之前 sceneRef 还是 null；
+   * 重建（换画质/预设）后也要把当前开关状态重新推一次，否则会回到默认可见。
+   */
+  useEffect(() => {
+    sceneRef.current?.setFaultLocatorVisible(showFaultLocator);
+  }, [showFaultLocator, ready]);
+
   /* ---------- 1.3 预取全量遥测 → 超限观测缓存 ---------- */
   useEffect(() => {
     if (equipments.length === 0) return;
@@ -513,15 +568,25 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     return () => { alive = false; if (timer) clearInterval(timer); };
   }, []);
 
-  /* ---------- 1.7 选中设备时重建人员动线（含指引线） ---------- */
+  /* ---------- 1.7 选中设备时重建人员动线（含派工指引虚线） ---------- */
+  /** 人员动线层是否建过：没建过就别清（清一次会顺带把巡检数字人也摘掉） */
+  const workerLayerBuiltRef = useRef(false);
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
-    if (!showWorkers) {
+    // 选中设备时，即便"技师轨迹与指引线"总开关关着也要建这一层：
+    // 需求口径是「选中哪台设备，就看它相关的那条链路」—— 聚焦层的派工指引虚线
+    // （技师 → 设备）要照常出现。技师人形与历史轨迹仍跟随总开关
+    // （scene 侧把指引虚线单独成层，见 scene.ts 的 guideGroup）。
+    const needGuide = !!selectedId;
+    if (!showWorkers && !needGuide) {
+      if (workerLayerBuiltRef.current) {
+        scene.clearWorkers();
+        workerLayerBuiltRef.current = false;
+      }
       scene.setWorkerVisible(false);
       return;
     }
-    scene.setWorkerVisible(true);
     // 找当前选中设备工单的 assignee
     let assigneeId: string | null = null;
     let assigneeStatus: string | null = null;
@@ -536,6 +601,8 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
       }
     }
     scene.buildWorkers(technicians, trajectoryRef.current, selectedId, assigneeId, assigneeStatus);
+    workerLayerBuiltRef.current = true;
+    scene.setWorkerVisible(showWorkers);
   }, [technicians, selectedId, recentOrders, showWorkers]);
 
   const { deviceOrderMap, orderCounts } = useMemo(() => {
@@ -616,10 +683,18 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     syncFactoryZones();
   }, [ready, buildingSpecs, zoneSpecs, syncFactoryZones]);
 
+  /**
+   * 选中分区。**只有厂区总览层**才把选中动作转给 3D 引擎 —— 那一层才有「分区地块」可高亮/取景。
+   *
+   * 车间现场层现在也用同一个状态做「分区 → 车间 → 设备」导航（`WorkshopZoneNav`）。
+   * 那一层里工厂组是隐藏的（`applyLevelVisibility`），再调 `scene.selectZone` 会把镜头
+   * 按一块**看不见的地块**取景 —— 用户看到的是"镜头突然飞到空中乱转"。
+   * 所以按层分流：厂区层交给引擎，其余层只做面板筛选。
+   */
   const selectZone = useCallback(
     (zoneId: string | null) => {
       setActiveZoneId(zoneId);
-      sceneRef.current?.selectZone?.(zoneId);
+      if (levelRef.current === 'factory') sceneRef.current?.selectZone?.(zoneId);
       syncFactoryZones();
     },
     [syncFactoryZones]
@@ -734,7 +809,13 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     let raf2 = 0;
     setBuilding(true);
     const snapshot: SceneParams = {
-      presetId, seed, quality, deviceCount, layout, spacing, highlight, showGrid, fluidFlow, shell, exposure,
+      presetId, seed, quality, deviceCount, layout, spacing, highlight, showGrid,
+      // 重建会顺带按快照写一次介质流动的可见性（scene.build → fluidFlow.setVisible）。
+      // 这里必须与 quickApply 用同一个口径：聚焦层里选中设备的粒子要保留，
+      // 否则"设备台账刷新触发的一次重建"会把选中设备的粒子静默关掉
+      // （图例显示"在画"、画面上却没有 —— 实测出现过这种状态不一致）。
+      fluidFlow: fluidFlow || isolationId !== null,
+      shell, exposure,
     };
     const timer = window.setTimeout(() => {
       raf1 = requestAnimationFrame(() => {
@@ -778,9 +859,15 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   /* ---------- 4. 光照 / 网格 / 介质流动等纯渲染参数：不重建几何体 ---------- */
   useEffect(() => {
     if (readyRef.current) {
-      sceneRef.current?.quickApply(params);
+      // 选中设备（聚焦层）时，该设备的介质粒子恢复可见：粒子系统在独占模式下只保留
+      // 这一台设备的路径（FluidFlowSystem.setIsolation），所以这里只需在"渲染参数"这
+      // 一层放行即可 —— **不改用户的开关状态本身**，退出聚焦后仍回到用户设定。
+      // 其余图层（技师轨迹 / 安全边界）严格跟随各自开关，不做任何硬开。
+      sceneRef.current?.quickApply({ ...params, fluidFlow: fluidFlow || isolationId !== null });
     }
-  }, [exposure, showGrid, fluidFlow, params]);
+    // building 由 true→false 代表一次重建结束：重建会把介质流动的可见性写回快照值，
+    // 所以重建收尾时要按"当前是否选中设备"再推一次，否则聚焦层里粒子会被关掉。
+  }, [exposure, showGrid, fluidFlow, params, isolationId, building]);
 
   // 同步台账真实遥测状态与负荷率到 3D 介质流速
   useEffect(() => {
@@ -986,22 +1073,91 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   useEffect(() => {
     if (!ready || !equipments.length) return;
 
-    let targetOrderId: string | null = null;
+    /**
+     * ★ 一次性深链：**URL 上的 workOrderId 是唯一凭据**，兑现一次后立刻从 URL 摘掉。
+     *
+     * 用户实测的故障（2026-10-16）：从工单「3D 查看」进过一次 3D 之后，
+     * 之后**每次**点「广州主厂」都被直接拽进单台设备聚焦 —— 看起来像"厂区总览跳步"。
+     * 两个原因叠加：
+     *   ① App 的 `targetWorkOrderIdFor3D` 是 sticky state，置上后再没清过（离开 3D 也不清）；
+     *   ② 本组件在离开厂区层时被卸载，`handledOrderIdRef` 归零 ⇒ 每次重进厂区层都重新兑现一次。
+     * 只认 props 就永远修不掉。改成只认 URL + 兑现即摘，语义变成"一次导航意图只兑现一次"：
+     * 用户下一次主动点「广州主厂」时 URL 里已经没有凭据，自然落在厂区总览。
+     */
+    let urlOrderId: string | null = null;
     try {
-      const sp = new URLSearchParams(window.location.search);
-      targetOrderId = initialWorkOrderId || sp.get('workOrderId');
+      urlOrderId = new URLSearchParams(window.location.search).get('workOrderId');
     } catch {
-      targetOrderId = initialWorkOrderId || null;
+      urlOrderId = null;
     }
+    let wantExploded = false;
+    try {
+      // F1 深链：工单按钮会把 URL 写成 ?view=equipment_3d&workOrderId=…&showExplodedView=1
+      wantExploded = new URLSearchParams(window.location.search).get('showExplodedView') === '1';
+    } catch {
+      wantExploded = false;
+    }
+    if (!urlOrderId) return;
 
-    if (!targetOrderId || handledOrderIdRef.current === targetOrderId) return;
+    const targetOrderId = initialWorkOrderId || urlOrderId;
+    if (handledOrderIdRef.current === targetOrderId) return;
 
     const findAndFocus = (order: WorkOrder) => {
       const eqId = order.equipmentId || (order as any).equipment_id;
-      if (eqId) {
-        handlePick(eqId);
-        setActiveOrderCard(order);
-        setRepairCardCollapsed(true);
+      if (!eqId) return;
+      // 层级不跳步：先把场景推进到「车间现场」（面包屑补上车间一级，用户能按层退回去），
+      // 再聚焦该设备。直接 setIsolation 会让面包屑少一级、也无法退回车间。
+      const eq = equipments.find((e) => e.id === eqId);
+      if (eq?.workshop) setActiveBuilding({ id: eq.workshop, name: eq.workshop });
+      sceneRef.current?.enterWorkshopLevel();
+      setLevel('workshop');
+      handlePick(eqId);
+      setActiveOrderCard(order);
+      setRepairCardCollapsed(true);
+      // ---- F1：带 showExplodedView=1 深链时打开页内拆解视图，并迁入工单上下文（真实数据，服务端匹配目标零件） ----
+      if (wantExploded && eqId && hasExplodedView(eqId)) {
+        setExplodedHtmlDeviceId(eqId);
+        const localPartsUsed = Array.isArray(order.repairLog?.partsUsed)
+          ? order.repairLog.partsUsed.map((p) => ({ name: p.name, code: p.code, qty: p.qty, spec: p.spec }))
+          : [];
+        setExplodedHtmlContext({
+          id: order.id,
+          orderNo: order.orderNo,
+          title: order.title,
+          description: order.description ?? '',
+          faultType: order.faultType ?? '',
+          priority: order.priority ?? 'general',
+          status: order.status ?? 'created',
+          createdAt: order.createdAt ?? null,
+          equipmentName: eq?.name ?? '',
+          partsUsed: localPartsUsed,
+          targetPart: null,
+          briefLoading: true,
+        });
+        explodedViewApi
+          .getWorkOrderBrief(order.id)
+          .then((brief) => {
+            setExplodedHtmlContext((prev) => {
+              if (!prev || prev.id !== order.id) return prev;
+              return { ...prev, partsUsed: brief.workOrder.partsUsed, targetPart: brief.targetPart, dataNote: brief.dataNote, briefLoading: false };
+            });
+          })
+          .catch(() => {
+            // 服务端未命中目标位号（或接口异常）：拆解页照常打开，只是不高亮 —— 卡片上会如实说明
+            setExplodedHtmlContext((prev) => {
+              if (!prev || prev.id !== order.id) return prev;
+              return { ...prev, briefLoading: false };
+            });
+          });
+      }
+      // 兑现即摘 URL 凭据（放在真正聚焦成功之后：getById 失败时凭据保留，下次还能重试）
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('workOrderId');
+        url.searchParams.delete('showExplodedView');
+        window.history.replaceState(window.history.state, '', url.toString());
+      } catch {
+        /* ignore */
       }
     };
 
@@ -1321,6 +1477,26 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
   }, [selectedId, equipments]);
 
   /* ---------- 7.1 拆解视图控制 ---------- */
+
+  /**
+   * 注册"页内打开拆解视图 HTML"的宿主实现。
+   *
+   * `ExplodedViewButton` 在大屏 HUD 右栏与普通模式侧栏两处使用，两处都在本组件的子树里，
+   * 但中间隔着 `ProductionHUD`（并行会话在维护，不宜再加一条 props 链）。所以用
+   * `explodedViewFiles.setExplodedViewHost()` 做一层薄注册：按钮只管"请求打开"，
+   * 由本组件决定"在页面内怎么显示"。宿主返回 true = 已接管，按钮不再走新标签页兜底。
+   *
+   * 卸载时注销，避免热更新后残留一个指向已卸载组件的闭包。
+   */
+  useEffect(() => {
+    setExplodedViewHost((deviceId) => {
+      if (!hasExplodedView(deviceId)) return false;
+      setExplodedHtmlDeviceId(deviceId);
+      return true;
+    });
+    return () => setExplodedViewHost(null);
+  }, []);
+
   const enterExplodedView = useCallback(() => {
     if (!selectedId || !isExplodedViewSupported(selectedId)) return;
     const scene = sceneRef.current;
@@ -1567,6 +1743,43 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     }
   }, [selectedId, explodedDeviceId, exitExplodedView]);
 
+  /**
+   * 页内拆解视图是"某台设备的"视图：换设备 / 清选中时必须收起。
+   * 否则右栏已经切到新设备、中间还停在旧设备的拆解页上 —— 数据与视图对不上。
+   */
+  useEffect(() => {
+    if (!explodedHtmlDeviceId) return;
+    if (selectedId !== explodedHtmlDeviceId) setExplodedHtmlDeviceId(null);
+  }, [selectedId, explodedHtmlDeviceId]);
+  // 工单上下文与舞台同生共死：舞台收起时一并清掉（分处独立 effect，便于各测各的）
+  useEffect(() => {
+    if (!explodedHtmlDeviceId && explodedHtmlContext) setExplodedHtmlContext(null);
+  }, [explodedHtmlDeviceId, explodedHtmlContext]);
+
+  /**
+   * 拆解侧栏里的「返回工单详情」（F2 关联跳转）：
+   * 优先走宿主回调（App 收尾联动工单列表自动展开那单的抽屉）；没给回调时按
+   * work_orders 深链 URL 兜底。不切走也不关拆解视图 —— 用户可随时返回。
+   */
+  const handleOpenWorkOrderFromExploded = useCallback(
+    (orderId: string) => {
+      if (onOpenWorkOrderDetail) {
+        onOpenWorkOrderDetail(orderId);
+        return;
+      }
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'work_orders');
+        url.searchParams.set('workOrderId', orderId);
+        url.searchParams.delete('showExplodedView');
+        window.location.href = url.toString();
+      } catch {
+        /* ignore */
+      }
+    },
+    [onOpenWorkOrderDetail]
+  );
+
   /* ---------- 8. 选中设备的展示数据 ---------- */
   const selectedDevice = useMemo(
     () => equipments.find((e) => e.id === selectedId) ?? null,
@@ -1579,20 +1792,69 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
     [selectedId]
   );
 
+  /* ---------- 8.5 顶部唯一的下钻路径条 ---------- */
+  /**
+   * 地图轴三级由下钻壳给（mapTrail），本层再接上自己的「车间 / 单设备」两级。
+   * 2026-09-23 用户「太拥挤了」：原本地图轴那条绝对定位浮在工具栏正中、厂区轴那条挤在
+   * 大屏栏左侧 —— 顶部两条面包屑、当前层级名写两遍。合成一条之后，它待在工具栏的
+   * 正常文档流里（见下方 equipment3d-crumb-lane）：路径条折行时工具栏自己长高、
+   * 工作区整体下移，所以「路径条压住大屏栏」在结构上不可能再发生
+   * （上一版绝对定位 + width 撑满车道，1024px 下五级链路实测压出 -39px 重叠）。
+   */
+  const drillTrail = useMemo<DrillCrumbNode[]>(() => {
+    const nodes = [...(mapTrail ?? [])];
+    if (level !== 'factory') {
+      nodes.push({
+        key: 'workshop',
+        label: activeBuilding?.name ?? '生产车间',
+        active: level === 'workshop',
+        onGo: level === 'device' ? () => changeLevel('workshop') : undefined,
+      });
+    }
+    if (level === 'device' && selectedEquipment) {
+      nodes.push({
+        key: 'device',
+        label: selectedEquipment.name,
+        active: true,
+        closable: !!isolationId,
+        onGo: isolationId ? exitIsolation : undefined,
+      });
+    }
+    return nodes;
+  }, [mapTrail, level, activeBuilding?.name, selectedEquipment, isolationId, changeLevel, exitIsolation]);
+
   const preset = SCENE_PRESETS[params.presetId] ?? SCENE_PRESETS.standard;
   const showEmptyState = ready && !building && equipments.length === 0;
 
+  /**
+   * 拆解视图舞台：用户口径（2026-10-16 最新）：
+   * 点进拆解视图后：
+   * 1. 右边的设备详情面板（总览/参数/告警那些）全部隐藏
+   * 2. 上面的"设备拆解视图"标题栏也去掉，不要
+   * 3. 拆解视图 iframe 占满整个中间主区域，最大化显示，不要留边
+   * 4. 只在右上角留一个小小的"返回 3D 设备视图"按钮就行
+   * 5. 修复拆解视图内部的 BOM 表格：给表格区域加上下滚动条，让用户能上下滑动查看所有零件信息，不要卡住
+   */
+  const explodedStageInset = 'inset-0';
+
   return (
-    <div className="equipment-industrial flex flex-col gap-3" style={{ height: 'calc(100vh - 168px)', minHeight: 560 }}>
-      {/* ================= 顶部状态栏 ================= */}
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
+    <div className="equipment-industrial flex flex-col w-full h-full" style={{ minHeight: 620 }}>
+      {/* 三段式：左区 / 下钻路径条 / 右区，用 grid 的 1fr·auto·1fr 钉住正中。
+          2026-09-23 用户「太拥挤了」+ 上一轮实测：路径条原本是外壳里 absolute left-1/2 浮在
+          画布上的药丸，窄窗口一折行就往下压大屏栏（五级链路 1024px 下重叠 -39px）；改成
+          flex-1 车道又因为左右两簇不等宽（实测左 353 / 右 181）而整体偏右约 100px。
+          现在它是工具栏正常的一员：折行只会让工具栏自己长高、工作区整体下移，
+          **压住大屏栏在结构上不可能**；两侧轨道同为 1fr，路径条恒等于画布水平正中
+          （minmax(0,…) 让轨道可小于内容，内容自己是 flex-wrap，所以只会折行不会溢出）。 */}
+      <div className="equipment-industrial-header grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 justify-self-start">
         <div className="flex items-center gap-2 pr-2">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-300">
             <Boxes className="w-4 h-4" />
           </span>
           <div className="leading-tight">
             <div className="text-sm font-semibold text-slate-100">工业设备 · 数字孪生</div>
-            <div className="text-[11px] text-slate-500">{isolationId ? `单台聚焦 · ${selectedDevice?.code ?? isolationId}` : `车间总览 · ${equipments.length} 台真实台账`} · {dataMode === 'api' ? '接口数据' : dataMode === 'cache' ? '已加载台账' : '等待数据'}</div>
+            <div className="text-[11px] text-slate-500">{isolationId ? `聚焦 ${selectedDevice?.code ?? isolationId}` : `${equipments.length} 台真实台账`} · {dataMode === 'api' ? '接口数据' : dataMode === 'cache' ? '已加载台账' : '等待数据'}</div>
           </div>
         </div>
 
@@ -1606,35 +1868,67 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
             value={stats ? String(stats.faults) : '—'}
             tone={stats && stats.faults > 0 ? 'danger' : 'default'}
           />
-          <details className="industrial-render-settings"><summary>渲染统计</summary><div className="industrial-popover">
-          <Chip
-            icon={Triangle}
-            label="三角面"
-            metric="triangles"
-            value={stats ? stats.triangles.toLocaleString('zh-CN') : '—'}
-          />
-          <Chip
-            icon={Gauge}
-            label="帧率"
-            metric="fps"
-            value={fps ? `${Math.round(fps)} fps` : '—'}
-            tone={fps && fps < 30 ? 'warn' : 'default'}
-          />
-          {stats && (
-            <Chip
-              icon={Wand2}
-              label="重建"
-              metric="buildMs"
-              value={`${stats.buildMs} ms`}
-              tone={stats.buildMs > 80 ? 'warn' : 'default'}
-            />
-          )}
-          </div></details>
+        </div>
         </div>
 
-        <div className="flex-1" />
+        {/* 下钻路径条：地图轴三级（外壳传来）+ 本层的车间 / 单设备两级，合成顶部唯一一条。
+            独立挂载（tests 里 <Equipment3DView /> 无 mapTrail、厂区总览层）时节点为空，
+            整格不渲染，避免留一个空药丸盒。 */}
+        {drillTrail.length > 0 && (
+          <div className="flex min-w-0 justify-self-center" data-testid="equipment3d-crumb-lane">
+            <DrillTrail nodes={drillTrail} />
+          </div>
+        )}
 
-        <details className="industrial-render-settings"><summary>渲染设置</summary><div className="industrial-popover">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+        {/* ---- 视图设置：可视化图层 + 渲染预设/画质 + 渲染统计，三合一 ----
+              2026-09-23 用户「太拥挤了」：这一行原本并排三颗同款下拉（渲染统计 / 可视化图层 /
+              渲染设置），光下拉就吃掉约 300px；「渲染统计」里的帧率还和大屏栏右上角的 FPS
+              是同一个数说两遍。合成一颗、内部分三段，右侧簇立刻瘦下来。
+              图层开关仍留在顶栏而不是右栏：右栏（场景参数/设备分析）在 HUD 模式下是隐藏的，
+              这一组开关需要随时可达（各颜色含义见左下角 SceneLegend 图例）。 */}
+          <details className="industrial-render-settings" data-testid="equipment3d-view-settings">
+            <summary>视图设置</summary>
+            <div className="industrial-popover">
+            <div data-testid="equipment3d-layer-switches" className="flex flex-col gap-1.5">
+              <div className="text-[10px] font-semibold tracking-wide text-cyan-300/90">可视化图层</div>
+              <div className="text-[10px] leading-relaxed text-slate-400">
+                地面彩色可视化层的独立开关；默认只保留「故障定位环 + 安全边界」。
+                各颜色的含义见左下角图例。
+              </div>
+              <Toggle
+                label="故障定位环（红色脉冲环 / 绿色恢复环）"
+                testId="equipment3d-layer-fault-toggle"
+                checked={showFaultLocator}
+                onChange={setShowFaultLocator}
+                icon={AlertTriangle}
+              />
+              <Toggle
+                label="技师轨迹与指引线（蓝色线）"
+                testId="equipment3d-layer-workers-toggle"
+                checked={showWorkers}
+                onChange={setShowWorkers}
+                icon={User}
+              />
+              <Toggle
+                label="介质流动（冷却水 / 油路粒子）"
+                testId="equipment3d-layer-fluid-toggle"
+                checked={!!params.fluidFlow}
+                onChange={(v) => patch({ fluidFlow: v })}
+                icon={Waves}
+              />
+              <Toggle
+                label="安全边界（许可圈 / LOTO 隔离罩）"
+                testId="equipment3d-layer-safety-toggle"
+                checked={showSafetyBoundary}
+                onChange={setShowSafetyBoundary}
+                icon={Shield}
+              />
+            </div>
+
+            {/* 渲染预设与画质（原独立「渲染设置」下拉，收进同一段） */}
+            <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+              <div className="text-[10px] font-semibold tracking-wide text-cyan-300/90">渲染预设与画质</div>
         {/* 预设切换 */}
         <div className="flex items-center gap-1 p-1 bg-slate-800 rounded-lg">
           {PRESET_ORDER.map((id) => {
@@ -1677,8 +1971,36 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
             </button>
           ))}
         </div>
+            </div>
 
-        </div></details>
+            {/* 渲染统计（原独立「渲染统计」下拉，帧率与大屏栏右上角重复显示，收进弹层） */}
+            <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+              <div className="text-[10px] font-semibold tracking-wide text-cyan-300/90">渲染统计</div>
+          <Chip
+            icon={Triangle}
+            label="三角面"
+            metric="triangles"
+            value={stats ? stats.triangles.toLocaleString('zh-CN') : '—'}
+          />
+          <Chip
+            icon={Gauge}
+            label="帧率"
+            metric="fps"
+            value={fps ? `${Math.round(fps)} fps` : '—'}
+            tone={fps && fps < 30 ? 'warn' : 'default'}
+          />
+          {stats && (
+            <Chip
+              icon={Wand2}
+              label="重建"
+              metric="buildMs"
+              value={`${stats.buildMs} ms`}
+              tone={stats.buildMs > 80 ? 'warn' : 'default'}
+            />
+          )}
+            </div>
+            </div>
+          </details>
         {/* 独占模式：返回 16 台总览 */}
         {isolationId && (
           <button
@@ -1729,10 +2051,11 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
             {panelOpen ? '收起侧栏' : '设备与场景'}
           </button>
         )}
+        </div>
       </div>
 
       {/* ================= 主区域 ================= */}
-      <div className={`industrial-workspace relative flex-1 min-h-0 rounded-xl overflow-hidden border border-slate-700 bg-slate-900 ${panelOpen && !hudOn ? 'has-sidebar' : ''}`}>
+      <div className={`industrial-workspace relative flex-1 min-h-0 overflow-hidden bg-slate-900 ${panelOpen && !hudOn ? 'has-sidebar' : ''}`}>
         <div
           ref={hostRef}
           data-testid="equipment3d-host"
@@ -1740,6 +2063,30 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
         />
+
+        {/* ---- 拆解视图舞台：**在当前页面内**接管主显示区域 ----
+            用户口径（2026-10-16）：点「拆解视图」不新开窗口、不整页跳走，而是把中间这块
+            显示 3D 设备模型的区域换成拆解视图 HTML；右侧面板与顶部工具栏保留。
+            第二次修正：中间那块要**完全填满**、不要留边、不要露出 3D 场景背景
+            ⇒ 背板铺满整个主区域（不透明），只有内容列按 `explodedStageInset` 内缩。
+
+            位置/层序：紧跟 canvas 之后 ⇒ 晚于它绘制，盖住 3D 画面；又**早于**后面的
+            大屏 HUD / 左侧信息列 / 右侧详情面板 ⇒ 那些面板仍浮在它上面、照常可见可点。 */}
+        {explodedHtmlDeviceId && (
+          <ExplodedViewStage
+            deviceId={explodedHtmlDeviceId}
+            deviceName={equipments.find((e) => e.id === explodedHtmlDeviceId)?.name ?? null}
+            deviceCode={equipments.find((e) => e.id === explodedHtmlDeviceId)?.code ?? null}
+            onBack={() => {
+              setExplodedHtmlDeviceId(null);
+              setExplodedHtmlContext(null);
+            }}
+            className={explodedStageInset}
+            workOrderBrief={explodedHtmlContext}
+            targetPartPosNo={explodedHtmlContext?.targetPart?.posNo ?? null}
+            onOpenWorkOrder={handleOpenWorkOrderFromExploded}
+          />
+        )}
 
         {/* ---- 首次构建遮罩 ---- */}
         {!ready && (
@@ -1749,44 +2096,47 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
           </div>
         )}
 
-        {/* ---- 重建中（轻量，不遮挡） ---- */}
+        {/* ---- 重建中（轻量，不遮挡） ----
+            top 12→68：大屏 HUD 顶栏（ProductionHUD）占 workspace 内 20~61px，
+            这颗居中徽章原来落在 12~37px，重建时会正正压在顶栏大标题上（2026-09-22 验收量出来的）。
+            抬到 68px 后与顶栏留 7px 缝，且仍在画布上方空白区，不碰两栏卡片。 */}
         {ready && building && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/70 text-[11px] text-slate-100 backdrop-blur">
+          <div className="absolute top-[68px] left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/70 text-[11px] text-slate-100 backdrop-blur">
             <Loader2 className="w-3 h-3 animate-spin" />
             重建中
           </div>
         )}
 
-        {/* ---- 大屏 HUD 覆盖层：顶部标题栏 / 左侧功能菜单 / 右侧标签页 ---- */}
+        {/* ---- 大屏 HUD 覆盖层：顶部标题栏 / 左侧功能菜单 / 右侧标签页（拆解视图激活时全部隐藏，让位给全屏拆解） ---- */}
         {ready && hudOn && (
-          <ProductionHUD
-            level={level}
-            activeBuildingName={activeBuilding?.name ?? null}
-            onLevelChange={changeLevel}
-            onDrillBuilding={drillIntoBuilding}
-            devices={equipments}
-            selected={selectedEquipment}
-            telemetry={telemetry}
-            workOrders={recentOrders}
-            technicians={technicians}
-            onSelect={handlePick}
-            onExitIsolation={isolationId ? exitIsolation : undefined}
-            fps={fps}
-            beltAnimation={beltAnimation}
-            onToggleBelt={setBeltAnimation}
-            productionLine={lineEnabled}
-            onToggleProductionLine={setLineEnabled}
-            paused={animPaused}
-            onTogglePaused={setAnimPaused}
-            factoryZones={factoryZones}
-            activeZoneId={activeZoneId}
-            onSelectZone={selectZone}
-            onRankMetricChange={changeRankMetric}
-          />
+          <div className={explodedHtmlDeviceId ? 'hidden' : 'contents'}>
+            <ProductionHUD
+              level={level}
+              onLevelChange={changeLevel}
+              onDrillBuilding={drillIntoBuilding}
+              devices={equipments}
+              selected={selectedEquipment}
+              telemetry={telemetry}
+              workOrders={recentOrders}
+              technicians={technicians}
+              onSelect={handlePick}
+              fps={fps}
+              beltAnimation={beltAnimation}
+              onToggleBelt={setBeltAnimation}
+              productionLine={lineEnabled}
+              onToggleProductionLine={setLineEnabled}
+              paused={animPaused}
+              onTogglePaused={setAnimPaused}
+              factoryZones={factoryZones}
+              activeZoneId={activeZoneId}
+              onSelectZone={selectZone}
+              onRankMetricChange={changeRankMetric}
+            />
+          </div>
         )}
 
         {/* ---- 左侧信息列：工单状态图例 + 状态图例 + 俯视小地图 ---- */}
-        <div className={`industrial-overview absolute top-3 left-3 flex flex-col gap-2 z-20 ${isolationId ? 'is-focused' : ''} ${hudOn ? 'hidden' : ''}`}>
+        <div className={`industrial-overview absolute top-3 left-3 flex flex-col gap-2 z-20 ${isolationId ? 'is-focused' : ''} ${hudOn || explodedHtmlDeviceId ? 'hidden' : ''}`}>
           {/* 工单状态图例 */}
           <div
             data-testid="equipment3d-workorder-legend"
@@ -1887,6 +2237,37 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
           </div>
         </div>
 
+        {/* ---- 图例：讲清楚地面每一种颜色 / 线型代表什么 ----
+            z-index 10 低于 HUD 面板（z-20）。停靠位按层级分：
+              · 厂区层：右下角，但横向让开右侧「厂区核心运行指标」面板
+                （面板 right 10px + 宽 240px，可长到容器底部上方 74px，压到它上面就是
+                上一轮验收挂掉的点），所以取 right 262px；bottom 20 抬高到 KPI 卡片之上。
+              · 车间 / 聚焦层：右栏是从 top 一直铺到 bottom-3 的详情面板，右下角没有空位，
+                仍留在左侧菜单右边（left 262px = 10 + 240 + 12）。
+              · HUD 关闭：右栏可能挂着分析面板（占 300px），回到真正的左下角。
+            传入的是"画面上实际是否在画"的状态，而不是开关本身 —— 例如选中设备后
+            派工指引虚线会出现在聚焦层，此时图例里那一行不再是「已关」。 */}
+        {!explodedHtmlDeviceId && (
+          <SceneLegend
+            key={level === 'factory' ? 'factory' : 'detail'}
+            defaultCollapsed={level === 'factory'}
+            className={
+              level === 'factory' && hudOn
+                ? 'right-[262px] bottom-20'
+                : hudOn
+                  ? 'left-[262px] bottom-3'
+                  : 'left-3 bottom-3'
+            }
+            layers={{
+              faultLocator: showFaultLocator,
+              workers: showWorkers,
+              guide: showWorkers || !!isolationId,
+              fluid: !!params.fluidFlow || !!isolationId,
+              safety: showSafetyBoundary,
+            }}
+          />
+        )}
+
         {/* ---- 数据来源提示 ----
             注意：参数面板同样位于 top-3 right-3（宽 248px），若提示也放右侧会被完全遮住。
             因此这里让出面板宽度（268px = 248 + 12 + 8 间隙），确保降级提示始终可见。 */}
@@ -1933,14 +2314,29 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
           </div>
         )}
 
-        {/* ---- 右侧面板：场景参数 / 设备分析 两个标签 ----
+        {/* ---- 右侧面板：场景参数 / 设备分析 两个标签（拆解视图激活时隐藏） ----
             设备分析放在右栏而不是浮在左下角：面板内容（档案 + 3 条 48h 曲线 + AI 结论 + 工单）
-            远比原信息卡高，只有右栏的整列高度放得下，也不遮挡设备本体。 */}
-        {panelOpen && (
+            远比原信息卡高，只有右栏的整列高度放得下，也不遮挡设备本体。
+            注意本块在 hudOn=true 或 level==='factory' 时整体 hidden —— 即"关掉大屏 HUD"
+            还不够，必须先下钻到车间/设备，这块面板才会出现。 */}
+        {panelOpen && !explodedHtmlDeviceId && (
           <div className={`industrial-sidebar absolute top-3 right-3 flex flex-col gap-2 ${hudOn || level === 'factory' ? 'hidden' : ''}`}>
             {/* 设备快速切换：16 台设备逐一分析时不必在场景里找目标；
-                选中后与「点击设备」走同一条 handlePick 通路（聚焦 + 拉取真实数据）。 */}
-            {equipments.length > 0 && (
+                选中后与「点击设备」走同一条 handlePick 通路（聚焦 + 拉取真实数据）。
+                车间现场层例外 —— 那里改成「分区 → 车间 → 设备」三级导航：原来一个下拉框
+                把全厂设备平铺出来，一进车间现场就能跳到任意设备（用户报的"跳步"）。 */}
+            {equipments.length > 0 && level === 'workshop' ? (
+              <div className="px-2 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur border border-white/12 max-h-[46vh] overflow-y-auto">
+                <WorkshopZoneNav
+                  zones={factoryZones}
+                  devices={equipments}
+                  activeZoneId={activeZoneId}
+                  onSelectZone={selectZone}
+                  onSelectDevice={handlePick}
+                  selectedDeviceId={selectedId}
+                />
+              </div>
+            ) : equipments.length > 0 && (
               <div className="px-2 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur border border-white/12">
                 <select
                   aria-label="选择台账设备"
@@ -2002,6 +2398,16 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
               >
                 <X className="w-3.5 h-3.5" />
               </button>
+            </div>
+
+            {/* 拆解视图入口：点它由本组件在**页内**把中间那块 3D 模型区换成拆解视图 HTML
+                （`ExplodedViewStage`，同源 iframe）；不新开窗口、不整页跳走，右侧面板与
+                顶部工具栏保留不动。没有对应拆解页的设备按钮置灰并给出原因（见 ExplodedViewButton）。 */}
+            <div className="flex items-center gap-1.5 px-1">
+              <span className="text-[10px] text-slate-500 truncate">
+                {selectedDevice ? selectedDevice.code : '未选择设备'}
+              </span>
+              <ExplodedViewButton deviceId={selectedId} deviceName={selectedDevice?.name} className="ml-auto shrink-0" />
             </div>
 
             {rightTab === 'analysis' ? (
@@ -2160,6 +2566,15 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
                 checked={params.showGrid}
                 onChange={(v) => patch({ showGrid: v })}
               />
+              {/* 以下四项与顶栏「可视化图层」开关组是同一组状态（同一份 useState），
+                  两处入口保持一致；HUD 模式下本面板隐藏，用顶栏那一组。 */}
+              <Toggle
+                label="故障定位环（红色脉冲环）"
+                testId="equipment3d-fault-locator-toggle"
+                checked={showFaultLocator}
+                onChange={setShowFaultLocator}
+                icon={AlertTriangle}
+              />
               <Toggle
                 label="安全边界（许可圈 / LOTO 隔离罩）"
                 testId="equipment3d-safety-boundary-toggle"
@@ -2177,7 +2592,7 @@ export function Equipment3DView({ initialWorkOrderId }: Equipment3DViewProps = {
               <Toggle
                 label="介质内部流动（冷却水/润滑油/气流）"
                 testId="equipment3d-fluid-toggle"
-                checked={params.fluidFlow ?? true}
+                checked={!!params.fluidFlow}
                 onChange={(v) => patch({ fluidFlow: v })}
                 icon={Waves}
               />

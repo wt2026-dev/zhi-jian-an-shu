@@ -5,13 +5,16 @@
 // - 层间过渡：俯冲是真实相机运动，发生在「离开层」内部（createMapScene.diveTo，
 //   DIVE_MS=2s、easeInOutCubic，其余光柱与标注同步淡出）；到达最大缩放后才交接图层，
 //   壳这里只承担最后 0.65s 的交叉淡入淡出，新层再自高空阻尼落位 → 全程无硬切。
-// - 面包屑：全国地图 → XX市 → XX工厂（车间/设备层级由 ProductionHUD 内部面包屑承接）。
+// - 面包屑：一条路径条承载完整下钻链路——全国地图 → XX市 → XX工厂 →（车间 → 单设备，
+//   由厂区层把地图轴 mapTrail 接在自己的工具栏里）。2026-09-23 起 ProductionHUD 不再自带
+//   第二条面包屑；厂区层在画布上时，壳这条绝对定位的路径条让位给它，避免叠两份。
 // 数据纪律：厂区名/城市名来自 /api/v1/factories 真实接口。
 import { useCallback, useEffect, useState } from "react";
 import { factoryApi, type FactorySummary } from "../../api/factoryApi";
 import { MapOverviewView } from "./MapOverview";
 import { CityOverviewView } from "./CityOverview";
 import { Equipment3DView } from "./EquipmentScene";
+import { DrillTrail, type DrillCrumbNode } from "./DrillTrail";
 import "./drilldown-transitions.css";
 import "./equipment-industrial.css";
 
@@ -28,7 +31,14 @@ function parseLevelFromUrl(): DrillLevel {
   return "map";
 }
 
-export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: string | null }) {
+export function Equipment3DShell({
+  initialWorkOrderId,
+  onOpenWorkOrderDetail,
+}: {
+  initialWorkOrderId?: string | null;
+  /** 拆解侧栏「返回工单详情」回调，原样透传给 Equipment3DView（App 收尾联动工单抽屉） */
+  onOpenWorkOrderDetail?: (workOrderId: string) => void;
+}) {
   const [level, setLevel] = useState<DrillLevel>(() => parseLevelFromUrl());
   const [factory, setFactory] = useState<FactorySummary | null>(null);
   // 过渡状态：displayLevel 为当前层；transition.from 为正在淡出的旧层（两层并行 650ms）
@@ -104,50 +114,53 @@ export function Equipment3DShell({ initialWorkOrderId }: { initialWorkOrderId?: 
     setLevel("factory");
   }, []);
 
+  /**
+   * 地图轴三级。厂区层拿到它之后接上自己的「车间 / 单设备」两级，
+   * 顶部那条下钻路径全程只有一处（2026-09-23 用户「太拥挤了」：原来地图轴浮在工具栏正中、
+   * 厂区轴挤在大屏栏左侧，同一行两条面包屑、当前层级名写两遍）。
+   */
+  const mapTrail: DrillCrumbNode[] = [
+    { key: "map", label: "全国地图", active: level === "map", onGo: () => setLevel("map") },
+    { key: "city", label: factory ? `${factory.city}` : "城市", active: level === "city", onGo: factory ? () => setLevel("city") : undefined },
+    {
+      key: "factory",
+      label: factory ? factory.name : "厂区",
+      active: level === "factory",
+      onGo: factory ? () => setLevel("factory") : undefined,
+      badge: factory?.isDemo ? "演示" : undefined,
+    },
+  ];
+
   /** key 只用层级名：过渡期间旧层只是换 className，不会被 React 卸载重建（避免重建 WebGL 场景） */
   const stageOf = (lvl: DrillLevel) => (
     <div key={lvl} className={lvl === transition?.from ? "dd-stage-leaving absolute inset-0" : transition ? "dd-stage-entering absolute inset-0" : "absolute inset-0"}>
       {lvl === "map" && <MapOverviewView onDrillCity={drillCity} />}
       {lvl === "city" && <CityOverviewView factory={factory} onEnterFactory={enterFactory} />}
-      {lvl === "factory" && <Equipment3DView initialWorkOrderId={initialWorkOrderId} />}
+      {lvl === "factory" && <Equipment3DView initialWorkOrderId={initialWorkOrderId} onOpenWorkOrderDetail={onOpenWorkOrderDetail} mapTrail={mapTrail} />}
     </div>
   );
 
   const visibleLevels: DrillLevel[] = transition ? [transition.from, displayLevel] : [displayLevel];
 
-  const crumbs: { label: string; level: DrillLevel; active: boolean }[] = [
-    { label: "全国地图", level: "map", active: level === "map" },
-    { label: factory ? `${factory.city}` : "城市", level: "city", active: level === "city" },
-    { label: factory ? factory.name : "厂区", level: "factory", active: level === "factory" },
-  ];
+  // 厂区层把路径条放进自己的工具栏（正常文档流），壳这边就不再叠一份
+  const showsFactory = visibleLevels.includes("factory");
 
   return (
     /* 常规文档流内的 relative 容器：填充 main 内容区（flex-1），
      * 侧边栏/顶栏由 App 正常布局承载，绝不被 3D 层覆盖 */
-    <div className="relative h-full min-h-[620px] w-full">
-      {/* 统一舞台：三层共用；深色科技蓝渐变底（与车间层风格一致，非纯黑） */}
-      <div className="dd-sky absolute inset-0 overflow-hidden rounded-lg border border-white/10">
+    <div className="relative flex-1 h-[calc(100vh-160px)] min-h-[620px] w-full">
+      {/* 统一舞台：三层共用；深色科技蓝渐变底（带 16px 大圆角与柔和外阴影卡片） */}
+      <div className="dd-sky absolute inset-0 overflow-hidden">
         {visibleLevels.map((lvl) => stageOf(lvl))}
       </div>
 
-      {/* 顶部面包屑（车间/设备层级由 ProductionHUD 内部面包屑承接） */}
-      <div className="absolute left-1/2 top-3 z-40 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-cyan-400/30 bg-[rgba(8,15,30,0.85)] px-2 py-1.5 text-xs backdrop-blur">
-        {crumbs.map((c, i) => (
-          <span key={c.level} className="flex items-center gap-1">
-            {i > 0 && <span className="text-slate-600">›</span>}
-            <button
-              onClick={() => {
-                if (c.level === "city" && !factory) return;
-                setLevel(c.level);
-              }}
-              className={`rounded px-2 py-0.5 transition-colors ${c.active ? "bg-cyan-400/15 text-cyan-200" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              {c.label}
-              {factory?.isDemo && c.level === "factory" && <span className="ml-1 rounded bg-amber-400/15 px-1 text-[10px] text-amber-300">演示</span>}
-            </button>
-          </span>
-        ))}
-      </div>
+      {/* 全国 / 城市两层没有工具栏，路径条由壳绝对定位在画布水平正中（用户验收口径
+          「面包屑放屏幕正中央」）；这两层下面没有别的控件，居中悬着不会压到任何东西。 */}
+      {!showsFactory && (
+        <div className="absolute left-1/2 top-3 z-40 max-w-[calc(100%-24px)] -translate-x-1/2">
+          <DrillTrail nodes={mapTrail} />
+        </div>
+      )}
     </div>
   );
 }
