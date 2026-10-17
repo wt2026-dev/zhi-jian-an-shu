@@ -42,6 +42,7 @@ import { registerWxRoutes } from "./routes/wx.ts";
 import { registerDispatchRoutes } from "./routes/dispatch.ts";
 import { registerFactoryRoutes } from "./routes/factories.ts";
 import { registerExplodedViewRoutes } from "./routes/explodedView.ts";
+import { registerFieldOpsRoutes } from "./routes/fieldOps.ts";
 
 // 重构说明：本文件为应用装配与启动入口，自 server.ts（原 7329 行单文件）拆出。
 // 各业务域路由/控制器/服务见同目录 routes/、controllers/、services/、middleware/、schemas/、utils/。
@@ -79,10 +80,18 @@ export async function createApp() {
   //   ② Vite 开发模式 HMR 注入内联脚本，生产构建后可用 nonce 替代
   //   ③ TailwindCSS v4 JIT 模式生成的类名带 <style> 注入
   // 后续加固路径：引入 nonce 中间件（每请求生成随机 nonce）可去除 unsafe-inline。
+  // HTTP 直连部署（无 TLS 反代）时必须设 DISABLE_HSTS=1：
+  //   helmet 默认下发 CSP upgrade-insecure-requests 与 Strict-Transport-Security，
+  //   会让浏览器把所有子资源强制升级为 https://，在纯 HTTP 环境下全部
+  //   ERR_SSL_PROTOCOL_ERROR，页面白屏（服务器无 TLS 可回落）。
+  //   走 HTTPS 反代部署时不要设置该变量，保持完整安全头。
+  const isPlainHttpDeployment = process.env.DISABLE_HSTS === "1";
   app.use(
     helmet({
+      strictTransportSecurity: isPlainHttpDeployment ? false : undefined,
       contentSecurityPolicy: {
         directives: {
+          ...(isPlainHttpDeployment ? { upgradeInsecureRequests: null } : {}),
           defaultSrc:  ["'self'"],
           scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-eval'",
                         "webapi.amap.com", "restapi.amap.com", "*.amap.com",
@@ -338,6 +347,7 @@ export async function createApp() {
   registerDispatchRoutes(app); // 内部师傅距离调度
   registerFactoryRoutes(app); // 多厂区层级（全国地图下钻）
   registerExplodedViewRoutes(app); // 拆解视图 ↔ 检修业务联动（工单跳转 / 零件维修历史）
+  registerFieldOpsRoutes(app); // 拆解作业终端（现场维修闭环：LOTO / 步骤留痕 / 测量 / 照片 → 自动完工）
 
   // 全局异常处理中间件 (Global Error Handling Middleware)
   app.use(globalErrorHandler);
