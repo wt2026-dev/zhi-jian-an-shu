@@ -12,6 +12,7 @@ import { callDashScopeJson } from "../services/aiClient.ts";
 import { aiCacheInvalidateEquipment } from "../../utils/aiCache.ts";
 import { STATUS_LABELS, pushWorkOrderLog, ALLOWED_TRANSITIONS, DUPLICATE_WINDOW_MS } from "./workOrderController.ts";
 import { logger } from "../../utils/logger.ts";
+import { assertCanStartWork, assertCanArchiveWork, respondSafetyInterlock } from "../services/safetyInterlock.ts";
 
 // 6. 创建工单
 export async function handleCreateWorkOrder(req: any, res: any) {
@@ -189,6 +190,7 @@ export async function handleDispatchWorkOrder(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (respondSafetyInterlock(err, res)) return;
     if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
       return res.status(409).json({
         code: "VERSION_CONFLICT",
@@ -226,6 +228,7 @@ export async function handleClaimWorkOrder(req: any, res: any) {
     const nowStr = new Date().toISOString();
     const expVersion = version !== undefined ? version : order.version;
 
+    await assertCanStartWork(order.equipmentId);
     const updated = await WorkOrderRepository.update(id, {
       status: "in_progress",
       acceptedAt: nowStr,
@@ -252,6 +255,7 @@ export async function handleClaimWorkOrder(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (respondSafetyInterlock(err, res)) return;
     if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
       return res.status(409).json({
         code: "VERSION_CONFLICT",
@@ -380,7 +384,7 @@ export async function handleCompleteWorkOrder(req: any, res: any) {
         complianceResult = {
           score: Math.max(60, score),
           violations,
-          summary: violations.length ? "规则引擎检测到操作不规范项，建议质检复验。" : "符合标准化作业规程规范。",
+          summary: violations.length ? "填报完整性检查发现待核实项，请人工复核；不构成安全合规结论。" : "填报完整性检查通过，仅核对申报信息，不代表现场操作安全合规。",
         };
       }
 
@@ -400,6 +404,7 @@ export async function handleCompleteWorkOrder(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (respondSafetyInterlock(err, res)) return;
     if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
       return res.status(409).json({
         code: "VERSION_CONFLICT",
@@ -436,6 +441,8 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
     const nowStr = new Date().toISOString();
     const expVersion = version !== undefined ? version : order.version;
 
+    if (pass) await assertCanArchiveWork(order.equipmentId);
+    else await assertCanStartWork(order.equipmentId);
     const newStatus = pass ? "completed" : "in_progress";
     const acceptance = {
       inspectorName: inspectorName || "王安全 (安全总监)",
@@ -463,15 +470,7 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
     });
 
     aiCacheInvalidateEquipment(order.equipmentId);
-    if (pass) {
-      const otherActive = await WorkOrderRepository.hasOtherActiveOrders(order.equipmentId, order.id);
-      if (!otherActive) {
-        const eq = await EquipmentRepository.getById(order.equipmentId);
-        if (eq) {
-          await EquipmentRepository.updateStatus(order.equipmentId, "running", Math.max(eq.healthScore || 85, 94));
-        }
-      }
-    }
+    // 验收归档不代表设备已复机，运行状态和健康分须由独立现场确认或实测更新。
 
     pushNotification({
       title: pass ? `【验收归档】${order.orderNo} 质检合格闭环` : `【验收驳回】${order.orderNo} 退回检修`,
@@ -486,6 +485,7 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (respondSafetyInterlock(err, res)) return;
     if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
       return res.status(409).json({
         code: "VERSION_CONFLICT",
@@ -527,6 +527,12 @@ export async function handleTransitionStatus(req: any, res: any) {
     const nowStr = new Date().toISOString();
     const expVersion = version !== undefined ? version : order.version;
 
+    if (["in_progress", "pending_acceptance", "completed"].includes(targetStatus)) {
+      return res.status(400).json({ code: "DEDICATED_WORKFLOW_REQUIRED", error: "开工、完工和验收必须使用专用接口，以执行安全校验并保留业务记录。" });
+    }
+    if (current === "in_progress" && targetStatus === "cancelled") {
+      await assertCanArchiveWork(order.equipmentId);
+    }
     const updated = await WorkOrderRepository.update(id, {
       status: targetStatus,
     }, expVersion);
@@ -544,6 +550,7 @@ export async function handleTransitionStatus(req: any, res: any) {
 
     res.json(updated || order);
   } catch (err: any) {
+    if (respondSafetyInterlock(err, res)) return;
     if (err instanceof VersionConflictError || err.code === "VERSION_CONFLICT") {
       return res.status(409).json({
         code: "VERSION_CONFLICT",

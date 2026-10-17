@@ -13,6 +13,8 @@ import {
   Sliders,
   CheckCircle2,
   Clock,
+  Boxes,
+  X,
 } from 'lucide-react';
 import {
   LineChart,
@@ -38,6 +40,7 @@ interface EquipmentHealthViewProps {
   onOpenWorkOrder: (eq: Equipment) => void;
   onOpenAiDiagnose: (eq: Equipment) => void;
   onCreateWorkOrder: (wo: any) => void;
+  onNavigateTo3D?: (equipmentId: string) => void;
   currentUser?: UserProfile;
 }
 
@@ -56,6 +59,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
   onOpenWorkOrder,
   onOpenAiDiagnose,
   onCreateWorkOrder,
+  onNavigateTo3D,
   currentUser,
 }) => {
   const [activeEqId, setActiveEqId] = useState<string>(
@@ -153,6 +157,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
     }
   };
   const [aiAnalysisResult, setAiAnalysisResult] = useState<string | null>(null);
+  const [selectedChartPoint, setSelectedChartPoint] = useState<TelemetrySample | null>(null);
 
   const currentEquipment = equipments.find((e) => e.id === activeEqId) || equipments[0];
 
@@ -513,6 +518,19 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
                 </button>
               )}
 
+              {onNavigateTo3D && (
+                <button
+                  type="button"
+                  data-testid="health-navigate-to-3d"
+                  onClick={() => onNavigateTo3D(currentEquipment.id)}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
+                  title="跳转 3D 孪生场景并自动聚焦此设备"
+                >
+                  <Boxes className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>3D 孪生场景定位</span>
+                </button>
+              )}
+
               <button
                 onClick={() => onOpenWorkOrder(currentEquipment)}
                 className="w-full py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-medium flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
@@ -674,6 +692,7 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
                       fillOpacity={1}
                       fill="url(#colorTemp)"
                       strokeWidth={2}
+                      activeDot={{ r: 5, strokeWidth: 2, onClick: (_: any, payload: any) => setSelectedChartPoint(payload?.payload || null) }}
                     />
                     <Area
                       yAxisId="right"
@@ -684,9 +703,27 @@ export const EquipmentHealthView: React.FC<EquipmentHealthViewProps> = ({
                       fillOpacity={1}
                       fill="url(#colorVib)"
                       strokeWidth={2}
+                      activeDot={{ r: 5, strokeWidth: 2, onClick: (_: any, payload: any) => setSelectedChartPoint(payload?.payload || null) }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+            )}
+            {/* 时间点游标信息面板 */}
+            {selectedChartPoint && (
+              <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-between text-xs animate-in fade-in duration-150">
+                <div className="flex items-center gap-4">
+                  <span className="font-semibold text-blue-800">{selectedChartPoint.time}</span>
+                  <span>轴温 <strong className={`font-mono ${selectedChartPoint.temperature > 75 ? 'text-rose-600' : selectedChartPoint.temperature > 70 ? 'text-amber-600' : 'text-emerald-600'}`}>{selectedChartPoint.temperature}°C</strong>
+                    <span className="text-slate-400 ml-1">（正常阈值 85°C）</span>
+                  </span>
+                  <span>振动 <strong className={`font-mono ${selectedChartPoint.vibration > 7.1 ? 'text-rose-600' : selectedChartPoint.vibration > 4.5 ? 'text-amber-600' : 'text-emerald-600'}`}>{selectedChartPoint.vibration}mm/s</strong>
+                    <span className="text-slate-400 ml-1">（正常阈值 4.5mm/s）</span>
+                  </span>
+                </div>
+                <button onClick={() => setSelectedChartPoint(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
           </div>

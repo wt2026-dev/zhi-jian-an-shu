@@ -1,7 +1,7 @@
 // 重构说明：多厂区层级 API（Migration 025 配套）。
 // 数据纪律：广州主厂为真实数据；南京/成都/武汉 is_demo=true（演示数据），
 // 不伪造工业产值/人员规模等运营指标。
-import { FactoryRepository } from "../db/repositories/factoryRepository.ts";
+import { FactoryRepository } from "../../db/repositories/factoryRepository.ts";
 
 function toFactoryDto(row: Awaited<ReturnType<typeof FactoryRepository.listFactories>>[number]) {
   return {

@@ -60,57 +60,26 @@ export async function handleGetEquipmentQrcode(req: any, res: any) {
 
 // 14. 设备历史时序监控接口
 export async function handleGetEquipmentTelemetryHistory(req: any, res: any) {
-  const eq = (await EquipmentRepository.getById(req.params.id)) || (await EquipmentRepository.getAll())[0];
-  if (!eq) return res.status(404).json({ error: "设备未找到" });
-
-  // 优先读取真实落库的遥测历史时序数据 (equipment_telemetry 表)
   try {
-    const persisted = await TelemetryRepository.getHistory(eq.id, 24);
-    if (persisted && persisted.length > 0) {
-      return res.json({
-        equipmentId: eq.id,
-        equipmentCode: eq.code,
-        equipmentName: eq.name,
-        status: eq.status,
-        healthScore: eq.healthScore,
-        points: persisted,
-      });
-    }
-  } catch (err: any) {
-    console.warn("[Telemetry] 读取落库遥测历史失败，降级为实时生成:", err.message);
-  }
+    const eq = await EquipmentRepository.getById(req.params.id);
+    if (!eq) return res.status(404).json({ error: "设备未找到" });
 
-  // 兜底：无落库数据时基于当前遥测值实时生成
-  const telemetry = (eq.telemetry as any) || {};
-  const baseTemp = telemetry.temperature || 72.0;
-  const baseVib = telemetry.vibration || 3.2;
-  const baseCurrent = telemetry.current || 65.0;
-  const basePressure = telemetry.pressure || 1.2;
+    // 默认 24 小时，可由 ?hours= 指定；保留既有 1–72 小时截断规则。
+    const rawHours = Number(req.query?.hours);
+    const hours = Number.isFinite(rawHours) ? Math.max(1, Math.min(72, Math.trunc(rawHours))) : 24;
+    const points = await TelemetryRepository.getHistoryInWindow(eq.id, hours);
 
-  const points: any[] = [];
-  const now = Date.now();
-  for (let i = 24; i >= 0; i--) {
-    const t = new Date(now - i * 3600 * 1000);
-    const noise = (Math.random() - 0.5) * 0.1;
-    points.push({
-      timestamp: `${t.getHours().toString().padStart(2, "0")}:00`,
-      fullTime: t.toLocaleString("zh-CN"),
-      temperature: Number((baseTemp * (1 + noise)).toFixed(1)),
-      vibration: Number((baseVib * (1 + noise * 1.5)).toFixed(2)),
-      current: Number((baseCurrent * (1 + noise)).toFixed(1)),
-      pressure: Number((basePressure * (1 + noise * 0.5)).toFixed(2)),
-      loadRate: Number((78 + noise * 15).toFixed(1)),
+    return res.json({
+      equipmentId: eq.id,
+      equipmentCode: eq.code,
+      equipmentName: eq.name,
+      status: eq.status,
+      healthScore: eq.healthScore,
+      points,
     });
+  } catch (err: any) {
+    return res.status(500).json({ error: "获取设备遥测历史失败: " + err.message });
   }
-
-  res.json({
-    equipmentId: eq.id,
-    equipmentCode: eq.code,
-    equipmentName: eq.name,
-    status: eq.status,
-    healthScore: eq.healthScore,
-    points,
-  });
 }
 
 // 新增设备档案 (仅限管理员 / 主管，真实落库 equipments 表)

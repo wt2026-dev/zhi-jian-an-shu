@@ -1,7 +1,7 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
 import path from "path";
 import fs from "fs";
-import { DASHSCOPE_VISION_MODEL, UPLOADS_DIR } from "../utils/config.ts";
+import { DASHSCOPE_VISION_MODEL, UPLOADS_DIR, VIDEOS_DIR } from "../utils/config.ts";
 import { authenticateBearer } from "../services/authService.ts";
 import { addAuditLog } from "../services/auditService.ts";
 import { getVisionClient, extractAiJson } from "../services/aiClient.ts";
@@ -75,7 +75,12 @@ export const handleUploadVideo = async (req: any, res: any) => {
     }
 
     const videoId = `video-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${detectedExt}`;
-    const savePath = path.join(process.cwd(), "public", "uploads", "videos", videoId);
+    // 必须走 VIDEOS_DIR（= UPLOADS_DIR/videos），不能写死 process.cwd()/public/uploads/videos。
+    // 原因：index.ts 是用 `express.static(UPLOADS_DIR)` 托管 /uploads 的，而 UPLOADS_DIR 支持
+    // 用环境变量覆盖为工作区之外的绝对路径（这是逃出工作区大文件清理的唯一手段）。
+    // 一旦覆盖，写死路径会把文件写到 A 处、却从 B 处提供服务 → 上传成功但立刻 404。
+    const savePath = path.join(VIDEOS_DIR, videoId);
+    fs.mkdirSync(VIDEOS_DIR, { recursive: true });
     fs.writeFileSync(savePath, buffer);
 
     res.status(201).json({

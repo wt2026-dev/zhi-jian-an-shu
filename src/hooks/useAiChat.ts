@@ -10,6 +10,8 @@ export interface ChatMessage {
   structuredData?: any;
   streaming?: boolean;
   chatId?: string;
+  modelName?: string;
+  kind?: 'normal' | 'error';
 }
 
 const WELCOME = `你好，我是 **智检安枢的工业设备检修 AI 专家**。已连接工厂知识库与设备遥测中枢。
@@ -183,6 +185,7 @@ export function useAiChat(userRoleTitle?: string) {
       const decoder = new TextDecoder();
       let buffer = '';
       let streamError: string | null = null;
+      let modelName: string | undefined;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -198,6 +201,7 @@ export function useAiChat(userRoleTitle?: string) {
           try {
             const parsed = JSON.parse(payload);
             if (parsed.chatId) chatId = parsed.chatId;
+            if (parsed.model) modelName = parsed.model;
             if (parsed.content) {
               replyText += parsed.content;
               streamBufferRef.current = replyText;
@@ -223,12 +227,12 @@ export function useAiChat(userRoleTitle?: string) {
 
       if (streamError) {
         setMessages((prev) =>
-          prev.map((m) => (m.id === aiMsgId ? { ...m, text: `⚠️ ${streamError}`, streaming: false } : m))
+          prev.map((m) => (m.id === aiMsgId ? { ...m, text: `⚠️ ${streamError}`, kind: 'error', streaming: false } : m))
         );
       } else {
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === aiMsgId ? { ...m, text: replyText || '(AI 未返回内容)', chatId, streaming: false } : m
+            m.id === aiMsgId ? { ...m, text: replyText || '(AI 未返回内容)', chatId, modelName, kind: 'normal', streaming: false } : m
           )
         );
         if (replyText) speakText(replyText);
@@ -246,6 +250,7 @@ export function useAiChat(userRoleTitle?: string) {
             ? {
                 ...m,
                 streaming: false,
+                kind: aborted ? 'normal' : 'error',
                 text: aborted
                   ? (m.text || '') + '\n\n_(已手动停止生成)_'
                   : `⚠️ AI 服务请求失败: ${e?.message || '网络异常'}。请检查后端 AI 服务配置后重试。`,
@@ -396,6 +401,7 @@ export function useAiChat(userRoleTitle?: string) {
     // 语音播报
     speechEnabled,
     isSpeaking,
+    setIsSpeaking,
     toggleSpeech,
     stopSpeaking,
     speakText,

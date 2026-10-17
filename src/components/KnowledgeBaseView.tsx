@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { KnowledgeArticle, UserProfile } from '../types';
 import { knowledgeApi } from '../api';
+import { useToast } from '../context/ToastContext';
 
 
 interface KnowledgeBaseViewProps {
@@ -39,6 +40,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
   onAddArticle,
   onAskAiWithContext,
 }) => {
+  const { show: showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeArticle, setActiveArticle] = useState<KnowledgeArticle | null>(null);
@@ -193,12 +195,12 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
         }
       };
       reader.onerror = () => {
-        alert('文件读取失败，请检查文件编码');
+      showToast({ type: 'error', title: '文件读取失败', message: '请检查文件编码' });
         setIsUploading(false);
       };
       reader.readAsText(uploadFile);
     } catch (err: any) {
-      alert('上传向量化失败: ' + (err.message || '未知错误'));
+      showToast({ type: 'error', title: '上传向量化失败', message: err.message || '未知错误' });
       setIsUploading(false);
     }
   };

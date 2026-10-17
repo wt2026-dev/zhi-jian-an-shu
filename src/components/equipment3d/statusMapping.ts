@@ -19,8 +19,9 @@ export interface TelemetryLike {
   loadRate?: number;
 }
 
-/** 报警阈值分界线（从宽松到严格依次为 warning → fault → critical） */
-const THRESHOLDS = {
+/** 报警阈值分界线（从宽松到严格依次为 warning → fault → critical）
+ *  导出供服务端故障定位服务复用 —— 全系统只维护这一份阈值口径 */
+export const THRESHOLDS = {
   temperature: {
     warning: 80,    // °C — 轴温预警
     fault: 95,      // °C — 轴温故障

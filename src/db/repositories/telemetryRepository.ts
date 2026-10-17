@@ -29,6 +29,32 @@ export const TelemetryRepository = {
     });
   },
 
+  // 显式按实际时间窗口读取；不改变 getHistory 的最近 N 条语义。
+  async getHistoryInWindow(equipmentId: string, hours: number) {
+    const db = await getDb();
+    const { rows } = await db.query(
+      `SELECT * FROM equipment_telemetry
+       WHERE equipment_id = $1
+         AND recorded_at_dt >= CURRENT_TIMESTAMP - ($2::double precision * INTERVAL '1 hour')
+         AND recorded_at_dt <= CURRENT_TIMESTAMP
+       ORDER BY recorded_at_dt ASC;`,
+      [equipmentId, hours]
+    );
+    // 缺测值保留 null，不能把数据库 NULL 转为 0 读数。
+    const reading = (value: unknown) => value == null ? null : Number(value);
+    return rows.map((r: any) => ({
+      timestamp: r.recorded_at || `${padHour(new Date(r.recorded_at_dt).getHours())}:00`,
+      fullTime: r.recorded_at_dt,
+      temperature: reading(r.temperature),
+      vibration: reading(r.vibration),
+      current: reading(r.current),
+      voltage: reading(r.voltage),
+      pressure: reading(r.pressure),
+      loadRate: reading(r.load_rate),
+      rpm: reading(r.rpm),
+    }));
+  },
+
   // 批量写入遥测历史（种子与后续采集共用）
   async insertBatch(rows: {
     equipmentId: string;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -65,6 +65,89 @@ import {
   CockpitAbnormalItem,
   CockpitAbnormalType,
 } from '../api';
+import { TwinScene3D, Anchor3D, TwinDataSign } from './digital-twin/TwinScene3D';
+
+/* ==========================================================================
+   全景数字孪生智能沙盘（Bright Digital-Twin Sandbox）
+   全部为程序化 SVG / CSS 绘制，不引入任何外部图片、模型或字体资源。
+   ========================================================================== */
+
+/** 沙盘设备状态语义（浅底深字，与全站状态色规范对齐） */
+const SANDBOX_STATUS: Record<
+  string,
+  { label: string; dot: string; ring: string; text: string; chip: string }
+> = {
+  running: { label: '正常运行', dot: '#10b981', ring: 'rgba(16,185,129,0.55)', text: '#047857', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  warning: { label: '预警关注', dot: '#f59e0b', ring: 'rgba(245,158,11,0.55)', text: '#b45309', chip: 'bg-amber-50 text-amber-700 border-amber-200' },
+  fault: { label: '故障待修', dot: '#ef4444', ring: 'rgba(239,68,68,0.55)', text: '#b91c1c', chip: 'bg-rose-50 text-rose-700 border-rose-200' },
+  overhauling: { label: '检修中', dot: '#3b82f6', ring: 'rgba(59,130,246,0.55)', text: '#1d4ed8', chip: 'bg-blue-50 text-blue-700 border-blue-200' },
+  standby: { label: '停机备用', dot: '#64748b', ring: 'rgba(100,116,139,0.45)', text: '#475569', chip: 'bg-slate-100 text-slate-600 border-slate-200' },
+  scrapped: { label: '已报废', dot: '#94a3b8', ring: 'rgba(148,163,184,0.40)', text: '#64748b', chip: 'bg-slate-100 text-slate-500 border-slate-200' },
+};
+const sandboxStatus = (s: string) => SANDBOX_STATUS[s] || SANDBOX_STATUS.standby;
+
+/** 沙盘坐标系：底图 SVG 与设备锚点共用 1000×420 视图，锚点按百分比落位 */
+const SANDBOX_W = 1000;
+const SANDBOX_H = 420;
+const ANCHOR_POS: [number, number][] = [
+  [130, 296], [205, 322], [285, 292], [360, 330],
+  [440, 300], [515, 336], [590, 298], [665, 330],
+  [740, 300], [815, 334], [890, 296], [955, 330],
+  [250, 372], [400, 386], [620, 372], [790, 384],
+];
+const anchorPct = (i: number) => {
+  const [x, y] = ANCHOR_POS[i % ANCHOR_POS.length];
+  return { left: `${(x / SANDBOX_W) * 100}%`, top: `${(y / SANDBOX_H) * 100}%` };
+};
+
+/** 真实 3D 工业数字孪生全景底图（现代智能重工园区 + 真实透视光影 + 全息微光网格层） */
+const TwinBackplate: React.FC = () => (
+  <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none">
+    {/* 真实 3D 渲染高精数字孪生实景大地图 */}
+    <img
+      src="/assets/digital_twin_map.jpg"
+      alt="工业数字孪生全景沙盘"
+      className="w-full h-full object-cover object-center transform scale-[1.01] filter contrast-[1.05] brightness-[1.02]"
+    />
+    {/* 晨曦柔光与全息景深透光层：保持设备管道真实细节的同时，赋予顶级工业科技美学 */}
+    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-slate-900/15 to-white/10 mix-blend-overlay" />
+    <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-slate-950/20" />
+    {/* 工业高科技坐标矩阵与刻度十字网 */}
+    <div className="absolute inset-0 opacity-30 bg-[linear-gradient(to_right,#0ea5e918_1px,transparent_1px),linear-gradient(to_bottom,#0ea5e918_1px,transparent_1px)] bg-[size:48px_48px]" />
+    {/* 四角高科技装甲 HUD 切角标线 */}
+    <div className="absolute top-2.5 left-2.5 w-4 h-4 border-t-2 border-l-2 border-amber-400/90 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
+    <div className="absolute top-2.5 right-2.5 w-4 h-4 border-t-2 border-r-2 border-amber-400/90 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
+    <div className="absolute bottom-2.5 left-2.5 w-4 h-4 border-b-2 border-l-2 border-amber-400/90 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
+    <div className="absolute bottom-2.5 right-2.5 w-4 h-4 border-b-2 border-r-2 border-amber-400/90 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
+  </div>
+);
+
+/** 流动光轨：巡检（金）与物料输送（青）两条粒子流路径 */
+const TwinFlowRoutes: React.FC = () => (
+  <svg
+    className="absolute inset-0 w-full h-full pointer-events-none"
+    viewBox={`0 0 ${SANDBOX_W} ${SANDBOX_H}`}
+    preserveAspectRatio="none"
+    aria-hidden="true"
+  >
+    <path
+      d="M 96 302 C 220 268, 300 340, 440 300 S 660 266, 800 306 S 918 342, 982 300"
+      fill="none"
+      stroke="#E8A33D"
+      strokeWidth="2.5"
+      opacity="0.85"
+      className="flow-line flow-glow"
+    />
+    <path
+      d="M 60 382 C 200 352, 320 402, 480 372 S 720 346, 882 388"
+      fill="none"
+      stroke="#0EA5E9"
+      strokeWidth="2.5"
+      opacity="0.8"
+      className="flow-line flow-line-slow flow-glow"
+    />
+  </svg>
+);
 
 interface CockpitDashboardViewProps {
   onNavigateTab?: (tab: string) => void;
@@ -81,7 +164,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAutoRefresh, setIsAutoRefresh] = useState(true);
   const [countdown, setCountdown] = useState(5);
-  const [currentTime, setCurrentTime] = useState(new Date());
+
 
   // Data states
   const [equipments, setEquipments] = useState<Equipment[]>([]);
@@ -100,10 +183,6 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Digital clock
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Listen for fullscreen change
   useEffect(() => {
@@ -127,6 +206,21 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
       document.exitFullscreen().catch(() => {});
     }
   };
+
+/** 独立时钟：每秒只更新自身 DOM，不触发 1600 行驾驶舱整页 re-render（性能修复） */
+function LiveClock({ showTime = true, showDate = true }: { showTime?: boolean; showDate?: boolean }) {
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <>
+      {showTime && <span>{now.toLocaleTimeString('zh-CN', { hour12: false })}</span>}
+      {showDate && <span>{now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })}</span>}
+    </>
+  );
+}
 
   // Fetch all live data
   const fetchData = async () => {
@@ -466,6 +560,104 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
     },
   ];
 
+  /* ---------------- 全景数字孪生沙盘：选中设备 / 时光长卷节点 ---------------- */
+  const [sandboxEqId, setSandboxEqId] = useState<string | null>(null);
+  const [sandboxNodeIdx, setSandboxNodeIdx] = useState<number>(-1);
+
+  // 沙盘锚点：按设备顺序落到固定坐标，保证同一台设备在沙盘上的位置稳定
+  const sandboxAnchors = equipments.slice(0, ANCHOR_POS.length).map((eq, i) => ({
+    eq,
+    ...anchorPct(i),
+  }));
+
+  // 3D 数字孪生锚点世界坐标（与 BUILDINGS/TANKS 布局对齐）
+  const ANCHOR_WORLD_POS: [number, number, number][] = [
+    [-6, 2.5, -3], [2, 2, -4], [-3, 1.8, 4], [5, 3, 2], [-8, 1.5, 3],
+    [8, 2, -2], [0, 1.5, 0], [-1, 1.5, -6], [6, 1.5, -5], [-6, 1.2, -7],
+    [-9, 1.8, -1], [-9, 1.5, 1.5], [9, 1.5, 1], [3, 2, 5], [-4, 1.2, -5.5], [0, 1, 2],
+  ];
+  const [anchorProjected, setAnchorProjected] = useState<{ x: number; y: number; visible: boolean }[]>([]);
+
+  const anchor3DList: Anchor3D[] = equipments.slice(0, ANCHOR_WORLD_POS.length).map((eq, i) => ({
+    id: eq.id,
+    worldPos: ANCHOR_WORLD_POS[i],
+    label: eq.code,
+    selected: eq.id === sandboxEqId,
+  }));
+
+  // 厂房数据立牌：按真实台账的车间分组统计设备数与健康分均值（缺测 → null，显示 "—"）
+  const twinDataSigns: TwinDataSign[] = React.useMemo(() => {
+    const byWorkshop = new Map<string, { count: number; scores: number[] }>();
+    equipments.forEach((e) => {
+      const w = (e.workshop || '').trim() || '未分配';
+      const g = byWorkshop.get(w) ?? { count: 0, scores: [] };
+      g.count += 1;
+      if (typeof e.healthScore === 'number' && Number.isFinite(e.healthScore)) g.scores.push(e.healthScore);
+      byWorkshop.set(w, g);
+    });
+    return [...byWorkshop.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 3)
+      .map(([name, g]) => ({
+        name,
+        deviceCount: g.count,
+        healthScore: g.scores.length ? Math.round(g.scores.reduce((x, y) => x + y, 0) / g.scores.length) : null,
+      }));
+  }, [equipments]);
+
+  const handleAnchorProject = useCallback((screen: { x: number; y: number; visible: boolean }[]) => {
+    setAnchorProjected(screen);
+  }, []);
+
+  // 首屏默认选中故障设备，其次预警设备，让沙盘一打开就有情报可读
+  const sandboxEq =
+    equipments.find((e) => e.id === sandboxEqId) ||
+    equipments.find((e) => e.status === 'fault') ||
+    equipments.find((e) => e.status === 'warning') ||
+    equipments[0] ||
+    null;
+
+  // 时光长卷：设备投产 → 历次技改（最近 3 次）→ 今日智能态
+  const sandboxTimeline = React.useMemo(() => {
+    if (!sandboxEq) return [] as { label: string; date: string; detail: string }[];
+    const nodes: { label: string; date: string; detail: string }[] = [
+      {
+        label: '设备投产',
+        date: sandboxEq.installDate || '—',
+        detail: `${sandboxEq.manufacturer || '—'} · ${sandboxEq.model || '—'}`,
+      },
+    ];
+    (sandboxEq.maintenanceHistory || []).slice(0, 3).forEach((r) => {
+      nodes.push({
+        label: r.type,
+        date: r.date,
+        detail: `${r.orderNo} · ${r.technician} · ${r.summary}`,
+      });
+    });
+    nodes.push({
+      label: '今日智能态',
+      date: '当前',
+      detail: `健康度 ${sandboxEq.healthScore} 分 · ${sandboxStatus(sandboxEq.status).label} · 下次巡检 ${sandboxEq.nextInspectionDate || '—'}`,
+    });
+    return nodes;
+  }, [sandboxEq]);
+
+  const activeSandboxNode = sandboxNodeIdx >= 0 ? sandboxTimeline[sandboxNodeIdx] : null;
+
+  /** 语音播报沙盘情报（浏览器原生 TTS，零外部依赖，失败静默降级） */
+  const speakSandbox = (text: string) => {
+    try {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'zh-CN';
+      u.rate = 1.02;
+      window.speechSynthesis.speak(u);
+    } catch {
+      /* 静默降级 */
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -513,10 +705,10 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
         <div className="hidden lg:flex flex-col items-center justify-center px-5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm">
           <div className="text-base font-mono font-bold text-slate-800 tracking-wider flex items-center space-x-2">
             <Clock className="w-4 h-4 text-blue-500" />
-            <span>{currentTime.toLocaleTimeString('zh-CN', { hour12: false })}</span>
+            <LiveClock showDate={false} />
           </div>
           <div className="text-[10px] text-slate-500 font-mono">
-            {currentTime.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })}
+            <LiveClock showTime={false} />
           </div>
         </div>
 
@@ -730,19 +922,285 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
         </div>
       </div>
 
+      {/* ==================== 全景数字孪生智能沙盘（钛晶全息 · 悬浮 HUD · 精密标尺） ==================== */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-4 items-stretch">
+        {/* 沙盘主视图：全景数字孪生基地实景 */}
+        <div className="xl:col-span-8 hud-card relative overflow-hidden min-h-[380px] lg:min-h-[460px] rounded-2xl border border-sky-200/70 bg-gradient-to-b from-[#f8fafc] via-[#f1f5f9] to-[#e8eef6] shadow-md group">
+          {/* 3D 数字孪生场景（Three.js 程序化工业工厂） */}
+          <div className="absolute inset-0 z-0">
+            <TwinScene3D
+              anchors={anchor3DList}
+              onAnchorProject={handleAnchorProject}
+              dataSigns={twinDataSigns}
+            />
+          </div>
+
+          {/* 视口边缘柔光景深蒙版（使 3D 场景边缘与白色界面完美漫射融合） */}
+          <div className="pointer-events-none absolute inset-0 z-[1] shadow-[inset_0_0_50px_rgba(241,245,249,0.85)]" />
+
+          {/* 高科技全息精密四角装甲标线 */}
+          <div className="pointer-events-none absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-sky-500/80 drop-shadow-[0_0_4px_rgba(14,165,233,0.4)] z-20" />
+          <div className="pointer-events-none absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-sky-500/80 drop-shadow-[0_0_4px_rgba(14,165,233,0.4)] z-20" />
+          <div className="pointer-events-none absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-sky-500/80 drop-shadow-[0_0_4px_rgba(14,165,233,0.4)] z-20" />
+          <div className="pointer-events-none absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-sky-500/80 drop-shadow-[0_0_4px_rgba(14,165,233,0.4)] z-20" />
+
+          {/* 底部全息网格刻度标尺微线 */}
+          <div className="pointer-events-none absolute bottom-2 left-10 right-10 z-20 flex items-center justify-between text-[9px] font-mono text-slate-600 tracking-wider">
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+              GRID-COORDINATES: SEC-04 / 3D-HOLOGRAM
+            </span>
+            <span className="hidden sm:inline-block">ROTATION-TRACKING: ACTIVE</span>
+            <span>SCALE: 1:1 REALTIME</span>
+          </div>
+
+          {/* 沙盘标题 HUD 胶囊 */}
+          <div className="absolute left-4 top-4 z-20 flex items-center gap-2 flex-wrap">
+            <span className="px-3 py-1.5 rounded-full bg-white/92 backdrop-blur-md border border-sky-200/90 text-[11px] font-semibold text-slate-800 flex items-center gap-1.5 shadow-sm ring-1 ring-sky-400/20">
+              <Layers className="w-3.5 h-3.5 text-sky-600" />
+              全景数字孪生智能沙盘
+            </span>
+            <span className="px-2.5 py-1 rounded-full bg-white/85 backdrop-blur-md border border-cyan-200/80 text-[10px] font-mono text-cyan-700 hidden sm:flex items-center gap-1.5 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping" />
+              {sandboxAnchors.length} 台设备 · 实时三维锚定
+            </span>
+          </div>
+
+          {/* 状态图例 HUD 胶囊 */}
+          <div className="absolute right-4 top-4 z-20 hidden md:flex items-center gap-3 px-3 py-1.5 rounded-full bg-white/92 backdrop-blur-md border border-slate-200/90 shadow-sm">
+            {['running', 'warning', 'fault', 'overhauling'].map((k) => (
+              <span key={k} className="flex items-center gap-1 text-[10px] font-medium text-slate-600">
+                <span className="w-2 h-2 rounded-full ring-1 ring-white" style={{ backgroundColor: sandboxStatus(k).dot }} />
+                {sandboxStatus(k).label}
+              </span>
+            ))}
+          </div>
+
+          {/* 设备锚点：同心圆呼吸脉冲 + 状态点（优先使用3D投影坐标） */}
+          {sandboxAnchors.map(({ eq, left, top }, idx) => {
+            const meta = sandboxStatus(eq.status);
+            const active = sandboxEq?.id === eq.id;
+            const proj = anchorProjected[idx];
+            // 使用3D投影坐标（如果有且可见），否则回退到2D百分比坐标
+            const useProj = proj && proj.visible;
+            const posStyle: React.CSSProperties = useProj
+              ? { left: `${proj.x}%`, top: `${proj.y}%` }
+              : { left, top };
+            return (
+              <div key={eq.id} style={posStyle} className="absolute w-0 h-0 z-10 transition-[left,top] duration-100">
+                <span
+                  className="absolute w-12 h-12 rounded-full border pulse-ring pointer-events-none"
+                  style={{ left: 0, top: 0, marginLeft: -24, marginTop: -24, borderColor: meta.ring }}
+                />
+                <span
+                  className="absolute w-12 h-12 rounded-full border pulse-ring pulse-ring-2 pointer-events-none"
+                  style={{ left: 0, top: 0, marginLeft: -24, marginTop: -24, borderColor: meta.ring }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSandboxEqId(eq.id);
+                    setSandboxNodeIdx(-1);
+                  }}
+                  title={`${eq.code} · ${eq.name}`}
+                  aria-label={`${eq.code} ${eq.name}`}
+                  className={`absolute rounded-full cursor-pointer transition-all ${
+                    active ? 'w-4 h-4 ring-4 ring-sky-400/40 scale-125' : 'w-3 h-3 hover:scale-125 hover:ring-2 hover:ring-sky-300'
+                  }`}
+                  style={{
+                    left: 0,
+                    top: 0,
+                    marginLeft: active ? -8 : -6,
+                    marginTop: active ? -8 : -6,
+                    backgroundColor: meta.dot,
+                    boxShadow: `0 0 0 2px #fff, 0 3px 10px ${meta.ring}`,
+                  }}
+                />
+                {active && (
+                  <div
+                    className="absolute flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-white/95 backdrop-blur-md border border-sky-300/80 text-[10px] font-mono font-bold whitespace-nowrap shadow-md pointer-events-none z-20"
+                    style={{ left: 0, top: 0, marginLeft: 12, marginTop: -26, color: meta.text }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: meta.dot }} />
+                    {eq.code}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 设备情报卡：精炼典雅的次世代 HUD 终端，自适应整洁布局 */}
+        <div className="xl:col-span-4 z-20 relative flex flex-col">
+          <div className="hud-card p-4 h-full flex flex-col justify-between gap-3 bg-white/95 backdrop-blur-xl border border-sky-200/80 rounded-2xl shadow-sm ring-1 ring-sky-400/10">
+            <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-sky-100/90">
+              <div className="min-w-0">
+                <div className="text-[10px] text-sky-700 font-semibold flex items-center gap-1">
+                  <Target className="w-3 h-3 text-sky-500" />
+                  设备情报 · 全息悬浮 HUD
+                </div>
+                <div className="text-sm font-bold text-slate-900 truncate mt-0.5">
+                  {sandboxEq ? sandboxEq.name : '暂无可定位设备'}
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono truncate">
+                  {sandboxEq ? `${sandboxEq.code} · ${sandboxEq.workshop} / ${sandboxEq.location}` : '—'}
+                </div>
+              </div>
+              {sandboxEq && (
+                <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${sandboxStatus(sandboxEq.status).chip}`}>
+                  {sandboxStatus(sandboxEq.status).label}
+                </span>
+              )}
+            </div>
+
+            {sandboxEq ? (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-2 rounded-xl bg-white/70 border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">健康度</span>
+                    <span
+                      className={`font-mono font-bold text-lg ${
+                        sandboxEq.healthScore >= 85
+                          ? 'text-emerald-600'
+                          : sandboxEq.healthScore >= 70
+                          ? 'text-amber-600'
+                          : 'text-rose-600'
+                      }`}
+                    >
+                      {sandboxEq.healthScore}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/70 border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">重要度</span>
+                    <span className="text-[11px] font-bold text-slate-800">{sandboxEq.criticality}</span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/70 border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">下次巡检</span>
+                    <span className="text-[11px] font-mono font-bold text-slate-800">{sandboxEq.nextInspectionDate || '—'}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>健康度能量条</span>
+                    <span className="font-mono">{sandboxEq.healthScore} / 100</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100 border border-slate-200/70 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(4, Math.min(100, sandboxEq.healthScore))}%`,
+                        background: 'linear-gradient(90deg, #F6D08A 0%, #E8A33D 45%, #0EA5E9 100%)',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <div className="text-[10px] text-slate-500 font-semibold flex items-center gap-1 mb-1">
+                    <Clock className="w-3 h-3 text-amber-500" />
+                    设备时光长卷（投产 → 技改 → 今日智能态）
+                  </div>
+                  <div className="timeline-scroll">
+                    {sandboxTimeline.map((n, i) => (
+                      <button
+                        key={`${n.label}-${i}`}
+                        type="button"
+                        onClick={() => setSandboxNodeIdx(i)}
+                        className={`timeline-node ${sandboxNodeIdx === i ? 'timeline-node-active' : ''}`}
+                      >
+                        <span className="timeline-dot" />
+                        <span className="timeline-label">{n.label}</span>
+                        <span className="text-[9px] text-slate-400 font-mono">{n.date}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-2 p-2.5 rounded-xl bg-white/70 border border-amber-100/80 text-[11px] text-slate-600 leading-relaxed flex-1 overflow-y-auto max-h-24">
+                    {activeSandboxNode ? (
+                      <>
+                        <span className="font-semibold text-amber-800">{activeSandboxNode.label}</span>
+                        <span className="text-slate-400 font-mono ml-1.5">{activeSandboxNode.date}</span>
+                        <p className="mt-1">{activeSandboxNode.detail}</p>
+                      </>
+                    ) : (
+                      <p>点击上方时间节点可展开该阶段技改/检修详情；点击沙盘上的呼吸锚点可切换设备。</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-amber-100/80">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      speakSandbox(
+                        `${sandboxEq.name}，编号 ${sandboxEq.code}，位于${sandboxEq.workshop}${sandboxEq.location}。当前状态${sandboxStatus(sandboxEq.status).label}，健康度 ${sandboxEq.healthScore} 分，重要度${sandboxEq.criticality}，下次巡检日期 ${sandboxEq.nextInspectionDate || '未安排'}。`
+                      )
+                    }
+                    className="chip-cyan flex-1 justify-center"
+                  >
+                    <Radio className="w-3 h-3" />
+                    语音播报
+                  </button>
+                  {onSelectEquipment && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectEquipment(sandboxEq)}
+                      className="chip-gold flex-1 justify-center"
+                    >
+                      <ArrowUpRight className="w-3 h-3" />
+                      查看档案
+                    </button>
+                  )}
+                </div>
+
+                {onAskAi && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAskAi(
+                        `请针对设备「${sandboxEq.name}」（编号 ${sandboxEq.code}，${sandboxEq.workshop}/${sandboxEq.location}）做一次全面诊断：当前状态${sandboxStatus(sandboxEq.status).label}，健康度 ${sandboxEq.healthScore} 分，重要度${sandboxEq.criticality}，型号 ${sandboxEq.model}，厂家 ${sandboxEq.manufacturer}，下次巡检 ${sandboxEq.nextInspectionDate || '未安排'}。请给出故障/劣化趋势研判、3 条优先处置建议，以及需要重点监测的遥测指标。`
+                      )
+                    }
+                    className="w-full py-2 rounded-full btn-gradient text-[11px] font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    问 AI 深入诊断该设备
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="py-10 text-center text-xs text-slate-500">设备数据加载中…</div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Main Grid: Central Visualizations (4 Charts & Status) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 mb-4">
         {/* Left Column (4 cols): Equipment Status Donut & Spare Parts Alert */}
         <div className="lg:col-span-4 flex flex-col gap-4">
           {/* Donut Chart: 设备状态占比 */}
           <div className="glass-card p-4 shadow-sm flex flex-col flex-1">
-            <div className="mb-2">
-              <h3 className="text-xs font-bold text-slate-800 flex items-center">
-                <span className="w-1 h-3.5 rounded-full bg-blue-500 mr-2" />
-                <Activity className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
-                设备健康分布与在行状态
-              </h3>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">动态传感器聚合</span>
+            <div className="mb-2 flex items-start justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 flex items-center">
+                  <span className="w-1 h-3.5 rounded-full bg-blue-500 mr-2" />
+                  <Activity className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                  设备健康分布与在行状态
+                </h3>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">动态传感器聚合</span>
+              </div>
+              {onAskAi && (
+                <button
+                  type="button"
+                  onClick={() => onAskAi(`解读一下当前设备健康分布与在行状态反映的设备状态趋势，3 句话以内。正常运行 ${runningEquipments} 台，预警 ${warningEquipments} 台，故障 ${faultEquipments} 台，在线率 ${onlineRate}%。`)}
+                  className="chip-cyan shrink-0 text-[10px] px-2 py-1"
+                  title="问 AI 解读此图表"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  问 AI
+                </button>
+              )}
             </div>
             <div className="h-44 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -841,13 +1299,26 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
         <div className="lg:col-span-5 flex flex-col gap-4">
           {/* Line Chart: 14天检修工单与报警频次趋势 */}
           <div className="glass-card p-4 shadow-sm flex flex-col flex-1">
-            <div className="mb-2">
-              <h3 className="text-xs font-bold text-slate-800 flex items-center">
-                <span className="w-1 h-3.5 rounded-full bg-emerald-500 mr-2" />
-                <TrendingUp className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
-                14天检修工单下发与智能排查走势
-              </h3>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">日频次波动统计</span>
+            <div className="mb-2 flex items-start justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 flex items-center">
+                  <span className="w-1 h-3.5 rounded-full bg-emerald-500 mr-2" />
+                  <TrendingUp className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+                  14天检修工单下发与智能排查走势
+                </h3>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">日频次波动统计</span>
+              </div>
+              {onAskAi && (
+                <button
+                  type="button"
+                  onClick={() => onAskAi(`解读一下当前14天检修工单与智能排查走势反映的设备状态趋势，3 句话以内。工单完成率 ${woCompletionRate}%，在线率 ${onlineRate}%。`)}
+                  className="chip-cyan shrink-0 text-[10px] px-2 py-1"
+                  title="问 AI 解读此图表"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  问 AI
+                </button>
+              )}
             </div>
             <div className="h-44 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -892,13 +1363,26 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
 
           {/* Bar Chart: 车间产线负荷与在行设备分布 */}
           <div className="glass-card p-4 shadow-sm">
-            <div className="mb-2">
-              <h3 className="text-xs font-bold text-slate-800 flex items-center">
-                <span className="w-1 h-3.5 rounded-full bg-emerald-500 mr-2" />
-                <BarChart3 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
-                各生产单元设备在役与负荷分布
-              </h3>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">单元机组对账</span>
+            <div className="mb-2 flex items-start justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 flex items-center">
+                  <span className="w-1 h-3.5 rounded-full bg-emerald-500 mr-2" />
+                  <BarChart3 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+                  各生产单元设备在役与负荷分布
+                </h3>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">单元机组对账</span>
+              </div>
+              {onAskAi && (
+                <button
+                  type="button"
+                  onClick={() => onAskAi(`解读一下当前各生产单元设备在役与负荷分布反映的产线健康状态，3 句话以内。`)}
+                  className="chip-cyan shrink-0 text-[10px] px-2 py-1"
+                  title="问 AI 解读此图表"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  问 AI
+                </button>
+              )}
             </div>
             <div className="h-36 w-full">
               <ResponsiveContainer width="100%" height="100%">

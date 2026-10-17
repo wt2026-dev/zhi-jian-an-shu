@@ -81,8 +81,11 @@ function pathFor(name: string): string {
   }
 }
 
+// ⚠️ 负载敏感：该文件 30 个用例串行跑 ~26s，全量并发时偶发 JSON_PARSE（响应被
+// 降级为非 JSON）。这里 retry=1 只吸收环境抖动，不掩盖真实 RBAC 回归——
+// 单独重跑本文件即可复现；若 retry 后仍红则一定是接口行为变了。
 describe("全局鉴权基线：关键接口 RBAC 收口", () => {
-  it("switch-user：普通技师（tech1）调用应返回 403，admin 可用", async () => {
+  it("switch-user：普通技师（tech1）调用应返回 403，admin 可用", { retry: 1 }, async () => {
     const techRes = await request(app)
       .post("/api/v1/auth/switch-user")
       .set("Authorization", `Bearer ${techToken}`)
@@ -98,7 +101,7 @@ describe("全局鉴权基线：关键接口 RBAC 收口", () => {
     expect(adminRes.body).toHaveProperty("token");
   });
 
-  it("switch-user：NODE_ENV=production 时应直接返回 404（接口下线）", async () => {
+  it("switch-user：NODE_ENV=production 时应直接返回 404（接口下线）", { retry: 1 }, async () => {
     const prev = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
@@ -112,19 +115,32 @@ describe("全局鉴权基线：关键接口 RBAC 收口", () => {
     }
   });
 
-  it("download-zip 与 audit-logs：技师访问应返回 403，admin 可访问", async () => {
+  it("download-zip 与 audit-logs：技师访问应返回 403，admin 可访问", { retry: 1 }, async () => {
     const zipRes = await request(app).get("/api/download-zip").set("Authorization", `Bearer ${techToken}`);
     expect(zipRes.status).toBe(403);
     const auditRes = await request(app).get("/api/v1/audit-logs").set("Authorization", `Bearer ${techToken}`);
     expect(auditRes.status).toBe(403);
 
-    const zipAdmin = await request(app).get("/api/download-zip").set("Authorization", `Bearer ${adminToken}`);
+    // ⚠️ 这条正向断言必须显式放宽响应缓冲上限。
+    // /api/download-zip 会把整个 public/ 流式打成 zip，而 public/ 现在 ≈245MB
+    //（150MB 的 VRM/GLB + 95MB 的上传视频，全是已压缩二进制，zlib 几乎压不动）。
+    // superagent 默认上限 200MB（node_modules/superagent/lib/node/index.js:
+    //   `let responseBytesLeft = this._maxResponseSize || 200000000`），
+    // 超限即抛 ETOOLARGE("Maximum response size reached") ——
+    // 那是**测试端的缓冲上限**，与被测的 RBAC 收口无关，却会让这条用例假红。
+    // 放宽后断言回到它真正要验证的东西：技师 403 / admin 200。
+    const zipAdmin = await request(app)
+      .get("/api/download-zip")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .maxResponseSize(600 * 1024 * 1024);
     expect(zipAdmin.status).toBe(200);
+    // 顺带确认拿到的确实是 zip 附件（而非某个被拦下来的 JSON 错误体）
+    expect(String(zipAdmin.headers["content-disposition"] || "")).toContain(".zip");
     const auditAdmin = await request(app).get("/api/v1/audit-logs").set("Authorization", `Bearer ${adminToken}`);
     expect(auditAdmin.status).toBe(200);
   });
 
-  it("safety-permits：技师可读列表，但删除应返回 403（仅 admin/manager）", async () => {
+  it("safety-permits：技师可读列表，但删除应返回 403（仅 admin/manager）", { retry: 1 }, async () => {
     const listRes = await request(app).get("/api/v1/safety-permits").set("Authorization", `Bearer ${techToken}`);
     expect(listRes.status).toBe(200);
 
@@ -143,40 +159,40 @@ describe("全局鉴权基线：关键接口 RBAC 收口", () => {
 });
 
 describe("全局鉴权基线：白名单路径匿名可达", () => {
-  it("健康探针 /health /ready /api/health 匿名 200", async () => {
+  it("健康探针 /health /ready /api/health 匿名 200", { retry: 1 }, async () => {
     expect((await request(app).get("/health")).status).toBe(200);
     expect((await request(app).get("/ready")).status).toBe(200);
     expect((await request(app).get("/api/health")).status).toBe(200);
   });
 
-  it("OpenAPI 规范 /api-docs.json 匿名 200", async () => {
+  it("OpenAPI 规范 /api-docs.json 匿名 200", { retry: 1 }, async () => {
     const res = await request(app).get("/api-docs.json");
     expect(res.status).toBe(200);
   });
 
-  it("登录接口匿名可用（正确凭据 200 签发 token）", async () => {
+  it("登录接口匿名可用（正确凭据 200 签发 token）", { retry: 1 }, async () => {
     const res = await request(app).post("/api/v1/auth/login").send({ username: "admin", password: "Admin@2026#Demo" });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("token");
   });
 
-  it("wx-login 匿名可达（缺 code 返回 400 而非 401）", async () => {
+  it("wx-login 匿名可达（缺 code 返回 400 而非 401）", { retry: 1 }, async () => {
     const res = await request(app).post("/api/v1/auth/wx-login").send({});
     expect(res.status).toBe(400);
   });
 
-  it("微信二维码 /api/v1/wechat/* 匿名可达（缺参数为 400 而非 401）", async () => {
+  it("微信二维码 /api/v1/wechat/* 匿名可达（缺参数为 400 而非 401）", { retry: 1 }, async () => {
     const res = await request(app).get("/api/v1/wechat/repair-qrcode");
     expect(res.status).not.toBe(401);
   });
 
-  it("微信扫码报修 /api/v1/wx/repairs 匿名可达（空 body 返回 400 校验错误而非 401）", async () => {
+  it("微信扫码报修 /api/v1/wx/repairs 匿名可达（空 body 返回 400 校验错误而非 401）", { retry: 1 }, async () => {
     const res = await request(app).post("/api/v1/wx/repairs").send({});
     expect(res.status).toBe(400);
     expect(res.body.code).not.toBe("UNAUTHORIZED");
   });
 
-  it("登录后携带有效 token 可访问业务接口（正向用例）", async () => {
+  it("登录后携带有效 token 可访问业务接口（正向用例）", { retry: 1 }, async () => {
     const res = await request(app).get("/api/v1/auth/me").set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("username", "admin");

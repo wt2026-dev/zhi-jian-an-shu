@@ -324,6 +324,52 @@ export const AvatarChangeModal: React.FC<AvatarChangeModalProps> = ({
                   })}
                 </div>
               </div>
+              {/* 第三套：扩池变体（technician 专属岗 + 多人岗位补充款） */}
+              <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-200/60 space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span>第三套：扩池变体照 (技师专岗 / 多人岗位补充)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500">同岗多人 · 面孔互斥</span>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {BUILTIN_ROLE_PHOTOS.filter((p) => p.series === 'set3').map((photo) => {
+                    const isSelected = selectedPhotoId === photo.id || previewAvatar === photo.photoUrl;
+                    return (
+                      <button
+                        key={photo.id}
+                        type="button"
+                        onClick={() => handleSelectPhoto(photo)}
+                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                          isSelected
+                            ? 'bg-blue-50/80 border-blue-500 shadow-xs ring-2 ring-blue-500/20'
+                            : 'bg-white hover:bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <div className="relative">
+                          <img
+                            src={photo.photoUrl}
+                            alt={photo.name}
+                            className="w-12 h-12 rounded-full object-cover shadow-xs ring-1 ring-black/5"
+                          />
+                          {isSelected && (
+                            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] shadow-xs">
+                              <Check className="w-2.5 h-2.5" />
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-full">
+                          <span className={`text-[11px] font-bold block truncate ${isSelected ? 'text-blue-700' : 'text-slate-800'}`}>
+                            {photo.name.split('/')[0].trim()}
+                          </span>
+                          <span className="text-[9px] text-slate-500 block truncate">{photo.roleLabel.split('·')[0]}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           ) : (
             /* 6 Built-in Vector Styles */

@@ -1,21 +1,32 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 
-/* ─── 颜色常量 ─── */
+/* ─── 颜色常量：明亮钛晶全息（Titanium Hologram · Solar-Punk Precision） ─── */
 const C = {
-  ground: 0x1a2332,
-  gridLine: 0x1e3a5f,
-  building: 0x2a3f5f,
-  buildingLight: 0x3d5a80,
-  tank: 0x4a6fa5,
-  pipe: 0x557799,
-  accent: 0x00b4d8,
-  warm: 0xf4a261,
-  hot: 0xe76f51,
-  cool: 0x48cae4,
-  sky: 0x0d1b2a,
-  fog: 0x0a1628,
-  emissive: 0x00e5ff,
+  // 空间底色与工业漫射天光
+  sky: 0xf3f6fa,
+  fog: 0xe6edf5,
+  ground: 0xe8eef5,
+  gridLine: 0xb8c9dc,
+  gridSub: 0xd6e2ee,
+
+  // 工业建筑与车间结构（高质感钛白、精密航空合金、石板蓝）
+  building: 0xffffff,
+  buildingLight: 0xf1f5f9,
+  buildingAccent: 0xe2e8f0,
+  buildingEdge: 0x94a3b8,
+  roof: 0x475569,
+  tank: 0xdae4ef,
+  tankRing: 0x94a3b8,
+  pipe: 0x94a3b8,
+
+  // 科技流光与指示发光体（高饱和霓虹在白底上形成清晰聚焦）
+  accent: 0x0284c7,       // 天青科技蓝
+  accentGlow: 0x00b4d8,   // 电光天青
+  warm: 0xf59e0b,         // 晨曦金/琥珀工艺流
+  hot: 0xef4444,          // 告警能量红
+  cool: 0x06b6d4,         // 冷却介质
+  emissive: 0x0284c7,     // 探针发光体
 };
 
 /* ─── 工厂布局数据 ─── */
@@ -34,8 +45,8 @@ const BUILDINGS: BuildingDef[] = [
   { x: 5, z: 2, w: 3.5, h: 4, d: 3, chimney: true, color: C.buildingLight },
   { x: -8, z: 3, w: 3, h: 2, d: 2.5 },
   { x: 8, z: -2, w: 2.5, h: 3, d: 2 },
-  { x: 0, z: 0, w: 3, h: 1.8, d: 2.5, color: 0x3a506b },
-  { x: -1, z: -6, w: 4, h: 2.5, d: 3, roof: true, color: 0x4a6741 },
+  { x: 0, z: 0, w: 3, h: 1.8, d: 2.5, color: C.buildingAccent },
+  { x: -1, z: -6, w: 4, h: 2.5, d: 3, roof: true, color: 0x64748b },
   { x: 6, z: -5, w: 3, h: 2, d: 2.5 },
   { x: -6, z: -7, w: 3.5, h: 1.8, d: 2 },
 ];
@@ -249,7 +260,7 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
     // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(C.sky);
-    scene.fog = new THREE.FogExp2(C.fog, 0.018);
+    scene.fog = new THREE.FogExp2(C.fog, 0.015);
 
     // Camera
     const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 200);
@@ -266,48 +277,58 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
     container.appendChild(canvas);
     canvasRef.current = canvas;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.05;
 
     // Lights
-    const ambient = new THREE.AmbientLight(0x334466, 0.6);
+    // 1. 全局柔和漫射环境天光
+    const ambient = new THREE.AmbientLight(0xf0f4f8, 0.85);
     scene.add(ambient);
 
-    const dirLight = new THREE.DirectionalLight(0xffeedd, 1.2);
-    dirLight.position.set(10, 15, 8);
+    // 2. 主日光（形成柔和接触阴影，使浅色模型具有立体感）
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.3);
+    dirLight.position.set(14, 20, 10);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.set(1024, 1024);
+    dirLight.shadow.bias = -0.0004;
     dirLight.shadow.camera.near = 0.5;
-    dirLight.shadow.camera.far = 50;
-    dirLight.shadow.camera.left = -20;
-    dirLight.shadow.camera.right = 20;
-    dirLight.shadow.camera.top = 20;
-    dirLight.shadow.camera.bottom = -20;
+    dirLight.shadow.camera.far = 60;
+    dirLight.shadow.camera.left = -22;
+    dirLight.shadow.camera.right = 22;
+    dirLight.shadow.camera.top = 22;
+    dirLight.shadow.camera.bottom = -22;
     scene.add(dirLight);
 
-    const rimLight = new THREE.DirectionalLight(0x4488cc, 0.4);
-    rimLight.position.set(-8, 10, -6);
+    // 3. 科技天青轮廓光（Rim Light）：为建筑物边缘打出微妙的蓝青高光
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.5);
+    rimLight.position.set(-10, 12, -8);
     scene.add(rimLight);
 
-    const pointLight1 = new THREE.PointLight(C.accent, 0.8, 20);
+    // 4. 辅助补光：避免背面死黑
+    const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.25);
+    fillLight.position.set(-8, 6, 8);
+    scene.add(fillLight);
+
+    // 5. 核心科技发光点
+    const pointLight1 = new THREE.PointLight(C.accent, 0.9, 18);
     pointLight1.position.set(0, 4, 0);
     scene.add(pointLight1);
 
-    const pointLight2 = new THREE.PointLight(C.warm, 0.5, 15);
+    const pointLight2 = new THREE.PointLight(C.warm, 0.6, 14);
     pointLight2.position.set(-6, 3, -3);
     scene.add(pointLight2);
 
-    // Ground
+    // Ground: 钛晶微反射地面
     const groundGeo = new THREE.PlaneGeometry(60, 60);
     const groundMat = new THREE.MeshStandardMaterial({
       color: C.ground,
-      roughness: 0.9,
-      metalness: 0.1,
+      roughness: 0.65,
+      metalness: 0.15,
     });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
@@ -315,9 +336,9 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Grid
-    const gridHelper = new THREE.GridHelper(60, 60, C.gridLine, C.gridLine);
-    gridHelper.material.opacity = 0.15;
+    // Grid: 钛晶精密坐标网格
+    const gridHelper = new THREE.GridHelper(60, 60, C.gridLine, C.gridSub);
+    gridHelper.material.opacity = 0.55;
     gridHelper.material.transparent = true;
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
@@ -357,13 +378,34 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
       scene.add(mesh);
     }
 
-    // Buildings
-    const buildingMat = new THREE.MeshStandardMaterial({ color: C.building, roughness: 0.7, metalness: 0.2 });
-    const buildingMat2 = new THREE.MeshStandardMaterial({ color: C.buildingLight, roughness: 0.6, metalness: 0.3 });
-    const windowMat = new THREE.MeshStandardMaterial({ color: C.accent, emissive: C.accent, emissiveIntensity: 0.3, roughness: 0.3, metalness: 0.5 });
+    // Buildings: 纯净钛白金属 + 细致科技线框
+    const buildingMat = new THREE.MeshStandardMaterial({
+      color: C.building,
+      roughness: 0.4,
+      metalness: 0.1,
+    });
+    const buildingMat2 = new THREE.MeshStandardMaterial({
+      color: C.buildingLight,
+      roughness: 0.35,
+      metalness: 0.15,
+    });
+    const windowMat = new THREE.MeshStandardMaterial({
+      color: C.accent,
+      emissive: C.accent,
+      emissiveIntensity: 0.45,
+      roughness: 0.2,
+      metalness: 0.3,
+    });
+    const edgeLineMat = new THREE.LineBasicMaterial({
+      color: C.buildingEdge,
+      transparent: true,
+      opacity: 0.45,
+    });
 
     BUILDINGS.forEach((b) => {
-      const mat = b.color ? new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.7, metalness: 0.2 }) : (Math.random() > 0.5 ? buildingMat : buildingMat2);
+      const mat = b.color
+        ? new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.4, metalness: 0.15 })
+        : (Math.random() > 0.5 ? buildingMat : buildingMat2);
       const geo = new THREE.BoxGeometry(b.w, b.h, b.d);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(b.x, b.h / 2, b.z);
@@ -371,10 +413,15 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
       mesh.receiveShadow = true;
       scene.add(mesh);
 
+      // 科技全息结构边缘（在白底中凸显精密建筑结构）
+      const edges = new THREE.EdgesGeometry(geo);
+      const line = new THREE.LineSegments(edges, edgeLineMat);
+      mesh.add(line);
+
       // Roof detail
       if (b.roof) {
         const roofGeo = new THREE.BoxGeometry(b.w + 0.2, 0.15, b.d + 0.2);
-        const roofMat = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.5, metalness: 0.4 });
+        const roofMat = new THREE.MeshStandardMaterial({ color: C.roof, roughness: 0.5, metalness: 0.25 });
         const roof = new THREE.Mesh(roofGeo, roofMat);
         roof.position.set(b.x, b.h + 0.075, b.z);
         roof.castShadow = true;
@@ -414,7 +461,7 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
       // Chimney
       if (b.chimney) {
         const chimGeo = new THREE.CylinderGeometry(0.25, 0.35, 3, 8);
-        const chimMat = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.6, metalness: 0.3 });
+        const chimMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.5, metalness: 0.3 });
         const chim = new THREE.Mesh(chimGeo, chimMat);
         chim.position.set(b.x + b.w * 0.3, b.h + 1.5, b.z);
         chim.castShadow = true;
@@ -428,7 +475,7 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
 
         // Chimney glow
         const glowGeo = new THREE.SphereGeometry(0.3, 8, 8);
-        const glowMat = new THREE.MeshStandardMaterial({ color: C.hot, emissive: C.hot, emissiveIntensity: 0.6, transparent: true, opacity: 0.7 });
+        const glowMat = new THREE.MeshStandardMaterial({ color: C.hot, emissive: C.hot, emissiveIntensity: 0.7, transparent: true, opacity: 0.75 });
         const glow = new THREE.Mesh(glowGeo, glowMat);
         glow.position.set(b.x + b.w * 0.3, b.h + 3.2, b.z);
         scene.add(glow);
@@ -444,10 +491,10 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
       }
     });
 
-    // Tanks
+    // Tanks: 哑光钛合金储罐 + 金属箍环
     TANKS.forEach((t) => {
       const tankGeo = new THREE.CylinderGeometry(t.r, t.r, t.h, 16);
-      const tankMat = new THREE.MeshStandardMaterial({ color: C.tank, roughness: 0.4, metalness: 0.6 });
+      const tankMat = new THREE.MeshStandardMaterial({ color: C.tank, roughness: 0.35, metalness: 0.3 });
       const tank = new THREE.Mesh(tankGeo, tankMat);
       tank.position.set(t.x, t.h / 2, t.z);
       tank.castShadow = true;
@@ -498,10 +545,10 @@ export const TwinScene3D: React.FC<TwinScene3DProps> = ({ anchors = EMPTY_ANCHOR
 
       const particleMat = new THREE.PointsMaterial({
         color: route.color,
-        size: 0.12,
+        size: 0.16,
         transparent: true,
-        opacity: 0.8,
-        blending: THREE.AdditiveBlending,
+        opacity: 0.95,
+        blending: THREE.NormalBlending,
         depthWrite: false,
       });
 

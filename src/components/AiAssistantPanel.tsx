@@ -1,51 +1,107 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Mic, Send, Volume2, VolumeX, Minus, X, Loader2, Bot, User } from 'lucide-react';
+import { Sparkles, Mic, Send, Volume2, VolumeX, Minus, X, Loader2, User } from 'lucide-react';
 import { useAiChatContext } from '../context/AiChatContext';
 import { Markdown } from './ai/Markdown';
 import { DIGITAL_PERSONAS } from './DigitalHumanAvatar';
+import { PERSONA_CONFIGS } from './digital-human/EngineerModel';
 
-/** 面板头部数字人形象区使用的迷你头像（说话时嘴型动效，复用数字人形象配置） */
+/**
+ * 按系数调暗 / 调亮一个 0xRRGGBB 色（低多边形靠"受光面 + 暗面"读体积，
+ * 单色平涂在 52px 里就又是一块积木了）。
+ */
+const shade = (c: number, k: number): string => {
+  const ch = (v: number) => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0');
+  return `#${ch((c >> 16) & 255)}${ch((c >> 8) & 255)}${ch(c & 255)}`;
+};
+
+/**
+ * 右下角悬浮球 / 面板头部的迷你工人像（零网络请求内联 SVG）。
+ *
+ * 为什么换掉原来的「庖」字圆徽：用户口径很明确 —— "不要用那个夸张的圆形头像"。
+ * 印章是品牌符号，不是"数字人"；悬浮球里出现的必须是**和 3D 舞台同一个人**。
+ * 所以这里画的是同一个低多边形检修工人：安全帽 + 靛蓝工装 + 荧光反光条，
+ * 配色直接取 `PERSONA_CONFIGS`（3D 模型的单一来源），换人设时两边不会分叉。
+ * 五官刻意压小、无腮红、无高光大眼睛 —— 动漫脸正是上一轮被点名的问题。
+ */
 const MiniDigitalHuman: React.FC<{
   isSpeaking: boolean;
   isListening: boolean;
   personaId: string;
 }> = ({ isSpeaking, isListening, personaId }) => {
-  const persona = DIGITAL_PERSONAS.find((p) => p.id === personaId) || DIGITAL_PERSONAS[0];
-  const theme = persona.themeColor;
+  const cfg = PERSONA_CONFIGS[personaId] || PERSONA_CONFIGS.zhang;
+  const helmet = shade(cfg.helmetColor, 1);
+  // 白帽（总工）在白玉底上会糊成一片，必须给一条冷灰描边把它从背景里拎出来
+  const helmetEdge = cfg.helmetColor > 0xdedede ? '#94a3b8' : shade(cfg.helmetColor, 0.68);
+  const overall = shade(cfg.overallColor, 1);
+  const skin = shade(cfg.skinTone, 1);
+  const hair = shade(cfg.hairColor, 1);
   return (
-    <svg className="w-full h-full" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="60" cy="60" r="58" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="2" />
-      {/* 安全帽 */}
-      <ellipse cx="60" cy="36" rx="33" ry="17" fill={theme} />
-      <path d="M27 38 C27 23, 93 23, 93 38 Z" fill={theme} opacity="0.8" />
-      <rect x="52" y="25" width="16" height="5" rx="2" fill="#ef4444" />
-      {/* 面部 */}
-      <rect x="39" y="38" width="42" height="40" rx="14" fill="#fcd34d" />
-      <circle cx="45" cy="57" r="3.5" fill="#f87171" opacity={isSpeaking ? 0.65 : 0.3} />
-      <circle cx="75" cy="57" r="3.5" fill="#f87171" opacity={isSpeaking ? 0.65 : 0.3} />
-      {/* 眼睛 */}
-      <ellipse cx="49" cy="51" rx="3.6" ry="4.6" fill="#0f172a" />
-      <ellipse cx="71" cy="51" rx="3.6" ry="4.6" fill="#0f172a" />
-      <circle cx="50" cy="49" r="1.3" fill="#ffffff" />
-      <circle cx="72" cy="49" r="1.3" fill="#ffffff" />
-      {/* 眉毛 */}
-      <path d="M44 44 Q49 42 54 44" stroke="#78350f" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M66 44 Q71 42 76 44" stroke="#78350f" strokeWidth="2.2" strokeLinecap="round" />
-      {/* 嘴型：说话时张合 */}
-      {isSpeaking ? (
-        <ellipse cx="60" cy="67" rx="6" ry="5.2" fill="#b91c1c">
-          <animate attributeName="ry" values="2;5.6;2" dur="0.75s" repeatCount="indefinite" />
-        </ellipse>
-      ) : (
-        <path d="M54 66 Q60 70 66 66" stroke="#92400e" strokeWidth="2" strokeLinecap="round" />
+    <span
+      className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-b from-slate-50 via-white to-blue-50"
+      data-testid="mini-digital-human"
+      data-persona={personaId}
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 48 48" className="w-full h-full block" role="presentation">
+        {/* 外圈虚线信号弧：与顶栏 Logo 的蓝青双弧同款语汇（品牌连续性留在这里，而不是靠字印） */}
+        <path
+          d="M24 3.2 A20.8 20.8 0 0 1 44.8 24"
+          fill="none" stroke="#06b6d4" strokeOpacity="0.7" strokeWidth="1.3"
+          strokeLinecap="round" strokeDasharray="2.4 3.6"
+        />
+        <path
+          d="M24 44.8 A20.8 20.8 0 0 1 3.2 24"
+          fill="none" stroke="#3b82f6" strokeOpacity="0.7" strokeWidth="1.3"
+          strokeLinecap="round" strokeDasharray="2.4 3.6"
+        />
+
+        {/* ── 工装：肩线外扩 + 右半身暗面，读得出"一件衣服"而不是一块蓝 ── */}
+        <polygon points="3,48 7.5,37.5 16,33 32,33 40.5,37.5 45,48" fill={overall} />
+        <polygon points="32,33 40.5,37.5 45,48 34,48" fill={shade(cfg.overallColor, 0.74)} />
+        {/* 反光条（GB 20653：荧光黄绿底 + 银白带） */}
+        <polygon points="14.6,35.4 17.6,34.4 17.6,48 14.6,48" fill={shade(cfg.stripColor, 1)} opacity="0.92" />
+        <polygon points="33.4,35.4 30.4,34.4 30.4,48 33.4,48" fill={shade(cfg.stripColor, 0.86)} opacity="0.92" />
+        <rect x="11.8" y="43.6" width="24.4" height="2.4" fill="#eef2f3" opacity="0.9" />
+        {/* 领口：翻领两片 + 中间露出的一点颈窝，去掉"头插在瓶子里" */}
+        <polygon points="19.4,32.6 24,38.4 21.2,32.2" fill={shade(cfg.overallColor, 1.28)} />
+        <polygon points="28.6,32.6 24,38.4 26.8,32.2" fill={shade(cfg.overallColor, 1.16)} />
+        <polygon points="21.6,32.2 24,36.4 26.4,32.2" fill={shade(cfg.skinTone, 0.86)} />
+
+        {/* ── 头：略带方下颌的多边形体块，两侧给出受光/背光两个面 ── */}
+        <polygon points="17.4,17.6 30.6,17.6 30.6,26.4 28.2,31 24,32.6 19.8,31 17.4,26.4" fill={skin} />
+        <polygon points="27,17.6 30.6,17.6 30.6,26.4 28.2,31 26,32" fill={shade(cfg.skinTone, 0.9)} />
+        {/* 耳 */}
+        <polygon points="16.6,22 17.6,21.6 17.6,25.6 16.8,25.2" fill={shade(cfg.skinTone, 0.94)} />
+        <polygon points="31.4,22 30.4,21.6 30.4,25.6 31.2,25.2" fill={shade(cfg.skinTone, 0.84)} />
+        {/* 鬓角 + 耳上碎发：帽子与脸之间的过渡，缺了它就是"头盔直接扣在脸上" */}
+        <polygon points="17.6,18.2 19.6,18.2 19.4,22.4 17.6,21.6" fill={hair} />
+        <polygon points="30.4,18.2 28.4,18.2 28.6,22.4 30.4,21.6" fill={hair} />
+        {/* 眉 / 眼 / 鼻 / 嘴：短促、中性、无高光 —— 成人脸靠骨点与阴影，不靠大眼 */}
+        <path d="M19.9 23.1 h2.6 M25.5 23.1 h2.6" stroke={hair} strokeWidth="1" strokeLinecap="round" />
+        <ellipse cx="21.2" cy="24.7" rx="0.95" ry="1.05" fill="#241f26" />
+        <ellipse cx="26.8" cy="24.7" rx="0.95" ry="1.05" fill="#241f26" />
+        <path d="M24 26.1 l-0.7 2.1 h1.5" fill="none" stroke={shade(cfg.skinTone, 0.74)} strokeWidth="0.7" strokeLinejoin="round" />
+        <path d="M21.9 29.6 h4.2" stroke={shade(cfg.skinTone, 0.62)} strokeWidth="0.9" strokeLinecap="round" />
+
+        {/* ── 安全帽：帽檐 + 帽壳 + 顶筋 + 背光暗面 ── */}
+        <path
+          d="M14.2 18.4 a9.9 10.4 0 0 1 19.6 0 Z"
+          fill={helmet} stroke={helmetEdge} strokeWidth="0.7" strokeLinejoin="round"
+        />
+        <path d="M24.9 8.1 h2.6 a9.9 9.9 0 0 1 6.2 10.3 h-8.8 Z" fill={shade(cfg.helmetColor, 0.9)} opacity="0.55" />
+        <rect x="22.7" y="8" width="2.6" height="10.4" rx="1.2" fill={shade(cfg.helmetColor, 0.88)} />
+        <rect x="11" y="17.4" width="26" height="3.5" rx="1.75" fill={shade(cfg.helmetColor, 0.96)} stroke={helmetEdge} strokeWidth="0.6" />
+        <rect x="11" y="17.4" width="26" height="1.1" rx="0.55" fill={shade(cfg.helmetColor, 1.18)} />
+      </svg>
+      {/* 说话：琥珀色细环脉冲（克制，不铺满整球） */}
+      {isSpeaking && (
+        <span className="absolute inset-0 rounded-full border border-amber-400/80 animate-pulse pointer-events-none" />
       )}
-      {/* 工装 */}
-      <path d="M28 82 C40 76, 80 76, 92 82 L100 120 L20 120 Z" fill="#2563eb" />
-      <path d="M50 80 L60 90 L70 80" fill={theme} />
-      <path d="M22 96 L98 96" stroke="#22c55e" strokeWidth="3.5" />
-      {/* 拾音提示环 */}
-      {isListening && <circle cx="60" cy="60" r="54" stroke="#10b981" strokeWidth="3" fill="none" opacity="0.8" />}
-    </svg>
+      {/* 拾音：翠绿细环 */}
+      {isListening && (
+        <span className="absolute inset-0 rounded-full border border-emerald-400/80 animate-pulse pointer-events-none" />
+      )}
+    </span>
   );
 };
 
@@ -62,8 +118,7 @@ export const AiAssistantPanel: React.FC = () => {
   const [offset, setOffset] = useState({ dx: 0, dy: 0 });
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; bx: number; by: number } | null>(null);
-  // 点击 vs 拖拽的分流：mousedown→mousemove 累计位移超过 4px 时视为拖拽，
-  // 避免「按了想拖、没拖动却误触展开」；也避免「想点却拖动一点距离、不展开」。
+  // 点击 vs 拖拽的分流：累计位移 > 4px 才算真拖，否则 click 仍触发 openPanel。
   const dragMovedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [personaId, setPersonaId] = useState<string>(() => {
@@ -106,7 +161,6 @@ export const AiAssistantPanel: React.FC = () => {
     const onMove = (x: number, y: number) => {
       const d = dragRef.current;
       if (!d) return;
-      // 累计位移阈值：4px 算"真在拖"，避免点击和拖拽互相干扰
       if (!dragMovedRef.current && Math.abs(x - d.sx) + Math.abs(y - d.sy) > 4) {
         dragMovedRef.current = true;
       }
@@ -154,12 +208,12 @@ export const AiAssistantPanel: React.FC = () => {
 
   return (
     <>
-      {/* ---------- 悬浮球（也是可拖动的锚点） ---------- */}
+      {/* ---------- 悬浮球（同时也是可拖动的锚点） ---------- */}
       {!chat.panelOpen && (
         <button
           data-onboarding="ai-ball"
           onClick={() => {
-            // 拖过了就不算点击：避免「想拖结果只挪了 1px 反而把面板打开」
+            // 拖过了就不算点击：避免「想拖结果只挪了 1px 却把面板打开」
             if (dragMovedRef.current) return;
             chat.openPanel();
           }}
@@ -174,13 +228,12 @@ export const AiAssistantPanel: React.FC = () => {
             }
             onDragStart(e.clientX, e.clientY);
           }}
-          title="拖动可移动位置 · 点击打开 AI 数字人助手"
-          // 用 inline style 而不是 className 的 bottom-6 right-6：拖动后要跟 panel 共用同一份偏移
-          className="fixed z-[9999] w-14 h-14 rounded-full bg-white border border-blue-200 shadow-md flex items-center justify-center cursor-pointer transition-all hover:scale-105 hover:shadow-lg p-1"
+          title="拖动可移动位置 · 点击打开 AI 专家智能中枢"
+          className="fixed z-[9999] w-14 h-14 rounded-full bg-white/95 backdrop-blur-md border-2 border-amber-400/80 shadow-[0_4px_20px_rgba(245,158,11,0.25)] flex items-center justify-center cursor-pointer transition-all hover:scale-110 hover:shadow-[0_8px_30px_rgba(245,158,11,0.4)] p-0.5"
           style={{
             right: `calc(24px - ${offset.dx}px)`,
             bottom: `calc(24px - ${offset.dy}px)`,
-            touchAction: 'none', // 阻止触摸滚动抢手势
+            touchAction: 'none',
           }}
         >
           <MiniDigitalHuman isSpeaking={chat.isSpeaking} isListening={chat.isRecording} personaId={personaId} />
@@ -208,6 +261,11 @@ export const AiAssistantPanel: React.FC = () => {
           {/* 头部：数字人形象区（可拖拽） */}
           <div
             onPointerDown={(e) => {
+              // 头部是拖拽区，但朗读/最小化/关闭三个按钮也挂在头部里。
+              // 一旦对头部 setPointerCapture，后续 pointerup 与由它派生的 click
+              // 都会被重定向到捕获元素（头部本身），按钮的 onClick 永远不触发 ——
+              // 表现为「点关闭没反应」。指针落在按钮上时不启动拖拽、不捕获指针。
+              if ((e.target as HTMLElement | null)?.closest('button')) return;
               // 同悬浮球：跨 iframe 拖拽必须捕获指针，否则划过 iframe 就断流
               try {
                 e.currentTarget.setPointerCapture(e.pointerId);
@@ -217,7 +275,7 @@ export const AiAssistantPanel: React.FC = () => {
               onDragStart(e.clientX, e.clientY);
             }}
             className="shrink-0 cursor-move select-none border-b border-slate-200/40"
-            style={{ background: 'rgba(248, 250, 252, 0.7)' }}
+            style={{ background: 'rgba(248, 250, 252, 0.7)', touchAction: 'none' }}
           >
             <div className="flex items-center gap-2.5 px-3 py-2">
               {/* 数字人头像 */}
@@ -305,7 +363,9 @@ export const AiAssistantPanel: React.FC = () => {
                       isUser ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 border border-blue-200'
                     }`}
                   >
-                    {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                    {isUser ? <User className="w-3.5 h-3.5" /> : (
+                      <span className="font-black leading-none text-[12px]" style={{ fontFamily: "'KaiTi','STKaiti','FangSong','SimSun',serif" }}>智</span>
+                    )}
                   </div>
                   <div
                     className={`max-w-[80%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
@@ -317,7 +377,7 @@ export const AiAssistantPanel: React.FC = () => {
                     {isUser || m.streaming ? (
                       <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{m.text}</pre>
                     ) : (
-                      <Markdown content={m.text || ' '} />
+                      <Markdown content={m.text || ' '} tone="light" />
                     )}
                     {m.streaming && (
                       <span className="inline-block w-1.5 h-3 bg-blue-500 rounded-sm ml-0.5 align-text-bottom" />

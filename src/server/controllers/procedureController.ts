@@ -1,7 +1,7 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
 import path from "path";
 import fs from "fs";
-import { AGNES_BASE_URL, AGNES_API_KEY, isAgnesEnabled, UPLOADS_DIR } from "../utils/config.ts";
+import { AGNES_BASE_URL, AGNES_API_KEY, isAgnesEnabled, UPLOADS_DIR, getAgnesTotalTimeoutMin } from "../utils/config.ts";
 import { getAiClient, callDashScopeJson } from "../services/aiClient.ts";
 import { ProcedureRepository, ProcedureVideoRepository } from "../../db/repositories/index.ts";
 import { buildEnglishVideoPrompt, runFullVideoGeneration } from "../services/videoGenerationService.ts";
@@ -29,11 +29,32 @@ export const handleProcedureVideoStatus = async (req: any, res: any) => {
   }
 
   // 完整讲解视频（多段拼接）任务：task_id 以 full- 开头，进度在本地库中（error 字段存进度），不查询 Agnes 远端
+  // createdAt 必须回给前端：多段任务动辄跑几十分钟，前端要靠它算"真实已耗时"。
+  // 若前端用"本轮轮询开始时刻"当起点，刷新一次页面耗时就被清零（曾出现界面显示"已耗时 0 秒"而实际已跑 36 分钟）。
+  // totalTimeoutMin 同理必须回传：全局超时是按段数推导的（段数 × 单段窗口 + 段间限频），
+  // 前端写死一个数就会与后端脱节 —— 之前就是前端 60 分钟、后端 240 分钟，界面先"放弃"而任务还在跑。
   if (taskId.startsWith("full-")) {
+    let totalTimeoutMin = getAgnesTotalTimeoutMin();
+    try {
+      const proc = await ProcedureRepository.getById(record.procedureId);
+      const steps = proc?.steps?.length || 0;
+      if (steps > 0) totalTimeoutMin = getAgnesTotalTimeoutMin(steps);
+    } catch {
+      /* 查不到规程就退回默认值，不能让状态接口失败 */
+    }
+    // elapsedSec：服务端记录的已耗时（秒），前端不再自行从 createdAt 推算
+    const elapsedSec = record.createdAt
+      ? Math.max(0, Math.floor((Date.now() - new Date(record.createdAt).getTime()) / 1000))
+      : null;
     return res.json({
       status: record.status,
       videoUrl: record.videoUrl,
       error: record.error || null,
+      progressPct: record.progressPct ?? null,
+      internalStatus: record.internalStatus ?? null,
+      elapsedSec,
+      createdAt: record.createdAt,
+      totalTimeoutMin,
       fullMode: true,
     });
   }
@@ -44,6 +65,10 @@ export const handleProcedureVideoStatus = async (req: any, res: any) => {
       status: record.status,
       videoUrl: record.videoUrl,
       error: record.error,
+      progressPct: record.progressPct ?? null,
+      internalStatus: record.internalStatus ?? null,
+      elapsedSec: null,
+      createdAt: record.createdAt,
     });
   }
 
@@ -53,6 +78,10 @@ export const handleProcedureVideoStatus = async (req: any, res: any) => {
       status: record.status,
       videoUrl: record.videoUrl,
       error: "AGNES_API_KEY 缺失，无法查询最新远端状态",
+      progressPct: record.progressPct ?? null,
+      internalStatus: record.internalStatus ?? null,
+      elapsedSec: null,
+      createdAt: record.createdAt,
     });
   }
 
@@ -99,10 +128,17 @@ export const handleProcedureVideoStatus = async (req: any, res: any) => {
       });
     }
 
+    const elapsedSec = record.createdAt
+      ? Math.max(0, Math.floor((Date.now() - new Date(record.createdAt).getTime()) / 1000))
+      : null;
     res.json({
       status: finalStatus,
       videoUrl: finalVideoUrl,
       error: finalError,
+      progressPct: record.progressPct ?? null,
+      internalStatus: record.internalStatus ?? null,
+      elapsedSec,
+      createdAt: record.createdAt,
     });
   } catch (err: any) {
     const errMsg = err?.message || (typeof err === "object" ? JSON.stringify(err) : String(err));
@@ -111,6 +147,10 @@ export const handleProcedureVideoStatus = async (req: any, res: any) => {
       status: record.status,
       videoUrl: record.videoUrl,
       error: record.error || `Agnes API 失败: 消息 ${errMsg}`,
+      progressPct: record.progressPct ?? null,
+      internalStatus: record.internalStatus ?? null,
+      elapsedSec: null,
+      createdAt: record.createdAt,
     });
   }
 };
@@ -322,15 +362,15 @@ export const handleGenerateVideoFull = async (req: any, res: any) => {
     });
   }
   const proc = await ProcedureRepository.getById(req.params.id);
-  if (!proc) return res.status(404).json({ error: "作业指引未找到" });
-  if (!AGNES_API_KEY) return res.status(503).json({ error: "AGNES_API_KEY 未配置，无法生成完整视频" });
+  const agnesKey = process.env.AGNES_API_KEY || AGNES_API_KEY;
+  if (!agnesKey) return res.status(503).json({ error: "AGNES_API_KEY 未配置，无法生成完整视频" });
 
   const steps: any[] = proc.steps || [];
   if (steps.length === 0) return res.status(400).json({ error: "该规程没有可拍摄的步骤" });
 
-  // 每 2 步一组（每段 441 帧 = 约 18 秒，Agnes 免费上限）
+  // 每 1 步一组（1 个步骤 = 1 段视频，每段 441 帧 = 约 18 秒，Agnes 免费上限）
   const groups: any[][] = [];
-  for (let i = 0; i < steps.length; i += 2) groups.push(steps.slice(i, i + 2));
+  for (let i = 0; i < steps.length; i += 1) groups.push(steps.slice(i, i + 1));
 
   const taskId = `full-${Date.now()}`;
   const fullDir = path.join(UPLOADS_DIR, "full-videos");
@@ -362,4 +402,32 @@ export const handleGenerateVideoFull = async (req: any, res: any) => {
 export const handleGetProcedureVideos = async (req: any, res: any) => {
   const list = await ProcedureVideoRepository.getByProcedureId(req.params.id);
   res.json(list);
+};
+
+// ==================== 取消视频生成任务 (POST /api/v1/procedures/videos/cancel) ====================
+// 只做本地改判：把 DB 状态改成 failed，不调用 Agnes（Agnes 没有取消接口）。
+// 后台 IIFE（runFullVideoGeneration）会在下一轮轮询时检测到 DB 状态已 failed 而自动退出。
+export const handleCancelVideoTask = async (req: any, res: any) => {
+  const { taskId } = req.body || {};
+  if (!taskId || typeof taskId !== "string") {
+    return res.status(400).json({ error: "缺少必要参数 taskId" });
+  }
+
+  const record = await ProcedureVideoRepository.getByTaskId(taskId);
+  if (!record) {
+    return res.status(404).json({ error: "未找到对应的视频生成记录" });
+  }
+  if (record.status !== "processing" && record.status !== "queued") {
+    return res.status(400).json({ error: `任务状态为 ${record.status}，无法取消` });
+  }
+
+  await ProcedureVideoRepository.updateStatus(taskId, {
+    status: "failed",
+    error: "用户主动放弃",
+    progressPct: null,
+    internalStatus: null,
+  });
+
+  console.log(`[AgnesVideo] 用户主动取消任务 taskId=${taskId}`);
+  res.json({ success: true });
 };

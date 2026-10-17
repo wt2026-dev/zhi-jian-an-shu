@@ -19,6 +19,7 @@ import {
 import { UserProfile, UserRole } from '../types';
 import { authApi } from '../api';
 import { UserAvatar } from './UserAvatar';
+import { useToast } from '../context/ToastContext';
 
 interface UserManagementViewProps {
   currentUser: UserProfile;
@@ -33,6 +34,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onAddUser,
   onSwitchUser,
 }) => {
+  const { show: showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -176,7 +178,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         );
       }
     } catch (err: any) {
-      alert(err?.message || '修改用户状态失败');
+      showToast({ type: 'error', title: '修改用户状态失败', message: err?.message });
     } finally {
       setStatusUpdatingId(null);
     }

@@ -1,4 +1,5 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
+import crypto from "crypto";
 import { Request, Response } from "express";
 import QRCode from "qrcode";
 import { logger } from "../../utils/logger.ts";
@@ -54,8 +55,9 @@ export async function handleXingyunSession(req: Request, res: Response) {
       const sortedData = sortKeys(data);
       const escapedJson = escapeNonAsciiForPythonJson(JSON.stringify(sortedData)).replace(/ /g, "");
       const signString = pathWithQuery.toLowerCase() + method.toLowerCase() + escapedJson + aSec + timestamp;
-      const cryptoMod = require("crypto");
-      const token = cryptoMod.createHash("md5").update(signString).digest("hex");
+      // ESM 修复：原为 require("crypto")，在 "type": "module" 下 require 未定义，
+      // 会让 /api/v1/xingyun/session 抛 ReferenceError 直接 500。改为顶层 import。
+      const token = crypto.createHash("md5").update(signString).digest("hex");
       return {
         headers: {
           "X-APP-ID": aId,

@@ -40,11 +40,12 @@ export const handleAiChat = async (req: any, res: any) => {
       // 上游抖动时会把它自己的网关错误话术当作正文返回（实测 "注：Agnes 接口异常，请稍后重试。"）。
       // 这类文本不是对问题的回答，不能带 success:true 发出去，也不该进专家纠错队列——落到下面的规则引擎降级。
       if (!looksLikeUpstreamEcho(reply)) {
+        const actualModel = (response as any)?.model || DASHSCOPE_CHAT_MODEL;
         return res.json({
           success: true,
           chatId,
           reply,
-          model: DASHSCOPE_CHAT_MODEL,
+          model: actualModel,
         });
       }
       logger.warn("[AI:CHAT] 上游返回自身异常提示，按未配置降级处理:", reply.slice(0, 80));
@@ -137,14 +138,16 @@ ${JSON.stringify(contextData, null, 2)}
       });
       return;
     }
+    const actualModel = (stream as any)?.model || DASHSCOPE_CHAT_MODEL;
+    sendEvent({ model: actualModel });
     res.write("data: [DONE]\n\n");
     res.end();
     addAuditLog(req, {
       actionType: "AI_CHAT_STREAM",
       module: "ai",
-      detail: `AI 流式对话完成 (${fullText.length} 字)，模型 ${DASHSCOPE_CHAT_MODEL}`,
+      detail: `AI 流式对话完成 (${fullText.length} 字)，模型 ${actualModel}`,
       status: "SUCCESS",
-      metadata: { model: DASHSCOPE_CHAT_MODEL, replyLength: fullText.length },
+      metadata: { model: actualModel, replyLength: fullText.length },
     });
   } catch (err: any) {
     // 流中出错：推送错误事件后正常关闭，不崩溃

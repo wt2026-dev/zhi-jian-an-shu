@@ -57,6 +57,15 @@ export function getQueryStats() {
 function normalizeParams(params?: any[]): any[] {
   if (!params) return [];
   return params.map((p) => {
+    // ⚠️ 数组必须**原样透传**，绝不能 JSON.stringify。
+    //
+    // pg / pglite 会把 JS 数组编码成 Postgres 数组字面量（{a,b}），这正是 ANY($n::text[]) 需要的形态。
+    // 一旦被序列化成 '["a"]'，Postgres 会拿它去按数组字面量解析，直接报
+    //   malformed array literal: "["a"]"
+    // 实测后果：启动自愈清理僵死视频任务整段失效（`[Startup] 清理僵死视频任务失败`），
+    // 进程重启后残留的 processing 行永远不被改判，前端一直转圈；
+    // 同一根因也让 runFullVideoGeneration 的"提交前回收僵死任务"失效。
+    if (Array.isArray(p)) return p;
     if (p !== null && typeof p === "object" && !(p instanceof Date) && !Buffer.isBuffer(p)) {
       return JSON.stringify(p);
     }
@@ -88,6 +97,84 @@ function buildPostgresUrl(): string {
   const user = process.env.DB_USER || "postgres";
   const password = process.env.DB_PASSWORD || "";
   return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${name}`;
+}
+
+/**
+ * 打开 PGlite 数据目录；失败就**换一个新目录建空库**，让服务能起来。
+ *
+ * 为什么必须这么干：PGlite 扛不住非正常终止 —— 进程被 SIGKILL / 任务管理器结束 / 沙箱回收后，
+ * WAL 里的 checkpoint 记录会被写坏，之后每次打开都是
+ * `LOG: invalid xl_info in checkpoint record` → `PANIC: could not locate a valid checkpoint record`
+ * → `RuntimeError: Aborted()`，而且没有任何可用工具（pg_resetwal 之类）能修。
+ * 以前的表现是**整个服务起不来**，只能人工把目录改名。
+ *
+ * ⚠️ 为什么是"换新目录"而不是"把坏目录改名"：Windows 上目录里还有未释放的文件句柄时
+ * `renameSync` 必定 `EPERM`，而坏掉的 PGlite 实例**连 `close()` 都会抛 `Aborted()`**，
+ * 根本松不了手 —— 实测同进程 rename、子进程 rename **都失败**。
+ * 所以坏目录只能原地留着（正好当取证素材，用 scratch/recover-videos.ts 抠数据），
+ * 新库换个目录名，并把"当前活跃目录"记到 `data/.pglite-active.json`。
+ */
+async function tryOpenPglite(dir: string): Promise<PGlite> {
+  const p = new PGlite(dir);
+  try {
+    await p.waitReady;
+    // 只 waitReady 不够：Aborted() 往往在真正跑第一条语句时才抛出来
+    await p.query("SELECT 1;");
+    return p;
+  } catch (e) {
+    try {
+      await p.close();
+    } catch {}
+    throw e;
+  }
+}
+
+/** 记录"当前活跃的数据目录名"，避免每次都去碰那个已经报废的规范目录。 */
+function activePointerPath(dataDir: string) {
+  return path.join(dataDir, ".pglite-active.json");
+}
+
+function readActiveDirName(dataDir: string): string | null {
+  try {
+    const j = JSON.parse(fs.readFileSync(activePointerPath(dataDir), "utf8"));
+    return typeof j?.active === "string" && j.active ? j.active : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeActiveDirName(dataDir: string, name: string) {
+  try {
+    fs.writeFileSync(activePointerPath(dataDir), JSON.stringify({ active: name }, null, 2), "utf8");
+  } catch {}
+}
+
+export async function openPgliteWithFallback(
+  dataDir: string,
+  baseName: string
+): Promise<{ pglite: PGlite; usedPath: string }> {
+  const activeName = readActiveDirName(dataDir) || baseName;
+  const activePath = path.join(dataDir, activeName);
+
+  try {
+    return { pglite: await tryOpenPglite(activePath), usedPath: activePath };
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    const d = new Date();
+    const p2 = (n: number) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
+    const freshName = `${baseName}-${stamp}`;
+    const freshPath = path.join(dataDir, freshName);
+
+    logger.error(
+      `[Database] 数据目录无法打开（${msg}）。已保留原目录 ${activeName}（内含损坏的库，可用 scratch/recover-videos.ts 取证），` +
+        `并改用新目录 ${freshName} 重建空库。`
+    );
+    // 注意：不要把这次失败当成"业务数据丢失"—— procedure_videos 会由
+    // src/db/videoHistorySnapshot.ts 的快照自愈补回来。
+    writeActiveDirName(dataDir, freshName);
+    return { pglite: await tryOpenPglite(freshPath), usedPath: freshPath };
+  }
 }
 
 async function createPgliteAdapter(): Promise<DatabaseAdapter> {
@@ -154,7 +241,11 @@ async function createPgliteAdapter(): Promise<DatabaseAdapter> {
     }
   }
   logger.info(`[Database] 正在加载嵌入式持久化 PostgreSQL 数据库 (存储路径: ${pgDataPath}) ...`);
-  var pglite = new PGlite(pgDataPath);
+  var opened = await openPgliteWithFallback(dataDir, dbFolderName);
+  var pglite = opened.pglite;
+  if (opened.usedPath !== pgDataPath) {
+    logger.warn(`[Database] 实际使用的数据目录: ${opened.usedPath}`);
+  }
   logger.info("[Database] 本地持久化 PostgreSQL 数据库初始化完成！");
   return {
     type: "pglite",

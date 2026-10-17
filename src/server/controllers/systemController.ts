@@ -1,6 +1,7 @@
 // 重构说明：本模块自 server.ts 拆出，逻辑保持原样。
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { getDb, getQueryStats } from "../../db/db.ts";
 import { buildOpenApiSpec } from "../../openapi.ts";
 import { aiCache, aiCacheClear, cacheStats } from "../../utils/aiCache.ts";
@@ -49,9 +50,10 @@ export function handleAdminAiCacheClear(req: any, res: any) {
 
 export async function handleHealthDetail(_req: any, res: any) {
   var mem = process.memoryUsage();
-  var osm = require("os");
-  var totalMem = osm.totalmem();
-  var freeMem = osm.freemem();
+  // ESM 修复：原为 require("os")，在 "type": "module" 下 require 未定义，
+  // 会让 /health/detail 抛 ReferenceError 直接 500。改为顶层 import 后取用。
+  var totalMem = os.totalmem();
+  var freeMem = os.freemem();
   var dbOk = true, dbMs = -1, dbType = "unknown";
   try {
     var t0 = Date.now();

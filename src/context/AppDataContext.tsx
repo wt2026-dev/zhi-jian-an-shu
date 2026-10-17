@@ -58,6 +58,8 @@ export interface AppDataContextValue {
   // ── 初始化与刷新 ────────────────────────────────────────────────────────────
   /** 全量拉取后端所有业务数据（登录成功后自动调用，也可手动重试） */
   loadAllBackendData: () => Promise<void>;
+  /** 仅刷新 LOTO 台账；错误向调用方传播，供界面提示与重试。 */
+  refreshLotoLocks: () => Promise<void>;
 
   // ── 设备 handlers ──────────────────────────────────────────────────────────
   handleAddEquipment: (eq: Equipment) => void;
@@ -123,6 +125,12 @@ export const AppDataProvider: React.FC<{
     onDataLoadedRef.current = onDataLoaded;
     onRefreshNotificationsRef.current = onRefreshNotifications;
   }, [onDataLoaded, onRefreshNotifications]);
+
+  const refreshLotoLocks = useCallback(async () => {
+    const locks = await safetyPermitApi.getLotoLocks();
+    if (!Array.isArray(locks)) throw new Error('LOTO 台账响应格式错误，请重试刷新');
+    setLotoLocks(locks);
+  }, []);
 
   const loadAllBackendData = useCallback(async () => {
     setIsInitialLoading(true);
@@ -304,6 +312,7 @@ export const AppDataProvider: React.FC<{
     isInitialLoading,
     loadError,
     loadAllBackendData,
+    refreshLotoLocks,
     handleAddEquipment,
     handleUpdateEquipment,
     handleDeleteEquipment,

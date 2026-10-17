@@ -142,7 +142,22 @@ export async function seedDatabase(): Promise<void> {
   console.log(`[Seed] 成功插入/更新 ${seedWorkOrdersData.length} 个工单`);
 
   // 4. 高危作业票
+  // 演示库联锁可用性：未结案（approved/active）的作业票，若种子有效期已过，
+  // 则滚动顺延到「今天 20:00」，避免演示库一开工就被「作业票已过期」联锁拦截。
+  const permitRollDeadline = () => {
+    const d = new Date();
+    d.setHours(20, 0, 0, 0);
+    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+    return woIsoToZh(d.getTime());
+  };
   for (const sp of seedSafetyPermitsData) {
+    const expireAt = woLegacyParse(sp.validUntil || '');
+    const rolledValidUntil = ['approved', 'active'].includes(sp.status) && (!Number.isFinite(expireAt) || expireAt < Date.now())
+      ? permitRollDeadline()
+      : sp.validUntil;
+    if (rolledValidUntil !== sp.validUntil) {
+      console.log(`[Seed] 作业票 ${sp.permitNo} 有效期已过，演示联锁滚动顺延至今日 20:00`);
+    }
     await db.query(
       `INSERT INTO safety_permits (id, permit_no, permit_type, risk_level, title, equipment_id, equipment_name, workshop, location, applicant, applicant_dept, applied_at, valid_until, status, precautions, loto_number, hazards, safety_checklist, gas_test_results, guardian_approval, supervisor_approval, closed_at, closed_by, close_remark, version)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
@@ -150,7 +165,7 @@ export async function seedDatabase(): Promise<void> {
          status = EXCLUDED.status, precautions = EXCLUDED.precautions, hazards = EXCLUDED.hazards, safety_checklist = EXCLUDED.safety_checklist,
          guardian_approval = EXCLUDED.guardian_approval, supervisor_approval = EXCLUDED.supervisor_approval, gas_test_results = EXCLUDED.gas_test_results,
          closed_at = EXCLUDED.closed_at, closed_by = EXCLUDED.closed_by, close_remark = EXCLUDED.close_remark, version = EXCLUDED.version;`,
-      [sp.id, sp.permitNo, sp.permitType, sp.riskLevel, sp.title, sp.equipmentId, sp.equipmentName, sp.workshop, sp.location, sp.applicant, sp.applicantDept, sp.appliedAt, sp.validUntil, sp.status, JSON.stringify(sp.precautions), sp.lotoNumber, JSON.stringify(sp.hazards), JSON.stringify(sp.safetyChecklist), sp.gasTestResults ? JSON.stringify(sp.gasTestResults) : null, sp.guardianApproval ? JSON.stringify(sp.guardianApproval) : null, sp.supervisorApproval ? JSON.stringify(sp.supervisorApproval) : null, sp.closedAt, sp.closedBy, sp.closeRemark, sp.version]
+      [sp.id, sp.permitNo, sp.permitType, sp.riskLevel, sp.title, sp.equipmentId, sp.equipmentName, sp.workshop, sp.location, sp.applicant, sp.applicantDept, sp.appliedAt, rolledValidUntil, sp.status, JSON.stringify(sp.precautions), sp.lotoNumber, JSON.stringify(sp.hazards), JSON.stringify(sp.safetyChecklist), sp.gasTestResults ? JSON.stringify(sp.gasTestResults) : null, sp.guardianApproval ? JSON.stringify(sp.guardianApproval) : null, sp.supervisorApproval ? JSON.stringify(sp.supervisorApproval) : null, sp.closedAt, sp.closedBy, sp.closeRemark, sp.version]
     );
   }
   console.log(`[Seed] 成功插入/更新 ${seedSafetyPermitsData.length} 个高危作业票`);

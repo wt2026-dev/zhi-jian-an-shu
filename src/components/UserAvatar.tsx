@@ -154,9 +154,10 @@ export const BUILTIN_AVATAR_STYLES = [
 export const ROLE_DEFAULT_PHOTOS: Record<string, string[]> = {
   admin: ['/avatars/admin.png', '/avatars/admin-b.png'],
   manager: ['/avatars/manager.png', '/avatars/manager-b.png'],
-  inspector: ['/avatars/inspector.png', '/avatars/inspector-b.png'],
-  operator: ['/avatars/operator.png', '/avatars/operator-b.png'],
-  technician: ['/avatars/operator.png', '/avatars/operator-b.png'],
+  // 池长按演示名册哈希校准：同角色多人必须落在不同下标（inspector 4 张、operator 3 张）
+  inspector: ['/avatars/inspector.png', '/avatars/inspector-b.png', '/avatars/inspector-c.png', '/avatars/inspector-d.png'],
+  operator: ['/avatars/operator.png', '/avatars/operator-b.png', '/avatars/operator-c.png'],
+  technician: ['/avatars/technician.png', '/avatars/technician-b.png'],
   driver: ['/avatars/driver.png', '/avatars/driver-b.png'],
   archivist: ['/avatars/archivist.png', '/avatars/archivist-b.png'],
 };
@@ -172,7 +173,8 @@ export function resolveRoleKey(role?: string, roleTitle?: string): string {
   if (r === 'admin') return 'admin';
   if (r === 'manager' || r === 'supervisor') return 'manager';
   if (r === 'inspector') return 'inspector';
-  if (r === 'operator' || r === 'technician' || r === 'user') return 'operator';
+  if (r === 'operator' || r === 'user') return 'operator';
+  if (r === 'technician') return 'technician';
   if (r === 'driver') return 'driver';
   if (r === 'archivist') return 'archivist';
 
@@ -186,8 +188,11 @@ export function resolveRoleKey(role?: string, roleTitle?: string): string {
   if (t.includes('点检') || t.includes('巡检') || t.includes('质检')) {
     return 'inspector';
   }
-  if (t.includes('操作') || t.includes('技师') || t.includes('检修') || t.includes('维修')) {
+  if (t.includes('操作')) {
     return 'operator';
+  }
+  if (t.includes('技师') || t.includes('检修') || t.includes('维修')) {
+    return 'technician';
   }
   if (t.includes('机电') || t.includes('部长') || t.includes('主管') || t.includes('总监')) {
     return 'manager';
@@ -201,8 +206,8 @@ export function resolveRoleKey(role?: string, roleTitle?: string): string {
 
 /**
  * 稳定哈希分配照片：
- * 取 name（无则 username）字符码累加 % 池长度，得到稳定下标；
- * 同一用户每次渲染同一张，不同用户尽量错开；
+ * 种子为「姓名#工号」联合串（两者任一缺失仍稳定），字符码累加 % 池长度；
+ * 同一用户每次渲染同一张，同角色多人按池长错开（池长见 ROLE_DEFAULT_PHOTOS 注释）。
  */
 export function pickRolePhoto(role?: string, roleTitle?: string, name?: string, username?: string): string {
   const roleKey = resolveRoleKey(role, roleTitle);
@@ -210,8 +215,8 @@ export function pickRolePhoto(role?: string, roleTitle?: string, name?: string, 
   if (!pool || pool.length === 0) return '/avatars/admin.png';
   if (pool.length === 1) return pool[0];
 
-  const seedStr = (name || username || '').trim();
-  if (!seedStr) return pool[0];
+  const seedStr = `${(name || '').trim()}#${(username || '').trim()}`;
+  if (seedStr === '#') return pool[0];
 
   let sum = 0;
   for (let i = 0; i < seedStr.length; i++) {
@@ -339,6 +344,52 @@ export const BUILTIN_ROLE_PHOTOS = [
     roleLabel: '技术标准与规程专家·工装',
     photoUrl: '/avatars/archivist-b.png',
   },
+  // 第三套扩池变体：technician 专属岗 + inspector/operator 多人错开补充款
+  {
+    id: 'photo_technician_a',
+    series: 'set3',
+    seriesLabel: '第三套扩池变体照',
+    name: '电气维修技师 (款 A)',
+    roleKey: 'technician',
+    roleLabel: '电气专工·高压试验',
+    photoUrl: '/avatars/technician.png',
+  },
+  {
+    id: 'photo_technician_b',
+    series: 'set3',
+    seriesLabel: '第三套扩池变体照',
+    name: '机电检修技师 (款 B)',
+    roleKey: 'technician',
+    roleLabel: '高级技师·机械精修',
+    photoUrl: '/avatars/technician-b.png',
+  },
+  {
+    id: 'photo_inspector_c',
+    series: 'set3',
+    seriesLabel: '第三套扩池变体照',
+    name: '点检 / 巡检工程师 (款 C)',
+    roleKey: 'inspector',
+    roleLabel: '资深点检·仪表读数',
+    photoUrl: '/avatars/inspector-c.png',
+  },
+  {
+    id: 'photo_inspector_d',
+    series: 'set3',
+    seriesLabel: '第三套扩池变体照',
+    name: '点检 / 巡检工程师 (款 D)',
+    roleKey: 'inspector',
+    roleLabel: '安全监护·现场巡检',
+    photoUrl: '/avatars/inspector-d.png',
+  },
+  {
+    id: 'photo_operator_c',
+    series: 'set3',
+    seriesLabel: '第三套扩池变体照',
+    name: '现场操作工 (款 C)',
+    roleKey: 'operator',
+    roleLabel: '生产岗操作·行车现场',
+    photoUrl: '/avatars/operator-c.png',
+  },
 ];
 
 /**
@@ -436,11 +487,13 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   if (!useFallbackInitial && currentSrc) {
     return (
       <div className={`relative inline-flex shrink-0 select-none ${container} ${className}`}>
+        {/* 底衬：照片未解码完/加载失败时露出角色色圆，避免出现空白白圈（不注入文字，避免污染 textContent） */}
+        <div className={`absolute inset-0 rounded-full ${gradientClass}`} aria-hidden="true" />
         <img
           src={currentSrc}
           alt={name}
           onError={handleError}
-          className={`w-full h-full rounded-full object-cover shrink-0 ${borderClass}`}
+          className={`relative w-full h-full rounded-full object-cover shrink-0 ${borderClass}`}
         />
         {canShowBadge && (
           <span

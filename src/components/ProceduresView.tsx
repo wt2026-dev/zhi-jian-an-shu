@@ -31,7 +31,16 @@ import {
   Film,
 } from 'lucide-react';
 import { procedureApi } from '../api';
+import { useToast } from '../context/ToastContext';
 import { MaintenanceProcedure, ProcedureStep, VideoScript, UserProfile, ProcedureVideo } from '../types';
+import {
+  SEG_FAST_SEC,
+  SEG_SLOW_SEC,
+  MAX_POLL_SECONDS,
+  estimateRemainingMinutes,
+  formatElapsed,
+  resolveTaskStartMs,
+} from '../utils/videoProgress';
 
 interface ProceduresViewProps {
   currentUser: UserProfile;
@@ -46,6 +55,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
   preselectedLevel,
   onSelectProcedure,
 }) => {
+  const { show: showToast } = useToast();
   const [procedures, setProcedures] = useState<MaintenanceProcedure[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +89,9 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
   const [videoSuccessNotice, setVideoSuccessNotice] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number>(18); // Agnes 视频时长（秒）：10 / 15 / 18
   const [pollCount, setPollCount] = useState(0);
+  const [progressPct, setProgressPct] = useState<number | null>(null);
+  const [internalStatus, setInternalStatus] = useState<string | null>(null);
+  const [elapsedSec, setElapsedSec] = useState<number | null>(null);
 
   const videoPlayerRef = useRef<HTMLDivElement>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
@@ -162,9 +175,21 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
     setGeneratingVideo(true);
     setVideoError(null);
     setVideoSuccessNotice(null);
+    setProgressPct(null);
+    setInternalStatus(null);
+    setElapsedSec(null);
     const isFull = taskId.startsWith('full-');
-    const startTime = Date.now();
     const intervalMs = isFull ? 10000 : 6000;
+
+    // 已耗时的起点必须是「任务入库时刻」，而不是「本轮轮询开始的时刻」。
+    // 后者在每次刷新页面 / 组件重新挂载时都会归零 —— 实测出现过任务已跑 36 分钟、
+    // 界面却显示"已耗时 0秒"的情况（用户因此以为卡住了）。
+    // 首轮轮询拿到后端的 createdAt 后立刻纠正；拿不到时保留本轮时刻兜底（宁可少报，也不会倒退）。
+    let taskStartMs = Date.now();
+    let taskStartCorrected = false;
+    // 停止轮询的上限：默认用本地兜底值，首轮拿到后端的 totalTimeoutMin 后改用后端口径。
+    // 后端那个数是按段数推导的（段数 × 单段窗口 + 段间限频），8 段任务会比 240 分钟大得多。
+    let maxPollSeconds = MAX_POLL_SECONDS;
 
     setVideoStatusText(
       isFull
@@ -172,29 +197,47 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
         : '视频生成中（约 30-120 秒），已开始提交 GPU 渲染...'
     );
 
-    const poll = async () => {
-      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-      const elapsedMin = Math.floor(elapsedSeconds / 60);
-      const elapsedSec = elapsedSeconds % 60;
-      const elapsedStr = elapsedMin > 0 ? `${elapsedMin}分${elapsedSec}秒` : `${elapsedSec}秒`;
+    /** 统一的"已耗时"口径：始终以 taskStartMs 为起点 */
+    const readElapsed = () => {
+      const seconds = Math.max(0, Math.floor((Date.now() - taskStartMs) / 1000));
+      return { seconds, text: formatElapsed(Date.now() - taskStartMs) };
+    };
 
-      // 4. 超时保护：轮询超过 60 分钟（3600 秒）显示"仍在后台生成，可稍后查看"（不无限轮询）
-      if (elapsedSeconds > 3600) {
+    const poll = async () => {
+      // 4. 超时保护：达到后端全局超时（默认 240 分钟，8 段任务会更大）才停轮询。
+      //    与后端保持一致，避免界面比后端更早放弃、弹出"仍在后台生成"却仍显示转圈。
+      if (readElapsed().seconds > maxPollSeconds) {
         clearInterval(pollTimerRef.current);
         setGeneratingVideo(false);
         setVideoStatusText(null);
-        setVideoError('仍在后台生成，可稍后查看');
+        setVideoError(`已超过 ${Math.round(maxPollSeconds / 60)} 分钟，仍在后台生成，可稍后查看`);
         return;
       }
 
       try {
         const res = await procedureApi.getVideoStatus(taskId);
+
+        // 首轮用后端返回的任务入库时间纠正"已耗时"起点（只纠正一次，避免轮询期间起点漂移）。
+        // 刷新页面后 startPolling 会重跑，若不纠正，耗时就会从 0 重新计。
+        if (!taskStartCorrected && res.createdAt) {
+          taskStartMs = resolveTaskStartMs(res.createdAt, taskStartMs);
+          taskStartCorrected = true;
+        }
+        if (res.totalTimeoutMin && res.totalTimeoutMin > 0) {
+          maxPollSeconds = res.totalTimeoutMin * 60;
+        }
+        const elapsed = readElapsed();
+        const elapsedSeconds = elapsed.seconds;
+        const elapsedStr = elapsed.text;
+
         if (res.status === 'completed') {
           // 3. 完成提示：completed 时停止轮询、自动刷新视频列表，提示"视频生成完成，可点击播放"
           clearInterval(pollTimerRef.current);
           setGeneratingVideo(false);
           setVideoStatusText(null);
           setVideoError(null);
+          setProgressPct(100);
+          setInternalStatus(null);
           setVideoSuccessNotice('视频生成完成，可点击播放');
           if (res.videoUrl) {
             setCurrentActiveVideoUrl(res.videoUrl);
@@ -214,32 +257,32 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
             loadProcedureVideos(activeProcedure.id);
           }
         } else {
-          // 1. & 5. 进度显示：优先展示后端 error 字段进度文案，追加已耗时与预计剩余（每段约 6 分钟 + 65s 限频估算）
+          // 1. & 5. 进度显示：优先展示后端 error 字段进度文案，追加已耗时与剩余区间
+          // 透传后端真实进度字段
+          setProgressPct(res.progressPct ?? null);
+          setInternalStatus(res.internalStatus ?? null);
+          setElapsedSec(res.elapsedSec ?? null);
+
           if (isFull) {
-            let progressMsg = res.error || '正在多段生成中...';
-            // 估算剩余时间：每段约 6 分钟 (360s) + 限频 65s = 425s/段
+            const progressMsg = res.error || '正在多段生成中...';
             const match = progressMsg.match(/第\s*(\d+)\s*\/\s*(\d+)\s*段/);
             let etaText = '';
             if (match) {
               const currentSeg = parseInt(match[1], 10);
               const totalSegs = parseInt(match[2], 10);
-              const remainingSegs = Math.max(0, totalSegs - currentSeg);
-              const estRemainingMinutes = Math.max(1, Math.ceil((remainingSegs * (6 * 60 + 65)) / 60));
-              etaText = `，预计剩余约 ${estRemainingMinutes} 分钟`;
-            } else {
-              const estRemainingMinutes = Math.max(1, Math.ceil(Math.max(0, 4 * 425 - elapsedSeconds) / 60));
-              etaText = `，预计剩余约 ${estRemainingMinutes} 分钟`;
+              const { fast, slow } = estimateRemainingMinutes(currentSeg, totalSegs);
+              etaText = `，剩余最快约 ${fast} 分钟 / 最坏约 ${slow} 分钟`;
             }
             setVideoStatusText(`⏳ ${progressMsg}（已耗时 ${elapsedStr}${etaText}）`);
           } else {
-            // 单段视频同样处理：优先展示后端 error 字段进度文案，每段约 6 分钟 (360 秒) 估算
-            let progressMsg =
+            // 单段视频：同样只给区间（实测最快约 4 分钟，慢时会被 40 分钟窗口兜住）
+            const progressMsg =
               res.error || (res.status === 'processing' ? '正在渲染视频中...' : '任务已排队，等待 GPU 调度...');
-            const singleTotalEst = 360; // 单段排队加渲染约 6 分钟
-            const remaining = Math.max(0, singleTotalEst - elapsedSeconds);
-            const estRemainingMin = Math.ceil(remaining / 60);
-            const singleEta = remaining > 0 ? `，预计剩余约 ${estRemainingMin} 分钟` : '，预计即将完成';
-            setVideoStatusText(`⏳ ${progressMsg}（已耗时 ${elapsedStr}${singleEta}）`);
+            const etaText =
+              elapsedSeconds < SEG_FAST_SEC
+                ? `，通常还需 ${Math.ceil((SEG_FAST_SEC - elapsedSeconds) / 60)}~${Math.ceil(SEG_SLOW_SEC / 60)} 分钟`
+                : `，已超过常见耗时，最长可能到 ${Math.ceil(SEG_SLOW_SEC / 60)} 分钟`;
+            setVideoStatusText(`⏳ ${progressMsg}（已耗时 ${elapsedStr}${etaText}）`);
           }
         }
       } catch (err: any) {
@@ -297,6 +340,39 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
     }
   };
 
+  // Agnes internal_status 中文映射
+  const INTERNAL_STATUS_MAP: Record<string, string> = {
+    queued: '排队中',
+    inference: '模型推理中',
+    rendering: '渲染中',
+    processing: '生成中',
+    pending: '排队中',
+    waiting: '排队中',
+    running: '生成中',
+    in_progress: '生成中',
+  };
+
+  // 放弃视频生成任务
+  const handleCancelVideoTask = async () => {
+    if (!currentTaskId) return;
+    if (!confirm('确定要放弃这条视频生成任务吗？')) return;
+    try {
+      await procedureApi.cancelVideo(currentTaskId);
+      // 取消成功后，卡片变成失败态
+      clearInterval(pollTimerRef.current);
+      setGeneratingVideo(false);
+      setVideoStatusText(null);
+      setVideoError('用户主动放弃');
+      setProgressPct(null);
+      setInternalStatus(null);
+      if (activeProcedure?.id) {
+        loadProcedureVideos(activeProcedure.id);
+      }
+    } catch (err: any) {
+      showToast({ type: 'error', title: '取消失败', message: err.message || '取消任务失败' });
+    }
+  };
+
   // 删除历史视频记录
   const handleDeleteVideo = async (vidId: string) => {
     if (!confirm('确定要删除这条视频记录吗？')) return;
@@ -306,7 +382,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
         loadProcedureVideos(activeProcedure.id);
       }
     } catch (err: any) {
-      alert('删除失败: ' + err.message);
+      showToast({ type: 'error', title: '删除失败', message: err.message });
     }
   };
 
@@ -332,7 +408,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
       const prevSteps = Array.from({ length: stepNo - 1 }, (_, i) => i + 1);
       const allPrevChecked = prevSteps.every((n) => currentList.includes(n));
       if (!allPrevChecked) {
-        alert(`合规互锁警告：必须先逐项确认完成第 1 至第 ${stepNo - 1} 步的作业与安全验收，方可进行第 ${stepNo} 步！`);
+        showToast({ type: 'warning', title: '合规互锁警告', message: `必须先逐项确认完成第 1 至第 ${stepNo - 1} 步的作业与安全验收，方可进行第 ${stepNo} 步！` });
         return;
       }
       setCompletedSteps({ ...completedSteps, [activeProcedure.id]: [...currentList, stepNo].sort((a, b) => a - b) });
@@ -361,7 +437,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
         setShowVideoModal(true);
       }
     } catch (err: any) {
-      alert('分镜生成失败: ' + err.message);
+      showToast({ type: 'error', title: '分镜生成失败', message: err.message });
     } finally {
       setGeneratingScript(false);
       setScriptNotice(null);
@@ -447,12 +523,12 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* 顶部固定容器：标题区 + 操作栏 + 筛选过滤 */}
-      <div className="shrink-0 bg-white/95 backdrop-blur z-10 border-b border-slate-200/80 sticky top-0 pb-4 mb-4 space-y-4">
+      <div className="shrink-0 z-10 border-b border-slate-200 sticky top-0 pb-4 mb-4 space-y-4">
         {/* 顶部标题与视频分镜总控 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shadow-xs border border-blue-200">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shadow-xs border border-blue-200 shrink-0">
               <ClipboardList className="w-5 h-5 text-blue-600" />
             </div>
             <div>
@@ -463,7 +539,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                覆盖机组全流程步骤分解、工具物料清单、安全红线防护及 Agnes AI 视频实操生成
+                流程步骤分解 · 工具物料清单 · 安全红线防护 · AI视频实操生成
               </p>
             </div>
           </div>
@@ -540,42 +616,44 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
       </div>
 
       {/* 筛选过滤工具栏 */}
-      <div className="card-industrial bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xs">
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-slate-600 flex items-center gap-1 font-medium">
-            <Filter className="w-3.5 h-3.5 text-blue-600" /> 设备类型：
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5 text-xs pb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-600 flex items-center gap-1 font-medium whitespace-nowrap">
+            <Filter className="w-3.5 h-3.5 text-blue-600" /> 设备类型
           </span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex gap-1.5">
             {equipmentTypes.map((t) => (
               <button
                 key={t}
                 onClick={() => setSelectedType(t)}
-                className={`px-3 py-1 rounded-lg transition-colors cursor-pointer text-xs ${
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   selectedType === t
                     ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
                 }`}
               >
-                {t === 'all' ? '全部类型' : t}
+                {t === 'all' ? '全部' : t}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-slate-600 font-medium">检修等级：</span>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="w-px h-4 bg-slate-200 shrink-0 hidden sm:block" />
+
+        <div className="flex items-center gap-2">
+          <span className="text-slate-600 font-medium whitespace-nowrap">检修等级</span>
+          <div className="flex gap-1.5">
             {maintenanceLevels.map((lvl) => (
               <button
                 key={lvl}
                 onClick={() => setSelectedLevel(lvl)}
-                className={`px-3 py-1 rounded-lg transition-colors cursor-pointer text-xs ${
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   selectedLevel === lvl
-                    ? 'bg-cyan-600 text-white font-semibold shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
                 }`}
               >
-                {lvl === 'all' ? '全部等级' : lvl}
+                {lvl === 'all' ? '全部' : lvl}
               </button>
             ))}
           </div>
@@ -600,7 +678,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
           {/* 左侧规程清单 */}
           <div className="lg:col-span-4 space-y-2.5 lg:sticky lg:top-2 lg:self-start lg:flex lg:flex-col lg:min-h-0 lg:max-h-[calc(100vh-210px)]">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-1 lg:shrink-0">
-              匹配指引列表 ({procedures.length})
+              匹配指引 ({procedures.length})
             </h3>
             <div className="space-y-2 max-h-[700px] overflow-y-auto pr-1 lg:max-h-none lg:flex-1 lg:min-h-0">
               {procedures.map((proc) => {
@@ -620,41 +698,18 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 line-clamp-1">{proc.title}</span>
+                      <span className="text-xs font-bold text-slate-800 line-clamp-1 flex-1">{proc.title}</span>
                       <ChevronRight
                         className={`w-4 h-4 shrink-0 transition-transform ${
-                          isSelected ? 'text-blue-600 translate-x-1' : 'text-slate-500'
+                          isSelected ? 'text-blue-600 translate-x-0.5' : 'text-slate-400'
                         }`}
                       />
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200 font-mono font-medium">
-                          {proc.equipmentType}
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium">
-                          {proc.maintenanceLevel}
-                        </span>
-                      </div>
-                      <span className="flex items-center gap-1 font-mono">
-                        <Clock className="w-3 h-3 text-slate-500" />
-                        {proc.estimatedMinutes || 60}m
-                      </span>
-                    </div>
-
-                    {/* 进度条 */}
-                    <div className="mt-3 flex items-center gap-2">
-                      <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
-                        <div
-                          className={`h-full transition-all duration-300 ${
-                            isDone ? 'bg-emerald-500' : 'bg-blue-500'
-                          }`}
-                          style={{ width: `${total ? (doneCount / total) * 100 : 0}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-500">
-                        {doneCount}/{total}
-                      </span>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                      <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">{proc.equipmentType}</span>
+                      <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium">{proc.maintenanceLevel}</span>
+                      <span className="ml-auto font-mono">{proc.estimatedMinutes || 60}m</span>
+                      <span className={`font-mono ${isDone ? 'text-emerald-600 font-semibold' : ''}`}>{doneCount}/{total}</span>
                     </div>
                   </div>
                 );
@@ -678,8 +733,8 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                           {activeProcedure.maintenanceLevel}
                         </span>
                         <span className="text-xs text-slate-500 flex items-center gap-1 font-mono">
-                          <Clock className="w-3.5 h-3.5 text-slate-500" />
-                          预计工时: {activeProcedure.estimatedMinutes || 60} 分钟
+                          <Clock className="w-3.5 h-3.5" />
+                          {activeProcedure.estimatedMinutes || 60}分钟
                         </span>
                       </div>
                       <h3 className="text-lg font-bold text-slate-900">{activeProcedure.title}</h3>
@@ -688,16 +743,14 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                     {/* 合规状态徽章 */}
                     <div className="shrink-0">
                       {isAllStepsCompleted ? (
-                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold text-xs animate-bounce">
+                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold text-xs">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          作业合规通过
+                          合规通过
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium">
-                          <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          <span>
-                            步骤互锁进行中 ({checkedStepsForActive.length}/{activeProcedure.steps.length})
-                          </span>
+                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-medium text-xs">
+                          <span className="font-mono font-semibold text-slate-800">{checkedStepsForActive.length}/{activeProcedure.steps.length}</span>
+                          <span>步骤完成</span>
                         </div>
                       )}
                     </div>
@@ -706,29 +759,17 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
 
                 {/* Agnes AI 真实视频生成状态与播放展示区 */}
                 {(generatingVideo || videoStatusText || videoError || currentActiveVideoUrl || historyVideos.length > 0) && (
-                  <div className="card-industrial bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200">
-                          <Film className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            Agnes AI 智能检修实操视频
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 font-medium">
-                              model: agnes-video-v2.0
-                            </span>
-                          </h4>
-                          <p className="text-xs text-slate-500">
-                            工业级多模态真实视频生成，支持全屏播放与外部下载
-                          </p>
-                        </div>
-                      </div>
-
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Film className="w-4 h-4 text-blue-500" />
+                      <h4 className="text-sm font-bold text-slate-900">
+                        Agnes AI 实操视频
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-normal font-mono">v2.0</span>
+                      </h4>
                       {historyVideos.length > 0 && (
                         <button
                           onClick={() => loadProcedureVideos(activeProcedure.id)}
-                          className="p-1.5 text-slate-500 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors ml-auto"
                           title="刷新视频记录"
                         >
                           <RefreshCw className={`w-3.5 h-3.5 ${loadingVideos ? 'animate-spin' : ''}`} />
@@ -738,13 +779,44 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
 
                     {/* 状态通知条 */}
                     {generatingVideo && videoStatusText && (
-                      <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-800 text-xs">
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
-                        <div className="flex-1">
-                          <p className="font-semibold">{videoStatusText}</p>
-                          <p className="text-[11px] text-blue-600 mt-0.5">
-                            视频生成为云端 GPU 异步渲染任务，您可以切换到其他页面操作，系统会在后台继续轮询并在完成后自动呈现与播放。
-                          </p>
+                      <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-xs space-y-2">
+                        <div className="flex items-center gap-3">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
+                          <span className="text-blue-800 font-semibold flex-1">{videoStatusText}</span>
+                          {/* internalStatus 中文映射 */}
+                          {internalStatus && (
+                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold shrink-0">
+                              {INTERNAL_STATUS_MAP[internalStatus] || internalStatus}
+                            </span>
+                          )}
+                          {/* 已耗时（优先用后端 elapsedSec） */}
+                          {(elapsedSec !== null && elapsedSec !== undefined) && (
+                            <span className="text-[11px] text-blue-600 font-mono shrink-0">
+                              已耗时 {formatElapsed(elapsedSec * 1000)}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-blue-600 hidden sm:inline">可切换页面，后台自动轮询</span>
+                        </div>
+                        {/* 进度条：progressPct 非 null 时显示 */}
+                        {progressPct !== null && progressPct !== undefined && (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-blue-200 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-blue-600 font-mono w-8 text-right">{progressPct}%</span>
+                          </div>
+                        )}
+                        {/* 放弃按钮 */}
+                        <div className="flex justify-end">
+                          <button
+                            onClick={handleCancelVideoTask}
+                            className="px-3 py-1 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-lg font-medium transition-colors cursor-pointer"
+                          >
+                            放弃这条任务
+                          </button>
                         </div>
                       </div>
                     )}
@@ -754,35 +826,29 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                       <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <div>
-                            <p className="font-bold">{videoSuccessNotice}</p>
-                            <p className="text-emerald-700 mt-0.5">视频已自动入库，可点击下方播放器或历史记录播放。</p>
-                          </div>
+                          <span className="font-semibold">{videoSuccessNotice}</span>
                         </div>
                         <button
                           onClick={() => setVideoSuccessNotice(null)}
-                          className="text-emerald-600 hover:text-emerald-800 p-1"
+                          className="text-emerald-500 hover:text-emerald-700 p-0.5"
                         >
-                          ✕
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     )}
 
                     {/* 错误提示 */}
                     {videoError && (
-                      <div className="flex items-start justify-between p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold">生成提示 / 异常</p>
-                            <p className="text-rose-700 mt-0.5">{videoError}</p>
-                          </div>
+                      <div className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span className="truncate">{videoError}</span>
                         </div>
                         <button
                           onClick={currentTaskId?.startsWith('full-') ? handleGenerateFullVideo : handleGenerateRealVideo}
-                          className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-semibold text-xs transition-colors shrink-0 cursor-pointer"
+                          className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-semibold text-xs transition-colors shrink-0 cursor-pointer ml-2"
                         >
-                          重试生成
+                          重试
                         </button>
                       </div>
                     )}
@@ -821,7 +887,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                     {historyVideos.length > 0 && (
                       <div className="pt-3 border-t border-slate-100 space-y-2">
                         <span className="text-xs font-semibold text-slate-600">
-                          本指引视频历史记录 ({historyVideos.length})
+                          历史记录 ({historyVideos.length})
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
                           {historyVideos.map((v) => {
@@ -831,8 +897,8 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                                 key={v.id}
                                 className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition-colors ${
                                   isCurrent
-                                    ? 'bg-blue-50/60 border-blue-300'
-                                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                                    ? 'bg-blue-50/60 border-blue-200'
+                                    : 'bg-slate-50/50 border-slate-100 hover:bg-slate-50'
                                 }`}
                               >
                                 <div className="space-y-1 min-w-0 flex-1">
@@ -840,26 +906,20 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                                     <span
                                       className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
                                         v.status === 'completed'
-                                          ? 'bg-emerald-100 text-emerald-800'
+                                          ? 'bg-emerald-100 text-emerald-700'
                                           : v.status === 'failed'
-                                          ? 'bg-rose-100 text-rose-800'
-                                          : 'bg-amber-100 text-amber-800 animate-pulse'
+                                          ? 'bg-rose-100 text-rose-700'
+                                          : 'bg-amber-100 text-amber-700 animate-pulse'
                                       }`}
                                     >
-                                      {v.status === 'completed'
-                                        ? '已生成'
-                                        : v.status === 'failed'
-                                        ? '生成失败'
-                                        : v.status === 'processing'
-                                        ? '渲染中'
-                                        : '排队中'}
+                                      {v.status === 'completed' ? '已生成' : v.status === 'failed' ? '失败' : '渲染中'}
                                     </span>
                                     <span className="text-[11px] text-slate-500 font-mono">
                                       {v.createdAt ? new Date(v.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
                                     </span>
                                   </div>
                                   <p className="text-[11px] text-slate-600 truncate font-mono">
-                                    Task: {v.taskId}
+                                    {v.taskId}
                                   </p>
                                 </div>
 
@@ -876,7 +936,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                                     <button
                                       onClick={() => handleDeleteVideo(v.id)}
                                       className="p-1 rounded text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                      title="删除记录"
+                                      title="删除"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
@@ -930,7 +990,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({
                               <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                                 {step.name}
                                 {isChecked && (
-                                  <span className="text-[11px] font-normal text-emerald-600 flex items-center gap-1">
+                                  <span className="text-xs font-normal text-emerald-600 flex items-center gap-1">
                                     <CheckCircle2 className="w-3.5 h-3.5" /> 已完成达标
                                   </span>
                                 )}

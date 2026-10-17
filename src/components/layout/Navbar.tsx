@@ -16,6 +16,7 @@ import { UserProfile, UserRole, NotificationItem } from '../../types';
 import { getBreadcrumb } from './navConfig';
 import { UserAvatar } from '../UserAvatar';
 import { AvatarChangeModal } from '../AvatarChangeModal';
+import { sortUsersForDemo, can } from '../../utils/rbac';
 
 interface NavbarProps {
   activeTab: string;
@@ -158,6 +159,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     phone: '—',
   };
   const roleInfo = getRoleBadge(safeUser.role);
+  // 顶部"快速报修"与工单页新建按钮同一条闸门：只有操作工（+总工）能报修
+  const canQuickReport = can('workOrder:create', safeUser.role);
 
   return (
     <header className="shrink-0 sticky top-0 z-40 h-[60px] bg-white/95 backdrop-blur-xl border-b border-slate-200/85 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex items-center justify-between px-3.5 sm:px-5 lg:px-6">
@@ -209,15 +212,17 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Right: Quick Ticket + QR + Notifications + User Avatar */}
       <div className="flex items-center space-x-2 sm:space-x-2.5 shrink-0">
         {/* Quick Work Order Ticket */}
-        <button
-          id="header-quick-ticket-btn"
-          type="button"
-          onClick={onOpenQuickWorkOrder}
-          className="hidden sm:inline-flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-semibold btn-gradient rounded-xl shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
-        >
-          <Wrench className="w-3.5 h-3.5" />
-          <span>快速报修</span>
-        </button>
+        {canQuickReport && (
+          <button
+            id="header-quick-ticket-btn"
+            type="button"
+            onClick={onOpenQuickWorkOrder}
+            className="hidden sm:inline-flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-semibold btn-gradient rounded-xl shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>快速报修</span>
+          </button>
+        )}
 
         {/* QR Scanner */}
         <button
@@ -321,14 +326,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="text-xs font-semibold text-slate-500 mb-2 px-1">
                 切换当前用户角色 (演示与权限切换)
               </div>
+              <div className="text-[10px] text-slate-400 mb-1.5 px-1">
+                按演示流程排序：操作工报修 → 技师检修 → 点检核验 → 主管管理 → 总工全局
+              </div>
               <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                {allUsers.map((user) => {
+                {sortUsersForDemo(allUsers).map((user) => {
                   const isSelected = user.id === safeUser.id;
                   const badge = getRoleBadge(user.role);
                   return (
                     <button
                       key={user.id}
-                      id={`switch-user-${user.role}`}
+                      id={`switch-user-${user.id}`}
                       type="button"
                       onClick={() => {
                         onSwitchUser(user);

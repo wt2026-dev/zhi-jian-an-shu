@@ -143,6 +143,9 @@ function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRoute
               const response = await client.chat.completions.create(attemptParams);
               void markHealth(cand.configId, "healthy");
               trackBudgetUsage(response?.usage);
+              if (response && typeof response === "object") {
+                (response as any).model = (response as any).model || cand.displayName || cand.modelName;
+              }
               return response;
             } catch (err: any) {
               lastError = err;

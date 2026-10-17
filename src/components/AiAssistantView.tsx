@@ -33,6 +33,7 @@ import { aiApi, knowledgeApi, safeStorage } from '../api';
 import { Markdown } from './ai/Markdown';
 import { DigitalHumanAvatar, DigitalHumanAvatarHandle } from './DigitalHumanAvatar';
 import { useAiChatContext } from '../context/AiChatContext';
+import { useToast } from '../context/ToastContext';
 
 /**
  * 本组件与 useAiChat.ts + AiAssistantPanel 的 AI 对话实现功能重叠；当前实际渲染的
@@ -58,7 +59,16 @@ interface ChatMessage {
   structuredData?: any;
   streaming?: boolean;
   chatId?: string;
+  modelName?: string;
+  kind?: 'normal' | 'error';
 }
+
+const WELCOME_PROMPTS = [
+  '离心泵、压缩机、减速箱等典型故障树与振动对中分析',
+  '现场 LOTO 能量隔离与高危作业票安全规范',
+  '根据轴温与电流遥测数据研判劣化趋势',
+  '设备外观或破损照片的视觉损伤识别要点',
+];
 
 export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   currentUser,
@@ -67,6 +77,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   prefilledQuery,
   onCreateWorkOrderFromAi,
 }) => {
+  const { show: showToast } = useToast();
   const [activeMode, setActiveMode] = useState<'chat' | 'diagnose' | 'vision'>('chat');
 
   // Chat State：消息数组与全局悬浮 AI 助手面板共享同一会话（同一上下文实例）
@@ -101,6 +112,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   // 数字人语音播报状态：复用共享会话上下文（开关与朗读状态全局一致）
   const speechEnabled = chat.speechEnabled;
   const isSpeaking = chat.isSpeaking;
+  const setIsSpeaking = chat.setIsSpeaking;
   const handleToggleSpeech = chat.toggleSpeech;
   const speakText = chat.speakText;
   const stopSpeaking = chat.stopSpeaking;
@@ -214,6 +226,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [visionPrompt, setVisionPrompt] = useState('请分析此轴承滚动体损伤类型、严重程度、失效机理及检修建议');
   const [visionResult, setVisionResult] = useState<any | null>(null);
+  const [visionError, setVisionError] = useState<string | null>(null);
   const [isVisionAnalyzing, setIsVisionAnalyzing] = useState(false);
   // 功能④：多模态相似案例检索状态
   const [isSearchingMultimodal, setIsSearchingMultimodal] = useState(false);
@@ -323,6 +336,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
       const decoder = new TextDecoder();
       let buffer = '';
       let streamError: string | null = null;
+      let modelName: string | undefined;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -338,6 +352,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
           try {
             const parsed = JSON.parse(payload);
             if (parsed.chatId) chatId = parsed.chatId;
+            if (parsed.model) modelName = parsed.model;
             if (parsed.content) {
               replyText += parsed.content;
               streamBufferRef.current = replyText;
@@ -363,16 +378,22 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
       }
       if (streamError) {
         const errText = `⚠️ ${streamError}`;
-        setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, text: errText, streaming: false } : m)));
+        setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, text: errText, kind: 'error', streaming: false } : m)));
       } else {
         setMessages((prev) =>
-          prev.map((m) => (m.id === aiMsgId ? { ...m, text: replyText || '(AI 未返回内容)', chatId, streaming: false } : m))
+          prev.map((m) => (m.id === aiMsgId ? { ...m, text: replyText || '(AI 未返回内容)', chatId, modelName, kind: 'normal', streaming: false } : m))
         );
-        // 回复完成后触发数字人语音播报（3D 魔珐星云优先发声；2D 降级走 Web Speech 朗读）
+        // 回复完成后触发数字人语音播报（3D 数字人优先发声；失败自动落到 Web Speech 兜底）
         if (replyText) {
           const is3D = avatarRef.current?.is3D?.() ?? false;
           if (is3D) {
-            try { avatarRef.current?.speak(replyText); } catch {}
+            // 3D 路径的 speak() 返回 false 表示"没发出声音"，此时必须兜底朗读，
+            // 否则会出现"口型在动但完全没声音"的静默失败。
+            Promise.resolve(avatarRef.current?.speak(replyText))
+              .then((ok) => {
+                if (ok !== true) speakText(replyText);
+              })
+              .catch(() => speakText(replyText));
           } else {
             speakText(replyText);
           }
@@ -393,6 +414,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
           m.id === aiMsgId
             ? {
                 ...m,
+                kind: aborted ? 'normal' : 'error',
                 text: aborted ? (replyText ? `${replyText}\n\n*[生成已中止]*` : '*(已停止生成)*') : `⚠️ 请求失败: ${e?.message || '网络异常'}`,
                 streaming: false,
               }
@@ -501,7 +523,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         }, 2500);
       }
     } catch (e: any) {
-      alert('提交知识沉淀失败: ' + (e.message || '网络异常'));
+      showToast({ type: 'error', title: '提交知识沉淀失败', message: e.message || '网络异常' });
     } finally {
       setIsSubmittingContribution(false);
     }
@@ -510,7 +532,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   // 功能④：多模态相似案例检索 (看图检索知识库相似案例)
   const handleRunMultimodalSearch = async () => {
     if (!customImageBase64 && !customImagePreview) {
-      alert('请先上传或选择待检索的设备现场图片');
+      showToast({ type: 'warning', title: '请先上传图片', message: '请先上传或选择待检索的设备现场图片' });
       return;
     }
     setIsSearchingMultimodal(true);
@@ -525,10 +547,10 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         setMultimodalSafetyHint(res.safetyHint || null);
         setMultimodalCases(res.cases || []);
       } else {
-        alert('多模态检索未返回有效案例');
+        showToast({ type: 'warning', title: '多模态检索未返回有效案例', message: '未找到匹配的相似案例' });
       }
     } catch (e: any) {
-      alert('多模态检索失败: ' + (e.message || '网络异常'));
+      showToast({ type: 'error', title: '多模态检索失败', message: e.message || '网络异常' });
     } finally {
       setIsSearchingMultimodal(false);
     }
@@ -612,6 +634,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   const handleRunVisionAnalysis = async () => {
     setIsVisionAnalyzing(true);
     setVisionResult(null);
+    setVisionError(null);
 
     try {
       const res = await aiApi.detectVisionDefects({
@@ -631,18 +654,8 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         throw new Error('未获取到结构化判损分析');
       }
     } catch (e: any) {
-      console.warn('Vision analysis fallback:', e);
-      setVisionResult({
-        defectType: '轴承滚道接触疲劳点蚀 (Spalling / Pitting)',
-        damageLevel: '中度损伤 (Grade 3 - 建议计划停机更换)',
-        confidence: 0.94,
-        affectedComponent: '调心滚子轴承外圈主承载区及滚动体',
-        rootCause: '设备长期处于高径向交变负荷运行，局部润滑油膜破裂导致金属接触疲劳剥落',
-        maintenanceAdvice: '停机拆解检查轴承座对中同轴度，更换同规格SKF重载轴承，彻底排油清洗油路并加注合成润滑油。',
-        safetyNotice: '更换作业前须执行MCC配电柜 380V 动力回路 LOTO 挂牌上锁，并办理高危检修安全作业票。',
-        urgency: '高 (请在下一个检修窗口内完成更换)',
-        modelEngine: 'DashScope (通义千问 Qwen-VL-Plus) 工业视觉引擎',
-      });
+      setVisionError(e?.message || '未获取到结构化判损分析');
+      setVisionResult(null);
     } finally {
       setIsVisionAnalyzing(false);
     }
@@ -732,6 +745,8 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
     }
   };
 
+  const latestAiModel = [...messages].reverse().find((m) => m.sender === 'assistant' && m.modelName)?.modelName;
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
@@ -739,10 +754,14 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center">
             <Sparkles className="w-5 h-5 mr-2 text-blue-600" />
-            智检安枢 · 工业检修AI助手（通义千问 qwen-plus）
+            智检安枢 · 工业检修AI助手
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            融合知识图谱、遥测时序、故障树专家模型与多模态工业视觉诊断能力
+          <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center text-slate-700 font-medium">
+              当前应答引擎：<span className="text-blue-600 font-mono font-semibold ml-0.5">{latestAiModel || '未连接'}</span>
+            </span>
+            <span className="text-slate-300">·</span>
+            <span>融合知识图谱、遥测时序、故障树专家模型与多模态工业视觉诊断能力</span>
           </p>
         </div>
 
@@ -783,76 +802,169 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden">
           {/* Left 8 cols: Chat Box */}
           <div className="lg:col-span-8 h-full flex flex-col overflow-hidden lg:sticky lg:top-0 lg:self-start glass-card border border-slate-200/80 rounded-xl shadow-sm relative">
-            {/* Messages Scroll Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/40">
+            {/* Messages Scroll Area（半透明放行背板，让钛晶网格透出来形成层次） */}
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3 bg-white/20">
               {messages.map((m) => {
                 const isUser = m.sender === 'user';
+                const isError = m.kind === 'error';
                 return (
                   <div
                     key={m.id}
                     className={`flex items-start space-x-3 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}
                   >
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        isUser
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-slate-100 border border-slate-200 text-blue-600'
-                      }`}
-                    >
-                      {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                    {/* 头像区域：AI 侧楷体"智"金字+发光脉冲点，用户侧蓝青渐变+角色首字 */}
+                    <div className="relative shrink-0">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden ${
+                          isUser
+                            ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-sm flex-col'
+                            : 'icon-tile-gold border border-amber-300/70 shadow-sm'
+                        }`}
+                      >
+                        {!isUser && <span className="hud-halo opacity-60" />}
+                        {isUser ? (
+                          <>
+                            <User className="w-4 h-4" />
+                            <span className="text-[9px] leading-tight text-white/95 font-medium -mt-0.5">
+                              {currentUser?.roleTitle ? currentUser.roleTitle.charAt(0) : '工'}
+                            </span>
+                          </>
+                        ) : (
+                          <span
+                            className="font-black leading-none text-[18px] relative z-1"
+                            style={{ fontFamily: "'KaiTi','STKaiti','FangSong','SimSun',serif" }}
+                          >
+                            智
+                          </span>
+                        )}
+                      </div>
+                      {!isUser && (m.streaming || (isSpeaking && !isUser && messages[messages.length - 1]?.id === m.id)) && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 ring-2 ring-white animate-pulse" />
+                      )}
                     </div>
 
+                    {/* 气泡区域：四角统一 20px 圆角与纵向间距 */}
                     <div
-                      className={`max-w-[80%] rounded-lg p-4 text-xs leading-relaxed ${
+                      className={`max-w-[85%] px-4 py-3 text-xs leading-relaxed ${
                         isUser
-                          ? 'bg-blue-600 text-white rounded-tr-none shadow-xs'
-                          : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none space-y-2 shadow-xs'
+                          ? 'bubble-frost-user space-y-2'
+                          : isError
+                          ? 'bg-rose-50/95 border border-rose-200 text-rose-900 rounded-[var(--radius-lg)] shadow-sm space-y-2'
+                          : 'bubble-frost text-slate-800 space-y-2'
                       }`}
                     >
-                      {isUser || m.streaming ? (
-                        // 流式中的消息渲染纯文本 (避免每帧全量 Markdown 重解析导致内存/CPU 膨胀)，完成后一次性渲染 Markdown
-                        <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{m.text}</pre>
-                      ) : (
-                        <Markdown content={m.text || ' '} />
-                      )}
-                      {m.streaming && (
-                        <span className="inline-block w-1.5 h-3.5 bg-blue-600 animate-pulse rounded-xs ml-0.5 align-text-bottom" />
-                      )}
-                      <div className={`flex items-center ${isUser ? 'justify-end' : 'justify-between'} gap-2`}>
-                        {!isUser && !m.streaming && m.text && (
-                          <div className="flex items-center space-x-1.5 mt-1">
-                            <button
-                              onClick={() => handleCopyMessage(m)}
-                              className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer"
-                              title="复制回复"
-                            >
-                              {copiedMessageId === m.id ? '已复制' : '复制'}
-                            </button>
+                      {/* 首条欢迎问候卡：2x2 交互引导块 */}
+                      {m.id === 'm-init' ? (
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-200/40">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-bold text-slate-800 text-sm">智检安枢 · 工业设备检修 AI 专家</span>
+                              <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
+                                专家中枢
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                知识库 · 已连接
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-50 text-cyan-700 border border-cyan-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                                设备遥测中枢 · 已连接
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-slate-600 text-xs">
+                            你好，我是 <strong className="text-slate-800">智检安枢的工业设备检修 AI 专家</strong>。已连接工厂知识库与设备遥测中枢，您可以直接点击下方推荐场景发起研判或在底部自由提问：
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                            {WELCOME_PROMPTS.map((prompt, pIdx) => (
+                              <button
+                                key={pIdx}
+                                onClick={() => handleSendMessage(prompt)}
+                                disabled={isStreaming || isAiLoading}
+                                className="chip-gold !whitespace-normal !h-auto text-left p-2.5 !rounded-xl flex items-start gap-2 hover:shadow-xs transition-all cursor-pointer disabled:opacity-50 text-xs leading-relaxed"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                <span className="text-slate-800 font-medium">{prompt}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <div className="text-right pt-1">
+                            <span className="text-[9px] text-slate-400">{m.timestamp}</span>
+                          </div>
+                        </div>
+                      ) : isError ? (
+                        /* 错误气泡：隔离于专家纠错队列之外，仅保留重新生成 */
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-1.5 text-rose-800 font-semibold">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span>请求未完成</span>
+                          </div>
+                          <p className="text-xs text-rose-700 leading-relaxed break-all font-mono">
+                            {m.text}
+                          </p>
+                          <div className="flex items-center justify-between pt-1">
                             <button
                               onClick={() => handleRegenerate(m.id)}
                               disabled={isStreaming || isAiLoading}
-                              className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="text-[10px] px-2 py-0.5 rounded bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               title="重新生成此回复"
                             >
                               重新生成
                             </button>
-                            <button
-                              onClick={() => handleOpenFeedbackModal(m)}
-                              className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-colors cursor-pointer"
-                              title="对本条 AI 回复进行质量评分与专家纠错标注"
-                            >
-                              标记/纠错
-                            </button>
+                            <span className="text-[9px] text-rose-400">{m.timestamp}</span>
                           </div>
-                        )}
-                        <span
-                          className={`text-[9px] block mt-1 ${
-                            isUser ? 'text-blue-100 text-right' : 'text-slate-500'
-                          }`}
-                        >
-                          {m.timestamp}
-                        </span>
-                      </div>
+                        </div>
+                      ) : (
+                        /* 常规文本气泡 */
+                        <>
+                          {isUser || m.streaming ? (
+                            // 流式中的消息渲染纯文本 (避免每帧全量 Markdown 重解析导致内存/CPU 膨胀)，完成后一次性渲染 Markdown
+                            <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{m.text}</pre>
+                          ) : (
+                            <Markdown content={m.text || ' '} tone="light" />
+                          )}
+                          {m.streaming && (
+                            <span className="inline-block w-1.5 h-3.5 bg-blue-600 animate-pulse rounded-xs ml-0.5 align-text-bottom" />
+                          )}
+                          <div className={`flex items-center ${isUser ? 'justify-end' : 'justify-between'} gap-2`}>
+                            {!isUser && !m.streaming && m.text && (
+                              <div className="flex items-center space-x-1.5 mt-1">
+                                <button
+                                  onClick={() => handleCopyMessage(m)}
+                                  className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer"
+                                  title="复制回复"
+                                >
+                                  {copiedMessageId === m.id ? '已复制' : '复制'}
+                                </button>
+                                <button
+                                  onClick={() => handleRegenerate(m.id)}
+                                  disabled={isStreaming || isAiLoading}
+                                  className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                  title="重新生成此回复"
+                                >
+                                  重新生成
+                                </button>
+                                <button
+                                  onClick={() => handleOpenFeedbackModal(m)}
+                                  className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-colors cursor-pointer"
+                                  title="对本条 AI 回复进行质量评分与专家纠错标注"
+                                >
+                                  标记/纠错
+                                </button>
+                              </div>
+                            )}
+                            <span
+                              className={`text-[9px] block mt-1 ${
+                                isUser ? 'text-blue-100 text-right' : 'text-slate-500'
+                              }`}
+                            >
+                              {m.timestamp}
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -867,14 +979,18 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
               {feedbackNotice && <div className="text-[11px] text-emerald-700 font-medium pl-11">{feedbackNotice}</div>}
               {!isStreaming && !isAiLoading && followups.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 pl-11">
-                  <span className="text-[10px] text-slate-500">你可能想追问：</span>
+                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    你可能想追问：
+                  </span>
                   {followups.map((q, qi) => (
                     <button
                       key={qi}
                       onClick={() => handleSendMessage(q)}
-                      className="px-2.5 py-1 rounded-md bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-[11px] text-slate-700 hover:text-blue-700 transition-colors cursor-pointer shadow-xs"
+                      className="chip-gold fx-shimmer"
                     >
-                      {q}
+                      <Sparkles className="w-3 h-3 shrink-0 opacity-75" />
+                      <span>{q}</span>
                     </button>
                   ))}
                   {loadingFollowups && <span className="text-[10px] text-slate-500 animate-pulse">追问生成中...</span>}
@@ -974,11 +1090,11 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
               <div ref={chatBottomRef} />
             </div>
 
-            {/* Input Bar */}
-            <div className="p-3 bg-white border-t border-slate-200 space-y-2">
+            {/* Input Bar：拟物磨砂游戏化操作底栏 */}
+            <div className="p-3 border-t border-amber-100/70 bg-gradient-to-b from-white/65 to-white/95 backdrop-blur-md space-y-2">
               {/* Voice Notice / Recording Animation */}
               {voiceNotice && (
-                <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-blue-50 border border-blue-200 text-[11px] text-blue-700">
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[11px] text-blue-700">
                   <span className="flex items-center space-x-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                     <span>{voiceNotice}</span>
@@ -990,16 +1106,16 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
               )}
 
               {isRecording && (
-                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs animate-in fade-in">
+                <div className="flex items-center justify-between px-3 py-2 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs animate-in fade-in">
                   <div className="flex items-center space-x-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse"></span>
                     <span className="font-bold">现场麦克风实时录音中:</span>
                     <span className="font-mono text-rose-700 font-bold">00:{recordingSeconds.toString().padStart(2, '0')}</span>
-                    <div className="flex items-center space-x-1 ml-2">
-                      <span className="w-1 h-3 bg-rose-500 animate-pulse"></span>
-                      <span className="w-1 h-5 bg-rose-500 animate-pulse delay-75"></span>
-                      <span className="w-1 h-2 bg-rose-500 animate-pulse delay-150"></span>
-                      <span className="w-1 h-4 bg-rose-500 animate-pulse delay-100"></span>
+                    {/* 金色/天青声波仪：与数字人剧场保持同一套律动 */}
+                    <div className="flex items-end space-x-[3px] h-6 ml-2" aria-hidden="true">
+                      {Array.from({ length: 10 }).map((_, i) => (
+                        <span key={i} className={`w-[3px] rounded-full wave-bar-${(i % 5) + 1}`} />
+                      ))}
                     </div>
                   </div>
                   <span className="text-[11px] text-rose-600">点击下方麦克风结束并由 Paraformer 识别</span>
@@ -1039,12 +1155,12 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                   }}
                   disabled={isTranscribing || isStreaming}
                   title={isRecording ? "松开完成 / 点击停止录音并转写" : "按住说话 / 点击对讲开启现场录音"}
-                  className={`p-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0 select-none ${
+                  className={`p-2.5 rounded-full transition-all cursor-pointer flex items-center justify-center shrink-0 select-none ${
                     isRecording
                       ? 'bg-rose-600 text-white animate-pulse shadow-sm ring-2 ring-rose-400'
                       : isTranscribing
                       ? 'bg-blue-100 text-blue-700 animate-spin'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 active:bg-rose-600 active:text-white'
+                      : 'bg-white border border-slate-200 hover:border-amber-300 hover:bg-amber-50/70 text-slate-600 hover:text-amber-700 active:bg-rose-600 active:text-white active:border-rose-600'
                   }`}
                 >
                   {isTranscribing ? <RefreshCw className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -1070,13 +1186,13 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                       handleSendMessage();
                     }
                   }}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:bg-white resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 bg-white/70 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white resize-none disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 />
 
                 {isStreaming ? (
                   <button
                     onClick={handleStopGeneration}
-                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer transition-colors"
+                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer transition-colors"
                   >
                     <span className="w-2.5 h-2.5 bg-white rounded-xs"></span>
                     <span>停止生成</span>
@@ -1085,7 +1201,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                   <button
                     onClick={() => handleSendMessage()}
                     disabled={!inputText.trim() || isAiLoading || isTranscribing}
-                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    className="px-4 py-2.5 rounded-full btn-gold text-xs font-semibold flex items-center space-x-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>发送</span>
@@ -1095,25 +1211,28 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
 
               {/* Quick Speech Phrases for Instant Testing */}
               <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] text-slate-500">
-                <span>现场对讲语音快捷填入:</span>
+                <span className="flex items-center gap-1">
+                  <Mic className="w-3 h-3 text-cyan-500" />
+                  现场对讲语音快捷填入:
+                </span>
                 <button
                   type="button"
                   onClick={() => setInputText('2号循环泵轴承箱温度升至76度，出口压力表剧烈抖动，伴随金属干摩擦异响，请排查游隙')}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 cursor-pointer"
+                  className="chip-cyan"
                 >
                   泵轴温76°C抖动异响
                 </button>
                 <button
                   type="button"
                   onClick={() => setInputText('动力站MCC配电柜停电检修，动力电380V，请生成五步法LOTO挂牌上锁与能量隔离措施')}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 cursor-pointer"
+                  className="chip-cyan"
                 >
                   MCC停电LOTO上锁流程
                 </button>
                 <button
                   type="button"
                   onClick={() => setInputText('工业管线二道截止阀气割动火作业，属于二级高危作业，需要落实哪些防火监护措施')}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 cursor-pointer"
+                  className="chip-cyan"
                 >
                   管线动火作业票防火要求
                 </button>
@@ -1131,6 +1250,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
                 isListening={isRecording}
                 speechEnabled={speechEnabled}
                 onToggleSpeech={handleToggleSpeech}
+                onSpeakingChange={setIsSpeaking}
                 onSelectPrompt={(directive) => {
                   setInputText(directive);
                   handleSendMessage(directive);
@@ -1515,6 +1635,14 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
 
           {/* Right: Vision Analysis Result */}
           <div className="lg:col-span-2">
+            {!visionResult && visionError && (
+              <div className="bg-rose-50 border border-rose-200 rounded-lg p-6 text-center space-y-3">
+                <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto" />
+                <h3 className="text-sm font-bold text-slate-900">视觉破损识别失败</h3>
+                <p className="text-xs text-rose-700 leading-relaxed break-all">{visionError}</p>
+                <p className="text-[11px] text-slate-500">系统已禁止展示任何本地模拟诊断结论，请检查后端 AI 服务配置后重试。</p>
+              </div>
+            )}
             {visionResult ? (
               <div className="card-industrial bg-white border border-slate-200 rounded-lg p-6 space-y-4 shadow-sm animate-in fade-in duration-200 relative">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">

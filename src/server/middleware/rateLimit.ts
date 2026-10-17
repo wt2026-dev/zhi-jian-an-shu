@@ -53,8 +53,33 @@ function sweepLoginFailureStore(now: number) {
   }
 }
 
-export function createRateLimiter(options: { windowMs: number; max: number; name: string }) {
+export function createRateLimiter(options: {
+  windowMs: number;
+  max: number;
+  name: string;
+  /**
+   * 白名单前缀：命中（req.originalUrl 命中该前缀）的请求直接放行且不计数。
+   * 用于把「会话保活类」请求从全局限流中摘出去，避免限流误伤导致前端被踢回登录页。
+   * 必须基于 req.originalUrl 判断：限流器挂载在 "/api/v1/" 上，挂载后 req.url
+   * 已被剥离挂载前缀（只剩 "/auth/me"），拿它比对 "/api/v1/auth/me" 永远不成立。
+   *
+   * 匹配语义为「精确路径 或 其子路径」，不做裸字符串前缀匹配：
+   *   /api/v1/auth/me          ✅ 豁免
+   *   /api/v1/auth/me/avatar   ✅ 豁免（子路径）
+   *   /api/v1/auth/me?x=1      ✅ 豁免（带查询串）
+   *   /api/v1/auth/members     ❌ 不豁免（否则将来新增的兄弟路由会被静默豁免）
+   */
+  exemptPrefixes?: string[];
+}) {
+  const exemptPrefixes = options.exemptPrefixes ?? [];
+  const isExempt = (url: string) =>
+    exemptPrefixes.some((p) => url === p || url.startsWith(p + "/") || url.startsWith(p + "?"));
   return (req: any, res: any, next: any) => {
+    // 白名单豁免必须先于计数：既不累加计数，也不做任何窗口过滤（零副作用直通）。
+    if (exemptPrefixes.length > 0 && isExempt(req.originalUrl || req.url || "")) {
+      return next();
+    }
+
     const ip = getClientIp(req);
     const clientKey = `${options.name}:${ip}`;
     const now = Date.now();
@@ -99,7 +124,22 @@ export function createRateLimiter(options: { windowMs: number; max: number; name
   };
 }
 
-export const globalLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 240, name: "global" });
+// 全局限流：/api/v1/* 共用一个「每 IP 每分钟」滑动窗口计数。
+//
+// 阈值定为 600 的原因：一次页面加载本身就会打出十余个接口（台账/工单/看板/告警等），
+// 演示场景下快速切页、连续刷新会在 60 秒窗口内轻易逼近旧阈值 240，触发 429。
+// 一旦 429 命中 /auth/me（会话恢复探针），前端会误判为"未登录"而弹回登录页——
+// 现象与崩溃无法区分（且 60 秒后自动恢复），属于典型的"假掉线"误伤。
+// 600 在保留粗粒度防刷能力的同时，给正常交互留出充足余量。
+//
+// 另：/auth/me 直接白名单豁免，不计数。它是会话保活探针，高频是设计使然，
+// 限流它没有任何安全收益，只会制造假掉线。登录防爆破由 authLimiter + IP 锁定负责。
+export const globalLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 600,
+  name: "global",
+  exemptPrefixes: ["/api/v1/auth/me"],
+});
 export const authLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 20, name: "auth" });
 export const aiLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 60, name: "ai" });
 

@@ -24,6 +24,7 @@ import { Logo } from './Logo';
 import { UserRole, UserProfile, NotificationItem } from '../types';
 import { UserAvatar } from './UserAvatar';
 import { AvatarChangeModal } from './AvatarChangeModal';
+import { isTabAllowed } from '../utils/rbac';
 
 interface HeaderProps {
   currentUser: UserProfile;
@@ -342,7 +343,7 @@ export const Header: React.FC<HeaderProps> = ({
                       return (
                         <button
                           key={user.id}
-                          id={`switch-user-${user.role}`}
+                          id={`switch-user-${user.id}`}
                           onClick={() => {
                             onSwitchUser(user);
                             setShowRoleMenu(false);
@@ -418,7 +419,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Navigation Tabs Bar */}
         <nav className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
-          {navItems.map((item, idx) => {
+          {/* 与 Sidebar 同一条角色口径：navConfig 里声明了 roles 的页面按角色过滤 */}
+          {navItems.filter((item) => isTabAllowed(item.id, safeUser.role)).map((item, idx) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             const isGroupStart = ['equipments', 'hazards', 'knowledge', 'users'].includes(item.id);

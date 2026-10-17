@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { getDb } from "../../db/db.ts";
 import { UserRepository } from "../../db/repositories/index.ts";
 import { addAuditLog, getClientIp } from "../services/auditService.ts";
-import { signJwtToken, revokeToken, authenticateBearer, extractToken, reloadUsers } from "../services/authService.ts";
+import { signJwtToken, revokeToken, authenticateBearer, extractToken, reloadUsers, toPublicUser } from "../services/authService.ts";
 import { checkLoginBruteForce, recordLoginFailure, recordLoginSuccess } from "../middleware/rateLimit.ts";
 import { WECHAT_APP_ID, WECHAT_APP_SECRET } from "../utils/config.ts";
 
@@ -187,7 +187,9 @@ export function handleRefresh(req: any, res: any) {
 
 export function handleMe(req: any, res: any) {
   const user = authenticateBearer(req);
-  res.json(user);
+  // 安全修复：原实现直接 res.json(user)，会把 Bcrypt 密码散列与微信 openid 回传前端。
+  // 统一经 toPublicUser() 脱敏；user 为 null 时行为与修复前保持一致（返回 null）。
+  res.json(toPublicUser(user));
 }
 
 export async function handleGetAuthUsers(req: any, res: any) {

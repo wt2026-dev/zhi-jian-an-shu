@@ -31,7 +31,8 @@ describe('industrial analysis telemetry', () => {
     render(<DeviceAnalysisPanel {...p} detail={equipment('eq-101')} telemetry={history('eq-101')} />);
     expect(screen.queryByText('真实台账-eq-101')).toBeNull();
     expect(screen.queryByTestId('equipment3d-analysis-charts')).toBeNull();
-    expect(within(screen.getByTestId('equipment3d-current-readings')).getByText('—')).toBeTruthy();
+    // 读数卡新增"压力"字段后缺测项可能有多个"——"，断言"存在缺测占位且没有补零"即可
+    expect(within(screen.getByTestId('equipment3d-current-readings')).getAllByText('—').length).toBeGreaterThan(0);
   });
 
   it.each([null, { equipmentId: 'eq-101', points: [] }])('shows empty history without charts or fabricated readings (%j)', (telemetry) => {

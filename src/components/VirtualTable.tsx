@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Inbox } from 'lucide-react';
 
 export interface VirtualTableColumn<T> {
   key: string;
@@ -73,8 +73,10 @@ export function VirtualTable<T extends Record<string, any>>({
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12 text-slate-500 text-sm">
-        {emptyText}
+      <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+        <Inbox className="w-10 h-10 text-slate-300 mb-2" />
+        <p className="text-sm font-medium text-slate-600">{emptyText}</p>
+        <p className="text-xs text-slate-400 mt-1">暂无匹配记录，请调整筛选条件</p>
       </div>
     );
   }

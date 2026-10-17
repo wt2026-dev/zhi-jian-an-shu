@@ -14,6 +14,7 @@ import {
   handleGenerateVideo,
   handleGenerateVideoFull,
   handleGetProcedureVideos,
+  handleCancelVideoTask,
 } from "../controllers/procedureController.ts";
 import { handleVideoAnalyze } from "../controllers/uploadController.ts";
 import { handleGetComplianceStats } from "../controllers/complianceController.ts";
@@ -49,6 +50,10 @@ export function registerProcedureRoutes(app: express.Express) {
 
   // 3. 获取指定规程的历史视频记录列表 (GET /api/v1/procedures/:id/videos)
   app.get("/api/v1/procedures/:id/videos", requireAuth, handleGetProcedureVideos);
+
+  // ==================== 取消视频生成任务 (POST /api/v1/procedures/videos/cancel) ====================
+  // 鉴权：登录态即可（与 generate-video 同级）。
+  app.post("/api/v1/procedures/videos/cancel", requireAuth, handleCancelVideoTask);
 
   // ==================== 视频多模态智能故障分析 (POST /api/v1/ai/video-analyze) ====================
   app.post("/api/v1/ai/video-analyze", requireAuth, validateBody(videoAnalyzeSchema), handleVideoAnalyze);

@@ -24,6 +24,22 @@ export async function reloadUsers() {
   }
 }
 
+/**
+ * 用户对外视图（安全修复）：剔除仅服务端使用的敏感字段。
+ *
+ * 背景：dbUsers 缓存中的用户对象直接来自 UserRepository.getAllUsers()，包含
+ * `password`（Bcrypt 散列）与 `wxOpenId`（微信 openid）。任何把该对象整体回传
+ * 前端的端点都会造成凭据材料泄露，因此统一经此函数收敛字段。
+ *
+ * 约定：所有"返回当前登录用户"的端点必须使用本函数，禁止直接 res.json(user)。
+ */
+export function toPublicUser(user: any) {
+  if (!user) return null;
+  // 同时兼容驼峰与下划线两种 openid 字段命名
+  const { password: _password, wxOpenId: _wxOpenId, wx_open_id: _wxOpenIdSnake, ...rest } = user;
+  return rest;
+}
+
 export function signJwtToken(user: any) {
   const payload = {
     sub: user.id,

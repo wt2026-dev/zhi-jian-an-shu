@@ -36,6 +36,7 @@ vi.mock('../src/api', () => ({
     switchUser: vi.fn(),
     getUsers: vi.fn(),
     getCurrentUser: vi.fn(),
+    getMe: vi.fn(),
   },
   notificationApi: { list: vi.fn(), markRead: vi.fn(), markAllRead: vi.fn() },
   workOrderApi: { list: vi.fn(), create: vi.fn(), update: vi.fn() },
@@ -61,6 +62,7 @@ beforeEach(() => {
   (authApi.getToken as any).mockReturnValue(null);
   (authApi.getUsers as any).mockResolvedValue([adminUser]);
   (authApi.getCurrentUser as any).mockResolvedValue(adminUser);
+  (authApi.getMe as any).mockRejectedValue(new Error('401 Unauthorized'));
   (workOrderApi.list as any).mockResolvedValue([]);
   (equipmentApi.list as any).mockResolvedValue([]);
   (safetyPermitApi.list as any).mockResolvedValue([]);
