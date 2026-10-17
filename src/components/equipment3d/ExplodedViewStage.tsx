@@ -47,7 +47,8 @@ import { getExplodedViewUrl } from './explodedViewFiles';
 import { ExplodedPartHistoryPanel } from './ExplodedPartHistoryPanel';
 import { MaintenanceStepGuidePanel } from './MaintenanceStepGuidePanel';
 import { ExplodedFaultPanel } from './ExplodedFaultPanel';
-import type { ExplodedOrderStep, ExplodedFaultDiagnostics } from '../../api';
+import { ExplodedPartLifePanel } from './ExplodedPartLifePanel';
+import type { ExplodedOrderStep, ExplodedFaultDiagnostics, ExplodedPartLifeDiagnostics } from '../../api';
 import type { WorkOrderCreatePrefill } from '../../types';
 
 /** 注入到拆解页里的样式表 id —— 幂等标记，重复注入靠它去重。 */
@@ -270,6 +271,8 @@ export interface ExplodedViewStageProps {
   onOpenWorkOrder?: (orderId: string) => void;
   /** 设备遥测故障诊断（真实 equipment_telemetry 读数超标 → 拆解页红色脉冲定位观察部位） */
   faultInfo?: ExplodedFaultDiagnostics | null;
+  /** 零件寿命预警（真实更换记录 × 运行时钟 → 拆解页黄/暗红寿命高亮 + 侧边汇总） */
+  lifeInfo?: ExplodedPartLifeDiagnostics | null;
   /** 故障面板「创建维修工单」→ App 深链切换到工单页并预填建单表单 */
   onOpenWorkOrderCreate?: (prefill: WorkOrderCreatePrefill) => void;
 }
@@ -298,6 +301,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   targetPartPosNo = null,
   onOpenWorkOrder,
   faultInfo = null,
+  lifeInfo = null,
   onOpenWorkOrderCreate,
 }) => {
   const url = getExplodedViewUrl(deviceId);
@@ -339,6 +343,21 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     setFaultPartPosNo(null);
   }, [deviceId]);
 
+  /* ---- 寿命预警（F5）：到期零件经页面原生 setLifeAlert 下发黄/暗红高亮 ---- */
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow as (Window & Record<string, unknown>) | null;
+    const fn = win?.['setLifeAlert'];
+    if (typeof fn !== 'function') return; // onLoad 后 highlightTick 变化会补发
+    const entries = (lifeInfo?.parts ?? [])
+      .filter((p) => p.status === 'nearing' || p.status === 'replace')
+      .map((p) => ({ id: p.posNo, level: p.status === 'replace' ? 'replace' : 'warn' }));
+    try {
+      fn.call(win, entries);
+    } catch {
+      /* 页面未就绪时忽略，等下一次数据/onLoad 再试 */
+    }
+  }, [lifeInfo, highlightTick]);
+
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const frame = e.currentTarget;
     hideBuiltinBackLink(frame);
@@ -377,6 +396,16 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
       quietHostAction(() => tryHighlightPart(iframeRef.current, primary));
     }
   }, [faultInfo, quietHostAction]);
+
+  /* ---- 寿命面板「定位查看」：相机聚焦该位号（3D 黄/红高亮已由 setLifeAlert 批量下发） ---- */
+  const handleLifePartHighlight = useCallback(
+    (posNo: string) => {
+      if (iframeRef.current) {
+        quietHostAction(() => tryHighlightPart(iframeRef.current, posNo));
+      }
+    },
+    [quietHostAction]
+  );
 
   /* ---- 故障面板「定位查看」：脉冲切换 +（同一部位时）重复触发相机聚焦 ---- */
   const handleFaultPartHighlight = useCallback(
@@ -427,7 +456,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
         </button>
 
         {/* ---- 左侧栏：工单上下文卡（F1：从检修工单跳入时显示工单关键信息）+ 零件维修历史面板（F2：点零件显示真实历史） ---- */}
-        {(workOrderBrief || selectedPartId) && (
+        {(workOrderBrief || selectedPartId || (lifeInfo != null && lifeInfo.parts.length > 0)) && (
           <div className="absolute left-2 top-2 bottom-3 z-50 w-[340px] max-w-[36vw] flex flex-col gap-2 pointer-events-none overflow-y-auto overflow-x-hidden" data-testid="equipment3d-exploded-leftcol">
             {/* 故障定位（F4）：设备遥测真实读数超标 → 红色脉冲高亮观察部位 + 故障详情卡 */}
             {faultInfo && (
@@ -436,6 +465,14 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                 highlightedPosNo={faultPartPosNo}
                 onHighlightPart={handleFaultPartHighlight}
                 onCreateWorkOrder={onOpenWorkOrderCreate}
+              />
+            )}
+            {/* 零件寿命预警（F5）：真实更换记录 × 运行时钟 → 黄/暗红寿命高亮 + 汇总与保养建议 */}
+            {lifeInfo && lifeInfo.parts.length > 0 && (
+              <ExplodedPartLifePanel
+                life={lifeInfo}
+                onHighlightPart={handleLifePartHighlight}
+                onCreateMaintenanceWorkOrder={onOpenWorkOrderCreate}
               />
             )}
             {workOrderBrief &&

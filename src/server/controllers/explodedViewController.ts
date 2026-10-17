@@ -13,6 +13,7 @@ import {
 } from "../services/partHistoryService.ts";
 import { getCatalogForDevice } from "../services/partMatchService.ts";
 import { getDeviceFaultDiagnostics } from "../services/equipmentFaultLocatorService.ts";
+import { getDevicePartLifeDiagnostics } from "../services/partLifeService.ts";
 
 export async function handleGetWorkOrderExplodedBrief(req: Request, res: Response) {
   try {
@@ -64,5 +65,22 @@ export async function handleGetDeviceFaultDiagnostics(req: Request, res: Respons
     }
     const msg = err instanceof Error ? err.message : String(err);
     return res.status(500).json({ error: "查询设备故障诊断失败: " + msg });
+  }
+}
+
+/** GET /api/v1/equipments/:deviceId/part-life-diagnostics —— 真实零件寿命预警（拆解页黄/红寿命高亮用） */
+export async function handleGetDevicePartLifeDiagnostics(req: Request, res: Response) {
+  try {
+    const deviceId = String(req.params.deviceId ?? "");
+    if (!deviceId) {
+      return res.status(400).json({ error: "deviceId 必填", code: "INVALID_INPUT" });
+    }
+    return res.json(await getDevicePartLifeDiagnostics(deviceId));
+  } catch (err: unknown) {
+    if ((err as { code?: string })?.code === "EQUIPMENT_NOT_FOUND") {
+      return res.status(404).json({ error: "设备未找到", code: "EQUIPMENT_NOT_FOUND" });
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error: "查询零件寿命预警失败: " + msg });
   }
 }

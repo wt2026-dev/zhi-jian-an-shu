@@ -206,6 +206,23 @@
       0%, 100% { background-color: rgba(239, 68, 68, 0.06); }
       50% { background-color: rgba(239, 68, 68, 0.22); }
     }
+    /* 零件寿命预警（拆解视图 × 零件寿命联动）：BOM 行/列表项黄/红呼吸提示 */
+    tr[data-part-id].life-warn td, .bom-row.life-warn {
+      animation: lifeRowWarn 2.2s ease-in-out infinite !important;
+      box-shadow: inset 3px 0 0 0 rgba(234, 179, 8, 0.85);
+    }
+    tr[data-part-id].life-replace td, .bom-row.life-replace {
+      animation: lifeRowReplace 2.2s ease-in-out infinite !important;
+      box-shadow: inset 3px 0 0 0 rgba(220, 38, 38, 0.9);
+    }
+    @keyframes lifeRowWarn {
+      0%, 100% { background-color: rgba(234, 179, 8, 0.08); }
+      50% { background-color: rgba(234, 179, 8, 0.24); }
+    }
+    @keyframes lifeRowReplace {
+      0%, 100% { background-color: rgba(220, 38, 38, 0.08); }
+      50% { background-color: rgba(220, 38, 38, 0.26); }
+    }
 </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden select-none">
@@ -1708,6 +1725,31 @@
         /*************************************************************************
          * 8. 零件高亮（发蓝光）、点击拾取、详情卡片与 BOM 表格双向联动
          *************************************************************************/
+        /* ==================== 零件寿命预警高亮（拆解视图 × 零件寿命联动）====================
+           宿主注入口：顶层 function setLifeAlert(entries) —— entries 为 [{id, level}]，
+           level 'replace'=需更换（暗红稳定光）/ 'warn'=临近寿命（黄色缓脉动）。
+           渲染优先级：故障红脉冲 > 需更换红光 > 临近黄光；空数组 = 清除。返回命中的位号数。 */
+        let lifeAlertMap = {};
+        function setLifeAlert(entries) {
+          lifeAlertMap = {};
+          document.querySelectorAll(
+            'tr[data-part-id].life-warn, .bom-row.life-warn, tr[data-part-id].life-replace, .bom-row.life-replace'
+          ).forEach((el) => el.classList.remove('life-warn', 'life-replace'));
+          let count = 0;
+          if (Array.isArray(entries)) {
+            for (const entry of entries) {
+              if (!entry || typeof entry.id !== 'string' || !entry.id) continue;
+              const level = entry.level === 'replace' ? 'replace' : 'warn';
+              lifeAlertMap[entry.id] = level;
+              const target = document.querySelector(
+                `tr[data-part-id="${entry.id}"], .bom-row[data-id="${entry.id}"]`
+              );
+              if (target) target.classList.add(level === 'replace' ? 'life-replace' : 'life-warn');
+              count++;
+            }
+          }
+          return count;
+        }
         /* ==================== 故障红色脉冲高亮（拆解视图 ↔ 故障定位联动） ====================
            宿主注入口：顶层 function setFaultHighlight(位号) —— 拆解页脚本顶层声明即 window 全局。
            3D 网格红色脉动由渲染循环每帧读取 faultHighlightPartId 实现；BOM 行 / 列表项走 CSS .fault-alert。
@@ -1768,6 +1810,18 @@
                     }
                 });
 
+                            // 零件寿命预警（寿命联动）：先于故障块赋值 → 故障红脉冲优先
+                            const lifeLevel = lifeAlertMap[part.id];
+                            if (lifeLevel) {
+                                const lifePulse = 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 3.2);
+                                const isReplace = lifeLevel === 'replace';
+                                group.traverse(child => {
+                                    if (child.isMesh && child.material && child.material.emissive) {
+                                        child.material.emissive.setHex(isReplace ? 0xdc2626 : 0xeab308);
+                                        child.material.emissiveIntensity = isReplace ? 0.5 : 0.26 + 0.16 * lifePulse;
+                                    }
+                                });
+                            }
                 // 故障红色脉动（观察部位联动）：覆盖自发光链的尾次赋值，红光优先
                 if (faultHighlightPartId === part.id) {
                     const faultPulse = 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 4.6);

@@ -42,7 +42,7 @@ import {
   Monitor,
   Building2,
 } from 'lucide-react';
-import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type ExplodedFaultDiagnostics } from '../../api';
+import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type ExplodedFaultDiagnostics, type ExplodedPartLifeDiagnostics } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
 import { useOptionalAuth } from '../../context/AuthContext';
@@ -255,6 +255,32 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
       .catch(() => {
         // 诊断接口不可达 / 设备无台账：拆解页照常打开，只是不出故障面板（不造假）
         if (!cancelled) setExplodedFaultInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [explodedHtmlDeviceId]);
+
+  /**
+   * 零件寿命预警（F5）：拆解舞台打开的设备的真实寿命诊断。
+   * 服务端用真实更换记录（完工单 parts_used）× 真实运行时钟（上次更换/install_date）
+   * 算各位号已用/剩余寿命；舞台自动黄/暗红高亮到期零件，侧边给汇总与「生成保养建议」。
+   */
+  const [explodedLifeInfo, setExplodedLifeInfo] = useState<ExplodedPartLifeDiagnostics | null>(null);
+  useEffect(() => {
+    if (!explodedHtmlDeviceId) {
+      setExplodedLifeInfo(null);
+      return;
+    }
+    let cancelled = false;
+    explodedViewApi
+      .getPartLifeDiagnostics(explodedHtmlDeviceId)
+      .then((diagnostics) => {
+        if (!cancelled) setExplodedLifeInfo(diagnostics);
+      })
+      .catch(() => {
+        // 寿命接口不可达 / 设备无台账：拆解页照常打开，只是不出寿命面板（不造假）
+        if (!cancelled) setExplodedLifeInfo(null);
       });
     return () => {
       cancelled = true;
@@ -2141,6 +2167,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
             targetPartPosNo={explodedHtmlContext?.targetPart?.posNo ?? null}
             onOpenWorkOrder={handleOpenWorkOrderFromExploded}
             faultInfo={explodedFaultInfo}
+            lifeInfo={explodedLifeInfo}
             onOpenWorkOrderCreate={handleCreateWorkOrderFromFault}
           />
         )}

@@ -432,6 +432,52 @@ export interface ExplodedFaultDiagnostics {
   dataNote: string;
 }
 
+export interface ExplodedPartLifeEntry {
+  posNo: string;
+  name: string;
+  category?: string;
+  /** 预期使用寿命（运行小时）；无口径 = null */
+  expectedLifeHours: number | null;
+  /** 已使用运行小时（自基线折算）；基线缺失 = null */
+  usedHours: number | null;
+  /** 剩余寿命（运行小时，可为负 = 超期） */
+  remainingHours: number | null;
+  /** 剩余寿命百分比（0-100） */
+  remainingPct: number | null;
+  /** 健康状态：正常 / 临近寿命 / 需更换 / 暂无口径 */
+  status: 'healthy' | 'nearing' | 'replace' | 'unknown';
+  /** 阈值依据：真实换次间隔均值 > 配置阈值 > 缺失 */
+  basis: 'real-replacement-intervals' | 'config-threshold' | 'missing';
+  /** 配置阈值出处（规则名）；真实换次口径时为规则 label 供参考 */
+  lifeRuleLabel: string | null;
+  /** 最近一次真实更换时间；从未更换 = null */
+  lastReplacedAt: string | null;
+  /** 已用期起算基线（上次更换/设备投运） */
+  usedSince: string | null;
+  /** 推算的"剩余寿命用尽"日期 */
+  dueAt: string | null;
+}
+
+export interface ExplodedPartLifeDiagnostics {
+  deviceId: string;
+  deviceName: string;
+  deviceCode: string;
+  explodedViewFile: string | null;
+  generatedAt: string;
+  runtimeFactor: number;
+  warnFraction: number;
+  parts: ExplodedPartLifeEntry[];
+  summary: {
+    replaceCount: number;
+    nearingCount: number;
+    healthyCount: number;
+    unknownCount: number;
+  };
+  /** 建议在该日期前安排保养；无到期推算 = null */
+  suggestedMaintenanceBefore: string | null;
+  dataNote: string;
+}
+
 export const explodedViewApi = {
   /** 工单 → 拆解视图上下文（设备 + 真实 BOM 命中的目标位号） */
   getWorkOrderBrief: (workOrderId: string) =>
@@ -444,6 +490,10 @@ export const explodedViewApi = {
   /** 设备 → 真实遥测故障诊断（拆解视图红色脉冲高亮「未处理故障」用） */
   getFaultDiagnostics: (deviceId: string) =>
     request<ExplodedFaultDiagnostics>(`/equipments/${deviceId}/fault-diagnostics`),
+
+  /** 设备 → 真实零件寿命预警（真实更换记录 × 运行时钟；黄色/红色寿命高亮 + 保养建议用） */
+  getPartLifeDiagnostics: (deviceId: string) =>
+    request<ExplodedPartLifeDiagnostics>(`/equipments/${deviceId}/part-life-diagnostics`),
 };
 
 // 认证与权限 API (JWT / RBAC)

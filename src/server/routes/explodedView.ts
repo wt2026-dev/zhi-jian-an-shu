@@ -5,6 +5,7 @@ import {
   handleGetWorkOrderExplodedBrief,
   handleGetPartMaintenanceHistory,
   handleGetDeviceFaultDiagnostics,
+  handleGetDevicePartLifeDiagnostics,
 } from "../controllers/explodedViewController.ts";
 
 export function registerExplodedViewRoutes(app: express.Express) {
@@ -20,4 +21,8 @@ export function registerExplodedViewRoutes(app: express.Express) {
   // 3. 设备 → 真实遥测故障诊断（拆解页自动高亮「未处理故障」的红色脉冲高亮）
   app.get("/api/v1/equipments/:deviceId/fault-diagnostics", handleGetDeviceFaultDiagnostics);
   app.get("/api/equipments/:deviceId/fault-diagnostics", handleGetDeviceFaultDiagnostics);
+
+  // 4. 设备 → 真实零件寿命预警（更换记录 × 运行时钟；拆解页黄/红寿命高亮 + 保养建议用）
+  app.get("/api/v1/equipments/:deviceId/part-life-diagnostics", handleGetDevicePartLifeDiagnostics);
+  app.get("/api/equipments/:deviceId/part-life-diagnostics", handleGetDevicePartLifeDiagnostics);
 }

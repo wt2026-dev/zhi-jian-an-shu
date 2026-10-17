@@ -233,4 +233,51 @@ export const PartHistoryRepository = {
       price: Number(r.price ?? 0),
     };
   },
+
+  /**
+   * 该设备的全部真实完工工单（只取更换判定需要的最小字段）。
+   * 零件寿命预警用它做**一次**查询替代"每零件一查"的浪费：
+   * 服务端拿这批完工单的 parts_used 按零件名文本归属到各拆解位号（与
+   * getPartMaintenanceHistory 同一条"完工单 + 耗用备件命中"口径）。
+   */
+  async getCompletedOrdersForEquipment(equipmentId: string): Promise<Array<{
+    id: string;
+    orderNo: string;
+    completedAt: string | null;
+    usedParts: PartUsageRow[] | null;
+  }>> {
+    if (!equipmentId) return [];
+    const db = await getDb();
+    const { rows } = await db.query(
+      `
+      SELECT id, order_no, completed_at, repair_log
+      FROM work_orders
+      WHERE equipment_id = $1 AND status = 'completed'
+      ORDER BY completed_at ASC NULLS LAST, id ASC
+      LIMIT 240;
+      `,
+      [equipmentId]
+    );
+    return (rows as Record<string, unknown>[]).map((r) => {
+      let repairLog: unknown = null;
+      if (typeof r.repair_log === 'string') {
+        try { repairLog = JSON.parse(r.repair_log); } catch { repairLog = null; }
+      } else {
+        repairLog = r.repair_log;
+      }
+      const log = repairLog && typeof repairLog === 'object' ? repairLog as Record<string, unknown> : null;
+      const rawUsed = Array.isArray(log?.parts_used) ? log.parts_used : Array.isArray(log?.partsUsed) ? log.partsUsed : null;
+      let usedParts: PartUsageRow[] | null = null;
+      if (rawUsed) {
+        usedParts = rawUsed.map(mapPartUsage).filter((x): x is PartUsageRow => !!x);
+        if (usedParts.length === 0) usedParts = null;
+      }
+      return {
+        id: String(r.id ?? ''),
+        orderNo: String(r.order_no ?? ''),
+        completedAt: asIso(r.completed_at ?? r.completed_at_dt),
+        usedParts,
+      };
+    });
+  },
 };
