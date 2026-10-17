@@ -89,6 +89,57 @@ export function MazeGameView({ currentUser }: MazeGameViewProps) {
     setEpoch((v) => v + 1);
   }, []);
 
+  // Godot 导出页在 window.isSecureContext 为 false 时**根本不启动引擎**
+  // （public/godot-maze/index.js 的 Engine.getMissingFeatures 无条件校验该项），
+  // 而浏览器只把 https:// 与 http://localhost|127.0.0.1 视为安全上下文 ——
+  // 用 http://<裸IP>:3000 直连部署时页面只剩引擎的英文红框。这里提前自报家门，
+  // 给中文可执行口径；其余模块（3D 车间/工单/AI）不受此限制，照常可用。
+  if (!window.isSecureContext) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-[#0b1220] p-8 text-slate-300">
+        <div className="max-w-2xl">
+          <div className="mb-3 flex items-center gap-2 text-lg font-medium text-amber-300">
+            <WifiOff className="h-5 w-5" />
+            俯视迷宫引擎需要「安全上下文」，当前地址无法启动
+          </div>
+          <p className="text-sm leading-6 text-slate-400">
+            本模块由 Godot Web 导出驱动，引擎在缺少安全上下文时拒绝加载（AudioWorklet 等接口不可用）。
+            当前来源
+            <code className="mx-1 rounded bg-slate-800 px-1.5 py-0.5 text-cyan-300">{window.location.origin}</code>
+            不满足条件，与关卡数据、台账无关 —— 换成下面任一种访问方式即可。
+          </p>
+          <ol className="mt-4 space-y-3 text-sm leading-6">
+            <li className="rounded border border-slate-700/60 bg-[#0f172a] p-3">
+              <span className="text-cyan-300">① 用 HTTPS 访问本站（服务器侧一次性配好，推荐）</span>
+              <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all text-xs text-slate-400">{`node scripts/gen-self-signed-cert.mjs --host <本机IP或域名>
+TLS_KEY_PATH=certs/<host>.key TLS_CERT_PATH=certs/<host>.crt   # 同时删掉 DISABLE_HSTS=1`}</pre>
+              <p className="mt-1 text-xs text-slate-500">自签证书首次访问需在浏览器点「高级 → 继续前往」，之后地址栏即为 https。</p>
+            </li>
+            <li className="rounded border border-slate-700/60 bg-[#0f172a] p-3">
+              <span className="text-cyan-300">② 改从 localhost 打开（零改动）</span>
+              <p className="mt-1 text-xs text-slate-400">
+                本机直接访问 <code className="text-slate-300">http://localhost:3000</code>；远程机器上先
+                <code className="mx-1 text-slate-300">ssh -L 3000:127.0.0.1:3000 &lt;user&gt;@&lt;host&gt;</code>
+                再开同一个地址。localhost 属可信来源，无需证书。
+              </p>
+            </li>
+            <li className="rounded border border-slate-700/60 bg-[#0f172a] p-3">
+              <span className="text-cyan-300">③ 演示机一次性放行当前地址</span>
+              <p className="mt-1 text-xs text-slate-400">
+                地址栏打开 <code className="text-slate-300">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>，
+                填入上面的来源并重启浏览器。只对这台机器生效，适合临时演示。
+              </p>
+            </li>
+          </ol>
+          <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
+            <Compass className="h-3.5 w-3.5" />
+            关卡数据仍由真实台账与检修规程生成，本页面只是引擎的启动前置条件未满足。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (loadingProcs) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-[#0b1220] text-slate-300">

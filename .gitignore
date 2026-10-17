@@ -19,6 +19,9 @@ dist.prev-*/
 logs/
 backups/
 
+# 自签 TLS 证书（scripts/gen-self-signed-cert.mjs 产物）——私钥绝不入库
+certs/
+
 # 归档的调试/媒体/备份文件（不入库）
 archive/
 

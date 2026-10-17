@@ -2,6 +2,8 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import https from "node:https";
+import type { Server as HttpServer } from "node:http";
 import { existsSync } from "fs";
 import helmet from "helmet";
 import cors from "cors";
@@ -85,6 +87,7 @@ export async function createApp() {
   //   会让浏览器把所有子资源强制升级为 https://，在纯 HTTP 环境下全部
   //   ERR_SSL_PROTOCOL_ERROR，页面白屏（服务器无 TLS 可回落）。
   //   走 HTTPS 反代部署时不要设置该变量，保持完整安全头。
+  //   无域名/无反代时也可让本进程自己挂自签证书（见下方 TLS_KEY_PATH），同样不要设该变量。
   const isPlainHttpDeployment = process.env.DISABLE_HSTS === "1";
   app.use(
     helmet({
@@ -402,9 +405,32 @@ export async function startServer() {
     viteServer = vite as unknown as { close: () => Promise<void> };
   }
 
-  const httpServer = app.listen(PORT, "0.0.0.0", () => {
-    logger.info(`[Industrial Ops System v2.0.0] Server running at http://0.0.0.0:${PORT}`);
-  });
+  // 可选 TLS：TLS_KEY_PATH + TLS_CERT_PATH 成对给出才启用，缺省仍是纯 HTTP。
+  // 为什么需要：Godot Web 导出（/godot-maze、/godot-game-2d）在 index.js 的
+  // Engine.getMissingFeatures 里**无条件**校验 window.isSecureContext，而浏览器只把
+  // https:// 与 http://localhost|127.0.0.1 视为安全上下文 —— 用 http://<裸IP>:3000
+  // 直连部署时引擎直接拒绝启动（红框 "Secure Context - Check web server configuration"）。
+  // 该判定属来源属性，任何响应头/CSP 都改不了，只能靠 https 或 localhost 访问。
+  // 不默认开 TLS：小程序联调依赖 http://localhost:3000，且自签证书需访客手动信任。
+  const tlsKeyPath = process.env.TLS_KEY_PATH;
+  const tlsCertPath = process.env.TLS_CERT_PATH;
+  let httpServer: HttpServer;
+  if (tlsKeyPath && tlsCertPath) {
+    httpServer = https
+      .createServer({ key: fs.readFileSync(tlsKeyPath), cert: fs.readFileSync(tlsCertPath) }, app)
+      .listen(PORT, "0.0.0.0", () => {
+        logger.info(
+          `[Industrial Ops System v2.0.0] Server running at https://0.0.0.0:${PORT}（TLS 已启用，此时不要再设 DISABLE_HSTS=1）`
+        );
+      });
+  } else {
+    if (tlsKeyPath || tlsCertPath) {
+      logger.warn("[TLS] TLS_KEY_PATH 与 TLS_CERT_PATH 需同时配置，已回退纯 HTTP 监听");
+    }
+    httpServer = app.listen(PORT, "0.0.0.0", () => {
+      logger.info(`[Industrial Ops System v2.0.0] Server running at http://0.0.0.0:${PORT}`);
+    });
+  }
 
   // 优雅退出：先停 HTTP，再关 vite，最后关数据库。
   //
