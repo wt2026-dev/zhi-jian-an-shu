@@ -42,7 +42,7 @@ import {
   Monitor,
   Building2,
 } from 'lucide-react';
-import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint } from '../../api';
+import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
 import { useOptionalAuth } from '../../context/AuthContext';
@@ -1132,6 +1132,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, map
           equipmentName: eq?.name ?? '',
           partsUsed: localPartsUsed,
           targetPart: null,
+          steps: null,
           briefLoading: true,
         });
         explodedViewApi
@@ -1139,14 +1140,14 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, map
           .then((brief) => {
             setExplodedHtmlContext((prev) => {
               if (!prev || prev.id !== order.id) return prev;
-              return { ...prev, partsUsed: brief.workOrder.partsUsed, targetPart: brief.targetPart, dataNote: brief.dataNote, briefLoading: false };
+              return { ...prev, partsUsed: brief.workOrder.partsUsed, targetPart: brief.targetPart, steps: brief.steps, dataNote: brief.dataNote, briefLoading: false };
             });
           })
           .catch(() => {
             // 服务端未命中目标位号（或接口异常）：拆解页照常打开，只是不高亮 —— 卡片上会如实说明
             setExplodedHtmlContext((prev) => {
               if (!prev || prev.id !== order.id) return prev;
-              return { ...prev, briefLoading: false };
+              return { ...prev, steps: [], briefLoading: false };
             });
           });
       }

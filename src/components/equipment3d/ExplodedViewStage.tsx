@@ -45,6 +45,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Boxes, X, Wrench } from 'lucide-react';
 import { getExplodedViewUrl } from './explodedViewFiles';
 import { ExplodedPartHistoryPanel } from './ExplodedPartHistoryPanel';
+import { MaintenanceStepGuidePanel } from './MaintenanceStepGuidePanel';
+import type { ExplodedOrderStep } from '../../api';
 
 /** 注入到拆解页里的样式表 id —— 幂等标记，重复注入靠它去重。 */
 const EMBED_STYLE_ID = 'equipment3d-embed-overrides';
@@ -174,6 +176,51 @@ function tryHighlightPart(frame: HTMLIFrameElement, partId: string): void {
   }
 }
 
+/**
+ * 播放拆解动画（维修步骤指引 F3）：全部走页面**原生**入口，不在宿主里模拟。
+ *   · A 族（compressor ×2 / gearbox ×2 / motor / pump）：真实调用页面的
+ *     setExplodeTarget(0, true) + setPlayingState(true) —— 页面自己的 animate 循环
+ *     会从装配态播放到 100% 分解态（滑杆/文案由页面同步）。
+ *   · B 族（cooling_v3 / motor14 / robot）：点击页面自己的播放按钮 —— 页面的
+ *     click 监听器负责 appState/图标/文案。用按钮 DOM 的 "playing" 标记与文案
+ *     判断当前态（script 域的 let 读不到，也不读），避免"点一下反而暂停"。
+ * 返回是否成功触发宿主可见的动画（供调试/测试兜底断言用）。
+ */
+function startExplodeAnimation(frame: HTMLIFrameElement): boolean {
+  const win = frame.contentWindow as (Window & Record<string, unknown>) | null;
+  const doc = frame.contentDocument;
+  if (!win || !doc) return false;
+  const setExplodeTarget = win['setExplodeTarget'];
+  const setPlayingState = win['setPlayingState'];
+  if (typeof setExplodeTarget === 'function' && typeof setPlayingState === 'function') {
+    const asExplode = setExplodeTarget as unknown as (val: number, stopPlay?: boolean) => void;
+    const asPlay = setPlayingState as unknown as (playing: boolean) => void;
+    try {
+      asExplode.call(win, 0, true);
+      asPlay.call(win, true);
+      return true;
+    } catch {
+      /* fallthrough */
+    }
+  }
+  const btn = doc.querySelector<HTMLElement>('#btn-play-explode, #btn-play, button[id*="play"]');
+  if (btn) {
+    const isPlayingNow =
+      btn.classList.contains('playing') ||
+      /暂停/.test(btn.textContent ?? '') ||
+      Boolean(btn.querySelector('.fa-pause'));
+    if (!isPlayingNow) {
+      try {
+        btn.click();
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 /** 从工单跳转过来时携带的「工单上下文」卡片数据（全部为真实工单字段，由服务端 brief 提供）。 */
 export interface ExplodedViewWorkOrderContext {
   id: string;
@@ -195,6 +242,8 @@ export interface ExplodedViewWorkOrderContext {
   } | null;
   /** 服务端匹配请求尚未返回（此时目标行显示"正在匹配目标零件…"，不可提前下"未命中"结论） */
   briefLoading?: boolean;
+  /** 工单真实检修步骤（服务端由 repair_log.resolutionSteps 切分 + 逐行 BOM 匹配；沙箱内空数组 = 未填写） */
+  steps?: ExplodedOrderStep[] | null;
   dataNote?: string;
 }
 
@@ -250,15 +299,33 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [briefCollapsed, setBriefCollapsed] = useState(false);
   const [highlightTick, setHighlightTick] = useState(0);
+  const [guideActiveStep, setGuideActiveStep] = useState<number | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // useRef 而非 useCallback 常驻：installIframeBridge 里闭包捕获的是 ref，桥内调用永远最新
   const reportRef: ReportRef = useRef<(partId: string | null) => void>(() => {});
-  reportRef.current = (partId) => setSelectedPartId(partId);
+  // 宿主主动触发的定位/动画（深链目标零件、步骤指引演示）会经过 row.click / selectPart ——
+  // 那会穿过桥的 report 回路。宿主发起时先把上报静默一段，避免历史面板被"自动选中"顶开；
+  // 用户自己的点击不经过这个闸门，照常上报。
+  const suppressReportRef = useRef(false);
+  reportRef.current = (partId) => {
+    if (!suppressReportRef.current) setSelectedPartId(partId);
+  };
+  const quietHostAction = useCallback((act: () => void) => {
+    suppressReportRef.current = true;
+    try {
+      act();
+    } finally {
+      window.setTimeout(() => {
+        suppressReportRef.current = false;
+      }, 400);
+    }
+  }, []);
 
   // 换设备：清选中态与折叠态（旧的 iframe 会被 key 强制重建，旧 JS 状态一并丢弃）
   useEffect(() => {
     setSelectedPartId(null);
     setBriefCollapsed(false);
+    setGuideActiveStep(null);
   }, [deviceId]);
 
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
@@ -272,9 +339,22 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   /* ---- 自动高亮定位工单目标零件 ---- */
   useEffect(() => {
     if (!targetPartPosNo || !iframeRef.current) return;
-    tryHighlightPart(iframeRef.current, targetPartPosNo);
+    quietHostAction(() => tryHighlightPart(iframeRef.current, targetPartPosNo));
     // highlightTick: iframe onLoad 后再补试一次（此时尚未渲染完成的 BOM 行也能点到）
   }, [targetPartPosNo, highlightTick]);
+
+  /* ---- 维修步骤指引：点步骤 → 高亮该步目标零件 + 播放页面原生拆解动画 ---- */
+  const handleRunStep = useCallback(
+    (step: ExplodedOrderStep) => {
+      setGuideActiveStep(step.index);
+      if (!step.matchedPart || !iframeRef.current) return;
+      quietHostAction(() => {
+        tryHighlightPart(iframeRef.current, step.matchedPart!.posNo);
+        startExplodeAnimation(iframeRef.current);
+      });
+    },
+    [quietHostAction]
+  );
 
   return (
     /* ---- 背板：铺满整个主显示区域（3D 画面到此为止，高层级置顶） ---- */
@@ -302,7 +382,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
 
         {/* ---- 左侧栏：工单上下文卡（F1：从检修工单跳入时显示工单关键信息）+ 零件维修历史面板（F2：点零件显示真实历史） ---- */}
         {(workOrderBrief || selectedPartId) && (
-          <div className="absolute left-2 top-2 bottom-3 z-50 w-[340px] max-w-[36vw] flex flex-col gap-2 pointer-events-none" data-testid="equipment3d-exploded-leftcol">
+          <div className="absolute left-2 top-2 bottom-3 z-50 w-[340px] max-w-[36vw] flex flex-col gap-2 pointer-events-none overflow-y-auto overflow-x-hidden" data-testid="equipment3d-exploded-leftcol">
             {workOrderBrief &&
               (briefCollapsed ? (
                 <button
@@ -337,7 +417,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                     </button>
                   </div>
                   {/* 卡身 */}
-                  <div className="max-h-[42vh] overflow-y-auto px-3 py-2 text-[11px] leading-relaxed">
+                  <div className="max-h-[30vh] overflow-y-auto px-3 py-2 text-[11px] leading-relaxed">
                     <div className="text-[12px] font-semibold text-white">{workOrderBrief.title}</div>
                     {workOrderBrief.description && (
                       <div className="mt-0.5 line-clamp-2 text-slate-400">{workOrderBrief.description}</div>
@@ -398,6 +478,15 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
               onOpenWorkOrder={onOpenWorkOrder}
               onClose={() => setSelectedPartId(null)}
             />
+            {/* 维修步骤指引（F3）：从工单跳入时自动展开；宿主负责"点步骤 → 高亮 + 拆解动画" */}
+            {workOrderBrief && (
+              <MaintenanceStepGuidePanel
+                orderId={workOrderBrief.id}
+                steps={workOrderBrief.steps ?? null}
+                activeStepIndex={guideActiveStep}
+                onRunStep={handleRunStep}
+              />
+            )}
           </div>
         )}
 

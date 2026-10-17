@@ -310,3 +310,60 @@ describe('拆解视图 · BOM 物料清单滚动与显示防回归', () => {
     expect(src).toContain('data-testid="equipment3d-exploded-back"');
   });
 });
+
+describe('维修步骤指引 · iframe 桥洞洞（F3）', () => {
+  const GUIDE = 'src/components/equipment3d/MaintenanceStepGuidePanel.tsx';
+  const SVC = 'src/server/services/partHistoryService.ts';
+
+  it('★ 拆解舞台持有步骤状态与"点步骤 → 高亮 + 动画"的宿主动作', () => {
+    const src = read(STAGE);
+    expect(src).toContain("from './MaintenanceStepGuidePanel'");
+    expect(src).toContain('<MaintenanceStepGuidePanel');
+    // 宿主动作：高亮 + 页面原生动画（不许宿主自己模拟 transform）
+    expect(src).toContain('startExplodeAnimation');
+    expect(src).toContain('tryHighlightPart');
+    expect(src, '必须复用 iframe 桥的高亮路径').toContain('guideActiveStep');
+  });
+
+  it('★ 拆解动画只走页面原生入口：A 族 setExplodeTarget+setPlayingState，B 族点页面播放按钮', () => {
+    const src = read(STAGE);
+    expect(src).toContain('setExplodeTarget');
+    expect(src).toContain('setPlayingState');
+    expect(src).toContain('#btn-play-explode');
+    // 页面原生 API 之外不允许对 three 场景做变换
+    expect(src).not.toContain('explodeProgress = ');
+  });
+
+  it('★ 宿主主动定位要静默桥的上报回路（不被"自动选中"顶开历史面板）', () => {
+    const src = read(STAGE);
+    expect(src).toContain('suppressReportRef');
+    expect(src).toContain('quietHostAction');
+  });
+
+  it('★ 步骤数据是真实工单的 resolutionSteps，绝不退回硬编码默认步骤', () => {
+    const svc = read(SVC);
+    // 服务端切分真实文本（也许空 → 前端如实展示）
+    expect(svc).toContain('parseOrderSteps');
+    expect(svc).toContain('resolutionSteps');
+    const guide = read(GUIDE);
+    const stage = read(STAGE);
+    // 指引面板/舞台绝不能引用 3D 场景里那套演示兜底（getDefaultProcedures 是假数据面）
+    expect(guide).not.toContain('getDefaultProcedures');
+    expect(stage).not.toContain('getDefaultProcedures');
+    // 空态必须如实说明"没填步骤"，给用户正确预期
+    expect(guide).toContain('还没有填写标准作业步骤');
+  });
+
+  it('测试面板的可交互面：步骤行、定位按钮、完成提示的 testid 契约', () => {
+    const src = read(GUIDE);
+    expect(src).toContain('data-testid="equipment3d-step-guide-panel"');
+    expect(src).toContain("data-testid={`equipment3d-step-guide-step-${step.index}`}");
+    // 每步的"定位零件"按钮与"未匹配"如实态
+    expect(src).toContain('equipment3d-step-guide-part-');
+    expect(src).toContain('未匹配到具体零件');
+    // 全部完成 → "维修流程结束"提示
+    expect(src).toContain('维修流程结束');
+    // 折叠态
+    expect(src).toContain('equipment3d-step-guide-collapsed');
+  });
+});

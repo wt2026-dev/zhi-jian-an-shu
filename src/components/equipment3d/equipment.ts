@@ -59,6 +59,9 @@ import {
   PER_INSTANCE_TINTS,
   ring,
   sph,
+  pushPipeValve,
+  pushPressureGauge,
+  pushControlScreen,
   type AnimKind,
   type RecipePart,
   type TintRole,
@@ -86,6 +89,21 @@ export const EQUIPMENT_GLB_MAP: Record<string, string> = {
   'eq-109': '/models/equipment/milling_machine.glb',
   'eq-112': '/models/equipment/centrifugal_pump.glb',
   'eq-114': '/models/equipment/exhaust_fan_motor.glb',
+  // ROBOT 类设备（proto='robot'）：与 productionLine.ts 同款六轴机械臂 GLB。
+  // 之前 eq-110/eq-115 没有映射，聚焦层走程序化 buildRobot 红橙块，观感差；
+  // 复用既有 loadEquipmentGLB 管线（normalizeGLBMaterials 降级 + 尺寸归一），
+  // 加载失败自动回退程序化几何，绝不黑屏。
+  'eq-110': '/models/robotarm/6_axis_industrial_robot_arm.glb',
+  'eq-115': '/models/robotarm/6_axis_industrial_robot_arm.glb',
+  // 剩余三台没有专属模型，用近似工业形态的通用设备 GLB 补齐覆盖（14/16，
+  // eq-113/eq-116 无对应资产走程序化）。映射口径：外形类别相近即用，
+  // 不声称是精确型号——设备铭牌/台账仍以真实数据为准。
+  //   eq-111 板式热交换器   → machinery_device_2（板组+框架类形态）
+  //   eq-113 螺杆制冷机组   → machinery_device_1（箱体+管口类形态）
+  //   eq-116 热管换热器     → machinery_device_2（换热体块形态）
+  'eq-111': '/models/equipment/machinery_device_2.glb',
+  'eq-113': '/models/equipment/machinery_device_1.glb',
+  'eq-116': '/models/equipment/machinery_device_2.glb',
 };
 
 const gltfLoader = typeof window !== 'undefined' ? new GLTFLoader() : null;
@@ -624,7 +642,7 @@ interface MatSet {
 
 function buildMaterials(preset: ScenePreset): MatSet {
   const pal = preset.palette;
-  const instanced = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.52, metalness: 0.32 });
+  const instanced = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.72 });
   const glow = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   const halo = new THREE.MeshBasicMaterial({
     color: 0xffffff,
@@ -635,10 +653,10 @@ function buildMaterials(preset: ScenePreset): MatSet {
     blending: THREE.AdditiveBlending,
     toneMapped: false,
   });
-  const steel = new THREE.MeshStandardMaterial({ color: pal.steel, roughness: 0.55, metalness: 0.62 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x3b4046, roughness: 0.42, metalness: 0.78 });
-  const accent = new THREE.MeshStandardMaterial({ color: pal.accent, roughness: 0.6, metalness: 0.25 });
-  const copper = new THREE.MeshStandardMaterial({ color: 0xb5773c, roughness: 0.35, metalness: 0.85 });
+  const steel = new THREE.MeshStandardMaterial({ color: pal.steel, roughness: 0.32, metalness: 0.82 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x24282f, roughness: 0.28, metalness: 0.85 });
+  const accent = new THREE.MeshStandardMaterial({ color: pal.accent, roughness: 0.36, metalness: 0.55 });
+  const copper = new THREE.MeshStandardMaterial({ color: 0xb5773c, roughness: 0.32, metalness: 0.88 });
   const glass = new THREE.MeshStandardMaterial({
     color: 0xbfd8e6,
     roughness: 0.12,
@@ -647,7 +665,7 @@ function buildMaterials(preset: ScenePreset): MatSet {
     opacity: 0.26,
     side: THREE.DoubleSide,
   });
-  const white = new THREE.MeshStandardMaterial({ color: 0xe9eef3, roughness: 0.5, metalness: 0.2 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xe9eef3, roughness: 0.38, metalness: 0.4 });
   const all = [instanced, glow, halo, steel, dark, accent, copper, glass, white];
   return { instanced, glow, halo, steel, dark, accent, copper, glass, white, all };
 }
@@ -1039,6 +1057,27 @@ export function buildEquipment(opts: EquipmentOptions): EquipmentBuild {
       localBounds.union(part.geo.boundingBox.clone().applyMatrix4(transform));
     }
     const size = localBounds.getSize(new THREE.Vector3());
+
+    // 工业设备精细化：自动装备工艺管道阀门、不锈钢压力表、数控操作触摸屏（低画质流畅档 detail=0 跳过，确保 ≤25k 三角面与 ≤180 drawcalls 验收）
+    if (opts.detail > 0) {
+      const hasValve = parts.some((p) => p.key.toLowerCase().includes('valve'));
+      const hasGauge = parts.some((p) => p.key.toLowerCase().includes('gauge'));
+      const hasScreen = parts.some((p) => p.key.toLowerCase().includes('screen'));
+      const maxTopY = Math.max(2.1, size.y);
+
+      const { parts: extraParts, push: pushExtra } = makeParts();
+      if (!hasValve) {
+        pushPipeValve(pushExtra, 'auxValve', [size.x * 0.42 + 0.3, maxTopY * 0.45, 0], 'x', 'accent', 0.22);
+      }
+      if (!hasGauge) {
+        pushPressureGauge(pushExtra, 'pressGauge', [0, maxTopY * 0.72, size.z * 0.42 + 0.12], '+z', 0.18);
+      }
+      if (!hasScreen) {
+        pushControlScreen(pushExtra, 'opScreen', [-size.x * 0.42 - 0.22, maxTopY * 0.52, size.z * 0.32], '+z', 0.55, 0.38);
+      }
+      parts.push(...extraParts);
+    }
+
     entries.push({
       device,
       slot,

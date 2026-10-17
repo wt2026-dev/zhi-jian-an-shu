@@ -390,3 +390,84 @@ export function recipeBounds(parts: RecipePart[]): { w: number; h: number; d: nu
     d: Math.max(0.6, maxZ - minZ),
   };
 }
+
+/**
+ * 工业管道带金属手轮截止阀门组件
+ */
+export function pushPipeValve(
+  push: PushFn,
+  key: string,
+  pos: [number, number, number],
+  axis: 'x' | 'y' | 'z' = 'x',
+  valveColor: 'accent' | 'livery' = 'accent',
+  size = 0.28
+): void {
+  const bodyGeo = axis === 'x' ? cylX(size * 1.15, size * 1.4, 10) : axis === 'y' ? cylY(size * 1.15, size * 1.4, 10) : cyl(size * 1.15, size * 1.15, size * 1.4, 10);
+  push(`${key}ValveBody`, bodyGeo, pos, 'steel');
+  if (axis === 'x') {
+    push(`${key}Flange1`, cylX(size * 1.45, 0.08, 12), [pos[0] - size * 0.7, pos[1], pos[2]], 'dark');
+    push(`${key}Flange2`, cylX(size * 1.45, 0.08, 12), [pos[0] + size * 0.7, pos[1], pos[2]], 'dark');
+  } else if (axis === 'z') {
+    push(`${key}Flange1`, cylZ(size * 1.45, 0.08, 12), [pos[0], pos[1], pos[2] - size * 0.7], 'dark');
+    push(`${key}Flange2`, cylZ(size * 1.45, 0.08, 12), [pos[0], pos[1], pos[2] + size * 0.7], 'dark');
+  }
+  push(`${key}Stem`, cylY(size * 0.22, size * 1.3, 8), [pos[0], pos[1] + size * 0.65, pos[2]], 'steel');
+  push(`${key}Handwheel`, torus(size * 0.85, size * 0.12, 14, 8), [pos[0], pos[1] + size * 1.3, pos[2]], valveColor, {
+    rot: [HALF_PI, 0, 0],
+  });
+  push(`${key}Spoke1`, box(size * 1.7, size * 0.06, size * 0.14), [pos[0], pos[1] + size * 1.3, pos[2]], valveColor);
+  push(`${key}Spoke2`, box(size * 0.14, size * 0.06, size * 1.7), [pos[0], pos[1] + size * 1.3, pos[2]], valveColor);
+}
+
+/**
+ * 指针式金属压力表/真空表组件
+ */
+export function pushPressureGauge(
+  push: PushFn,
+  key: string,
+  pos: [number, number, number],
+  facing: '+z' | '-z' | '+x' | '-x' = '+z',
+  radius = 0.22
+): void {
+  push(`${key}Stem`, cylY(radius * 0.25, radius * 1.2, 8), [pos[0], pos[1] - radius * 0.6, pos[2]], 'copper');
+  const caseRot: [number, number, number] = facing === '+z' || facing === '-z' ? [HALF_PI, 0, 0] : [0, 0, HALF_PI];
+  push(`${key}Case`, cyl(radius, radius, 0.12, 16), pos, 'steel', { rot: caseRot });
+  const dialOffset: [number, number, number] =
+    facing === '+z' ? [pos[0], pos[1], pos[2] + 0.065] :
+    facing === '-z' ? [pos[0], pos[1], pos[2] - 0.065] :
+    facing === '+x' ? [pos[0] + 0.065, pos[1], pos[2]] :
+    [pos[0] - 0.065, pos[1], pos[2]];
+  push(`${key}Dial`, cyl(radius * 0.88, radius * 0.88, 0.02, 16), dialOffset, 'white', { rot: caseRot });
+  push(`${key}Needle`, box(radius * 0.08, radius * 0.72, 0.02), [dialOffset[0], dialOffset[1] + radius * 0.24, dialOffset[2] + (facing === '+z' ? 0.015 : -0.015)], 'dark');
+}
+
+/**
+ * 设备数控操作触摸屏与控制电箱组件
+ */
+export function pushControlScreen(
+  push: PushFn,
+  key: string,
+  pos: [number, number, number],
+  facing: '+z' | '-z' | '+x' | '-x' = '+z',
+  width = 0.68,
+  height = 0.46
+): void {
+  push(`${key}Box`, box(width * 1.1, height * 1.1, 0.16), pos, 'dark');
+  const screenOffset: [number, number, number] =
+    facing === '+z' ? [pos[0], pos[1], pos[2] + 0.09] :
+    facing === '-z' ? [pos[0], pos[1], pos[2] - 0.09] :
+    facing === '+x' ? [pos[0] + 0.09, pos[1], pos[2]] :
+    [pos[0] - 0.09, pos[1], pos[2]];
+  push(`${key}Frame`, box(width * 1.02, height * 1.02, 0.03), screenOffset, 'steel');
+  const displayOffset: [number, number, number] =
+    facing === '+z' ? [pos[0], pos[1], pos[2] + 0.105] :
+    facing === '-z' ? [pos[0], pos[1], pos[2] - 0.105] :
+    facing === '+x' ? [pos[0] + 0.105, pos[1], pos[2]] :
+    [pos[0] - 0.105, pos[1], pos[2]];
+  push(`${key}Screen`, box(width * 0.88, height * 0.82, 0.01), displayOffset, 'accent');
+  const eStopPos: [number, number, number] =
+    facing === '+z' ? [pos[0] + width * 0.42, pos[1] - height * 0.38, pos[2] + 0.11] :
+    [pos[0] - width * 0.42, pos[1] - height * 0.38, pos[2] - 0.11];
+  push(`${key}EStop`, cyl(0.06, 0.06, 0.06, 10), eStopPos, 'status', { rot: [HALF_PI, 0, 0] });
+}
+

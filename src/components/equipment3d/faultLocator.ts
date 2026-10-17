@@ -1,95 +1,88 @@
 /**
- * 故障部位定位标 —— 对标视频 r3。
+ * 故障部位定位标 —— 设备详情层（场景密度优先版）。
  *
- * 设备处于故障状态时，在其**具体故障部位**（轴承 / 关节 / 电机位等）生成红色定位标，
- * 由两部分组成：
- *   1) 红色实体高亮（对标 r3 里"故障件本身发红"）：
- *      光晕球 + 扫描环 + 落地光柱，depthTest 关闭，保证被外壳挡住时也看得见；
- *   2) "故障位置：xxx" 发光标签（Sprite，恒定朝向相机，远景可读）。
+ * 设备处于故障状态时，在其故障部位生成**纯几何**红色高亮：
+ *   1) 红色线框笼（EdgesGeometry 盒，优先包住真实零件包围盒）——
+ *      对应验收口径"故障处红框"，**绝不带任何文字**；
+ *   2) 红色实体高亮：光晕球 + 扫描环（depthTest 关闭，被外壳挡住也看得见）。
+ *
+ * ⚠️ 2026-09 口径变更：旧版的"故障位置 XXX"Sprite 文字标签与落地光柱已按
+ *    「3D 画面里不飘任何文字 / 无光柱」的要求整体移除，部位名由右侧 DOM 面板展示。
  *
  * 数据约束：部位名称与坐标由调用方从真实台账 / 诊断结果传入，
  * 本模块不做任何随机生成；设备恢复后调用 clear(deviceId) 或 setFaults([]) 移除。
- *
- * ⚠️ 标签尺寸/锚点的两次踩坑（都表现为"部位名看不见"）：
- *   1) 单行长文本 "故障位置：顶部电机" 横向撑满标签，聚焦相机下右半截被挤出可视区
- *      → 改成 640×260 两行布局（第一行"故障位置"，第二行部位名）；
- *   2) sizeAttenuation:false 下 sprite 是**恒定屏幕尺寸**，scale 直接决定它占屏幕
- *      多宽。实测 scale=2.6 时标签宽约 2373px、画布只有 1304px —— 等于 1.8 个屏宽，
- *      右半截必然被裁掉；同时 sprite 默认以**贴图中心**对齐锚点，而图标在贴图左侧
- *      15.6% 处，于是十字准星离故障点差了约 800px。
- *      → scale 降到 LABEL_SCALE，并用 sprite.center 把锚点挪到图标上：
- *        图标压在故障点上，文字向一侧展开。
- *   3) 单靠缩小仍不够：L3 右侧详情面板会展开到画布 62% 处，而聚焦相机把故障点放在
- *      **画布正中**，右向标签的右缘必然伸到面板底下（实测 1192 > 1070）。
- *      → 预生成**镜像贴图**（图标在右、文字在左），update() 里按锚点的屏幕位置
- *        择一侧展开 —— 右侧放不下就翻到左侧。缩小到能塞下右侧会让字小到读不清。
  */
 
 import * as THREE from 'three';
 
-/** 标签贴图尺寸（两行布局）。 */
-const LABEL_TEX_W = 640;
-const LABEL_TEX_H = 260;
-/** 贴图中圆圈图标圆心的 X（对齐到故障点时以它为锚）。 */
-const LABEL_ICON_CX = 100;
-/**
- * sprite 横向 scale。sizeAttenuation:false 下屏幕宽度占比约为
- * `scale / (2·aspect·tan(fov/2))`。聚焦相机把故障点投影到画布**水平中心**，
- * 文字从锚点向右展开 0.844·sw；1600×1000 实测（1304 设备像素画布）：
- *   scale=0.58 → sprite 右缘 CSS≈1354，越过右侧面板左缘 1261，底板右边被裁；
- *   scale=0.44 → 右缘 ≈1249，完整落在面板之左（余量 ~12px），第一行字高仍 ≈44px。
- * ⚠️ 这个值一旦调大就会重新出现"标签被右侧面板遮挡"，改动前请跑
- *    `scratch/verify-fault-label.mjs`（像素级量标签包围盒）。
- */
-const LABEL_SCALE = 0.44;
-/**
- * 锚点 NDC.x 超过该阈值就把标签翻到**左侧**展开。
- * 右侧详情面板最宽时占到画布约 62%（NDC ≈ 0.24），而聚焦相机把故障点放在正中
- * （NDC≈0），右向标签右缘 ≈ 0 + 0.84·wNdc 必然越界 ⇒ 默认就走镜像，
- * 只有当故障点明显偏左（NDC < -0.2）时才向右展开。
- */
-const LABEL_FLIP_NDC_X = -0.2;
-
 export interface FaultAnchor {
   deviceId: string;
-  /** 故障部位名称，如 "主轴轴承" —— 直接来自设备档案 / AI 诊断结果 */
+  /** 故障部位名称，如 "主轴轴承" —— 来自设备档案 / AI 诊断结果，供 DOM 面板使用 */
   partName: string;
   /** 世界坐标（场景坐标系） */
   x: number;
   y: number;
   z: number;
+  /**
+   * 可选：故障零件的世界包围盒（优先于锚点笼尺寸）。
+   * 由 scene.showDeviceFault 用设备零件几何的真实 AABB 填入。
+   */
+  bounds?: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number };
 }
 
 interface FaultRecord {
   anchor: FaultAnchor;
-  sprite: THREE.Sprite;
-  /** 正常（文字在右）与镜像（文字在左）两张贴图，按锚点屏幕位置择一。 */
-  texNormal: THREE.Texture | null;
-  texMirror: THREE.Texture | null;
-  /** 当前是否用的镜像贴图（避免每帧重复写 material）。 */
-  mirrored: boolean;
-  /** 红色实体高亮（光晕球 + 扫描环 + 光柱），与 sprite 同锚点 */
   marker: THREE.Group;
   haloMat: THREE.MeshBasicMaterial;
   ringMat: THREE.MeshBasicMaterial;
-  beamMat: THREE.MeshBasicMaterial;
+  cageMat: THREE.LineBasicMaterial;
   phase: number;
   baseY: number;
+  /**
+   * 维修进度（0~1）：检修步骤每勾一条推进一档，红色高亮按比例减淡——
+   * "勾一步消一层"，维修的推进在 3D 里看得见。
+   */
+  repairDim: number;
+  /** 恢复动画状态：检修完工后红→绿扫过并整体淡出，结束后自动移除定位标。 */
+  recovering: boolean;
+  recoveryT: number;
+  recoveryDur: number;
 }
+
+/** 恢复动画的红→绿两端（模块级预分配，update 里零分配）。 */
+const RECOVERY_COLOURS = {
+  haloFrom: new THREE.Color(0xef4444),
+  haloTo: new THREE.Color(0x22c55e),
+  ringFrom: new THREE.Color(0xf87171),
+  ringTo: new THREE.Color(0x4ade80),
+  cageFrom: new THREE.Color(0xff5a4d),
+  cageTo: new THREE.Color(0x37e08a),
+  scratch: new THREE.Color(),
+};
 
 export class FaultLocator {
   readonly group = new THREE.Group();
   private records = new Map<string, FaultRecord>();
-  private ownedTextures: THREE.Texture[] = [];
   private paused = false;
+  /**
+   * 总开关（默认可见）。关掉后整层不渲染，同时跳过逐帧更新 ——
+   * 隐藏的层不该继续吃 CPU（每帧几十次 sin/材质写入）。
+   * 与 paused 的区别：paused 只冻结动画，仍然渲染。
+   */
+  private visible = true;
   /** 逐帧复用的投影向量（避免每帧 new）。 */
   private ndc = new THREE.Vector3();
-  /** 共享几何体：所有定位标复用同一份球/环/柱，dispose 时统一释放。 */
-  private geo = {
-    halo: new THREE.SphereGeometry(0.46, 18, 12),
-    ring: new THREE.TorusGeometry(0.78, 0.055, 8, 32),
-    beam: new THREE.CylinderGeometry(0.11, 0.16, 1, 12, 1, true),
-  };
+  /** 共享几何体：所有定位标复用同一份球/环/笼盒，dispose 时统一释放。 */
+  private geo = (() => {
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const cage = new THREE.EdgesGeometry(box);
+    box.dispose();
+    return {
+      halo: new THREE.SphereGeometry(0.34, 16, 12),
+      ring: new THREE.TorusGeometry(0.62, 0.05, 8, 32),
+      cage,
+    };
+  })();
 
   constructor() {
     this.group.name = 'faultLocator';
@@ -107,65 +100,24 @@ export class FaultLocator {
       const existing = this.records.get(a.deviceId);
       if (existing) {
         existing.anchor = a;
-        existing.sprite.position.set(a.x, a.y, a.z);
         existing.baseY = a.y;
         this.placeMarker(existing, a);
-        // 部位文字变了要重画两张贴图（正常 + 镜像）
-        const n = this.makeFaultTexture(a.partName, false);
-        const m = this.makeFaultTexture(a.partName, true);
-        if (n && m) {
-          const mat = existing.sprite.material as THREE.SpriteMaterial;
-          existing.texNormal?.dispose();
-          existing.texMirror?.dispose();
-          existing.texNormal = n;
-          existing.texMirror = m;
-          // ⚠️ 不要在这里手动 `mat.map = n`：applySide 靠"map 已经是目标贴图"做幂等短路，
-          //    先赋值会让它以为切边已完成，从而漏改 sprite.center.x（标签仍朝旧方向展开）。
-          this.applySide(existing, false);
-        }
         continue;
       }
-      const texN = this.makeFaultTexture(a.partName, false);
-      const texM = this.makeFaultTexture(a.partName, true);
-      if (!texN || !texM) continue;
-      const sprite = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: texN,
-          transparent: true,
-          depthTest: false,
-          depthWrite: false,
-          toneMapped: false,
-          // ⚠️ three r186 起 sizeAttenuation 语义被"扶正"了（见 sprite.glsl.js 的
-          //    #ifndef USE_SIZEATTENUATION）：true（默认）按**世界尺寸**渲染 →
-          //    远景缩成亚像素等于看不见；false 才做 scale *= -mvPosition.z 透视补偿
-          //    → 恒定屏幕尺寸。故障标签要"远看也读得清"，必须显式关掉。
-          sizeAttenuation: false,
-        })
-      );
-      const aspect = LABEL_TEX_H / LABEL_TEX_W;
-      sprite.scale.set(LABEL_SCALE, LABEL_SCALE * aspect, 1);
-      // 锚点落在圆圈图标上（而不是贴图中心），文字从故障点向一侧展开。
-      sprite.center.set(LABEL_ICON_CX / LABEL_TEX_W, 0.5);
-      sprite.position.set(a.x, a.y, a.z);
-      sprite.renderOrder = 50;
-      sprite.userData = { kind: 'faultLocator', deviceId: a.deviceId, partName: a.partName };
-
-      const marker = this.makeMarker(a.deviceId, a.partName, a);
-
-      this.group.add(sprite);
+      const marker = this.makeMarker(a.deviceId, a);
       this.group.add(marker);
       this.records.set(a.deviceId, {
         anchor: a,
-        sprite,
         marker,
-        texNormal: texN,
-        texMirror: texM,
-        mirrored: false,
         haloMat: marker.userData.haloMat as THREE.MeshBasicMaterial,
         ringMat: marker.userData.ringMat as THREE.MeshBasicMaterial,
-        beamMat: marker.userData.beamMat as THREE.MeshBasicMaterial,
+        cageMat: marker.userData.cageMat as THREE.LineBasicMaterial,
         phase: (a.x + a.z) * 0.31,
         baseY: a.y,
+        repairDim: 0,
+        recovering: false,
+        recoveryT: 0,
+        recoveryDur: 0,
       });
     }
 
@@ -183,54 +135,28 @@ export class FaultLocator {
     this.dropRecord(deviceId, rec);
   }
 
-  /** 释放并摘除单条记录（sprite + 红色实体高亮 + 两张标签贴图）。 */
+  /** 释放并摘除单条记录（红色高亮 + 线框笼）。 */
   private dropRecord(deviceId: string, rec: FaultRecord): void {
-    this.group.remove(rec.sprite);
-    const m = rec.sprite.material as THREE.SpriteMaterial;
-    m.map?.dispose();
-    m.dispose();
-    // 两张贴图里没被 material 引用的那张也要释放
-    rec.texNormal?.dispose();
-    rec.texMirror?.dispose();
+    this.group.remove(rec.marker);
     this.disposeMarker(rec.marker);
     this.records.delete(deviceId);
   }
 
   /**
-   * 切换标签向哪一侧展开：`mirrored` 时代用镜像贴图（图标在右、文字在左）
-   * 并把锚点挪到镜像后的图标上。
-   */
-  private applySide(rec: FaultRecord, mirrored: boolean): void {
-    if (rec.mirrored === mirrored && (rec.sprite.material as THREE.SpriteMaterial).map) {
-      const cur = mirrored ? rec.texMirror : rec.texNormal;
-      if ((rec.sprite.material as THREE.SpriteMaterial).map === cur) return;
-    }
-    rec.mirrored = mirrored;
-    const mat = rec.sprite.material as THREE.SpriteMaterial;
-    const tex = mirrored ? rec.texMirror : rec.texNormal;
-    if (!tex) return;
-    mat.map = tex;
-    mat.needsUpdate = true;
-    rec.sprite.center.x = mirrored
-      ? (LABEL_TEX_W - LABEL_ICON_CX) / LABEL_TEX_W
-      : LABEL_ICON_CX / LABEL_TEX_W;
-  }
-
-  /**
-   * 红色实体高亮：光晕球 + 扫描环 + 落地光柱。
+   * 红色实体高亮：光晕球 + 扫描环 + 红色线框笼。
    *
    * 材质统一 `depthTest: false` —— 故障部位常常被设备外壳/管线挡住，
-   * 关掉深度测试才能让"红色高亮"始终压在设备之上（对标 r3 的故障件发红）。
+   * 关掉深度测试才能让"红色高亮"始终压在设备之上。
    */
-  private makeMarker(deviceId: string, partName: string, a: FaultAnchor): THREE.Group {
+  private makeMarker(deviceId: string, a: FaultAnchor): THREE.Group {
     const g = new THREE.Group();
     g.name = 'faultMarker';
-    g.userData = { kind: 'faultMarker', deviceId, partName };
+    g.userData = { kind: 'faultMarker', deviceId, partName: a.partName };
 
     const haloMat = new THREE.MeshBasicMaterial({
       color: 0xef4444,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.45,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
@@ -243,7 +169,7 @@ export class FaultLocator {
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xf87171,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.7,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
@@ -254,52 +180,67 @@ export class FaultLocator {
     ring.userData = { kind: 'faultRing', deviceId };
     g.add(ring);
 
-    // 落地光柱：从地面指到故障部位，远景也能一眼定位到是哪一台的哪一处。
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: 0xdc2626,
+    // 红色线框笼：优先包住真实零件包围盒，否则用锚点处的标准笼盒
+    const cageMat = new THREE.LineBasicMaterial({
+      color: 0xff5a4d,
       transparent: true,
-      opacity: 0.24,
+      opacity: 0.95,
       depthTest: false,
       depthWrite: false,
-      side: THREE.DoubleSide,
       toneMapped: false,
     });
-    const beam = new THREE.Mesh(this.geo.beam, beamMat);
-    beam.renderOrder = 39;
-    beam.userData = { kind: 'faultBeam', deviceId };
-    g.add(beam);
+    const cage = new THREE.LineSegments(this.geo.cage, cageMat);
+    cage.renderOrder = 42;
+    cage.userData = { kind: 'faultCage', deviceId };
+    g.add(cage);
 
     g.userData.haloMat = haloMat;
     g.userData.ringMat = ringMat;
-    g.userData.beamMat = beamMat;
+    g.userData.cageMat = cageMat;
     g.userData.ring = ring;
-    g.userData.beam = beam;
+    g.userData.cage = cage;
 
-    // ⚠️ 新建时就要摆位：光柱几何体是单位高的，靠 scale.y 撑到锚点高度。
-    //    只在"锚点变化"分支里摆位的话，首次创建的光柱会是 1 米长的悬空短柱。
     this.placeGroup(g, a);
     return g;
   }
 
-  /** 锚点变化时重摆高亮（光柱高度随锚点高度走）。 */
-  private placeMarker(rec: FaultRecord, a: FaultAnchor): void {
-    this.placeGroup(rec.marker, a);
+  /** 摆位：笼盒贴合零件包围盒（或锚点标准尺寸），扫描环放在锚点高度。 */
+  private placeGroup(g: THREE.Group, a: FaultAnchor): void {
+    const b = a.bounds;
+    const sx = b ? Math.max(0.12, b.sx) : 0.85;
+    const sy = b ? Math.max(0.12, b.sy) : 0.85;
+    const sz = b ? Math.max(0.12, b.sz) : 0.85;
+    const cx = b ? b.cx : a.x;
+    const cy = b ? b.cy : a.y;
+    const cz = b ? b.cz : a.z;
+    g.position.set(cx, cy, cz);
+
+    const cage = g.userData.cage as THREE.Mesh | undefined;
+    if (cage) cage.scale.set(sx, sy, sz);
+
+    const ring = g.userData.ring as THREE.Mesh | undefined;
+    if (ring) {
+      // 扫描环贴着笼盒底边，随零件尺寸走
+      ring.position.set(0, -sy / 2 - 0.04, 0);
+      ring.scale.setScalar(Math.max(0.6, Math.max(sx, sz) * 1.15));
+    }
+
+    // 光晕球压在笼盒中心，尺寸随零件走但不糊成大饼
+    const halo = g.children.find((o) => o.userData?.kind === 'faultHalo') as THREE.Mesh | undefined;
+    if (halo) halo.scale.setScalar(Math.max(0.5, Math.min(1.6, (sx + sy + sz) / 2.4)));
   }
 
-  private placeGroup(g: THREE.Group, a: FaultAnchor): void {
-    g.position.set(a.x, a.y, a.z);
-    const beam = g.userData.beam as THREE.Mesh;
-    const h = Math.max(0.4, a.y);
-    beam.scale.set(1, h, 1);
-    beam.position.set(0, -h / 2, 0);
+  /** 锚点变化时重摆高亮。 */
+  private placeMarker(rec: FaultRecord, a: FaultAnchor): void {
+    this.placeGroup(rec.marker, a);
   }
 
   private disposeMarker(g: THREE.Group): void {
     this.group.remove(g);
     g.traverse((o) => {
-      if (o instanceof THREE.Mesh) {
+      if (o instanceof THREE.Mesh || o instanceof THREE.LineSegments) {
         // 几何体是共享的，只释放材质
-        const m = o.material as THREE.MeshBasicMaterial | THREE.MeshBasicMaterial[];
+        const m = o.material as THREE.Material | THREE.Material[];
         if (Array.isArray(m)) m.forEach((x) => x.dispose());
         else m?.dispose();
       }
@@ -325,7 +266,7 @@ export class FaultLocator {
     return Array.from(this.records.keys());
   }
 
-  /** 红色实体高亮的数量（= 有定位标的设备数），供 UI / 自检核对。 */
+  /** 红色高亮的数量（= 有定位标的设备数），供 UI / 自检核对。 */
   get markerCount(): number {
     return this.records.size;
   }
@@ -335,144 +276,97 @@ export class FaultLocator {
   }
 
   /**
-   * @param camera 可选。传入后按锚点的屏幕位置决定标签向左还是向右展开
-   *               （右侧详情面板会遮挡右向标签，见 LABEL_FLIP_NDC_X 的说明）。
+   * 故障定位环总开关（HUD「可视化图层」里的"故障定位环"）。
+   *
+   * 只切可见性，**不动 records**：关掉再打开时，已登记的定位标原样回来
+   * （含维修进度减淡状态与正在播放的恢复动画），不需要调用方重新 setFaults。
    */
-  update(_dt: number, t: number, camera?: THREE.Camera): void {
-    if (this.paused) return;
-    for (const rec of this.records.values()) {
-      if (camera) {
-        this.ndc.set(rec.anchor.x, rec.anchor.y, rec.anchor.z).project(camera);
-        this.applySide(rec, this.ndc.x > LABEL_FLIP_NDC_X);
-      }
-      const pulse = Math.sin(t * 2.6 + rec.phase) * 0.5 + 0.5;
-      const aspect = LABEL_TEX_H / LABEL_TEX_W;
-      const s = LABEL_SCALE * (1 + pulse * 0.09);
-      rec.sprite.scale.set(s, s * aspect, 1);
-      rec.sprite.position.y = rec.baseY + Math.sin(t * 1.7 + rec.phase) * 0.16;
-      const m = rec.sprite.material as THREE.SpriteMaterial;
-      m.opacity = 0.82 + pulse * 0.18;
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+    this.group.visible = visible;
+  }
 
-      // 红色实体高亮：光晕呼吸 + 扫描环自转 + 光柱明暗。
-      // 呼吸范围收在 0.42~0.78：太亮会糊成一块红饼，看不出"是哪个零件"。
-      rec.haloMat.opacity = 0.42 + pulse * 0.36;
-      rec.ringMat.opacity = 0.55 + pulse * 0.4;
-      rec.beamMat.opacity = 0.16 + pulse * 0.18;
+  get isVisible(): boolean {
+    return this.visible;
+  }
+
+  /**
+   * 维修进度：ratio ∈ [0,1]，红色高亮随检修步骤推进逐层减淡（最多减到 15%），
+   * 全部勾完时定位标仍在——彻底消失要等"完工上报"触发的恢复动画。
+   * @returns 该设备是否存在定位标
+   */
+  setRepairProgress(deviceId: string, ratio: number): boolean {
+    const rec = this.records.get(deviceId);
+    if (!rec) return false;
+    const clamped = Math.max(0, Math.min(1, ratio));
+    rec.repairDim = clamped;
+    if (clamped >= 1) rec.recovering = false;
+    return true;
+  }
+
+  /**
+   * 检修完工恢复动画：红→绿扫过（约前 1/4 先增亮一次"完成闪"）再整体淡出，
+   * 结束后自动移除定位标。设备状态色与相机推镜由 scene.playRepairRecovery 负责。
+   */
+  startRecovery(deviceId: string, duration = 2.4): boolean {
+    const rec = this.records.get(deviceId);
+    if (!rec) return false;
+    rec.recovering = true;
+    rec.recoveryT = 0;
+    rec.recoveryDur = Math.max(0.8, duration);
+    return true;
+  }
+
+  update(dt: number, t: number, _camera?: THREE.Camera): void {
+    // 关掉的层不渲染也不更新：update 里每帧都要写材质，隐藏时白跑一遍没有意义。
+    if (this.paused || !this.visible) return;
+    for (const [id, rec] of Array.from(this.records.entries())) {
+      const pulse = Math.sin(t * 2.6 + rec.phase) * 0.5 + 0.5;
+
+      // 恢复动画：红→绿扫过 + 先增亮后淡出，播完自动移除定位标。
+      if (rec.recovering) {
+        rec.recoveryT += dt;
+        const p = Math.min(1, rec.recoveryT / rec.recoveryDur);
+        const eased = p * p * (3 - 2 * p); // smoothstep，颜色过渡更"扫过"
+        RECOVERY_COLOURS.scratch.copy(RECOVERY_COLOURS.haloFrom).lerp(RECOVERY_COLOURS.haloTo, eased);
+        rec.haloMat.color.copy(RECOVERY_COLOURS.scratch);
+        rec.ringMat.color.copy(RECOVERY_COLOURS.ringFrom).lerp(RECOVERY_COLOURS.ringTo, eased);
+        rec.cageMat.color.copy(RECOVERY_COLOURS.cageFrom).lerp(RECOVERY_COLOURS.cageTo, eased);
+        // 前 20% 增亮一个"完成闪"，之后线性淡出到 0
+        const envelope = p < 0.2 ? 1 + p * 1.5 : Math.max(0, 1 - (p - 0.2) / 0.8);
+        rec.haloMat.opacity = (0.42 + pulse * 0.36) * envelope;
+        rec.ringMat.opacity = (0.55 + pulse * 0.4) * envelope;
+        rec.cageMat.opacity = Math.min(1, 0.75 + pulse * 0.25) * envelope;
+        const ring = rec.marker.userData.ring as THREE.Mesh | undefined;
+        if (ring) ring.rotation.z = t * 1.15 + rec.phase;
+        if (p >= 1) this.dropRecord(id, rec);
+        continue;
+      }
+
+      // 维修进度减淡：勾一步消一层，但保留 15% 底亮——定位标仍在，等完工上报收尾
+      const dim = 1 - rec.repairDim * 0.85;
+
+      // 红色实体高亮：光晕呼吸 + 扫描环自转。
+      rec.haloMat.opacity = (0.32 + pulse * 0.26) * dim;
+      // 口径（2026-09 可视化层收敛）：正常故障环不再抢眼 ——
+      // 扫描环基准不透明度 0.5 → 0.35，脉冲幅度 0.35 → 0.25（峰值 0.85 → 0.6）。
+      // 故障定位仍一眼可见（线框笼保持原亮度），但不再与介质流/轨迹抢视觉重心。
+      // 恢复环（红→绿过渡）保持原有脉冲，见上面的 recovering 分支。
+      rec.ringMat.opacity = (0.35 + pulse * 0.25) * dim;
+      rec.cageMat.opacity = (0.8 + pulse * 0.2) * dim;
       const ring = rec.marker.userData.ring as THREE.Mesh | undefined;
       if (ring) ring.rotation.z = t * 1.15 + rec.phase;
     }
   }
 
-  /**
-   * 圆圈 + 十字 + 两行发光标签。
-   *
-   * @param mirrored true 时图标画在**右侧**、文字底板画在左侧 —— 用于标签需要
-   *                 向故障点左方展开的场景（右侧面板遮挡），避免文字被裁切。
-   */
-  private makeFaultTexture(partName: string, mirrored: boolean): THREE.CanvasTexture | null {
-    if (typeof document === 'undefined') return null;
-    const W = LABEL_TEX_W;
-    const H = LABEL_TEX_H;
-    const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
-    const ctx = c.getContext('2d');
-    if (!ctx) return null;
-
-    ctx.clearRect(0, 0, W, H);
-
-    const cx = mirrored ? W - LABEL_ICON_CX : LABEL_ICON_CX;
-    const cy = H / 2;
-    const r = 62;
-
-    // 外发光晕
-    ctx.shadowColor = '#f87171';
-    ctx.shadowBlur = 26;
-
-    // 圆圈（双环，脉冲感）
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 9;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(248,113,113,0.55)';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r + 16, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // 十字（贯穿圆内 + 露出末端）
-    ctx.strokeStyle = '#fecaca';
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.moveTo(cx - r + 8, cy);
-    ctx.lineTo(cx + r - 8, cy);
-    ctx.moveTo(cx, cy - r + 8);
-    ctx.lineTo(cx, cy + r - 8);
-    ctx.stroke();
-
-    // 圆心
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // 标签底板：正常布局在图标右侧，镜像布局在图标左侧（宽度一致，只是位置镜像）
-    const bx = mirrored ? 8 : 196;
-    const bw = W - 196 - 8;
-    ctx.fillStyle = 'rgba(69,10,10,0.86)';
-    ctx.fillRect(bx, 34, bw, H - 68);
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(bx, 34, bw, H - 68);
-
-    // 文字：两行布局 —— 第一行"故障位置"，第二行部位名（避免单行长文本被裁切）
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#fca5a5';
-    ctx.fillStyle = '#fee2e2';
-    let fontPx = 58;
-    const line1 = '故障位置';
-    ctx.font = `700 ${fontPx}px "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif`;
-    while (ctx.measureText(line1).width > bw - 32 && fontPx > 24) {
-      fontPx -= 2;
-      ctx.font = `700 ${fontPx}px "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif`;
-    }
-    ctx.shadowBlur = 18;
-    ctx.fillText(line1, bx + bw / 2, 84);
-    ctx.shadowBlur = 0;
-    let namePx = 52;
-    ctx.font = `700 ${namePx}px "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif`;
-    while (ctx.measureText(partName).width > bw - 32 && namePx > 22) {
-      namePx -= 2;
-      ctx.font = `700 ${namePx}px "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif`;
-    }
-    ctx.shadowBlur = 14;
-    ctx.fillText(partName, bx + bw / 2, 172);
-    ctx.shadowBlur = 0;
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.needsUpdate = true;
-    return tex;
-  }
-
   dispose(): void {
     for (const rec of this.records.values()) {
-      const m = rec.sprite.material as THREE.SpriteMaterial;
-      m.map?.dispose();
-      m.dispose();
       this.disposeMarker(rec.marker);
     }
     this.records.clear();
-    // 贴图已随每条记录在 dropRecord 里释放，这里只兜底清一次历史登记项
-    for (const t of this.ownedTextures) t.dispose();
-    this.ownedTextures.length = 0;
     this.geo.halo.dispose();
     this.geo.ring.dispose();
-    this.geo.beam.dispose();
+    this.geo.cage.dispose();
     this.group.clear();
   }
 }

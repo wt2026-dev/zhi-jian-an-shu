@@ -1,4 +1,4 @@
-import * as THREE from 'three'
+﻿import * as THREE from 'three'
 import type { EquipmentBuild } from './equipment'
 import type { ScenePreset } from './styles'
 
@@ -57,6 +57,25 @@ const EXPLODED_CONFIGS: Record<string, ExplodedViewConfig> = {
     unfoldAxis: 'y',
     baseOffset: 0.45,
     staggerDelay: 50
+  },
+  'eq-110': {
+    deviceId: 'eq-110',
+    label: '15# 六轴工业机械臂',
+    buildOrder: [
+      'robotBasePlate', 'anchorBolts', 'robotBaseFrame', 'waistSleeve',
+      'j1ServoMotor', 'j1Reducer', 'j1Encoder',
+      'lowerArmCasting', 'j2ServoMotor', 'j2Reducer', 'j2Encoder',
+      'elbowJoint', 'j3ServoMotor', 'j3Reducer', 'j3Encoder',
+      'upperArmCasting', 'cableHarness',
+      'wristRollHousing', 'j4ServoMotor', 'j4Encoder',
+      'wristPitchHousing', 'j5ServoMotor', 'j5Encoder',
+      'wristYawFlange', 'j6ServoMotor', 'j6Encoder',
+      'endEffector', 'gripperFingers', 'toolFlange',
+      'controllerCabinet', 'teachPendant', 'safetyRelay'
+    ],
+    unfoldAxis: 'z',
+    baseOffset: 0.35,
+    staggerDelay: 45
   }
 }
 
@@ -301,7 +320,18 @@ function formatPartLabel(key: string): string {
     oilReservoir: '油箱', coolingJacket: '冷却夹套', pressureGauge: '压力表',
     flowMeter: '流量计', drainValve: '排水阀', ventingValve: '排气阀',
     alignmentShims: '对中垫片', motorMount: '电机座', flexibleElement: '弹性元件',
-    alignmentPins: '定位销'
+    alignmentPins: '定位销',
+    // 六轴工业机械臂零件
+    robotBasePlate: '安装底板', robotBaseFrame: '基座框架', waistSleeve: '腰座套筒',
+    j1ServoMotor: 'J1轴伺服电机', j1Reducer: 'J1轴RV减速器', j1Encoder: 'J1轴编码器',
+    lowerArmCasting: '大臂铸件', j2ServoMotor: 'J2轴伺服电机', j2Reducer: 'J2轴RV减速器', j2Encoder: 'J2轴编码器',
+    elbowJoint: '肘关节', j3ServoMotor: 'J3轴伺服电机', j3Reducer: 'J3轴RV减速器', j3Encoder: 'J3轴编码器',
+    upperArmCasting: '小臂铸件', cableHarness: '内部线束',
+    wristRollHousing: '腕部旋转座', j4ServoMotor: 'J4轴伺服电机', j4Encoder: 'J4轴编码器',
+    wristPitchHousing: '腕部俯仰座', j5ServoMotor: 'J5轴伺服电机', j5Encoder: 'J5轴编码器',
+    wristYawFlange: '腕部法兰', j6ServoMotor: 'J6轴伺服电机', j6Encoder: 'J6轴编码器',
+    endEffector: '末端执行器', gripperFingers: '夹爪手指', toolFlange: '工具法兰',
+    controllerCabinet: '控制柜', teachPendant: '示教器', safetyRelay: '安全继电器'
   }
   return labelMap[key] ?? key
 }
@@ -328,7 +358,28 @@ function getPartDescription(key: string, deviceId: string): string {
     impellerStage1: '一级叶轮，闭式，铸钢材质',
     diffuserStage1: '一级导叶，将动能转化为压力能',
     baseplate: '公共底座，铸铁材质',
-    anchorBolts: '地脚螺栓，M24×400，8.8级'
+    anchorBolts: '地脚螺栓，M24×400，8.8级',
+    // 六轴机械臂关键零件描述
+    robotBasePlate: '机械臂安装底板，厚度20mm钢板，4颗M16地脚螺栓固定',
+    robotBaseFrame: '基座框架，铸铝件，承受整机倾覆力矩',
+    waistSleeve: '腰座套筒，连接基座与大臂，内置J1轴旋转轴承',
+    j1ServoMotor: 'J1轴绝对式伺服电机，额定功率1.8kW，带抱闸',
+    j1Reducer: 'J1轴RV减速器，减速比1:121，背隙<1弧分',
+    j1Encoder: 'J1轴光电编码器，分辨率17位，反馈关节角度',
+    lowerArmCasting: '大臂铸件，高强度铝合金，中空走管线',
+    j2ServoMotor: 'J2轴伺服电机，额定功率2.2kW，带绝对编码器',
+    j2Reducer: 'J2轴RV减速器，减速比1:161',
+    elbowJoint: '肘关节连接结构，铸钢件，承受小臂全部载荷',
+    upperArmCasting: '小臂铸件，铝合金轻量化设计，末端负载10kg',
+    cableHarness: '内部线束组，包含动力线、编码器线、气动管，沿臂内侧走线',
+    wristRollHousing: '腕部旋转座，J4轴回转轴，内置交叉滚子轴承',
+    wristPitchHousing: '腕部俯仰座，J5轴，垂直方向摆动',
+    wristYawFlange: '腕部末端法兰，J6轴，绕工具中心线旋转',
+    endEffector: '末端执行器，两指气动夹爪，夹持力可调',
+    gripperFingers: '夹爪手指，聚氨酯包覆，防夹伤工件',
+    controllerCabinet: '机器人控制柜，含运动控制器、伺服驱动器、I/O模块',
+    teachPendant: '示教器，10英寸触摸屏，用于手动编程与参数设置',
+    safetyRelay: '安全继电器，双手启动+安全门联锁，急停回路冗余设计'
   }
   return descriptions[key] ?? '设备部件'
 }

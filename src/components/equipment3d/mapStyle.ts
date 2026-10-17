@@ -110,3 +110,25 @@ export function equipmentStatusCss(status: string): string {
   if (status === "standby") return "#60a5fa";
   return "#34d399";
 }
+
+/* ==================== 大屏浮层几何（单一口径） ====================
+ * 三层大屏的左右两栏、顶部面包屑带、底部图例带共用这几个数：
+ * 3D 取景（mapScene 的 fitFrameRadius）与 HUD 的 top/left/right 必须引用
+ * 同一组常量，否则"地图填多少"和"卡片占多少"会各说各话、重新错位。
+ */
+
+/** 左右两栏卡片宽度 */
+export const HUD_COLUMN_W = 300;
+/** 两栏距画布边缘的外边距 */
+export const HUD_COLUMN_MARGIN = 12;
+/** 一栏横向占位（外边距 + 卡片宽）：取景安全区左右各让出这么多 */
+export const HUD_COLUMN_SPAN = HUD_COLUMN_W + HUD_COLUMN_MARGIN;
+/**
+ * 顶部面包屑带的高度：外壳药丸实测占 top-3(12) + 33px 行高 = 底边 45（3 段文字 + 2 个 ›，
+ * px-2 py-1.5，text-xs；2026-09-22 在真实 DOM 上量出来的，不是估的），
+ * 再按验收口径留 ≥20px 间距 → 66。两栏首张卡片与 3D 取景都从这里起。
+ * （旧值 64 是按"药丸 30px 高"估的，实际间距只有 19px，差 1px 也算不合格。）
+ */
+export const HUD_TOP_BAND = 66;
+/** 底部图例带高度：bottom-3(12) + 约 38px 图例行 + 8px 呼吸 */
+export const HUD_BOTTOM_BAND = 58;

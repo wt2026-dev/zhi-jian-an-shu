@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Cpu,
   Gauge,
+  Crosshair,
   Layers,
   Loader2,
   Pause,
@@ -112,6 +113,19 @@ interface Props {
   onExitExploded?: () => void;
   /** 拆解动画是否进行中 */
   isExplodedAnimating?: boolean;
+  /** 拆解零件清单（拆解视图激活时传入，供面板渲染零件列表） */
+  explodedParts?: Array<{ key: string; label: string; description: string }>;
+  /** 当前选中的零件 key */
+  selectedPartKey?: string | null;
+  /** 选中零件回调（点击零件列表项时触发） */
+  onSelectPart?: (key: string | null) => void;
+
+  // ── AI 诊断结果回写 3D ──────────────────────────────────────────────────
+  /**
+   * 诊断成功后调用（关键词匹配故障部位，非部件级确诊）。
+   * 返回匹配到的部位名用于面板提示；返回 null 表示未匹配到可定位部位。
+   */
+  onDiagnosis?: (diagnosis: AiDiagnosis) => string | null;
 }
 
 const WO_STATUS_LABEL: Record<string, string> = {
@@ -284,7 +298,7 @@ function formatReading(value: unknown, unit: string, digits = 1): string {
 
 function Field({ label, value }: { label: string; value?: string | number | null }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 px-2 py-1.5 rounded-lg bg-white/5 border border-white/8">
       <div className="text-[10px] text-slate-500">{label}</div>
       <div className="text-[11px] font-medium text-slate-100 truncate" title={value == null ? undefined : String(value)}>
         {value == null || value === '' ? '—' : value}
@@ -323,6 +337,11 @@ export function DeviceAnalysisPanel({
   onEnterExploded,
   onExitExploded,
   isExplodedAnimating,
+  explodedParts,
+  selectedPartKey,
+  onSelectPart,
+  /** AI 诊断结果回写 3D：返回匹配到的部位名（null = 未匹配到，保持原定位） */
+  onDiagnosis,
 }: Props): React.ReactElement {
   const card = detail?.id === equipment?.id ? detail ?? equipment : equipment;
   const meta = STATUS_META[statusKey(card?.status)];
@@ -335,6 +354,8 @@ export function DeviceAnalysisPanel({
   const [aiDiag, setAiDiag] = useState<AiDiagnosis | null>(null);
   const [aiSafety, setAiSafety] = useState<AiSafetyNotice | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  /** 诊断结果回写 3D 后匹配到的部位名（null = 未匹配/未回写） */
+  const [aiLocated, setAiLocated] = useState<string | null>(null);
 
   const aiRequestRef = useRef(0);
   const aiAbortRef = useRef<AbortController | null>(null);
@@ -346,6 +367,7 @@ export function DeviceAnalysisPanel({
     setAiDiag(null);
     setAiSafety(null);
     setAiError(null);
+    setAiLocated(null);
     return () => {
       ++aiRequestRef.current;
       aiAbortRef.current?.abort();
@@ -380,10 +402,13 @@ export function DeviceAnalysisPanel({
       if (request !== aiRequestRef.current) return;
       if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
       if (data.success && data.diagnosis) {
-        setAiDiag(data.diagnosis as AiDiagnosis);
+        const diag = data.diagnosis as AiDiagnosis;
+        setAiDiag(diag);
         // safetyNotice 是对象（{required, level, reason, requiresConfirmation, riskTypes, degraded}），
         // 必须归一化后再存，绝不可直接当字符串渲染。
         setAiSafety(normalizeSafetyNotice(data.safetyNotice));
+        // 诊断结果回写 3D：把故障定位标挪到原因文本匹配到的观测部位
+        setAiLocated(typeof onDiagnosis === 'function' ? onDiagnosis(diag) : null);
       } else {
         setAiError(data.message || 'AI 研判未返回结论');
       }
@@ -395,7 +420,7 @@ export function DeviceAnalysisPanel({
     } finally {
       if (request === aiRequestRef.current) setAiBusy(false);
     }
-  }, [card, latest, loading, aiBusy]);
+  }, [card, latest, loading, aiBusy, onDiagnosis]);
 
   if (!card) {
     return (
@@ -462,11 +487,12 @@ export function DeviceAnalysisPanel({
         )}
       </div>
 
-      <div className="industrial-readings grid grid-cols-3 gap-2 mb-3" data-testid="equipment3d-current-readings">
+      <div className="industrial-readings grid grid-cols-2 gap-2 mb-3" data-testid="equipment3d-current-readings">
         <Field label="温度" value={formatReading(currentTelemetry?.temperature, '°C')} />
         <Field label="振动" value={formatReading(currentTelemetry?.vibration, 'mm/s', 2)} />
         <Field label="电流" value={formatReading(currentTelemetry?.current, 'A')} />
-        <div className="col-span-3 text-[10px] text-slate-400">
+        <Field label="压力" value={formatReading(currentTelemetry?.pressure, 'MPa', 2)} />
+        <div className="col-span-2 text-[10px] text-slate-400">
           台账最新采样 · {currentTelemetry?.lastUpdated || '未提供采样时间'}
           {loading ? ' · 正在获取详情与48h时序…' : ''}
         </div>
@@ -530,6 +556,54 @@ export function DeviceAnalysisPanel({
               按维护手册顺序展示内部结构
             </div>
           )}
+        </div>
+      )}
+
+      {/* ---- 拆解视图：零件清单 + 详情 ---- */}
+      {isExploded && explodedParts && explodedParts.length > 0 && (
+        <div className="mb-2.5 p-2 rounded-lg bg-slate-800/60 border border-cyan-500/30" data-testid="equipment3d-exploded-parts">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-cyan-300">
+              <Layers className="w-3 h-3" />
+              <span>零件清单（{explodedParts.length}）</span>
+            </div>
+            <span className="text-[9px] text-slate-500">点击零件查看详情</span>
+          </div>
+          {/* 选中零件的详情卡片 */}
+          {selectedPartKey && (
+            (() => {
+              const part = explodedParts.find(p => p.key === selectedPartKey);
+              if (!part) return null;
+              return (
+                <div className="mb-1.5 p-2 rounded-lg bg-cyan-500/10 border border-cyan-400/40" data-testid="equipment3d-part-detail">
+                  <div className="text-[11px] font-semibold text-cyan-200 mb-1">{part.label}</div>
+                  <div className="text-[10px] text-slate-300 leading-relaxed">{part.description}</div>
+                </div>
+              );
+            })()
+          )}
+          {/* 零件列表（可滚动） */}
+          <div className="max-h-[180px] overflow-y-auto space-y-0.5 pr-1">
+            {explodedParts.map((part, idx) => {
+              const isSelected = selectedPartKey === part.key;
+              return (
+                <button
+                  key={part.key}
+                  type="button"
+                  onClick={() => onSelectPart?.(isSelected ? null : part.key)}
+                  data-testid={`equipment3d-part-${part.key}`}
+                  className={`w-full text-left px-2 py-1 rounded text-[10px] transition-colors ${
+                    isSelected
+                      ? 'bg-cyan-500/25 text-cyan-100 border border-cyan-400/50'
+                      : 'bg-white/5 text-slate-300 hover:bg-white/10 border border-transparent'
+                  }`}
+                >
+                  <span className="font-mono text-slate-500 mr-1.5">{String(idx + 1).padStart(2, '0')}</span>
+                  {part.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -672,6 +746,15 @@ export function DeviceAnalysisPanel({
               </span>
             </div>
             <div className="text-[11px] text-slate-200 leading-relaxed">{aiDiag.summary}</div>
+            {aiLocated && (
+              <div
+                className="text-[10px] text-cyan-300 flex items-start gap-1"
+                data-testid="equipment3d-analysis-ai-located"
+              >
+                <Crosshair className="w-3 h-3 shrink-0 mt-px" />
+                <span>已按原因关键词把 3D 故障定位标对准「{aiLocated}」（关键词匹配，非部件确诊）</span>
+              </div>
+            )}
             {aiDiag.probableCauses?.[0] && (
               <div className="text-[10px] text-slate-300">
                 <span className="text-slate-500">首要原因：</span>

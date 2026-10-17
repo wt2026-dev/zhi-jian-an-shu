@@ -15,6 +15,42 @@ export function projectLngLat(lng: number, lat: number, center: [number, number]
   return [(lng - center[0]) * scale, -(lat - center[1]) * scale];
 }
 
+/**
+ * 轮廓的世界跨度：光柱高度、取景安全区都要按"这块地图有多宽"来定，
+ * 不能写死常数 —— 全国层 57 单位宽与省层 18 单位宽用同一套柱高，
+ * 省层就会被一根柱顶吃掉半个屏幕。
+ */
+export function ringsSpan(rings: [number, number][][], center: [number, number], scale: number): { x: number; z: number } {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const ring of rings) {
+    for (const [lng, lat] of ring) {
+      const [x, z] = projectLngLat(lng, lat, center, scale);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+  }
+  if (!Number.isFinite(minX)) return { x: 1, z: 1 };
+  return { x: maxX - minX, z: maxZ - minZ };
+}
+
+/**
+ * 光柱尺寸口径：柱高与柱宽都按地图自身宽度归一。
+ * 全国层跨度 57、省层 18 —— 写死同一组常数等于给省层装了 3 倍粗、3 倍高的柱子，
+ * 一根柱顶就吃掉半个安全区，自适应取景只能把相机拉远，陆面于是缩成中间一小块。
+ */
+export function pillarSizeFor(spanX: number, share: number, demo = false): { height: number; radius: number } {
+  const s = Math.min(1, Math.max(0, share));
+  return {
+    height: spanX * (0.115 + 0.055 * s) * (demo ? 0.86 : 1),
+    radius: spanX * (demo ? 0.0115 : 0.015),
+  };
+}
+
 /* ---------- 确定性噪声（无随机种子，两次加载完全一致） ---------- */
 
 function hash2(x: number, y: number): number {

@@ -23,7 +23,8 @@ vi.mock('../../src/components/equipment3d/scene', () => ({
     setDeviceTelemetry = mocks.setDeviceTelemetry;
     setIsolation = mocks.setIsolation;
     attachMinimap() {} start() {} dispose() {} quickApply() {} setSelected() {} resetFocus() {} focusDevice() {}
-    clearStatusOverrides() {} clearFaultChain() {} buildFaultChain() {} buildWorkers() {} setWorkerVisible() {}
+    clearStatusOverrides() {} clearFaultChain() {} buildFaultChain() {} buildWorkers() {} setWorkerVisible() {} clearWorkers() {}
+    setFaultLocatorVisible() {}
     buildSafetyBoundaries() {} setSafetyBoundaryVisible() {} setWorkOrderIndicators() {}
     liveStats() { return { devices: 2, triangles: 0, drawCalls: 0 }; }
     build() { return { ...this.liveStats(), faults: 0, legend: [], buildMs: 0 }; }

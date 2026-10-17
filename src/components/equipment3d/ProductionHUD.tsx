@@ -53,7 +53,8 @@ import {
 } from './factoryMetrics';
 import { roleOfWorkshop } from './factoryBuildingTypes';
 import { telemetryToStatus } from './statusMapping';
-import { ExplodedViewFrame } from './ExplodedViewFrame';
+import { ExplodedViewButton } from './ExplodedViewButton';
+import { WorkshopZoneNav } from './WorkshopZoneNav';
 import './equipment-industrial.css';
 
 /* ========================= 科技感角标组件 ========================= */
@@ -75,7 +76,7 @@ export const TechCornerMark: React.FC<{ className?: string }> = ({ className = '
 /* ========================= 类型 ========================= */
 
 
-type RightTab = 'overview' | 'params' | 'alarm' | 'logs' | 'permission' | 'deviceMgmt' | 'exploded';
+type RightTab = 'overview' | 'params' | 'alarm' | 'logs' | 'permission' | 'deviceMgmt';
 type LeftMenu =
   | 'devices'
   | 'plan'
@@ -458,7 +459,6 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
     { key: 'params', label: '参数' },
     { key: 'alarm', label: '告警' },
     { key: 'logs', label: '日志' },
-    { key: 'exploded', label: '拆解视图' },
     { key: 'permission', label: '权限' },
     { key: 'deviceMgmt', label: '设备管理' },
   ];
@@ -472,6 +472,12 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
     { key: 'personnel', label: '人员管理', icon: <Users className="w-3.5 h-3.5" /> },
     { key: 'settings', label: '系统设置', icon: <Settings2 className="w-3.5 h-3.5" /> },
   ];
+
+  /**
+   * 左栏宽度。车间现场层要放下「分区 → 车间 → 设备」三级（`WorkshopZoneNav`），
+   * 原来 108px 是给一列 9px 设备码用的，三级缩进排不下；设备聚焦层保持原宽。
+   */
+  const leftColWidth = level === 'workshop' ? 'w-[176px]' : 'w-[108px]';
 
   const panel = (() => {
     if (!selected) {
@@ -655,12 +661,6 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
           )}
         </div>
       );
-    }
-
-    if (tab === 'exploded') {
-      // 拆解视图：同源 iframe 加载 public/exploded/*.html（映射见 explodedViewFiles.ts）。
-      // 该设备没有对应拆解页时，组件内部自己渲染「该设备暂未生成拆解视图」。
-      return <ExplodedViewFrame deviceId={selected.id} deviceName={selected.name} />;
     }
 
     // deviceMgmt
@@ -1312,9 +1312,9 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                   <ChevronRight className="w-3 h-3" />
                 </button>
               ) : (
-              <div className="absolute left-2.5 top-[70px] bottom-3 flex flex-col gap-1.5 pointer-events-auto">
+              <div className={`absolute left-2.5 top-[70px] bottom-3 flex flex-col gap-1.5 pointer-events-auto ${leftColWidth}`}>
                 <div
-                  className="rounded-lg hud-sci-fi-panel p-1.5 w-[108px] relative"
+                  className={`rounded-lg hud-sci-fi-panel p-1.5 relative shrink-0 ${leftColWidth}`}
                 >
                   <TechCornerMark />
                   <div className="space-y-0.5">
@@ -1338,14 +1338,29 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                   </div>
                 </div>
 
-                {/* 设备快选（真实台账） */}
+                {/* 车间现场层 = **分区 → 车间 → 设备** 三级导航（`WorkshopZoneNav`）。
+                    原来这里是一张全厂设备的平铺清单（最多 40 台），一进车间现场就能点到任意
+                    车间里的任意设备 —— 用户看到的就是"跳步"。改为：未选分区时一台设备都不列。
+                    设备聚焦层保持原有「设备快选」，方便在设备之间快速切换。 */}
                 <div
-                  className="rounded-lg hud-sci-fi-panel p-1.5 w-[108px] flex-1 overflow-y-auto min-h-0 relative"
+                  className={`rounded-lg hud-sci-fi-panel p-1.5 flex-1 min-h-0 relative flex flex-col ${leftColWidth}`}
                 >
-                  {devices.length === 0 ? (
+                  <TechCornerMark />
+                  {level === 'workshop' ? (
+                    <WorkshopZoneNav
+                      compact
+                      className="flex-1 min-h-0"
+                      zones={zones}
+                      devices={devices}
+                      activeZoneId={activeZoneId ?? null}
+                      onSelectZone={(id) => onSelectZone?.(id)}
+                      onSelectDevice={onSelect}
+                      selectedDeviceId={selected?.id ?? null}
+                    />
+                  ) : devices.length === 0 ? (
                     <div className="text-[9px] text-slate-400 p-1">台账加载中…</div>
                   ) : (
-                    <div className="space-y-0.5">
+                    <div data-testid="hud-device-quicklist" className="space-y-0.5 overflow-y-auto min-h-0">
                       {devices.slice(0, 40).map((d) => (
                         <button
                           key={d.id}
@@ -1386,7 +1401,10 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
               )}
 
               {/* ---------- 右侧标签页 ---------- */}
-              <div className="absolute right-2.5 top-[70px] bottom-3 flex flex-col gap-1.5 pointer-events-auto w-[252px]">
+              <div
+                data-testid="hud-right-panel"
+                className="absolute right-2.5 top-[70px] bottom-3 flex flex-col gap-1.5 pointer-events-auto w-[252px]"
+              >
                 <div
                   className="rounded-lg hud-sci-fi-panel overflow-hidden flex flex-col min-h-0 relative flex-1"
                 >
@@ -1406,6 +1424,14 @@ export const ProductionHUD: React.FC<ProductionHUDProps> = ({
                       </button>
                     ))}
                   </div>
+                  {/* 设备操作条：拆解视图是**整页新标签页**打开的独立单页（自带 three.js），
+                      不再塞进这块 250px 宽的侧栏里。选中设备后常驻，切标签页不丢。 */}
+                  {selected && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 border-b border-cyan-500/20 shrink-0">
+                      <span className="text-[9px] font-mono text-slate-400 truncate">{selected.code}</span>
+                      <ExplodedViewButton deviceId={selected.id} deviceName={selected.name} compact className="ml-auto shrink-0" />
+                    </div>
+                  )}
                   <div className="overflow-y-auto min-h-0 flex-1">{panel}</div>
                 </div>
 

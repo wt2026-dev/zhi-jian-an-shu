@@ -18,15 +18,27 @@ import {
   type FactoryTruth,
   type OrderLike,
 } from "./mapStats";
-import { PILLAR_PALETTE, pillarPaletteOf } from "./mapStyle";
+import {
+  HUD_BOTTOM_BAND,
+  HUD_COLUMN_MARGIN,
+  HUD_COLUMN_SPAN,
+  HUD_COLUMN_W,
+  HUD_TOP_BAND,
+  PILLAR_PALETTE,
+  pillarPaletteOf,
+} from "./mapStyle";
 import { createMapScene, type MapMarkerSpec, type MapSceneHandle } from "./mapScene";
 import { PROVINCE_CODE_BY_CITY, PROVINCE_VIEW_BY_CODE } from "./provinceViews";
 import { BarRow, Dot, EmptyNote, HudPanel, Metric } from "./MapHud";
-import { statusLabel } from "./mapGeo";
+import { pillarSizeFor, ringsSpan, statusLabel } from "./mapGeo";
 import "./equipment-industrial.css";
 import "./drilldown-transitions.css";
 
-/** 俯冲下钻落点半径：足够贴近厂区，与第三层厂区俯瞰视角衔接 */
+/**
+ * 俯冲下钻落点半径：足够贴近厂区，与第三层厂区俯瞰视角衔接。
+ * frame.radius 只在拿不到画布尺寸时兜底 —— 正常情况下落位半径由 frameFit
+ * 按内容包围盒与 HUD 安全区反解（见下），写死值会把省域地图缩成中间一小块。
+ */
 const CITY_CAMERA = {
   lift: { radius: 96, phi: 0.3 },
   frame: { radius: 30, phi: 0.62 },
@@ -35,16 +47,29 @@ const CITY_CAMERA = {
   diveRadius: 9,
 };
 
-/** 全国层 → 城市层的取景衔接：省域跨度约 13-19 世界单位，起伏幅度按跨度收敛 */
-function markerOf(row: FactoryTruth, maxCount: number): MapMarkerSpec {
+/** 柱顶名称标签 sprite 的一半高度（世界单位），取景时叠加在光柱顶之上 */
+const CITY_LABEL_ABOVE = 3;
+
+/** 浮层安全区（像素）：左右两栏 + 顶部面包屑带 + 底部图例带，地图只填剩下的中间区域 */
+const cityInsets = (leftInset: number) => ({
+  // 一栏占位（外边距 + 卡宽）再留 12px 呼吸，与底部图例的 324 同一口径
+  left: leftInset + HUD_COLUMN_SPAN + HUD_COLUMN_MARGIN,
+  right: HUD_COLUMN_SPAN + HUD_COLUMN_MARGIN,
+  top: HUD_TOP_BAND,
+  bottom: HUD_BOTTOM_BAND,
+});
+
+/** 光柱：柱高/柱宽按省幅归一（与全国层同一口径），柱顶名称标签由 heightAbove 承担 */
+function markerOf(row: FactoryTruth, maxCount: number, spanX: number): MapMarkerSpec {
   const share = maxCount > 0 ? row.equipmentCount / maxCount : 0;
+  const { height, radius } = pillarSizeFor(spanX, share, row.isDemo);
   return {
     key: row.id,
     lng: row.lng,
     lat: row.lat,
     status: factoryPillarStatusOf(row),
-    height: 6.2 + 2.6 * share,
-    radius: row.isDemo ? 0.62 : 0.8,
+    height,
+    radius,
     label: row.name,
     sub: `设备 ${row.equipmentCount} · 故障 ${row.faultCount} · 告警 ${row.alertCount}`,
   };
@@ -78,6 +103,8 @@ export function CityOverviewView({
 
   const code = city ? PROVINCE_CODE_BY_CITY[city] : undefined;
   const view = code ? PROVINCE_VIEW_BY_CODE[code] : undefined;
+  /** 省幅（世界单位）：光柱的柱高/柱宽按它归一，不能沿用全国层的绝对值 */
+  const spanX = useMemo(() => (view ? ringsSpan(view.fill, view.center, view.scale).x : 18), [view]);
 
   // 该城市全部厂区（列表与点位均为数组渲染，多工厂扩展天然支持）
   useEffect(() => {
@@ -126,6 +153,7 @@ export function CityOverviewView({
       scale: view.scale,
       relief: { height: 1.5, frequency: 6.2, segX: 150, segZ: 130 },
       camera: CITY_CAMERA,
+      frameFit: { insets: cityInsets(leftInset), heightAbove: CITY_LABEL_ABOVE },
       flowBounds: { minX: -14, maxX: 14, minZ: -11, maxZ: 11 },
       onHover: (key, ndc) => {
         setHoverKey(key);
@@ -144,14 +172,14 @@ export function CityOverviewView({
       handle.dispose();
       sceneRef.current = null;
     };
-    // 同一城市内厂区数据变化不重建舞台，只换点位
-  }, [view, city]);
+    // 同一城市内厂区数据变化不重建舞台，只换点位；leftInset 是布局常量，变化时安全区要重算
+  }, [view, city, leftInset]);
 
   useEffect(() => {
     if (sceneReady === 0) return;
     const max = rows.reduce((m, r) => Math.max(m, r.equipmentCount), 0);
-    sceneRef.current?.setMarkers(rows.map((r) => markerOf(r, max)));
-  }, [sceneReady, rows]);
+    sceneRef.current?.setMarkers(rows.map((r) => markerOf(r, max, spanX)));
+  }, [sceneReady, rows, spanX]);
 
   const dash = useMemo(
     () => (rows.length > 0 ? buildMapDashboard({ factoryRows: rows, devices, orders, now: Date.now() }) : null),
@@ -184,8 +212,11 @@ export function CityOverviewView({
     <div className="dd-sky absolute inset-0 overflow-hidden">
       <div ref={hostRef} className="absolute inset-0" />
       <div className="absolute inset-0 z-20 pointer-events-none select-none">
-        {/* 左侧：城市运营统计（真实台账） */}
-        <div className="absolute top-3 bottom-3 flex w-[300px] flex-col gap-2 overflow-y-auto pb-1" style={{ left: leftInset + 12 }}>
+        {/* 左侧：城市运营统计（真实台账）。顶部从面包屑带下方起排，避免与居中面包屑重叠 */}
+        <div
+          className="absolute bottom-3 flex flex-col gap-2 overflow-y-auto pb-1"
+          style={{ left: leftInset + HUD_COLUMN_MARGIN, width: HUD_COLUMN_W, top: HUD_TOP_BAND }}
+        >
           <HudPanel icon={MapPinned} title={`${city || "—"} · 城市运营`} aside={`厂区 ${totals.factoryCount || "—"}`}>
             <div className="grid grid-cols-2 gap-2">
               <Metric label="设备总数" value={rows.length > 0 ? totals.equipmentCount : failed ? "无数据" : null} />
@@ -233,8 +264,11 @@ export function CityOverviewView({
           </HudPanel>
         </div>
 
-        {/* 右侧：车间构成 + 城市工单闭环 */}
-        <div className="absolute right-3 top-3 bottom-3 flex w-[300px] flex-col gap-2 overflow-y-auto pb-1">
+        {/* 右侧：车间构成 + 城市工单闭环（同样下移到面包屑带之下） */}
+        <div
+          className="absolute right-3 bottom-3 flex flex-col gap-2 overflow-y-auto pb-1"
+          style={{ width: HUD_COLUMN_W, top: HUD_TOP_BAND }}
+        >
           <HudPanel icon={Wrench} title="车间 / 工段构成" aside={`${workshopRows.length} 个`}>
             <div className="space-y-2">
               {workshopRows.map((w) => (
@@ -273,7 +307,7 @@ export function CityOverviewView({
         {/* 底部图例 */}
         <div
           className="pointer-events-auto absolute bottom-3 flex items-center gap-3 rounded-lg hud-data-card dd-hud-card px-3 py-2 text-[11px] text-slate-400"
-          style={{ left: leftInset + 324, right: 324 }}
+          style={{ left: leftInset + HUD_COLUMN_SPAN + HUD_COLUMN_MARGIN, right: HUD_COLUMN_SPAN + HUD_COLUMN_MARGIN }}
         >
           <span className="flex items-center gap-1.5">
             <Dot color={PILLAR_PALETTE.normal.css} />

@@ -91,7 +91,7 @@ export const ExplodedPartHistoryPanel: React.FC<ExplodedPartHistoryPanelProps> =
   return (
     <div
       data-testid="exploded-part-history-panel"
-      className="pointer-events-auto flex min-h-0 w-full max-h-full flex-none flex-col overflow-hidden rounded-xl border border-cyan-500/30 bg-slate-950/92 text-slate-200 shadow-[0_10px_40px_rgba(0,0,0,0.55)] backdrop-blur"
+      className="pointer-events-auto flex min-h-0 w-full max-h-[36vh] flex-none flex-col overflow-hidden rounded-xl border border-cyan-500/30 bg-slate-950/92 text-slate-200 shadow-[0_10px_40px_rgba(0,0,0,0.55)] backdrop-blur"
     >
       {/* 头部 */}
       <div className="flex items-start justify-between gap-2 border-b border-white/10 bg-slate-900/80 px-3 py-2.5">

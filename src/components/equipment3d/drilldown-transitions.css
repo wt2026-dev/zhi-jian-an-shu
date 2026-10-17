@@ -33,11 +33,15 @@
   z-index: 1;
 }
 
-/* 下钻舞台深色科技蓝渐变底（radial 光晕 + 纵向渐变，避免纯黑） */
+/* 下钻舞台深色科技蓝渐变底（radial 光晕 + 纵向渐变，避免纯黑，16px 圆角卡片嵌于白色页面） */
 .dd-sky {
   background:
     radial-gradient(ellipse 70% 55% at 50% 38%, rgba(30, 64, 110, 0.38) 0%, rgba(30, 64, 110, 0) 70%),
     linear-gradient(180deg, #12233f 0%, #0c1a2e 46%, #081224 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  overflow: hidden;
 }
 
 /* 大屏 HUD 卡片：在既有 hud-data-card 基础上叠渐变底与青色描边细节 */

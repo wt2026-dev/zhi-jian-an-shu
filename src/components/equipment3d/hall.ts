@@ -80,6 +80,93 @@ function mergeStaticChildren(group: THREE.Group): void {
   }
 }
 
+/** 生成红色安全生产大幅横幅贴图 */
+function makeSloganTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.fillStyle = '#b91c1c';
+  ctx.fillRect(0, 0, 1024, 160);
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(6, 6, 1012, 148);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(12, 12, 1000, 136);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 50px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.7)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
+  ctx.fillText('安全生产 人命关天 · 规范操作 严守规程', 512, 65);
+
+  ctx.fillStyle = '#fef08a';
+  ctx.font = 'bold 22px monospace';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.fillText('★ SAFETY FIRST · STRICT PROCESS COMPLIANCE · ZERO DEFECT ★', 512, 120);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** 生成车间操作规程看板贴图 */
+function makeRegulationTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 680;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, 512, 680);
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(4, 4, 504, 672);
+
+  ctx.fillStyle = '#0284c7';
+  ctx.fillRect(8, 8, 496, 92);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('机加车间设备安全操作规程', 256, 54);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'left';
+  const rules = [
+    '1. 必须按规定穿戴防砸劳保鞋与安全帽',
+    '2. 开机作业前严格点检润滑油位与气压',
+    '3. 设备运转中严禁手伸入作业危险区',
+    '4. 发现震动/温升异响立即按急停并报修',
+    '5. 检修维护作业严格执行 LOTO 挂锁断电',
+    '6. 班后关断主电闸，清理工位保持 5S 规范',
+  ];
+  let y = 160;
+  for (const r of rules) {
+    ctx.fillText(r, 26, y);
+    y += 75;
+  }
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '16px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('动力智能车间 安全生产委员会 监制', 480, 640);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 export interface DeviceSlot {
   x: number;
   z: number;
@@ -106,6 +193,8 @@ export class Hall {
   halfX: number;
   halfZ: number;
   rng: Rng;
+  /** 车间天花板工业大吊扇，可动件由场景 update 驱动 */
+  ceilingFans: THREE.Group[] = [];
   /** 地坪网格分辨率 */
   private resX = 64;
   private resZ = 48;
@@ -152,24 +241,33 @@ export class Hall {
     const pal = this.preset.palette;
     const cBase = new THREE.Color(this.preset.floor.colour);
     const cAlt = new THREE.Color(this.preset.floor.colourAlt);
-    const cDark = new THREE.Color(pal.floor).multiplyScalar(0.62);
+    const cDark = new THREE.Color(pal.floor).multiplyScalar(0.72);
     const cLane = new THREE.Color(this.preset.floor.lane);
+    const cEpoxyGreen = new THREE.Color(0x1a332f); // 工业环氧墨绿作业区
 
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       pos.setY(i, this.reliefAt(x, z));
 
-      // 斑驳的水泥色：两层噪声叠加，避免大面积纯色
+      // 斑驳细腻的自流平地坪色：双层微噪声，保持平整反光质感
       const n1 = fbm2(x * 0.055, z * 0.055, this.seed + 71, 3);
       const n2 = fbm2(x * 0.22, z * 0.22, this.seed + 133, 2);
-      const c = cBase.clone().lerp(cAlt, clamp(n1 * 1.5 - 0.2, 0, 1));
-      c.lerp(cDark, clamp((n2 - 0.62) * 1.6, 0, 0.5));
+      const c = cBase.clone().lerp(cAlt, clamp(n1 * 1.4 - 0.2, 0, 1));
+      c.lerp(cDark, clamp((n2 - 0.65) * 1.5, 0, 0.4));
+
+      // 工业车间：设备工作区域带有经典环氧地坪深墨绿色泽，主通道偏深灰
+      if (this.preset.id === 'industrial') {
+        const inWorkZone = Math.abs(x) < this.halfX * 0.72 && Math.abs(z) < this.halfZ * 0.72;
+        if (inWorkZone) {
+          c.lerp(cEpoxyGreen, 0.45);
+        }
+      }
 
       // 重工车间：地面沿设备走向被油污与胎痕压暗
       if (this.preset.floor.style === 'lanes') {
         const tread = Math.abs(Math.sin(x * 0.34)) * Math.abs(Math.sin(z * 0.34));
-        c.lerp(cDark, tread * 0.22);
+        c.lerp(cDark, tread * 0.18);
       }
       // 户外场站：碎石与混凝土拼接，边界更硬
       if (this.preset.floor.style === 'apron') {
@@ -326,51 +424,139 @@ export class Hall {
       }
     }
 
-    // ---- 墙面（仅封闭车间，且外壳未隐藏） ----
+    // ---- 墙面（真实工业车间围合结构） ----
     if (h.walls && H > 0 && !hideShell) {
       const t = 0.42;
       const wallH = H;
-      // 长边墙带勒脚与上部窗带
-      const sides: Array<{ x: number; z: number; w: number; d: number }> = [
-        { x: 0, z: -h.spanZ / 2, w: h.spanX + t, d: t },
-        { x: 0, z: h.spanZ / 2, w: h.spanX + t, d: t },
-        { x: -h.spanX / 2, z: 0, w: t, d: h.spanZ + t },
-        { x: h.spanX / 2, z: 0, w: t, d: h.spanZ + t },
-      ];
-      for (const s of sides) {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(s.w, wallH, s.d), wallMat);
-        wall.position.set(s.x, wallH / 2, s.z);
-        wall.receiveShadow = true;
-        g.add(wall);
-        // 勒脚（深色）
-        const skirt = new THREE.Mesh(new THREE.BoxGeometry(s.w * 1.004, 1.1, s.d * 1.02), steelMat);
-        skirt.position.set(s.x, 0.55, s.z);
-        g.add(skirt);
-        // 高侧窗带（发光条）
-        const winMat = new THREE.MeshBasicMaterial({
-          color: pal.emissive,
+      const skirtH = 2.4;
+
+      if (ghost || lowQ) {
+        // 极简半透明/流畅档外壳：四向平整轻量墙面，无额外挂件与高面数构件
+        for (const sideZ of [-h.spanZ / 2, h.spanZ / 2]) {
+          const w = new THREE.Mesh(new THREE.BoxGeometry(h.spanX + t, wallH, t), wallMat);
+          w.position.set(0, wallH / 2, sideZ);
+          g.add(w);
+        }
+        for (const sideX of [-h.spanX / 2, h.spanX / 2]) {
+          const w = new THREE.Mesh(new THREE.BoxGeometry(t, wallH, h.spanZ), wallMat);
+          w.position.set(sideX, wallH / 2, 0);
+          g.add(w);
+        }
+      } else {
+        // 1. 北墙（远端正墙，不遮挡设备视线，全高实体保温板）
+        const northWall = new THREE.Mesh(new THREE.BoxGeometry(h.spanX + t, wallH, t), wallMat);
+        northWall.position.set(0, wallH / 2, -h.spanZ / 2);
+        northWall.receiveShadow = true;
+        g.add(northWall);
+        const northSkirt = new THREE.Mesh(new THREE.BoxGeometry(h.spanX + t * 1.1, skirtH, t * 1.05), steelMat);
+        northSkirt.position.set(0, skirtH / 2, -h.spanZ / 2);
+        g.add(northSkirt);
+
+        // 北墙悬挂大红色安全生产巨幅看板
+        const sloganTex = makeSloganTexture();
+        if (sloganTex) {
+          const bannerW = Math.min(26, h.spanX * 0.65);
+          const bannerH = bannerW * (160 / 1024);
+          const bannerGeo = new THREE.PlaneGeometry(bannerW, bannerH);
+          const bannerMat = new THREE.MeshBasicMaterial({ map: sloganTex, transparent: true });
+          const banner = new THREE.Mesh(bannerGeo, bannerMat);
+          banner.position.set(0, wallH * 0.72, -h.spanZ / 2 + t * 0.55);
+          g.add(banner);
+        }
+
+        // 北墙挂载《机加车间设备安全操作规程》
+        const regTex = makeRegulationTexture();
+        if (regTex) {
+          const boardW = 3.2;
+          const boardH = 4.2;
+          const boardGeo = new THREE.PlaneGeometry(boardW, boardH);
+          const boardMat = new THREE.MeshBasicMaterial({ map: regTex, transparent: true });
+          const board = new THREE.Mesh(boardGeo, boardMat);
+          board.position.set(-h.spanX * 0.32, wallH * 0.44, -h.spanZ / 2 + t * 0.55);
+          g.add(board);
+
+          // 另一侧看板：5S 现场管理规范
+          const board2 = board.clone();
+          board2.position.set(h.spanX * 0.32, wallH * 0.44, -h.spanZ / 2 + t * 0.55);
+          g.add(board2);
+        }
+
+        // 2. 东西两侧墙面：下部护墙裙边 + 上部大面积工业网格采光玻璃大窗
+        const glassMat = new THREE.MeshPhysicalMaterial({
+          color: 0x93c5fd,
           transparent: true,
-          opacity: ghost ? 0.22 : 0.55,
+          opacity: 0.42,
+          roughness: 0.12,
+          metalness: 0.85,
+          transmission: 0.6,
+          ior: 1.45,
+          side: THREE.DoubleSide,
           depthWrite: false,
         });
-        const win = new THREE.Mesh(new THREE.BoxGeometry(s.w * 1.005, 1.6, s.d * 1.03), winMat);
-        win.position.set(s.x, wallH * 0.74, s.z);
-        g.add(win);
-      }
-      // 山墙通风器
-      if (this.preset.id === 'heavy') {
-        for (const z of [-h.spanZ / 2, h.spanZ / 2]) {
-          for (let i = -1; i <= 1; i += 2) {
-            const vent = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, 2.2, 10), steelMat);
-            vent.position.set(i * h.spanX * 0.22, wallH + 2.6, z * 1.02);
-            vent.castShadow = true;
-            g.add(vent);
+
+        for (const sideX of [-h.spanX / 2, h.spanX / 2]) {
+          // 下部实心勒脚
+          const skirt = new THREE.Mesh(new THREE.BoxGeometry(t, skirtH, h.spanZ + t), steelMat);
+          skirt.position.set(sideX, skirtH / 2, 0);
+          g.add(skirt);
+
+          // 顶部门梁
+          const lintelH = 1.4;
+          const lintel = new THREE.Mesh(new THREE.BoxGeometry(t, lintelH, h.spanZ + t), wallMat);
+          lintel.position.set(sideX, wallH - lintelH / 2, 0);
+          g.add(lintel);
+
+          // 采光窗洞口尺寸
+          const winH = wallH - skirtH - lintelH;
+          const winY = skirtH + winH / 2;
+
+          // 落地采光大玻璃
+          const glass = new THREE.Mesh(new THREE.BoxGeometry(t * 0.2, winH, h.spanZ - 2), glassMat);
+          glass.position.set(sideX, winY, 0);
+          g.add(glass);
+
+          // 窗框金属网格分格（双层 6 跨）
+          const winCols = 8;
+          for (let c = 0; c <= winCols; c++) {
+            const wz = -(h.spanZ - 2) / 2 + ((h.spanZ - 2) * c) / winCols;
+            const mullion = new THREE.Mesh(new THREE.BoxGeometry(t * 0.4, winH, 0.12), steelMat);
+            mullion.position.set(sideX, winY, wz);
+            g.add(mullion);
+          }
+          const transom = new THREE.Mesh(new THREE.BoxGeometry(t * 0.4, 0.12, h.spanZ - 2), steelMat);
+          transom.position.set(sideX, winY, 0);
+          g.add(transom);
+
+          // 窗外室外绿化树与地坪延伸（透过大窗能清晰看见室外景致）
+          const treeMat = new THREE.MeshStandardMaterial({ color: 0x1e3a29, roughness: 0.8 });
+          const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.9 });
+          for (let k = -2; k <= 2; k++) {
+            const tx = sideX + (sideX > 0 ? 5.2 : -5.2);
+            const tz = k * 9;
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 2.8, 6), trunkMat);
+            trunk.position.set(tx, 1.4, tz);
+            g.add(trunk);
+            const foliage = new THREE.Mesh(new THREE.SphereGeometry(1.4, 6, 6), treeMat);
+            foliage.position.set(tx, 3.6, tz);
+            g.add(foliage);
           }
         }
+
+        // 3. 南墙（面对摄像机入口侧）：低矮防坠护墙 + 黄色警示双道钢管扶手，畅通无阻看车间
+        const southH = 1.35;
+        const southWall = new THREE.Mesh(new THREE.BoxGeometry(h.spanX + t, southH, t), steelMat);
+        southWall.position.set(0, southH / 2, h.spanZ / 2);
+        g.add(southWall);
+        const railYellowMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35, metalness: 0.5 });
+        const topRail = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, h.spanX, 8), railYellowMat);
+        topRail.rotation.z = Math.PI / 2;
+        topRail.position.set(0, southH + 0.1, h.spanZ / 2);
+        g.add(topRail);
       }
     }
 
-    // ---- 顶棚 ----
+    // ---- 顶棚钢桁架与大吊扇 ----
+    this.ceilingFans = [];
     if (h.roof === 'truss') {
       const trussTop = H + 2.0;
       // 上下弦 + 腹杆
@@ -386,48 +572,92 @@ export class Hall {
         g.add(up);
         // 腹杆（斜撑）
         const webN = Math.max(4, Math.round(h.spanZ / (lowQ ? 8.4 : 4.2)));
-        for (let k = 0; k < webN; k++) {
-          const z0 = -h.spanZ / 2 + (h.spanZ * k) / webN;
-          const z1 = -h.spanZ / 2 + (h.spanZ * (k + 1)) / webN;
-          const len = Math.hypot(0, z1 - z0);
-          const web = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, len * 1.06), steelMat);
-          web.position.set(x, (H + 0.25 + trussTop) / 2, (z0 + z1) / 2);
-          web.rotation.x = (k % 2 === 0 ? 1 : -1) * Math.atan2(trussTop - (H + 0.25), len);
-          g.add(web);
+        const dz = h.spanZ / webN;
+        for (let j = 0; j < webN; j++) {
+          const z0 = -h.spanZ / 2 + j * dz;
+          const z1 = z0 + dz;
+          const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, dz * 1.1, 5), steelMat);
+          strut.position.set(x, (H + 0.25 + trussTop) / 2, (z0 + z1) / 2);
+          strut.rotation.x = 0.55 * (j % 2 === 0 ? 1 : -1);
+          g.add(strut);
         }
       }
-      // 檩条（沿 X 贯通）+ 屋面板：外壳隐藏时只留桁架骨架，形成"开顶厂房"效果
-      if (!hideShell) {
-        const purlinN = Math.max(3, Math.round(h.spanZ / 6));
-        for (let j = 0; j <= purlinN; j++) {
-          const z = -h.spanZ / 2 + (h.spanZ * j) / purlinN;
-          const purlin = new THREE.Mesh(new THREE.BoxGeometry(h.spanX, 0.2, 0.2), steelMat);
-          purlin.position.set(0, trussTop + 0.22, z);
-          g.add(purlin);
+      // 纵向系杆
+      for (const f of [-0.35, 0, 0.35]) {
+        const tie = new THREE.Mesh(new THREE.BoxGeometry(h.spanX, 0.24, 0.24), steelMat);
+        tie.position.set(0, trussTop, f * h.spanZ);
+        g.add(tie);
+      }
+      // 屋面板（半透明高耸大厂房，采光顶棚）
+      const halfZ = h.spanZ / 2;
+      const roofHalf = new THREE.Mesh(new THREE.BoxGeometry(h.spanX + 1.2, 0.22, halfZ), roofMat);
+      roofHalf.position.set(0, trussTop + 0.25, -halfZ / 2);
+      g.add(roofHalf);
+
+      // 高跨下悬 LED 工矿吊灯（合并后仅 1 个 drawcall）
+      const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff3d6 });
+      for (let i = 1; i < nx; i++) {
+        const lx = -h.spanX / 2 + (h.spanX * i) / nx;
+        for (const lz of [-h.spanZ * 0.26, 0, h.spanZ * 0.26]) {
+          const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.4, 4), steelMat);
+          cord.position.set(lx, H - 0.7, lz);
+          g.add(cord);
+          const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.12, 0.36, 8, 1, true), steelMat);
+          hood.position.set(lx, H - 1.4, lz);
+          g.add(hood);
+          const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), lampMat);
+          bulb.position.set(lx, H - 1.45, lz);
+          g.add(bulb);
         }
-        const roof = new THREE.Mesh(new THREE.BoxGeometry(h.spanX + 1.2, 0.26, h.spanZ + 1.2), roofMat);
-        roof.position.set(0, trussTop + 0.5, 0);
-        roof.castShadow = true;
-        g.add(roof);
       }
 
-      // 高跨照明灯（发光板）
-      const lightMat = new THREE.MeshBasicMaterial({ color: pal.emissive, transparent: true, opacity: 0.85, depthWrite: false });
-      const lxN = Math.max(2, Math.round(h.spanX / (lowQ ? 26 : 16)));
-      const lzN = Math.max(1, Math.round(h.spanZ / (lowQ ? 26 : 16)));
-      for (let i = 0; i < lxN; i++) {
-        for (let j = 0; j <= lzN; j++) {
-          const x = -h.spanX / 2 + (h.spanX * (i + 0.5)) / lxN;
-          const z = -h.spanZ / 2 + (h.spanZ * j) / lzN;
-          const lamp = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.16, 0.9), lightMat);
-          lamp.position.set(x, trussTop - 0.35, z);
-          g.add(lamp);
+      // 工业车间大吊扇（4 台，直径 4.2m，5 片流线叶片）
+      if (!ghost && !lowQ) {
+        const fanMotorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.7 });
+        const fanBladeMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.35, metalness: 0.6 });
+        const fanPos = [
+          { x: -h.spanX * 0.22, z: -h.spanZ * 0.2 },
+          { x: h.spanX * 0.22, z: -h.spanZ * 0.2 },
+          { x: -h.spanX * 0.22, z: h.spanZ * 0.2 },
+          { x: h.spanX * 0.22, z: h.spanZ * 0.2 },
+        ];
+        for (let fi = 0; fi < fanPos.length; fi++) {
+          const fp = fanPos[fi];
+          const fanGroup = new THREE.Group();
+          fanGroup.name = `ceilingFan_${fi}`;
+          fanGroup.position.set(fp.x, H - 1.2, fp.z);
+
+          // 悬吊固定杆
+          const dropRod = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 8), steelMat);
+          dropRod.position.set(0, 0.6, 0);
+          fanGroup.add(dropRod);
+
+          // 转动子组件（电机壳与 5 片大叶片）
+          const rotor = new THREE.Group();
+          rotor.name = 'fanRotor';
+          const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 0.48, 12), fanMotorMat);
+          rotor.add(motor);
+
+          const bladeN = 5;
+          const bladeLen = 2.4;
+          for (let b = 0; b < bladeN; b++) {
+            const ang = (b / bladeN) * Math.PI * 2;
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.025, bladeLen), fanBladeMat);
+            blade.position.set(Math.sin(ang) * (bladeLen / 2 + 0.35), -0.1, Math.cos(ang) * (bladeLen / 2 + 0.35));
+            blade.rotation.y = ang;
+            blade.rotation.x = 0.14; // 倾斜攻角
+            rotor.add(blade);
+          }
+          fanGroup.add(rotor);
+          g.add(fanGroup);
+          this.ceilingFans.push(rotor);
         }
       }
-    } else if (h.roof === 'flat' && !hideShell) {
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(h.spanX + 1.4, 0.4, h.spanZ + 1.4), roofMat);
-      roof.position.set(0, H + 0.6, 0);
-      g.add(roof);
+    }
+
+    // ---- 车间操作工位与 5S 杂物散布 ----
+    if (!ghost && !lowQ) {
+      this.buildWorkshopClutterAndStations(g, h);
     }
 
     // ---- 行车轨道（重工车间） ----
@@ -477,14 +707,163 @@ export class Hall {
       g.add(bridge);
     }
 
-    // 行车大梁是可动件（场景 update 每帧驱动），必须排除在静态合并之外
+    // 可动件（行车大梁与大吊扇）排除在静态合并之外
     const crane = g.getObjectByName('craneBridge');
+    const fans: THREE.Object3D[] = [];
+    g.traverse((obj) => {
+      if (obj.name.startsWith('ceilingFan_')) fans.push(obj);
+    });
     if (crane) g.remove(crane);
+    for (const f of fans) g.remove(f);
+
     mergeStaticChildren(g);
+
     if (crane) g.add(crane);
+    for (const f of fans) g.add(f);
 
     void rng;
     return g;
+  }
+
+  /** 构建车间工位、木托盘、纸箱堆、机油钢桶与工具车等环境细节 */
+  private buildWorkshopClutterAndStations(g: THREE.Group, h: ScenePreset['hall']): void {
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.5, metalness: 0.7 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.85, metalness: 0.05 });
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.88, metalness: 0.02 });
+    const tableMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.6 });
+    const screenMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
+    const yellowDrumMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35, metalness: 0.6 });
+    const blueDrumMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35, metalness: 0.6 });
+    const redToolMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.35, metalness: 0.5 });
+    const rubberMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.95, metalness: 0.05 });
+
+    // 1. 操作工位（放置在主通道两侧与产线旁）
+    const stationSpots = [
+      { x: -h.spanX * 0.28, z: -h.spanZ * 0.3, ang: 0 },
+      { x: h.spanX * 0.28, z: -h.spanZ * 0.3, ang: 0 },
+      { x: -h.spanX * 0.28, z: h.spanZ * 0.25, ang: Math.PI },
+    ];
+    for (const st of stationSpots) {
+      const gy = this.reliefAt(st.x, st.z);
+      // 防疲劳黑色橡胶地垫
+      const matPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.2), rubberMat);
+      matPlane.rotateX(-Math.PI / 2);
+      matPlane.position.set(st.x, gy + 0.02, st.z);
+      g.add(matPlane);
+
+      // 工业操作台桌（长 1.6m，高 0.9m，宽 0.75m）
+      const tableX = st.x;
+      const tableZ = st.z + (st.ang === 0 ? -0.8 : 0.8);
+      const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.75), tableMat);
+      deskTop.position.set(tableX, gy + 0.9, tableZ);
+      g.add(deskTop);
+      for (const dx of [-0.7, 0.7]) {
+        for (const dz of [-0.3, 0.3]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 8), steelMat);
+          leg.position.set(tableX + dx, gy + 0.45, tableZ + dz);
+          g.add(leg);
+        }
+      }
+
+      // 桌面工控数控液晶屏
+      const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.42, 0.06), steelMat);
+      monitor.position.set(tableX, gy + 1.25, tableZ);
+      g.add(monitor);
+      const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.38), screenMat);
+      scr.position.set(tableX, gy + 1.25, tableZ + (st.ang === 0 ? 0.035 : -0.035));
+      if (st.ang !== 0) scr.rotateY(Math.PI);
+      g.add(scr);
+
+      // 工位旋转工学椅
+      const chairX = st.x + 0.35;
+      const chairZ = st.z;
+      const chairSeat = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.08, 10), rubberMat);
+      chairSeat.position.set(chairX, gy + 0.55, chairZ);
+      g.add(chairSeat);
+      const chairStem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.55, 8), steelMat);
+      chairStem.position.set(chairX, gy + 0.275, chairZ);
+      g.add(chairStem);
+    }
+
+    // 2. 工件木托盘与机加工件堆叠（4 处散布在仓储暂存区）
+    const palletSpots = [
+      { x: -h.spanX * 0.38, z: -h.spanZ * 0.15 },
+      { x: -h.spanX * 0.38, z: 0.1 },
+      { x: h.spanX * 0.38, z: -0.15 },
+      { x: h.spanX * 0.38, z: 0.2 },
+    ];
+    for (const p of palletSpots) {
+      const gy = this.reliefAt(p.x, p.z);
+      // 木托盘（长 1.2m，宽 1.0m，高 0.15m）
+      const pallet = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.14, 1.0), woodMat);
+      pallet.position.set(p.x, gy + 0.07, p.z);
+      g.add(pallet);
+
+      // 上方码放零件瓦楞纸箱（2~3 箱）
+      const box1 = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.42, 0.42), boxMat);
+      box1.position.set(p.x - 0.25, gy + 0.35, p.z - 0.2);
+      g.add(box1);
+      const box2 = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.44, 0.44), boxMat);
+      box2.position.set(p.x + 0.25, gy + 0.36, p.z - 0.18);
+      g.add(box2);
+      const box3 = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.38, 0.4), boxMat);
+      box3.position.set(p.x - 0.1, gy + 0.77, p.z - 0.15);
+      g.add(box3);
+    }
+
+    // 3. 工业机油钢桶组（黄色液压油 + 蓝色抗磨润滑油桶）
+    const drumSpots = [
+      { x: -h.spanX * 0.36, z: -h.spanZ * 0.36 },
+      { x: h.spanX * 0.36, z: -h.spanZ * 0.36 },
+    ];
+    for (const ds of drumSpots) {
+      const gy = this.reliefAt(ds.x, ds.z);
+      const drumD = 0.58;
+      const drumH = 0.92;
+      // 3 桶一组排列
+      const d1 = new THREE.Mesh(new THREE.CylinderGeometry(drumD / 2, drumD / 2, drumH, 12), yellowDrumMat);
+      d1.position.set(ds.x, gy + drumH / 2, ds.z);
+      g.add(d1);
+      const d2 = new THREE.Mesh(new THREE.CylinderGeometry(drumD / 2, drumD / 2, drumH, 12), blueDrumMat);
+      d2.position.set(ds.x + 0.65, gy + drumH / 2, ds.z);
+      g.add(d2);
+      const d3 = new THREE.Mesh(new THREE.CylinderGeometry(drumD / 2, drumD / 2, drumH, 12), blueDrumMat);
+      d3.position.set(ds.x + 0.32, gy + drumH / 2, ds.z + 0.58);
+      g.add(d3);
+    }
+
+    // 4. 红色移动抽屉工具推车与黄色防爆安全柜
+    const toolSpots = [
+      { x: -h.spanX * 0.18, z: -h.spanZ * 0.4 },
+      { x: h.spanX * 0.18, z: -h.spanZ * 0.4 },
+    ];
+    for (const ts of toolSpots) {
+      const gy = this.reliefAt(ts.x, ts.z);
+      // 红色抽屉工具车（长 0.85m，高 0.95m，宽 0.55m）
+      const cart = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.95, 0.55), redToolMat);
+      cart.position.set(ts.x, gy + 0.52, ts.z);
+      g.add(cart);
+      // 黑色脚轮
+      for (const cdx of [-0.35, 0.35]) {
+        for (const cdz of [-0.22, 0.22]) {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.04, 8), rubberMat);
+          wheel.rotateZ(Math.PI / 2);
+          wheel.position.set(ts.x + cdx, gy + 0.06, ts.z + cdz);
+          g.add(wheel);
+        }
+      }
+      // 推手把手
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.45), steelMat);
+      handle.position.set(ts.x - 0.45, gy + 0.92, ts.z);
+      g.add(handle);
+    }
+  }
+
+  /** 更新车间内的吊扇等可动部件动画 */
+  update(dt: number): void {
+    for (const fan of this.ceilingFans) {
+      fan.rotation.y += dt * 2.8;
+    }
   }
 
   /** 基础管廊：沿厂房纵向架空敷设，并把若干设备接入。 */

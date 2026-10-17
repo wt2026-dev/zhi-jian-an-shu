@@ -25,6 +25,8 @@ import {
   Eye,
   FileText,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
   Layers,
   UserPlus,
   PlayCircle,
@@ -64,6 +66,10 @@ interface RepairStepCardProps {
   onAccept?: () => void;
   /** 勾选步骤变化（checked 为勾选数，total 为步骤总数），用于联动 3D */
   onStepProgress?: (checked: number, total: number) => void;
+  /** 收起为左缘窄 tab（聚焦层默认收起，给 3D 画布让位）；不传 = 始终展开 */
+  collapsed?: boolean;
+  /** 窄 tab 点击展开 / 面板收起按钮 */
+  onToggleCollapsed?: () => void;
 }
 
 /**
@@ -130,6 +136,8 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
   onComplete,
   onAccept,
   onStepProgress,
+  collapsed = false,
+  onToggleCollapsed,
 }) => {
   // 解析步骤清单
   const steps = useMemo(() => {
@@ -192,6 +200,27 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
     });
   };
 
+  if (collapsed && onToggleCollapsed) {
+    return (
+      <button
+        type="button"
+        data-testid="equipment3d-repair-step-tab"
+        onClick={onToggleCollapsed}
+        title={"展开检修工单 " + workOrder.orderNo}
+        className="absolute left-0 top-[52px] z-40 w-9 py-3 rounded-r-xl bg-slate-900/85 backdrop-blur-md border border-l-0 border-white/15 shadow-xl text-slate-200 hover:text-white flex flex-col items-center gap-1.5 transition-colors"
+      >
+        <Wrench className="w-4 h-4 text-cyan-400" />
+        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+        <span className="text-[9px] font-mono" style={{ writingMode: 'vertical-rl' }}>
+          {workOrder.orderNo}
+        </span>
+        {workOrder.status !== 'completed' && workOrder.status !== 'cancelled' && (
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shadow-[0_0_6px_#f43f5e] animate-pulse" />
+        )}
+      </button>
+    );
+  }
+
   return (
     <aside
       data-testid="equipment3d-repair-step-card"
@@ -216,6 +245,16 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
             </h4>
           </div>
         </div>
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors shrink-0"
+            title="收起为边缘标签"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}

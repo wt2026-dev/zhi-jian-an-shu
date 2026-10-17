@@ -26,29 +26,64 @@ import {
   type MapDashboard,
   type OrderLike,
 } from "./mapStats";
-import { MAJOR_CITIES, PILLAR_PALETTE, pillarPaletteOf } from "./mapStyle";
+import {
+  HUD_BOTTOM_BAND,
+  HUD_COLUMN_MARGIN,
+  HUD_COLUMN_SPAN,
+  HUD_COLUMN_W,
+  HUD_TOP_BAND,
+  MAJOR_CITIES,
+  PILLAR_PALETTE,
+  pillarPaletteOf,
+} from "./mapStyle";
 import { createMapScene, type MapMarkerSpec, type MapSceneHandle } from "./mapScene";
 import { BarRow, Dot, EmptyNote, HudPanel, Metric, TrendChart } from "./MapHud";
-import { statusDotColor, statusLabel } from "./mapGeo";
+import { pillarSizeFor, ringsSpan, statusDotColor, statusLabel } from "./mapGeo";
 import "./equipment-industrial.css";
 import "./drilldown-transitions.css";
 
 const CHINA_CENTER: [number, number] = [104, 37];
 const CHINA_SCALE = 0.92;
 
+/**
+ * 全国层取景：frame.radius 只在拿不到画布尺寸时兜底，
+ * 真正的落位半径由 frameFit 按轮廓包围盒 + HUD 安全区反解。
+ */
+const CHINA_CAMERA = {
+  lift: { radius: 148, phi: 0.3 },
+  frame: { radius: 62, phi: 0.62 },
+  minRadius: 18,
+  maxRadius: 165,
+  diveRadius: 15,
+};
+
+/** 光柱顶之上再容纳的高度：柱顶名称标签 sprite 的一半（世界单位） */
+const NATIONAL_LABEL_ABOVE = 3;
+
+/** 全国轮廓宽度（世界单位）：光柱尺寸按它归一，省层按省幅归一，两层同一比例口径 */
+const CHINA_SPAN_X = ringsSpan(CHINA_FILL_RINGS, CHINA_CENTER, CHINA_SCALE).x;
+
+/** 浮层安全区（像素）：与城市层同一口径，地图只填两栏之间的中间区域 */
+const nationalInsets = (leftInset: number) => ({
+  left: leftInset + HUD_COLUMN_SPAN + HUD_COLUMN_MARGIN,
+  right: HUD_COLUMN_SPAN + HUD_COLUMN_MARGIN,
+  top: HUD_TOP_BAND,
+  bottom: HUD_BOTTOM_BAND,
+});
+
 const greetWord = (hour: number) => (hour < 6 ? "Good Night" : hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening");
 
 /** 厂区真实台账 → 光柱参数：柱高随设备台数增长，颜色由故障/告警数决定 */
 function markerOf(row: FactoryTruth, maxCount: number): MapMarkerSpec {
   const share = maxCount > 0 ? row.equipmentCount / maxCount : 0;
-  const height = 4.4 + 4.6 * share;
+  const { height, radius } = pillarSizeFor(CHINA_SPAN_X, share, row.isDemo);
   return {
     key: row.id,
     lng: row.lng,
     lat: row.lat,
     status: factoryPillarStatusOf(row),
-    height: row.isDemo ? height * 0.86 : height,
-    radius: row.isDemo ? 0.64 : 0.86,
+    height,
+    radius,
     label: row.name,
     sub: `设备 ${row.equipmentCount} · 故障 ${row.faultCount} · 告警 ${row.alertCount}`,
   };
@@ -132,13 +167,8 @@ export function MapOverviewView({
       center: CHINA_CENTER,
       scale: CHINA_SCALE,
       relief: { height: 2.6, frequency: 7.2 },
-      camera: {
-        lift: { radius: 148, phi: 0.3 },
-        frame: { radius: 62, phi: 0.62 },
-        minRadius: 18,
-        maxRadius: 165,
-        diveRadius: 15,
-      },
+      camera: CHINA_CAMERA,
+      frameFit: { insets: nationalInsets(leftInset), heightAbove: NATIONAL_LABEL_ABOVE },
       flowBounds: { minX: -26, maxX: 26, minZ: -18, maxZ: 14 },
       onHover: (key, ndc) => {
         setHoverKey(key);
@@ -159,7 +189,8 @@ export function MapOverviewView({
       handle.dispose();
       sceneRef.current = null;
     };
-  }, []);
+    // leftInset 是布局常量；变化时安全区要重算，故纳入依赖
+  }, [leftInset]);
 
   useEffect(() => {
     if (sceneReady === 0) return;
@@ -179,8 +210,11 @@ export function MapOverviewView({
     <div className="dd-sky absolute inset-0 overflow-hidden">
       <div ref={hostRef} className="absolute inset-0" />
       <div className="absolute inset-0 z-20 pointer-events-none select-none">
-        {/* 左侧：总体运营 + 区域分布 + 厂区/状态切换 */}
-        <div className="absolute top-3 bottom-3 flex w-[300px] flex-col gap-2 overflow-y-auto pb-1" style={{ left: leftInset + 12 }}>
+        {/* 左侧：总体运营 + 区域分布 + 厂区/状态切换（顶部让位给居中面包屑） */}
+        <div
+          className="absolute bottom-3 flex flex-col gap-2 overflow-y-auto pb-1"
+          style={{ left: leftInset + HUD_COLUMN_MARGIN, width: HUD_COLUMN_W, top: HUD_TOP_BAND }}
+        >
           <HudPanel icon={Factory} title="总体运营指标 · 设备总数" aside={`厂区 ${totals?.factoryCount ?? "—"}`}>
             <div className="flex items-end justify-between gap-2">
               <div className="hud-value-glow hud-tabular-nums text-[40px] font-semibold leading-none text-cyan-100">
@@ -268,8 +302,11 @@ export function MapOverviewView({
           </HudPanel>
         </div>
 
-        {/* 右侧：报修闭环 + 在线率 + 真实趋势 */}
-        <div className="absolute right-3 top-3 bottom-3 flex w-[300px] flex-col gap-2 overflow-y-auto pb-1">
+        {/* 右侧：报修闭环 + 在线率 + 真实趋势（同样下移到面包屑带之下） */}
+        <div
+          className="absolute right-3 bottom-3 flex flex-col gap-2 overflow-y-auto pb-1"
+          style={{ width: HUD_COLUMN_W, top: HUD_TOP_BAND }}
+        >
           <div className="pointer-events-auto hud-data-card dd-hud-card dd-hud-panel rounded-lg">
             <div className="flex items-baseline justify-between">
               <span className="text-base font-semibold text-cyan-100">{greetWord(clock.getHours())}</span>
@@ -314,7 +351,7 @@ export function MapOverviewView({
         {/* 底部：工厂分布条 + 光柱图例（与 3D 状态色同一口径） */}
         <div
           className="pointer-events-auto absolute bottom-3 flex items-center gap-3 rounded-lg hud-data-card dd-hud-card px-3 py-2"
-          style={{ left: leftInset + 324, right: 324 }}
+          style={{ left: leftInset + HUD_COLUMN_SPAN + HUD_COLUMN_MARGIN, right: HUD_COLUMN_SPAN + HUD_COLUMN_MARGIN }}
         >
           <div className="flex flex-1 items-end gap-4">
             {(dash?.factoryRows ?? []).map((f) => {

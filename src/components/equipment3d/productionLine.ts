@@ -780,6 +780,10 @@ export class ProductionLine {
           depthTest: false,
           depthWrite: false,
           toneMapped: false,
+          // ⚠️ three r186：sizeAttenuation=true（默认）会按**世界尺寸**渲染贴牌，
+          //    scale 0.115 就只有 11.5 cm → 远景等于看不见。
+          //    显式 false 才走 scale *= -mvPosition.z 的透视补偿 → 恒定屏幕尺寸。
+          sizeAttenuation: false,
         })
       );
       sp.scale.set(0.115, 0.115 * (168 / 512), 1);
