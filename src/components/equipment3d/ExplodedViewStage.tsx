@@ -112,8 +112,8 @@ const hideBuiltinBackLink = (frame: HTMLIFrameElement | null): void => {
       body:has(footer.h-18) #bom-panel, footer.h-18 ~ #bom-panel, #bom-panel.w-85 {
         bottom: 88px !important;
       }
-      /* 左侧详情卡片在宿主手柄旁留出 60px 间隙，绝不发生重叠 */
-      #detail-card {
+      /* 左侧详情卡片在宿主手柄旁留出 60px 间隙，绝不发生重叠（仅针对浮动/固定定位的卡片，不影响表格内嵌子元素） */
+      aside#detail-card, div#detail-card.absolute, div#detail-card.fixed, #detail-card:not([class*="border-b"]) {
         left: 60px !important;
       }
       /* 强制所有 BOM 滚动容器 min-height: 0，确保在 flex 容器中正常触发滚动，不被截断卡死 */
@@ -140,21 +140,21 @@ const hideBuiltinBackLink = (frame: HTMLIFrameElement | null): void => {
         background: rgba(0, 229, 255, 0.9) !important;
       }
 
-      /* 3D 浮动标签与 BOM 维修提示样式（进入维修模式后自动激活） */
-      .part-label-3d.has-fault {
+      /* 3D 浮动标签与 BOM 维修提示样式（进入维修模式后自动激活，兼容全量 9 设备标注） */
+      .part-label-3d.has-fault, .part-label-tag.has-fault, .part-label.has-fault {
         border-color: #ef4444 !important;
         background: rgba(185, 28, 28, 0.92) !important;
         color: #ffffff !important;
         box-shadow: 0 0 16px rgba(239, 68, 68, 0.85) !important;
         animation: maint3dPulse 1.8s ease-in-out infinite !important;
       }
-      .part-label-3d.has-life-warn {
+      .part-label-3d.has-life-warn, .part-label-tag.has-life-warn, .part-label.has-life-warn {
         border-color: #eab308 !important;
         background: rgba(161, 98, 7, 0.92) !important;
         color: #ffffff !important;
         box-shadow: 0 0 12px rgba(234, 179, 8, 0.75) !important;
       }
-      .part-label-3d.has-low-stock {
+      .part-label-3d.has-low-stock, .part-label-tag.has-low-stock, .part-label.has-low-stock {
         border-right: 3px solid #f97316 !important;
       }
       .maint-3d-badge {
@@ -179,15 +179,15 @@ const hideBuiltinBackLink = (frame: HTMLIFrameElement | null): void => {
         background: #f97316;
         color: #ffffff;
       }
-      tr[data-part-id].has-fault td, .bom-row.has-fault {
+      tr[data-part-id].has-fault td, .bom-row.has-fault, [data-part-id].has-fault, [data-id].has-fault {
         background-color: rgba(239, 68, 68, 0.16) !important;
         border-left: 3px solid #ef4444 !important;
       }
-      tr[data-part-id].has-life-warn td, .bom-row.has-life-warn {
+      tr[data-part-id].has-life-warn td, .bom-row.has-life-warn, [data-part-id].has-life-warn, [data-id].has-life-warn {
         background-color: rgba(234, 179, 8, 0.14) !important;
         border-left: 3px solid #eab308 !important;
       }
-      tr[data-part-id].has-low-stock td, .bom-row.has-low-stock {
+      tr[data-part-id].has-low-stock td, .bom-row.has-low-stock, [data-part-id].has-low-stock, [data-id].has-low-stock {
         background-color: rgba(249, 115, 22, 0.12) !important;
       }
       @keyframes maint3dPulse {
@@ -378,8 +378,8 @@ function applyMaintenanceOverlayToIframe(
 
   if (!active) return;
 
-  // 1. 打标 3D 浮动引线标签（.part-label-3d）
-  const labels = Array.from(doc.querySelectorAll<HTMLElement>('.part-label-3d'));
+  // 1. 打标 3D 浮动引线标签（兼容全量 9 设备的 .part-label-3d / .part-label-tag / .part-label）
+  const labels = Array.from(doc.querySelectorAll<HTMLElement>('.part-label-3d, .part-label-tag, .part-label'));
   for (const label of labels) {
     const text = label.textContent ?? '';
     const isFault = faultPosNos.some((pos) => pos && text.includes(pos));
@@ -409,8 +409,8 @@ function applyMaintenanceOverlayToIframe(
     }
   }
 
-  // 2. 打标 BOM 物料清单表格行
-  const rows = Array.from(doc.querySelectorAll<HTMLElement>('tr[data-part-id], .bom-row'));
+  // 2. 打标 BOM 物料清单表格行（兼容 table/tr 以及 div.bom-row）
+  const rows = Array.from(doc.querySelectorAll<HTMLElement>('tr[data-part-id], .bom-row, [data-part-id], [data-id]'));
   for (const row of rows) {
     const partId = row.getAttribute('data-part-id') || row.getAttribute('data-id') || '';
     const text = row.textContent ?? '';
@@ -526,6 +526,17 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     if (faultInfo && faultInfo.faults.length > 0) return 'faults';
     return 'parts';
   });
+
+  /* ---- 支持按 Escape 快速收起侧边工作台面板 ---- */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarOpen]);
 
   /* ---- 零件清单（从服务端聚合端点拉取 BOM） ---- */
   const [bomList, setBomList] = useState<MaintenanceReportBomRow[]>([]);
@@ -885,7 +896,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
           {/* ---- 左侧栏容器（收纳多余面板，支持折叠与 5 标签页切换） ---- */}
           <div
             data-testid="equipment3d-exploded-leftcol"
-            className="pointer-events-none"
+            className="absolute inset-0 pointer-events-none z-40 overflow-hidden"
           >
             {/* 折叠态侧边浮动把手：居中放置在左侧中间垂直区域，彻底不挡底部的交互指南与顶部的工具栏 */}
             {!sidebarOpen && (
@@ -992,7 +1003,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
           {sidebarOpen && (
             <aside
               aria-label="设备拆解与维修工作台"
-              className="absolute left-3 top-2.5 bottom-2.5 z-50 w-[390px] max-w-[calc(100vw-24px)] flex flex-col rounded-2xl bg-slate-950/95 border border-cyan-500/35 shadow-[0_16px_48px_rgba(0,0,0,0.75)] backdrop-blur-md overflow-hidden pointer-events-auto"
+              className="absolute left-3 top-2.5 bottom-2.5 z-50 w-[390px] max-w-[calc(100vw-24px)] flex flex-col rounded-2xl bg-slate-950/95 border border-cyan-500/35 shadow-[0_16px_48px_rgba(0,0,0,0.75)] backdrop-blur-md overflow-hidden pointer-events-auto transition-all duration-300 ease-in-out"
             >
               {/* 抽屉卡头：标题 + 收起按钮 */}
               <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-cyan-500/20 bg-slate-900/80 shrink-0">
@@ -1008,8 +1019,8 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
                 <button
                   type="button"
                   onClick={() => setSidebarOpen(false)}
-                  title="收起侧边面板"
-                  className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
+                  title="收起侧边面板 (Esc)"
+                  className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                   <span>收起</span>
@@ -1451,7 +1462,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
             src={url}
             title={title}
             onLoad={handleIframeLoad}
-            className="w-full h-full min-h-0 border-0 bg-slate-950 flex-1"
+            className="w-full h-full min-h-0 border-0 bg-slate-950 block"
             sandbox="allow-scripts allow-same-origin allow-downloads"
             referrerPolicy="no-referrer"
             allow="fullscreen"
