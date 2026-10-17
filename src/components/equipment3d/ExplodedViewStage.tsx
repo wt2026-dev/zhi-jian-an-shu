@@ -103,10 +103,6 @@ const hideBuiltinBackLink = (frame: HTMLIFrameElement | null): void => {
     style.id = EMBED_STYLE_ID;
     style.textContent = `
       a[href="exploded_index.html"] { display: none !important; }
-      /* 给顶部右侧留出 480px 空间，确保 iframe 自身的标题与工具栏绝不与右上角操作组碰撞 */
-      header.tech-panel, header.ind-panel, header {
-        padding-right: 480px !important;
-      }
       /* 强制所有 BOM 滚动容器 min-height: 0，确保在 flex 容器中正常触发滚动，不被截断卡死 */
       #bomTableBody, #bom-tbody, #bom-table-body, div:has(> #bom-tbody), div:has(> table), .overflow-y-auto {
         min-height: 0 !important;
@@ -477,7 +473,7 @@ type ReportRef = { current: (partId: string | null) => void };
 export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   deviceId,
   deviceName,
-  deviceCode: _deviceCode,
+  deviceCode,
   onBack,
   className = 'inset-0',
   workOrderBrief = null,
@@ -774,78 +770,102 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
           maintenanceMode ? ' ring-1 ring-cyan-500/40 shadow-[inset_0_0_24px_rgba(6,182,212,0.12)]' : ''
         }`}
       >
-        {/* ---- 右上角高科技控制组：维修模式开关 + 导出检修报告 + 返回 3D 设备视图 ---- */}
-        <div className="absolute top-2.5 right-3 z-50 flex items-center gap-2 pointer-events-auto">
-          {/* 维修模式开关：深蓝底色 + 青色科技感（深色系一体化设计） */}
-          <button
-            type="button"
-            data-testid="equipment3d-exploded-maintenance-toggle"
-            onClick={handleToggleMaintenanceMode}
-            title={maintenanceMode ? '点击退出维修模式，返回普通查看' : '进入维修模式：3D高亮故障与到期零件，展开维修工作台'}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur shadow-[0_4px_16px_rgba(0,0,0,0.6)] transition-all cursor-pointer ${
-              maintenanceMode
-                ? 'bg-cyan-950/90 hover:bg-cyan-900/90 text-cyan-200 border border-cyan-400 shadow-[0_0_14px_rgba(6,182,212,0.4)] ring-1 ring-cyan-400/50'
-                : 'bg-slate-900/90 hover:bg-slate-800/95 text-cyan-300 hover:text-cyan-100 border border-cyan-500/50 hover:border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.18)]'
-            }`}
-          >
-            <Wrench className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{maintenanceMode ? '🔧 退出维修模式' : '🔧 进入维修模式'}</span>
-            {maintenanceMode && (
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse ml-0.5" />
+        {/* ---- 专属独立顶栏：包含设备标识、维修模式激活提示与核心操作组，彻底消除与 iframe 原生工具栏的重叠冲突 ---- */}
+        <header className="h-10 shrink-0 px-3 bg-slate-950/95 border-b border-cyan-500/30 flex items-center justify-between z-30 pointer-events-auto">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center">
+              <Wrench className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <span className="text-xs font-bold text-slate-100 tracking-wide">3D 拆解与维修工作台</span>
+            <span className="text-slate-600 text-xs">/</span>
+            <span className="text-cyan-300 font-medium text-xs truncate max-w-[200px]">{deviceName ?? deviceId}</span>
+            {deviceCode && (
+              <span className="px-1.5 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-500/30 text-[10px] font-mono">
+                {deviceCode}
+              </span>
             )}
-          </button>
+            {maintenanceMode && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 text-[10px] font-medium animate-pulse ml-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                维修模式已激活
+              </span>
+            )}
+          </div>
 
-          {/* 导出检修报告 */}
-          <button
-            type="button"
-            data-testid="equipment3d-exploded-export-report"
-            onClick={handleExportReport}
-            disabled={exportBusy}
-            title="生成 PDF 检修报告（设备台账 / BOM / 故障 / 寿命 / 库存 / 维修历史，全部真实数据 + 3D 实时截图）"
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border shadow-[0_4px_16px_rgba(0,0,0,0.6)] backdrop-blur transition-all ${
-              exportBusy
-                ? 'opacity-60 cursor-wait text-slate-300 bg-slate-900/85 border-cyan-500/30'
-                : 'cursor-pointer text-emerald-200 bg-slate-900/85 hover:bg-slate-800/95 hover:text-white border-emerald-500/40 hover:border-emerald-400'
-            }`}
-          >
-            <FileDown className="w-3.5 h-3.5" />
-            <span>{exportBusy ? '生成中…' : '导出检修报告'}</span>
-          </button>
-
-          {exportError && (
-            <span
-              data-testid="equipment3d-exploded-export-error"
-              title={exportError}
-              className="max-w-[200px] truncate rounded-lg border border-rose-500/40 bg-rose-950/80 px-2 py-1.5 text-[11px] text-rose-200"
+          <div className="flex items-center gap-2">
+            {/* 维修模式开关：深蓝底色 + 青色科技感（深色系一体化设计） */}
+            <button
+              type="button"
+              data-testid="equipment3d-exploded-maintenance-toggle"
+              onClick={handleToggleMaintenanceMode}
+              title={maintenanceMode ? '点击退出维修模式，返回普通查看' : '进入维修模式：3D高亮故障与到期零件，展开维修工作台'}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold backdrop-blur shadow-[0_2px_10px_rgba(0,0,0,0.5)] transition-all cursor-pointer ${
+                maintenanceMode
+                  ? 'bg-cyan-950/90 hover:bg-cyan-900/90 text-cyan-200 border border-cyan-400 shadow-[0_0_14px_rgba(6,182,212,0.4)] ring-1 ring-cyan-400/50'
+                  : 'bg-slate-900/90 hover:bg-slate-800/95 text-cyan-300 hover:text-cyan-100 border border-cyan-500/50 hover:border-cyan-400'
+              }`}
             >
-              {exportError}
-            </span>
-          )}
+              <Wrench className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{maintenanceMode ? '🔧 退出维修模式' : '🔧 进入维修模式'}</span>
+              {maintenanceMode && (
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse ml-0.5" />
+              )}
+            </button>
 
-          {/* 返回 3D 设备视图 */}
-          <button
-            type="button"
-            data-testid="equipment3d-exploded-back"
-            onClick={onBack}
-            title="关闭拆解视图，回到 3D 设备模型"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-cyan-200 bg-slate-900/85 hover:bg-slate-800/95 hover:text-white border border-cyan-500/40 hover:border-cyan-400 shadow-[0_4px_16px_rgba(0,0,0,0.6)] backdrop-blur transition-all cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>返回 3D 设备视图</span>
-          </button>
-        </div>
-
-        {/* ---- 左侧栏容器（收纳多余面板，支持折叠与 5 标签页切换） ---- */}
-        <div
-          data-testid="equipment3d-exploded-leftcol"
-          className="pointer-events-none"
-        >
-          {/* 折叠态侧边浮动把手：移至左下角空位，平时收起完全不遮挡 3D 主体与上方工具栏 */}
-          {!sidebarOpen && (
-            <aside
-              aria-label="展开维修工作台"
-              className="absolute left-3 bottom-20 z-40 flex flex-col gap-1.5 pointer-events-auto bg-slate-950/90 border border-cyan-500/40 rounded-xl p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.7)] backdrop-blur"
+            {/* 导出检修报告 */}
+            <button
+              type="button"
+              data-testid="equipment3d-exploded-export-report"
+              onClick={handleExportReport}
+              disabled={exportBusy}
+              title="生成 PDF 检修报告（设备台账 / BOM / 故障 / 寿命 / 库存 / 维修历史，全部真实数据 + 3D 实时截图）"
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border shadow-[0_2px_10px_rgba(0,0,0,0.5)] backdrop-blur transition-all ${
+                exportBusy
+                  ? 'opacity-60 cursor-wait text-slate-300 bg-slate-900/85 border-cyan-500/30'
+                  : 'cursor-pointer text-emerald-200 bg-slate-900/85 hover:bg-slate-800/95 hover:text-white border-emerald-500/40 hover:border-emerald-400'
+              }`}
             >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>{exportBusy ? '生成中…' : '导出检修报告'}</span>
+            </button>
+
+            {exportError && (
+              <span
+                data-testid="equipment3d-exploded-export-error"
+                title={exportError}
+                className="max-w-[200px] truncate rounded-lg border border-rose-500/40 bg-rose-950/80 px-2 py-1 text-[11px] text-rose-200"
+              >
+                {exportError}
+              </span>
+            )}
+
+            {/* 返回 3D 设备视图 */}
+            <button
+              type="button"
+              data-testid="equipment3d-exploded-back"
+              onClick={onBack}
+              title="关闭拆解视图，回到 3D 设备模型"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-cyan-200 bg-slate-900/85 hover:bg-slate-800/95 hover:text-white border border-cyan-500/40 hover:border-cyan-400 shadow-[0_2px_10px_rgba(0,0,0,0.5)] backdrop-blur transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>返回 3D 设备视图</span>
+            </button>
+          </div>
+        </header>
+
+        {/* ---- 3D 主视区：包裹侧边栏与 iframe，100% 占满顶栏下方的全部区域 ---- */}
+        <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+          {/* ---- 左侧栏容器（收纳多余面板，支持折叠与 5 标签页切换） ---- */}
+          <div
+            data-testid="equipment3d-exploded-leftcol"
+            className="pointer-events-none"
+          >
+            {/* 折叠态侧边浮动把手：居中放置在左侧中间垂直区域，彻底不挡底部的交互指南与顶部的工具栏 */}
+            {!sidebarOpen && (
+              <aside
+                aria-label="展开维修工作台"
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-1.5 pointer-events-auto bg-slate-950/90 border border-cyan-500/40 rounded-xl p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.7)] backdrop-blur"
+              >
               <button
                 type="button"
                 data-testid="equipment3d-exploded-sidebar-toggle"
@@ -945,7 +965,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
           {sidebarOpen && (
             <aside
               aria-label="设备拆解与维修工作台"
-              className="absolute left-3 top-[76px] bottom-6 z-50 w-[390px] max-w-[calc(100vw-24px)] flex flex-col rounded-2xl bg-slate-950/95 border border-cyan-500/35 shadow-[0_16px_48px_rgba(0,0,0,0.75)] backdrop-blur-md overflow-hidden pointer-events-auto"
+              className="absolute left-3 top-2.5 bottom-2.5 z-50 w-[390px] max-w-[calc(100vw-24px)] flex flex-col rounded-2xl bg-slate-950/95 border border-cyan-500/35 shadow-[0_16px_48px_rgba(0,0,0,0.75)] backdrop-blur-md overflow-hidden pointer-events-auto"
             >
               {/* 抽屉卡头：标题 + 收起按钮 */}
               <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-cyan-500/20 bg-slate-900/80 shrink-0">
@@ -1422,6 +1442,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
             </button>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
