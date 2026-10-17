@@ -63,15 +63,21 @@ function walk(dir, acc = []) {
 }
 
 function realCounts() {
-  const out = path.join(os.tmpdir(), `vitest-metrics-${Date.now()}.json`);
+  const scratchDir = path.join(ROOT, "scratch");
+  if (!fs.existsSync(scratchDir)) fs.mkdirSync(scratchDir, { recursive: true });
+  const out = path.join(scratchDir, `vitest-metrics-${Date.now()}.json`);
+  const safeOut = out.split(path.sep).join("/");
   process.stdout.write("→ 正在运行 vitest 获取实测基线 ... ");
   try {
-    execSync(`npx vitest run --reporter=json --outputFile="${out}"`, {
+    execSync(`npx vitest run --reporter=json --outputFile="${safeOut}"`, {
       cwd: ROOT,
       stdio: ["ignore", "ignore", "ignore"],
     });
   } catch {
     // vitest 在有用例失败时返回非 0；JSON 报告仍会写出，继续解析
+  }
+  if (!fs.existsSync(out)) {
+    throw new Error(`Vitest 未能生成测试报告 JSON 文件: ${out}`);
   }
   const j = JSON.parse(fs.readFileSync(out, "utf8"));
   fs.rmSync(out, { force: true });
