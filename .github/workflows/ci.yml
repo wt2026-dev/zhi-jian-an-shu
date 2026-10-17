@@ -31,8 +31,14 @@ jobs:
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # jsdom 30 依赖的 undici 需要 webidl.util.markAsUncloneable（Node ≥22）；
+          # 钉 20 会让 tests/focus-scene-decor.test.ts 整文件起不了 worker。与本机 24.x 对齐。
+          node-version: 24
           cache: "npm"
+
+      - name: Install ffmpeg (video-gen-guard 9.7 用它现造越线视频)
+        # ubuntu-latest 镜像不带 ffmpeg，缺它该用例报 spawn ffmpeg ENOENT。
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
       - name: Generate One-off Secrets (fallback when repository secrets absent)
         run: |
