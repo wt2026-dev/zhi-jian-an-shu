@@ -17,8 +17,8 @@
  *     证据原样透传 matchedBy；命中不到就空着并如实说明，绝不编一个零件位号。
  *   · 遥测窗口无读数 / 指标全部正常 → faults 返回空 + dataNote 如实说明。
  */
-import { TelemetryRepository } from '../db/repository.ts';
-import { EquipmentRepository } from '../db/repositories/equipmentRepository.ts';
+import { TelemetryRepository } from '../../db/repository.ts';
+import { EquipmentRepository } from '../../db/repositories/equipmentRepository.ts';
 import { THRESHOLDS, telemetryToStatus } from '../../components/equipment3d/statusMapping.ts';
 import { getCatalogForDevice, type CatalogPart } from './partMatchService.ts';
 import { EXPLODED_VIEW_FILES } from '../../components/equipment3d/explodedViewFiles.ts';
@@ -194,7 +194,7 @@ export function classifyMetricFault(metric: FaultMetric, rows: FaultSampleRow[])
  */
 export async function getDeviceFaultDiagnostics(deviceId: string): Promise<DeviceFaultDiagnostics> {
   const eq = await EquipmentRepository.getById(deviceId);
-  if (!eq) throw new Object.assign(new Error('设备未找到'), { code: 'EQUIPMENT_NOT_FOUND' });
+  if (!eq) throw Object.assign(new Error('设备未找到'), { code: 'EQUIPMENT_NOT_FOUND' });
 
   const WINDOW_HOURS = 24;
   const rows = await TelemetryRepository.getHistoryInWindow(deviceId, WINDOW_HOURS) as FaultSampleRow[];
