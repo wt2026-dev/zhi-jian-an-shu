@@ -157,7 +157,11 @@ describe('源码契约 · 检修报告全链路', () => {
     const ctl = read(CONTROLLER);
     expect(ctl).toContain('handleGetMaintenanceReport');
     expect(ctl).toContain('getMaintenanceReport');
-    expect(read(ROUTES)).toContain('/maintenance-report');
+    const routes = read(ROUTES);
+    // 路由占位是 :deviceId —— 两处注册都必须配 deviceIdParamSchema（误用 idParamSchema 会 400）
+    const registrations = routes.match(/:deviceId\/maintenance-report", validateParams\(\w+\)/g) ?? [];
+    expect(registrations.length).toBe(2);
+    expect(registrations.every((r) => r.includes('deviceIdParamSchema'))).toBe(true);
   });
 
   it('api 层提供 explodedViewApi.getMaintenanceReport 与聚合类型', () => {

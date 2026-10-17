@@ -1,6 +1,6 @@
 // 拆解视图 ↔ 检修业务联动接口（真实 DB 数据，无 mock）
 import express from "express";
-import { validateParams, idParamSchema } from "../middleware/validate.ts";
+import { deviceIdParamSchema, idParamSchema, validateParams } from "../middleware/validate.ts";
 import {
   handleGetWorkOrderExplodedBrief,
   handleGetPartMaintenanceHistory,
@@ -33,6 +33,6 @@ export function registerExplodedViewRoutes(app: express.Express) {
   app.get("/api/equipments/:deviceId/part-inventory", handleGetDevicePartInventory);
 
   // 6. 设备 → 检修报告聚合数据（设备台账 + 拆解页 BOM + 故障/寿命/库存标注 + 完工单历史，PDF 导出用）
-  app.get("/api/v1/equipments/:deviceId/maintenance-report", validateParams(idParamSchema), handleGetMaintenanceReport);
-  app.get("/api/equipments/:deviceId/maintenance-report", validateParams(idParamSchema), handleGetMaintenanceReport);
+  app.get("/api/v1/equipments/:deviceId/maintenance-report", validateParams(deviceIdParamSchema), handleGetMaintenanceReport);
+  app.get("/api/equipments/:deviceId/maintenance-report", validateParams(deviceIdParamSchema), handleGetMaintenanceReport);
 }

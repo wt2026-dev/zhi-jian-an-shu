@@ -49,3 +49,4 @@ export function validateParams<T extends z.ZodTypeAny>(schema: T) {
 
 // 多业务域共用的路径参数校验
 export const idParamSchema = z.object({ id: z.string().min(1) });
+export const deviceIdParamSchema = z.object({ deviceId: z.string().min(1) });
