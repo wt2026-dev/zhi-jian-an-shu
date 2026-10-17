@@ -121,6 +121,23 @@ func _ready() -> void:
 	_post({"type": "repair-game", "event": "ready", "version": 1})
 	print("[main] ready, 等待规程数据")
 
+	# 桌面调试：Web 版数据由 React iframe 注入，编辑器里 F5 直接跑时收不到，
+	# 会永远停在 WAIT 黑屏。仅桌面加载本地调试 payload，Web 行为完全不变。
+	if not OS.has_feature("web"):
+		_load_debug_payload()
+
+
+func _load_debug_payload() -> void:
+	if not FileAccess.file_exists("res://debug_payload.json"):
+		return
+	var f := FileAccess.open("res://debug_payload.json", FileAccess.READ)
+	if f == null:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	if parsed is Dictionary and (parsed as Dictionary).has("devices"):
+		print("[main] 桌面调试：加载 res://debug_payload.json")
+		apply_payload(parsed)
+
 
 func _process(delta: float) -> void:
 	_poll_accum += delta

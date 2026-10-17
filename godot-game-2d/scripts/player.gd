@@ -33,8 +33,8 @@ func _ready() -> void:
 	_sprite = AnimatedSprite2D.new()
 	_sprite.name = "Sprite"
 	_sprite.sprite_frames = ArtFactory.engineer_frames()
-	_sprite.position = Vector2(0.0, -BODY_H / 2.0)
 	_sprite.play("idle_right")
+	_sprite.position = Vector2(0.0, -BODY_H / 2.0)
 	add_child(_sprite)
 
 	var cs := CollisionShape2D.new()
