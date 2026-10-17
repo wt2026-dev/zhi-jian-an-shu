@@ -55,7 +55,9 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      watch: process.env.DISABLE_HMR === 'true' ? null : {
+        ignored: ['**/scratch/**', '**/data/**', '**/docs/**', '**/godot-game/**', '**/godot-game-2d/**', '**/godot-game-maze/**', '**/tests/**'],
+      },
     },
   };
 });

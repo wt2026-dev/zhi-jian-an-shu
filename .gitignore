@@ -22,6 +22,18 @@ backups/
 # 归档的调试/媒体/备份文件（不入库）
 archive/
 
+# ── 体积/一次性产物：不入库（2026-10-17 补，防误提交；回收见 docs/仓库瘦身待办.md）──
+# Godot 编辑器安装包（83MB，可随时重新下载）
+godot-4.7.2-win64.zip
+# 已下线的「检修闯关」3D 版：源码目录与它的导出产物（代码只引用 /godot-game-2d/，从不引用这两处）
+godot-game/
+public/godot-game/
+# 头像源图（成品已复制到 public/avatars/，此处是 5.6MB 重复件）
+vibe_images/
+# 下载失败残留：这两个 .glb 实测 magic 为 BRAS/Expl，正文是 Sketchfab 网页 HTML，不是模型
+public/models/engineer/asian_worker.glb
+public/models/engineer/asian_worker_new.glb
+
 # 调试临时产物（agent scratch 文件，不入库）
 scratch/
 scratch_shots/
