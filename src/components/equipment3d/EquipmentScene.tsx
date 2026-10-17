@@ -2760,7 +2760,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
         {activeOrderCard && (
           <RepairStepCard
             workOrder={activeOrderCard}
-            collapsed={repairCardCollapsed && !!isolationId}
+            collapsed={repairCardCollapsed}
             onToggleCollapsed={() => setRepairCardCollapsed((v) => !v)}
             onClose={() => setActiveOrderCard(null)}
             currentUser={currentUser ? `${currentUser.name} (${currentUser.roleTitle})` : null}
