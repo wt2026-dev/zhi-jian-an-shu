@@ -16,6 +16,7 @@ import {
   BusinessLoopRepository,
   WorkOrderRepository,
   SafetyPermitRepository,
+  AuditLogRepository,
 } from "../src/db/repositories/index.ts";
 import { getDb } from "../src/db/db.ts";
 
@@ -409,5 +410,244 @@ describe("Hermes 业务闭环 - 预填闸门", () => {
     const ok = await confirm(id, 1);
     expect(ok.status).toBe(200);
     expect(ok.body.progress.currentStageOrder).toBe(2);
+  });
+});
+
+/**
+ * 人工闸门要真的能改：确认前提交的 edits 才是落库值，AI 原值只作留底。
+ * 测试环境无 AI Key（环节 1/2/4 恒 degraded），正好验证「AI 没给 ≠ 人不能改」。
+ */
+describe("Hermes 业务闭环 - 确认前人工修订", () => {
+  const rev = { id: "" };
+
+  function confirmWithEdits(loopId: string, stageNo: number, edits: any, token = managerToken) {
+    return request(app)
+      .post(`/api/v1/business-loops/${loopId}/stages/${stageNo}/confirm`)
+      .set(bearer(token))
+      .send({ edits });
+  }
+
+  function patchLoto(loopId: string, payload: any, token = managerToken) {
+    return request(app).patch(`/api/v1/business-loops/${loopId}/loto-confirm`).set(bearer(token)).send(payload);
+  }
+
+  function postLotoItem(loopId: string, fields: any, token = managerToken) {
+    return request(app).post(`/api/v1/business-loops/${loopId}/loto-items`).set(bearer(token)).send(fields);
+  }
+
+  /** 审计是异步落库，轮询取本闭环本环节那条 */
+  async function findConfirmAudit(loopId: string, stageNo: number) {
+    const deadline = Date.now() + 8000;
+    for (;;) {
+      const logs = await AuditLogRepository.getAll({ actionType: "BUSINESS_LOOP_STAGE_CONFIRM", limit: 500 });
+      const hit = logs.find((l: any) => l.metadata?.loopId === loopId && Number(l.metadata?.stageNo) === stageNo);
+      if (hit) return hit;
+      if (Date.now() > deadline) throw new Error(`环节 ${stageNo} 的确认审计未落库`);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
+  it("专用闭环建立并等预填回写（供后续修订用例串行推进）", async () => {
+    const created = await request(app).post("/api/v1/business-loops").set(bearer(managerToken)).send({ goal: GOAL });
+    expect(created.status).toBe(202);
+    rev.id = created.body.id;
+    await waitPrefill(rev.id);
+    // AI 降级时工单草稿为空壳，正是人工补录的入口
+    const s1 = (await getDetail(rev.id)).body.stages.find((s: any) => s.order === 1);
+    expect(s1.aiPrefill.raw.workOrderDraft).toBeNull();
+  });
+
+  it("环节 1 带 edits 确认：落库工单取人工值，AI 原值留底，审计记处数", async () => {
+    const res = await confirmWithEdits(rev.id, 1, {
+      workOrderDraft: {
+        title: "2# 无油螺杆空压机主机振动复测与联轴器弹性块更换",
+        faultType: "机械故障",
+        priority: "urgent",
+        estimatedHours: 2.5,
+        description: "现场复测振动 2.3 mm/s，仅需更换联轴器弹性块，不必解体主机。",
+      },
+    });
+    expect(res.status).toBe(200);
+
+    const s1 = res.body.stages.find((s: any) => s.order === 1);
+    expect(s1.aiPrefill.raw.workOrderDraft).toMatchObject({
+      title: "2# 无油螺杆空压机主机振动复测与联轴器弹性块更换",
+      priority: "urgent",
+      estimatedHours: 2.5,
+    });
+    expect(s1.aiPrefill.revised).toMatchObject({ by: "陈主管" });
+    expect(s1.aiPrefill.revised.fields).toEqual(
+      expect.arrayContaining(["工单标题", "故障类型", "优先级", "预计工时", "现场情况描述"])
+    );
+    // 降级时 AI 本就没给值，留底如实为 null，不假装模型输出过
+    expect(s1.aiPrefill.raw.aiOriginal.workOrderDraft.priority).toBeNull();
+
+    const woArt = res.body.artifacts.find((a: any) => a.category === "检修工单");
+    const order = await WorkOrderRepository.getById(woArt.code);
+    expect(order.title).toBe("2# 无油螺杆空压机主机振动复测与联轴器弹性块更换");
+    expect(order.priority).toBe("urgent");
+    expect(order.faultType).toBe("机械故障");
+    // 正文以确认人核对后的描述为准，业务目标不再顶替
+    expect(order.description).toContain("现场复测振动 2.3 mm/s");
+    expect(order.description).not.toContain(GOAL);
+    // work_orders 无工时列：预计工时如实写进描述并标来源
+    expect(order.description).toContain("预计工时：2.5 小时（来源：人工修订）");
+
+    const audit = await findConfirmAudit(rev.id, 1);
+    expect(audit.detail).toContain("人工修订 5 处");
+    expect((audit.metadata as any).humanRevisedFields).toHaveLength(5);
+  });
+
+  it("环节 2 带 edits 确认：作业票按人工风险档落库，票面措施如实留修订痕", async () => {
+    const res = await confirmWithEdits(rev.id, 2, {
+      assessment: { riskLevel: "高", riskReason: "残余气压未泄净，需双人挂锁作业" },
+    });
+    expect(res.status).toBe(200);
+
+    const permitArt = res.body.artifacts.find((a: any) => a.category === "安全许可");
+    const permit = await SafetyPermitRepository.getById(permitArt.code);
+    expect(permit.status).toBe("pending_approval");
+    // 「高」映射到站内作业票口径 Level 2，而不是留在未评级
+    expect(permit.riskLevel).toBe("较大风险 (Level 2)");
+    const revisionLine = (permit.precautions || []).find((p: string) => p.includes("【人工修订留痕】"));
+    expect(revisionLine).toBeTruthy();
+    expect(revisionLine).toContain("（AI 未给出） → 高");
+    expect(revisionLine).toContain("陈主管");
+    // 票面预览会截断措施清单（只展示前 5 条），修订留痕必须单列一行不被截掉
+    expect(permitArt.previewContent).toContain("【人工修订留痕】JSA 风险等级");
+
+    const s2 = res.body.stages.find((s: any) => s.order === 2);
+    expect(s2.aiPrefill.raw.assessment.riskLevel).toBe("高");
+    expect(s2.aiPrefill.raw.aiOriginal.assessment.riskLevel).toBeNull();
+
+    const audit2 = await findConfirmAudit(rev.id, 2);
+    expect(audit2.detail).toContain("人工修订 2 处");
+    expect((audit2.metadata as any).humanRevisedFields.join("；")).toContain("JSA 风险等级");
+  });
+
+  it("环节 3 不收通用 edits：隔离点必须逐行走登记接口", async () => {
+    const res = await confirmWithEdits(rev.id, 3, { plan: { overview: "不该塞进环节 3 的修订" } });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("STAGE_EDITS_NOT_SUPPORTED");
+    expect(res.body.error).toContain("LOTO");
+    // 被拒之后环节没有偷偷推进
+    expect((await getDetail(rev.id)).body.progress.currentStageOrder).toBe(3);
+  });
+
+  it("隔离点可现场改登：AI 原值留底、改动人入库，确认人只认登录身份", async () => {
+    const items: any[] = (await getDetail(rev.id)).body.lotoItems;
+    const target = items[0];
+    expect(target.lockNumber).toBe("");
+
+    const res = await patchLoto(rev.id, {
+      itemId: target.id,
+      confirmed: false,
+      fields: { point: `${target.point}（现场核实为 QF-05）`, lockNumber: "LK-EL-408", operator: "李工" },
+    });
+    expect(res.status).toBe(200);
+    const row = res.body.lotoItems.find((i: any) => i.id === target.id);
+    expect(row.point).toContain("QF-05");
+    expect(row.lockNumber).toBe("LK-EL-408");
+    expect(row.operator).toBe("李工");
+    expect(row.editedBy).toBe("陈主管");
+    expect(row.editedAt).toBeTruthy();
+    expect(row.aiOriginal).toMatchObject({ point: target.point, lockNumber: "" });
+    // 未勾选确认就没有确认人，operator 不等于记账人
+    expect(row.confirmed).toBe(false);
+    expect(row.confirmedBy).toBeNull();
+  });
+
+  it("清单漏项可补登：来源如实标人工登记，操作要求留空按 GB/T 33579 规则生成", async () => {
+    const before: any[] = (await getDetail(rev.id)).body.lotoItems;
+    const res = await postLotoItem(rev.id, {
+      type: "机械能",
+      point: "主机联轴器护罩紧固螺栓",
+      requirement: "停机挂警示牌后方可拆护罩",
+      lockNumber: "LK-ME-033",
+    });
+    expect(res.status).toBe(201);
+    const added = res.body.lotoItems[res.body.lotoItems.length - 1];
+    expect(res.body.lotoItems).toHaveLength(before.length + 1);
+    expect(added.basis).toBe("人工登记（AI/JSA 清单外补充）");
+    expect(added.requirement).toBe("停机挂警示牌后方可拆护罩");
+    expect(added.lockNumber).toBe("LK-ME-033");
+    expect(added.confirmed).toBe(false);
+
+    const fallback = await postLotoItem(rev.id, { type: "机械能", point: "进气过滤器壳体快开卡箍" });
+    expect(fallback.status).toBe(201);
+    const second = fallback.body.lotoItems[fallback.body.lotoItems.length - 1];
+    expect(second.requirement).toBeTruthy();
+    expect(second.requirement).not.toBe("");
+
+    const dup = await postLotoItem(rev.id, { type: "机械能", point: "主机联轴器护罩紧固螺栓" });
+    expect(dup.status).toBe(409);
+    expect(dup.body.code).toBe("LOTO_POINT_DUPLICATE");
+
+    const incomplete = await postLotoItem(rev.id, { type: "机械能", point: "  " });
+    expect(incomplete.status).toBe(400);
+    // 空白点位在入参校验层就被拦（zod trim+min(1)），不会落一条没有点位的隔离行
+    expect(incomplete.body.code).toBe("INVALID_INPUT");
+    expect((await getDetail(rev.id)).body.lotoItems).toHaveLength(fallback.body.lotoItems.length);
+  });
+
+  it("补登的行同样卡 100% 闸门：全项确认后才放行，人工点位进入隔离清单档案", async () => {
+    const items: any[] = (await getDetail(rev.id)).body.lotoItems;
+    const blocked = await confirm(rev.id, 3);
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.code).toBe("LOTO_NOT_FULLY_CONFIRMED");
+    expect(blocked.body.error).toContain("联轴器护罩紧固螺栓");
+
+    for (const item of items) {
+      expect((await patchLoto(rev.id, { itemId: item.id, confirmed: true })).status).toBe(200);
+    }
+    const advanced = await confirm(rev.id, 3);
+    expect(advanced.status).toBe(200);
+    expect(advanced.body.progress.currentStageOrder).toBe(4);
+    expect(advanced.body.lotoItems.every((i: any) => i.confirmed && i.confirmedBy === "陈主管")).toBe(true);
+
+    const lotoArt = advanced.body.artifacts.find((a: any) => a.category === "能量隔离");
+    expect(lotoArt.status).toBe("ready");
+    // 人工补登的点位进入了归档清单，不是只活在页面上
+    expect(lotoArt.previewContent).toContain("主机联轴器护罩紧固螺栓");
+    expect(lotoArt.previewContent).toContain(`${items.length}/${items.length} 已由现场逐项确认`);
+
+    const lockedPatch = await patchLoto(rev.id, { itemId: items[0].id, confirmed: false });
+    expect(lockedPatch.status).toBe(409);
+    expect(lockedPatch.body.code).toBe("STAGE_LOCKED");
+    const lockedAdd = await postLotoItem(rev.id, { type: "机械能", point: "环节完成后不能再补的点" });
+    expect(lockedAdd.status).toBe(409);
+    expect(lockedAdd.body.code).toBe("STAGE_LOCKED");
+  });
+
+  it("环节 4 带 edits 确认：作业指引按人工工时与人数成档", async () => {
+    const res = await confirmWithEdits(rev.id, 4, {
+      plan: { overview: "更换联轴器弹性块并复测振动，全程不带压作业", estimatedHours: 3, workers: 2 },
+    });
+    expect(res.status).toBe(200);
+    const guide = res.body.artifacts.find((a: any) => a.category === "作业标准");
+    expect(guide.status).toBe("ready");
+    expect(guide.previewContent).toContain("【方案概述】更换联轴器弹性块并复测振动");
+    expect(guide.previewContent).toContain("【预估工时】3 小时（2 人）");
+
+    const audit = await findConfirmAudit(rev.id, 4);
+    expect(audit.detail).toContain("人工修订 3 处");
+    expect(audit.detail).toContain("预估工时");
+  });
+
+  it("环节 5 不带 edits 确认：审计如实记「按 AI 预填原值确认」", async () => {
+    const s5 = await confirm(rev.id, 5);
+    expect(s5.status).toBe(200);
+    const audit = await findConfirmAudit(rev.id, 5);
+    expect(audit.detail).toContain("无修订，按 AI 预填原值确认");
+    expect((audit.metadata as any).humanRevisedFields).toEqual([]);
+  });
+
+  it("越权修订：inspector 带 edits 确认 → 403，人工值没有落库", async () => {
+    const res = await confirmWithEdits(rev.id, 6, { workOrderDraft: { title: "点检工程师想改的标题" } }, inspectorToken);
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("RBAC_PERMISSION_DENIED");
+    const s6 = (await getDetail(rev.id)).body.stages.find((s: any) => s.order === 6);
+    expect(s6.status).toBe("in_progress");
+    expect(s6.aiPrefill.raw?.workOrderDraft?.title).toBeUndefined();
   });
 });
