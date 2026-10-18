@@ -2,8 +2,12 @@
 
 > 背景：2026-09-19 一天内发生三次并行写入冲突（callouts 开关被来回拨、检修卡片
 > 一晚被重写两次、一次 stash 挂起）。每次都靠运气没坏，本文件把它变成流程。
+>
+> 2026-10-18 修订：本文件原来记的是**病**不是**药** —— 用目录所有权代替分支隔离，
+> 用"提交前跑全量测试"代替"测的是哪棵树"。现在闸门改了口径（见最后两节），
+> 所有权表降级为止血措施，正解是各会话在自己 worktree 里干活。
 
-## 文件所有权（写入权 = 1 个会话，其余只读验收）
+## 文件所有权（写入权 = 1 个会话，其余只读验收）【止血用，不是终局方案】
 
 | 目录 / 文件 | 当前写入方 | 其他会话 |
 | --- | --- | --- |
@@ -15,6 +19,17 @@
 | `src/components/equipment3d/equipment.ts`（GLB 映射区 77-100 行） | 双方均可**追加**映射行，禁止重排/删除他人行 | — |
 | `src/server/**`、`src/db/**` | 改动前必须先在群里说一声 | — |
 
+**这张表冻结的是 god-file，不是冲突**：`scene.ts` 3743 行、`EquipmentScene.tsx` 2919 行、
+`src/api/index.ts` 1785 行被划给"唯一写入方"之后，没有任何机制能让它变小。体积由
+`tests/godfile-ratchet.test.ts` 记账（只降不升），别再用"归属"当重构的替代品。
+
+正解（一次任务一套隔离，不共享工作区）：
+
+```bash
+git worktree add --detach ../pcheck-a HEAD     # 各会话一个目录，node_modules 靠上层共享或重装
+git switch -c feat/<任务名>                     # 短期分支，合完就删；冲突在 PR/merge 里解决
+```
+
 ## 写入规则
 
 1. **动文件前先 `git status` + `git log --oneline -3`**：确认你要改的文件没有
@@ -25,23 +40,34 @@
    `FOCUS_CALLOUTS_ENABLED` 模式），把"旧行为一行可恢复"留给对方确认。
 4. **临时对比用 `git stash` 时**：pop 之前先 `git stash show --stat` 并确认工作区
    与 stash 的 diff 为空（逐字节一致）再 drop——今天差点弄丢工作区。
-5. **同一文件连续被两人改**：后写的一方必须跑 `npx tsc --noEmit` + 全量
-   `npx vitest run` 再交付。
+5. **同一文件连续被两人改**：后写的一方直接提交即可 —— pre-commit 已经把 `tsc --noEmit` +
+   全量 `vitest run` 变成硬闸，且验的是**索引里的树**（见末节），不再拿别人的 WIP 打红你。
 
 ## 已知共享热点（改动前额外小心）
 
 - `scene.ts` 的 `setFocusDecorData` / `setFocusDecorSafeArea`（no-op 兼容层）
 - `RepairStepCard.tsx` 的 props（3D 内工单操作是三条会话共用的接口面）
 - `equipment.ts` 的 `EQUIPMENT_GLB_MAP`（追加行安全，重排不安全）
+- `WorkOrderRepository.create()`：`order_no` 分配收口在这里（锁 + 当天最大号+1），
+  三个 controller 与隐患整改、业务闭环共用；别在调用方再自备随机号
+- `src/db/dailyNo.ts`：所有 `UNIQUE` 业务编号的唯一实现，新增编号列走它，不要 `Math.random`
+- `scripts/git-hooks/pre-commit`：闸门本体。改它 = 改所有人的提交体验，先说一声并自己在
+  真实 hook 环境里跑过（在工作区手跑 `bash scripts/git-hooks/pre-commit` 会漏掉 GIT_DIR 差异）
+- `README.md` / `CHANGELOG.md` 的口径行（表数、迁移区间、测试基线）：由
+  `tests/project-facts.test.ts` + CI `npm run metrics:check` 双重钉住，手改数字必红
 
-## 提交纪律（收工标准：`git status --short` 里不剩自己的文件）
+## 提交纪律（收工标准：`git diff --ignore-cr-at-eol --name-only` 里不剩自己的文件）
 
 1. **未提交的 WIP 会把所有人的 `npm run lint` / `npx tsc --noEmit` 打红**：这两个命令扫的是
    工作区而不是 HEAD。2026-09-19 夜里一条 `StepProgress` 的类型笔误让其他会话改完自己的
    页面后无法自证清白。所以：当天写完当天提，拿不准就先 `git stash` 之外单独建分支。
+   但**别用 `git status --short` 数自己还剩几个文件**：本仓库 `core.autocrlf=true`，2026-10-18
+   实测 354 条里只有 14 条是真内容差，其余 338 条全是行尾符幻影。收工自检用
+   `git diff --ignore-cr-at-eol --name-only`；想一次性把历史行尾钉平要单独走
+   `git add --renormalize .`，那是要所有人同意的动作，别顺手做。
 2. **禁止 `git add -A` / `git add .` / `git commit -a`**：工作区里同时躺着别人的未提交文件。
    只点名要提交的路径。
-3. **共享文件（`App.tsx`、`navConfig.ts`）只提交自己那几个 hunk**——先取 HEAD 版本，
+3. **共享文件（`App.tsx`、`navConfig.ts`、`README.md`、`CHANGELOG.md`）只提交自己那几个 hunk**——先取 HEAD 版本，
    在副本上只打自己的改动，再把副本塞进索引：
 
    ```powershell
@@ -67,3 +93,29 @@
 
 **不要加 `--max-warnings`**：并行会话会互相打红。日志一律走 `src/utils/logger.ts`
 （生产环境 `debug` / `info` 自动静默），别直接写 `console.*`。
+
+## 闸门读数口径（2026-10-18 定，改闸门前先读这段）
+
+1. **pre-commit 验的是索引树**：`git write-tree` + `git commit-tree` 把待提交内容封成临时
+   commit，再 `git worktree add --detach scratch/precommit-wt-$$` 单独检出跑
+   `tsc --noEmit` + 全量 `vitest run`。别人未提交的 WIP 既拦不住你，也不该由你负责；
+   全量口径由 CI 在完整提交上兜底。旧写法直接扫工作区，2026-10-18 实测一个只动文档的提交
+   被并行会话的 9 条 business-loop 红灯拦下 —— 那道门当时是病，不是药。
+2. **`.gitattributes` 里 `*.mjs` / `*.cjs` 必须 `eol=lf`**：带 shebang 的脚本被检出成 CRLF 时，
+   Vite/vitest 剥 `#!` 行会在模块开头留下裸 `\r`，整个文件 `SyntaxError: Invalid or unexpected
+   token`。工作区是 LF 所以本地全绿，临时 worktree 一检出就把口径守卫自己弄挂（真实发生过）。
+3. **`npm run metrics:check` / `--fix` 只能在干净检出里跑**：它把 vitest 实测基线写进
+   README/CHANGELOG，在共享工作区跑会把别人未提交的测试文件算成口径（我就是这么把
+   130/1448 写成 131/1453 的）。复现方法：
+   `git worktree add --detach ../pcheck HEAD && cp .env ../pcheck/ && (cd ../pcheck && npm run metrics:check)`。
+4. **索引是共享的**：`git commit` 提交的是索引，不是你以为的"我 add 的那几个文件"。2026-10-18
+   就发生过并行会话把我刚改的 `scripts/git-hooks/pre-commit` 暂存进去、被我的提交一起带走。
+   所以每次 commit 前跑 `git diff --cached --name-only`，并逐文件核对
+   `git ls-files -s <path>` 的 blob 是否等于 `git hash-object <path>`。
+5. **结构性数字的唯一来源是 `scripts/project-facts.mjs`**（表数、迁移区间、AI 能力计数、
+   测试规模），由 `tests/project-facts.test.ts` 在 vitest 里核对，README/答辩稿/PPT 抄的都是
+   同一份。要改数字先改代码，别改散文。
+6. **体积由 `tests/godfile-ratchet.test.ts` 记账**：`src` 下 >300/>800/>1000 行的文件个数
+   只许降不许升，三个最大头（`scene.ts`、`EquipmentScene.tsx`、`src/api/index.ts`）按行数单独钉。
+   确需上涨时在同一个 commit 里改基线并在提交说明里写理由；本地 `npm test` 数工作区、
+   闸门数索引树，两边不一致时以闸门为准，别为了让本地变绿去调基线。
