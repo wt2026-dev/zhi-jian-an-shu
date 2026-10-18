@@ -6,7 +6,7 @@
 
 - 前端：React 19 + TypeScript + TailwindCSS + Recharts
 - 后端：Node.js 20 + Express 4 + Zod + pino（日志文件轮转）
-- 数据：PGlite（嵌入式 PostgreSQL，30 张业务表，幂等迁移与种子）
+- 数据：PGlite（嵌入式 PostgreSQL，34 张业务表，幂等迁移与种子）
 - AI：阿里云百炼 DashScope（OpenAI 兼容模式，qwen-plus / qwen-vl-max），SSE 流式输出
 - 部署：Docker 多阶段构建 + docker compose（含每日 2:00 数据库自动备份服务）
 
@@ -112,7 +112,7 @@ docker compose up -d
 
 > 包管理器统一使用 **npm**（Dockerfile 与 CI 均为 `npm ci`），禁止混用 bun/pnpm/yarn，
 > 以唯一锁文件 `package-lock.json` 为准，避免依赖不一致。
-> 测试基线：**107 个测试文件 / 1272 个用例**（`npx vitest run` 独立环境实测全绿），
+> 测试基线：**130 个测试文件 / 1450 个用例**（`npx vitest run` 独立环境实测全绿），
 > 类型检查 `npx tsc --noEmit` 零错误（实测 exit 0）。
 > 数字随并行会话变动，**以 `npm run metrics:check` 实测为准**，不要手改别处。
 > 注意：守卫对 README/CHANGELOG 要求**精确匹配**（不适用"低于实测=历史快照"的宽容），
@@ -149,7 +149,7 @@ docker compose up -d # 容器化部署
 
 | 类型 | 位置 | 职责 | 幂等策略 |
 |---|---|---|---|
-| 结构迁移（DDL） | `src/db/migrations/001–025` | 建表 / 加列 / 建索引 | 全部幂等，可重复执行 |
+| 结构迁移（DDL） | `src/db/migrations/001–027` | 建表 / 加列 / 建索引 | 全部幂等，可重复执行 |
 | 运行时种子（DML） | `src/db/seed.ts` + `src/db/seed-data/*.json` | 初始与演示业务数据 | `ON CONFLICT DO UPDATE` / `DO NOTHING` |
 
 **历史兼容说明（主动坦白）**：`008_seed_maintenance_procedures.sql` 与 `014_seed_demo_data.sql` 两个迁移文件内含 DML 种子数据，属项目早期的历史设计——当时 `db:seed` 尚未独立拆分，初始数据随建表一起写入以保证空库启动即可完整演示。删除它们会导致**从零建库时缺失初始数据**，因此**保留不动**，仅在文件头以 ADR 注释完整说明来龙去脉与演进方向。
@@ -177,10 +177,14 @@ docker compose up -d # 容器化部署
 
 ## 数据库表
 
-迁移脚本 `src/db/migrations/` 按编号 001–025 连续唯一（按文件名字典序执行，全部幂等），共 **30 张业务表**：
+迁移脚本 `src/db/migrations/` 按编号 001–027 连续唯一（按文件名字典序执行，全部幂等），共 **34 张业务表**：
 
 > 口径说明：`024_video_progress.sql` 只对 `procedure_videos` 加两列（`progress_pct` / `internal_status`），
-> **不新建表**；真正的建表迁移是 `025_factories.sql`（新增 `factories`）。所以 29 → 30 只多了 `factories` 一张。
+> **不新建表**；`025_factories.sql` 新增 `factories`（29 → 30）；`026_acceptance_standards.sql` 新增
+> `acceptance_standards`（30 → 31）；`027_business_loops.sql` 新增 `business_loops` / `business_loop_stages`
+> / `business_loop_artifacts` 三张（31 → 34）。
+> 这三处数字由 `scripts/project-facts.mjs` 从迁移 SQL 派生，并由 `tests/project-facts.test.ts` 在
+> pre-commit 与 CI 的全量 vitest 里核对 —— 表数与迁移区间不再靠人工对表。
 
 | 分域 | 表 | 说明 |
 |---|---|---|
@@ -195,6 +199,8 @@ docker compose up -d # 容器化部署
 | 备件 | `spare_parts`、`spare_parts_movements` |
 | 通知 / 审计 / 文件 | `notifications`、`audit_logs`、`upload_files` |
 | AI 协同与治理 | `ai_tasks`、`ai_task_steps`、`ai_generation_reviews`、`ai_model_configs` |
+| 修后验收 | `acceptance_standards` | 026 迁移新增；验收标准项与实测值/判定留痕的口径来源 |
+| 业务闭环 | `business_loops`、`business_loop_stages`、`business_loop_artifacts` | 027 迁移新增；报修→审批→检修→验收→归档的编排与产物登记 |
 | 调度与位置 | `technician_locations` |
 
 ## 数据备份
@@ -209,7 +215,7 @@ docker compose up -d # 容器化部署
 server.ts               # 兼容入口（装配与业务实现见 src/server/：routes/ controllers/ services/ middleware/）
 src/api/index.ts        # 前端 API 客户端
 src/components/         # React 视图与 AI 组件
-src/db/                 # 迁移 SQL（001–025）、Repository、种子数据
+src/db/                 # 迁移 SQL（001–027）、Repository、种子数据
 src/utils/logger.ts     # pino 日志（控制台 + 文件轮转）
 scripts/                # 备份/恢复脚本
 ```
