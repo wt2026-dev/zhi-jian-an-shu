@@ -37,6 +37,7 @@ import {
   WorkOrderStatusBadge,
   WorkOrderPriorityBadge,
 } from './WorkOrderStatusBadge';
+import { WorkOrderFieldLogPanel } from './WorkOrderFieldLogPanel';
 import { can } from '../../utils/rbac';
 import { hasExplodedView } from '../equipment3d/explodedViewFiles';
 
@@ -296,6 +297,9 @@ export const WorkOrderDetailDrawer: React.FC<WorkOrderDetailDrawerProps> = ({
               </div>
             )}
           </div>
+
+          {/* 拆解作业终端现场留痕：LOTO / 逐步 / 测量 / 照片 / 自动完工（只读档案回看） */}
+          <WorkOrderFieldLogPanel log={order.repairLog?.fieldLog} />
 
           {/* Repair Log Section (If Filled) */}
           {order.repairLog && (
