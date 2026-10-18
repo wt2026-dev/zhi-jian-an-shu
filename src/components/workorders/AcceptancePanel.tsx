@@ -113,6 +113,16 @@ export const AcceptancePanel: React.FC<AcceptancePanelProps> = ({ orderId, curre
     [session?.signatures]
   );
 
+  /** 当前用户是否就是本次维修的执行人（决定能否签「维修人」） */
+  const isRepairer = useMemo(() => {
+    const r = session?.repairer;
+    if (!r) return true; // 老工单解析不出执行人 ⇒ 不拦（拦了会把历史数据卡死）
+    if (!r.name && !r.id) return true;
+    const myId = (currentUser as any)?.id as string | undefined;
+    if (r.id && myId) return r.id === myId;
+    return !!r.name && r.name === currentUser.name;
+  }, [currentUser, session?.repairer]);
+
   /** 当前用户能否签班组长（角色够格 且 不是维修人本人） */
   const canSignTeamlead = useMemo(() => {
     const role = (currentUser as any)?.role as string | undefined;
@@ -429,12 +439,19 @@ export const AcceptancePanel: React.FC<AcceptancePanelProps> = ({ orderId, curre
                 type="button"
                 data-testid="acceptance-sign-technician"
                 onClick={() => void doSign('technician')}
-                disabled={signing}
-                className="w-full h-12 min-h-[44px] rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold cursor-pointer flex items-center justify-center gap-2"
+                disabled={signing || !isRepairer}
+                className="w-full h-12 min-h-[44px] rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold cursor-pointer flex items-center justify-center gap-2"
               >
                 <PenLine className="w-4 h-4" />
                 {signing ? '签署中…' : `维修人签字确认（${currentUser.name}）`}
               </button>
+            )}
+            {session.allPassed && session.nextSigner === 'technician' && !isRepairer && (
+              <div data-testid="acceptance-not-repairer" className="text-[11px] text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2">
+                「维修人」签名需由本次维修的执行人
+                {session.repairer?.name ? `（${session.repairer.name}）` : ''}
+                签署；当前登录账号不是该工单的维修人，无法代签。
+              </div>
             )}
             {session.allPassed && session.nextSigner === 'teamlead' && (
               <button

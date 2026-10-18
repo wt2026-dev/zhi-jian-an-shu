@@ -29,8 +29,8 @@ function respondError(res: Response, err: unknown, fallbackTitle: string) {
   if (e && (e.code === "STATE_MUTEX_ERROR" || e.code === "ACCEPTANCE_CLOSED" || e.code === "ALREADY_SIGNED")) {
     return res.status(409).json({ error: e.message, code: e.code });
   }
-  if (e && e.code === "ROLE_FORBIDDEN") {
-    return res.status(403).json({ error: e.message, code: e.code });
+  if (e && (e.code === "ROLE_FORBIDDEN" || e.code === "NOT_REPAIRER")) {
+    return res.status(403).json({ error: e.message, code: e.code, details: e.details ?? null });
   }
   if (e && e.name === "VersionConflictError") {
     return res.status(409).json({ error: e.message, code: "VERSION_CONFLICT" });

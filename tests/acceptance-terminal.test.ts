@@ -412,3 +412,78 @@ describe("双签字关单与维修总结沉淀", () => {
     expect(res.body.events.filter((e: any) => e.kind === "sign").length).toBe(2);
   });
 });
+
+describe("维修人签字资格（不能任何人代签）", () => {
+  it("非本次维修人不能签「维修人」——否则双签字就变成了随便拉两个人", async () => {
+    // 造一份待验收工单：派工对象 = tech1，LOTO 由 tech1 确认 ⇒ 维修人已可识别。
+    // 让 manager 先来签"维修人"：他权限够，但不是本次维修人，必须被拒。
+    const created = new Date().toISOString();
+    const id = "wo-acc-identity-probe";
+    await WorkOrderRepository.create({
+      id,
+      orderNo: "WO-ACC-ID-001",
+      title: "维修人身份校验",
+      equipmentId: DEVICE_ID,
+      equipmentName: "3# 轧机主传动行星减速箱",
+      equipmentCode: "EQ-103",
+      workshop: "轧钢车间",
+      faultType: "计划检修",
+      priority: "medium",
+      status: "pending_acceptance",
+      creator: "系统",
+      dispatcher: "系统",
+      assignee: "张建国",
+      assigneeId: "u-tech1",
+      createdAt: created,
+      createdTimestamp: Date.parse(created),
+      completedAt: created,
+      description: "仅用于验证维修人签字身份",
+      safetyRequirements: [],
+      photos: [],
+      repairLog: {
+        causeAnalysis: "",
+        resolutionSteps: "",
+        partsUsed: [],
+        workHours: 1,
+        completionPhotos: [],
+        fieldLog: {
+          events: [],
+          loto: {
+            confirmedAt: created,
+            by: { id: "u-tech1", username: "tech1", name: "张建国", role: "technician" },
+            items: LOTO_KEYS.map((k) => ({ key: k, label: k, confirmed: true })),
+          },
+          steps: {},
+          measurements: [],
+          partPhotos: [],
+          completed: { at: created, by: "张建国", workHours: 1, total: 5, done: 5, skipped: 0 },
+          acceptance: null,
+        },
+      },
+      acceptance: null,
+      version: 1,
+    } as any);
+
+    // 先把验收项全部做完，排除"没做完"这个干扰原因
+    for (const [k, v] of [
+      ["no_load_temp", 65],
+      ["vibration", 1.8],
+      ["running_current", 38],
+    ] as const) {
+      await check(id, { itemKey: k, value: v }, techToken);
+    }
+    await check(id, { itemKey: "no_leak_noise", confirmed: true }, techToken);
+    const ready = await check(id, { itemKey: "safety_guard", confirmed: true }, techToken);
+    expect(ready.body.allPassed).toBe(true);
+
+    // manager 不是本次维修人 ⇒ 拒绝
+    const wrong = await sign(id, "technician", managerToken);
+    expect(wrong.status).toBe(403);
+    expect(wrong.body.code).toBe("NOT_REPAIRER");
+
+    // 真正的维修人 tech1 才能签
+    const right = await sign(id, "technician", techToken);
+    expect(right.status).toBe(200);
+    expect(right.body.nextSigner).toBe("teamlead");
+  });
+});

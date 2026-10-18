@@ -794,6 +794,8 @@ export interface AcceptanceSessionData {
   baselines: AcceptanceBaseline[];
   signatures: AcceptanceSignature[];
   nextSigner: 'technician' | 'teamlead' | null;
+  /** 本次维修执行人：决定谁有资格签「维修人」（解析不出时 name 为 null） */
+  repairer: { id?: string; name: string | null };
   closedAt: string | null;
   summary: { knowledgeId: string; title: string; createdAt: string } | null;
   events: FieldWorkLog['events'];

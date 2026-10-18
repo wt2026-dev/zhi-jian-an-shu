@@ -213,6 +213,8 @@ export interface AcceptanceSession {
   signatures: AcceptanceSignature[];
   /** 还差谁签字 */
   nextSigner: 'technician' | 'teamlead' | null;
+  /** 本次维修的执行人（决定谁有资格签「维修人」）；解析不出时 name 为 null */
+  repairer: { id?: string; name: string | null };
   closedAt: string | null;
   summary: FieldAcceptanceLog['summary'] | null;
   events: FieldWorkLog['events'];
@@ -298,6 +300,8 @@ export async function getAcceptanceSession(orderId: string): Promise<AcceptanceS
     baselines: acc?.baselines?.length ? acc.baselines : await buildPreBaselines(order),
     signatures,
     nextSigner,
+    /** 本次维修的执行人（派工对象 / LOTO 确认人）；解析不出时 name 为 null */
+    repairer: resolveRepairer(order, log) ?? { id: undefined, name: null },
     closedAt: acc?.closedAt ?? null,
     summary: acc?.summary ?? null,
     events: log.events,
@@ -439,6 +443,37 @@ export async function recordAcceptanceCheck(
 /** 可签字角色：班组长由车间主管/总工担任 */
 const TEAMLEAD_ROLES = ['manager', 'admin'];
 
+/**
+ * 判定"是不是同一个操作者"。
+ * 优先比用户 ID（可信）；没有 ID 时才退回姓名（历史数据只留了名字）。
+ * 注意：姓名相同不等于同一人，所以只要有 ID 就绝不用姓名兜底 —— 会误伤同名同事。
+ */
+function sameOperator(a: { id?: string; name?: string }, b: { id?: string; name?: string }): boolean {
+  if (a.id && b.id) return a.id === b.id;
+  return !!a.name && a.name === b.name;
+}
+
+/**
+ * 解析"谁是本次维修的执行人"。
+ * 依次取最可靠的两个来源，都拿不到就返回 null（此时不做身份拦截，
+ * 因为工单没有派工信息时拦下来会把老数据卡死，反而更糟）：
+ *   1. 工单派工对象 assigneeId（派工时就定下的责任人）
+ *   2. LOTO 确认人（现场作业第一步，必然由实际作业人确认）
+ * 完工留痕 log.completed.by 只有名字、没有 ID，仅在两者都缺时作为最后线索。
+ */
+function resolveRepairer(
+  order: WorkOrder,
+  log: FieldWorkLog
+): { id?: string; name: string } | null {
+  if (order.assigneeId) return { id: order.assigneeId, name: order.assignee ?? order.assigneeId };
+  if (log.loto?.by?.id) return { id: log.loto.by.id, name: log.loto.by.name };
+  const byName = log.completed?.by ?? log.loto?.by?.name;
+  if (byName) return { name: byName };
+  if (order.assignee) return { name: order.assignee };
+  return null;
+}
+
+
 export interface SignResult {
   session: AcceptanceSession;
   closed: boolean;
@@ -496,6 +531,21 @@ export async function signAcceptance(
   // 顺序：先维修人，后班组长
   if (step === 'teamlead' && !acc.signatures.some((s) => s.step === 'technician')) {
     throw fail('SIGN_ORDER_INVALID', '请先由维修人签字，再由班组长确认。', 422);
+  }
+
+  // 「维修人」签名只能是本次维修的执行人。
+  // 不做这个校验的话，任何有作业权限的人都能抢着签"维修人"，
+  // 双签字就退化成"随便拉两个人点两下"，而真正的执行人再也签不上（ALREADY_SIGNED）。
+  if (step === 'technician') {
+    const repairer = resolveRepairer(order, log);
+    if (repairer && !sameOperator(repairer, operator)) {
+      throw fail(
+        'NOT_REPAIRER',
+        `「维修人」签名必须由本次维修的执行人（${repairer.name}）签署，当前登录账号不是该工单的维修人。`,
+        403,
+        { expectedRepairer: repairer.name }
+      );
+    }
   }
 
   if (step === 'teamlead') {

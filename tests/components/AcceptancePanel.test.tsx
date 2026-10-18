@@ -113,6 +113,7 @@ function makeSession(over: Partial<any> = {}) {
     ],
     signatures: [],
     nextSigner: null,
+    repairer: { id: 'u-tech1', name: '张建国' },
     closedAt: null,
     summary: null,
     events: [],
@@ -275,6 +276,30 @@ describe('修后验收面板', () => {
     const btn = screen.getByTestId('acceptance-sign-teamlead') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(screen.getByText(/与已签字的维修人相同/)).toBeTruthy();
+  });
+
+  it('非本次维修人不能签「维修人」：按钮禁用并说明谁是执行人', async () => {
+    const ready = makeSession({ allPassed: true, pending: 0, nextSigner: 'technician' });
+    get.mockResolvedValue(ready);
+
+    render(<AcceptancePanel orderId="wo-1" currentUser={MANAGER} />);
+    await waitFor(() => expect(screen.getByTestId('acceptance-panel')).toBeTruthy());
+
+    const btn = screen.getByTestId('acceptance-sign-technician') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    const hint = screen.getByTestId('acceptance-not-repairer');
+    expect(hint.textContent).toContain('张建国');
+    expect(hint.textContent).toContain('无法代签');
+  });
+
+  it('本次维修人可签「维修人」', async () => {
+    const ready = makeSession({ allPassed: true, pending: 0, nextSigner: 'technician' });
+    get.mockResolvedValue(ready);
+
+    render(<AcceptancePanel orderId="wo-1" currentUser={TECH} />);
+    await waitFor(() => expect(screen.getByTestId('acceptance-panel')).toBeTruthy());
+    expect((screen.getByTestId('acceptance-sign-technician') as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByTestId('acceptance-not-repairer')).toBeNull();
   });
 
   it('关单后：只读（无录入框/签字按钮），显示维修总结', async () => {
