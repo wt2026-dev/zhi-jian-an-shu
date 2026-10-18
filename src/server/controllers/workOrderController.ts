@@ -12,16 +12,12 @@ export const STATUS_LABELS: Record<string, string> = {
   cancelled: "已取消",
 };
 
-// 工单内存操作日志（原 createApp 闭包内 let 数组，仅 unshift/filter，从不整体重新赋值，逻辑保持原样）
-// 定位：列表/详情接口的即时缓存；时间线接口 GET /work-orders/:id/logs 以 work_order_logs 表为准。
-export const dbWorkOrderLogs: any[] = [];
-
-// 内存日志容量上限：unshift 头部最新，超出截断尾部最旧，防止长期运行内存无限增长（数据库已全量落库）
-const MAX_MEMORY_WORK_ORDER_LOGS = 1000;
-
 /**
- * 统一工单日志入口：内存日志（列表/详情即时展示）+ 数据库落库（详情时间线持久化，重启不丢）。
- * 修复：此前流转仅写内存数组，GET /work-orders/:id/logs 读取数据库表导致时间线恒为空。
+ * 工单日志单一数据源（工业级可信基线）：
+ * - 唯一真源是 work_order_logs 表；本函数只负责把日志写入数据库，不再维护内存镜像。
+ * - 详情接口 handleGetWorkOrderById 与 时间线接口 GET /work-orders/:id/logs 均从同一张表读取，
+ *   杜绝「详情走内存、时间线走 DB」的双源口径分歧。
+ * - 数据库写入失败会被显式记录（不再静默吞掉），由运维侧观测。
  */
 export function pushWorkOrderLog(log: {
   id?: string;
@@ -38,10 +34,6 @@ export function pushWorkOrderLog(log: {
     id: log.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     createdAt: log.createdAt || new Date().toISOString(),
   };
-  dbWorkOrderLogs.unshift(fullLog);
-  if (dbWorkOrderLogs.length > MAX_MEMORY_WORK_ORDER_LOGS) {
-    dbWorkOrderLogs.length = MAX_MEMORY_WORK_ORDER_LOGS;
-  }
   void WorkOrderLogRepository.add(fullLog).catch((err: any) => {
     logger.error("[WorkOrderLog] 落库失败（不影响主流程）:", err?.message || err);
   });
@@ -99,7 +91,7 @@ export async function handleGetWorkOrderById(req: any, res: any) {
   try {
     const wo = await WorkOrderRepository.getById(req.params.id);
     if (!wo) return res.status(404).json({ error: "工单未找到" });
-    const logs = dbWorkOrderLogs.filter((l) => l.workOrderId === wo.id);
+    const logs = await WorkOrderLogRepository.getByWorkOrderId(wo.id);
     res.json({ ...wo, logs });
   } catch (err: any) {
     res.status(500).json({ error: "获取工单详情失败: " + err.message });

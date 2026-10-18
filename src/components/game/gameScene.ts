@@ -282,7 +282,7 @@ export class GameScene {
     this.buildPath();
     this.scene.add(this.faultRoot);
 
-    void this.loadCharacter(opts.characterUrl ?? '/models/engineer/asian_worker.glb');
+    void this.loadCharacter(opts.characterUrl ?? '/models/engineer/worker_talk.glb');
 
     this.attachEvents();
     this.syncCamera();

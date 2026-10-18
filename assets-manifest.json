@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-18",
+  "algorithm": "sha256",
+  "expectedMagic": "glTF",
+  "note": "关键二进制资产（3D 模型 GLB）完整性清单。CI/提交前由 scripts/verify-assets.mjs 校验：文件须纳入版本控制、魔数为 glTF、SHA256 与下表一致；public/models 下任何未被本清单收录或魔数非 glTF 的 .glb 一律判失败。解决「全新 clone 静默降级」与「损坏资产伪装成 GLB」的可信缺口。",
+  "assets": [
+    {
+      "path": "public/models/engineer/china_engineer.glb",
+      "size": 8500572,
+      "sha256": "05da3512ddc2473e876b162cc2200c18d5ea962d991092323130f5f3ecbcb9a5"
+    },
+    {
+      "path": "public/models/engineer/worker_talk.glb",
+      "size": 10908216,
+      "sha256": "77312d4d4aab7b598f3c9e1c8714947817b3c3653659c16be935e0949baa69d6"
+    },
+    {
+      "path": "public/models/equipment/centrifugal_pump.glb",
+      "size": 5525348,
+      "sha256": "19967c0d9df5426d26d8f359df50eb47a67e084ccb8ffc11ad6db174288f3638"
+    },
+    {
+      "path": "public/models/equipment/double_suction_pump.glb",
+      "size": 9085944,
+      "sha256": "f86d146584fe75378fdeedab0a928939e329baff05eb3e709af78a4cd7ae518c"
+    },
+    {
+      "path": "public/models/equipment/electric_motor_high_poly.glb",
+      "size": 1348620,
+      "sha256": "b451951b2c27ca316193071640e88b4f1650795b035665656e3ae4961374dcf9"
+    },
+    {
+      "path": "public/models/equipment/electric_motor.glb",
+      "size": 13125680,
+      "sha256": "44f606517d751818fff260cb3836cde48fd5772b9c7d3791d4ecbbfc316bac82"
+    },
+    {
+      "path": "public/models/equipment/exhaust_fan_motor.glb",
+      "size": 436044,
+      "sha256": "c6abbbc471ecb5e191bd82c129e2e906fb1e9ac29ef5ecda05819d5908753aae"
+    },
+    {
+      "path": "public/models/equipment/hydraulic_press.glb",
+      "size": 1234708,
+      "sha256": "da315d89afb5a48c54c058c96ffa3b89d694634dad849ea4f023ed5871b8e8fe"
+    },
+    {
+      "path": "public/models/equipment/lathe_machine.glb",
+      "size": 1386700,
+      "sha256": "66c0fc3d3ae6bc12fe056528b8b28adf2274062783913f6b93aabbda595d482a"
+    },
+    {
+      "path": "public/models/equipment/machinery_device_1.glb",
+      "size": 7873608,
+      "sha256": "5c122cfa227820e63a564138d853de5a93090d5fa360fbe00dec868befe4e5bb"
+    },
+    {
+      "path": "public/models/equipment/machinery_device_2.glb",
+      "size": 10916376,
+      "sha256": "dab1b5977718c2bb3836cb325297486c2d9a13e929207c3449c67f932c9f546f"
+    },
+    {
+      "path": "public/models/equipment/milling_machine.glb",
+      "size": 6161576,
+      "sha256": "f4e12770b96a9681493557aba5e37012628cd3a16bea39372640cc1b5760defb"
+    },
+    {
+      "path": "public/models/robotarm/6_axis_industrial_robot_arm.glb",
+      "size": 2718504,
+      "sha256": "3b4ca0f0d77495fa90241a5954f44810786beb7bd823e81893b5f2823b9eec3f"
+    }
+  ]
+}
