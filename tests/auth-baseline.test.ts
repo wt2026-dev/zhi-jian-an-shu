@@ -205,6 +205,13 @@ describe("全局鉴权基线：白名单路径匿名可达", () => {
     expect(res.body.code).not.toBe("UNAUTHORIZED");
   });
 
+  it("别名 /api/v1/wx/repair 走的是同一条处理链（不再私用 app._router.handle 转发）", async () => {
+    const alias = await request(app).post("/api/v1/wx/repair").send({});
+    const canonical = await request(app).post("/api/v1/wx/repairs").send({});
+    expect(alias.status).toBe(400);
+    expect(alias.body, "两个路径必须给出同一份校验错误，否则别名又变成第二套实现").toEqual(canonical.body);
+  });
+
   it("登录后携带有效 token 可访问业务接口（正向用例）", { retry: 1 }, async () => {
     const res = await request(app).get("/api/v1/auth/me").set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
