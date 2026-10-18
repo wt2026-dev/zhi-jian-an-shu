@@ -119,6 +119,10 @@ git switch -c feat/<任务名>                     # 短期分支，合完就删
    所以每次 commit 前跑 `git diff --cached --name-only`，并逐文件核对
    `git ls-files -s <path>` 的 blob 是否等于 `git hash-object <path>`。**add 与 commit 之间也算窗口**：
    `aa3cf5a` 就是这样带上了 `README.md`/`CHANGELOG.md` 两行（我当时核对过，暂存表里只有 2 个文件）。
+   比这更狠的一次：并行会话拿**过期的索引 blob** 提交，把我已经落地的 `d1f02f7`（README 数字 +
+   守卫 + AGENTS 条文）整份静默 revert。索引 blob 只要比 master 旧，任何人的 `git commit` 都会
+   把别人的修复还原成它暂存时的样子 —— 所以提交共享文档前先
+   `git diff HEAD --ignore-cr-at-eol -- <自己的文件>`，确认自己带的是最新内容而不是"我以为的版本"。
 5. **结构性数字的唯一来源是 `scripts/project-facts.mjs`**（表数、迁移区间、AI 能力计数、
    测试规模），由 `tests/project-facts.test.ts` 在 vitest 里核对，README/答辩稿/PPT 抄的都是
    同一份。要改数字先改代码，别改散文。
