@@ -140,7 +140,7 @@ function AppShell() {
           setMobileScanEquipmentId(targetEquipmentId);
           showToast({ type: 'info', title: '已定位至设备', message: `设备 ${targetEquipmentId}，点击 3D 场景中红色脉冲设备查看详情`, duration: 5000 });
         }
-      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch', 'equipment_3d', 'maintenance_maze'].includes(targetView)) {
+      } else if (targetView && ['dashboard', 'cockpit', 'spare_parts', 'hazards', 'equipment', 'equipments', 'work_orders', 'health', 'safety', 'knowledge', 'ai_assistant', 'users', 'procedures', 'knowledge_graph', 'ai_pipeline', 'ai_reviews', 'ai_models', 'dispatch', 'equipment_3d', 'maintenance_maze', 'ai_business_butler'].includes(targetView)) {
         setActiveTab(targetView === 'equipment' ? 'equipments' : targetView);
       }
     } catch (e) {
@@ -206,12 +206,20 @@ function AppShell() {
               {!tabAllowed && <PermissionDenied tabId={activeTab} role={currentUser?.role} userName={currentUser?.name} onBackHome={() => setActiveTab(getRoleHome(currentUser?.role))} />}
               {tabAllowed && activeTab !== 'dashboard' && (
                 <PageHeader
-                  group={getBreadcrumb(activeTab).group}
-                  title={getBreadcrumb(activeTab).label}
+                  group={activeTab === 'ai_business_butler' ? '智能AI·业务管家' : getBreadcrumb(activeTab).group}
+                  title={activeTab === 'ai_business_butler' ? 'Hermes 智能业务管家' : getBreadcrumb(activeTab).label}
                   subtitle={
+                    activeTab === 'ai_business_butler' ? '全链路业务闭环编排 · AI自主规划与自动预填 · 人工确认安全闸门' :
                     activeTab === 'work_orders' ? '检修工单全生命周期管理与工单闭查跟踪' :
                     activeTab === 'health' ? '采集温度、振动加速度(RMS)、三相电流、电压与工况负荷率' :
                     activeTab === 'procedures' ? '标准化检修作业指导书与合规执行' : undefined
+                  }
+                  metrics={
+                    activeTab === 'ai_business_butler' ? [
+                      { label: '在办业务', value: '1', tone: 'warning' },
+                      { label: '本周闭环', value: '3', tone: 'success' },
+                      { label: '平均闭环', value: '4.2h', tone: 'default' },
+                    ] : undefined
                   }
                 />
               )}

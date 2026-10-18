@@ -20,6 +20,7 @@ import {
   UserCheck,
   // Gamepad2, // 检修闯关模块已下线：图标随菜单项一并注释，恢复时取消注释即可
   Compass,
+  Bot,
   // Swords, // 智检修士模块已下线：图标随菜单项一并注释，恢复时取消注释即可
 } from 'lucide-react';
 
@@ -65,6 +66,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     id: 'ai',
     label: '智能 AI',
     items: [
+      { id: 'ai_business_butler', label: '业务管家', icon: Bot, highlight: true }, // 全员可见，闭环业务管家
       { id: 'ai_assistant', label: 'AI数字人助手', icon: Sparkles, highlight: true }, // 全员可见
       { id: 'ai_pipeline', label: 'AI 协同', icon: Workflow, highlight: true, roles: [...MGMT] },
     ],

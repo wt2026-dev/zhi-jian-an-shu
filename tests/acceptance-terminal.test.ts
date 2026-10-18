@@ -487,3 +487,55 @@ describe("维修人签字资格（不能任何人代签）", () => {
     expect(right.body.nextSigner).toBe("teamlead");
   });
 });
+
+describe("维修人身份匹配的边界", () => {
+  it("有用户 ID 时只比 ID：派工姓名与账号姓名不一致（改过名）也不能误挡", async () => {
+    // 派工记录里存的是旧姓名"张建国"，但 assigneeId 指向 u-tech1（现名可能已改）。
+    // 身份必须由 ID 决定，不能因为姓名对不上就把执行人挡在门外。
+    const created = new Date().toISOString();
+    const id = "wo-acc-rename-probe";
+    await WorkOrderRepository.create({
+      id,
+      orderNo: "WO-ACC-RENAME-001",
+      title: "改名后仍可签字",
+      equipmentId: DEVICE_ID,
+      equipmentName: "3# 轧机主传动行星减速箱",
+      equipmentCode: "EQ-103",
+      workshop: "轧钢车间",
+      faultType: "计划检修",
+      priority: "medium",
+      status: "pending_acceptance",
+      creator: "系统",
+      dispatcher: "系统",
+      assignee: "张建国（旧名）",
+      assigneeId: "u-tech1",
+      createdAt: created,
+      createdTimestamp: Date.parse(created),
+      completedAt: created,
+      description: "验证 ID 优先于姓名",
+      safetyRequirements: [],
+      photos: [],
+      repairLog: null,
+      acceptance: null,
+      version: 1,
+    } as any);
+
+    for (const [k, v] of [
+      ["no_load_temp", 66],
+      ["vibration", 1.9],
+      ["running_current", 37],
+    ] as const) {
+      await check(id, { itemKey: k, value: v }, techToken);
+    }
+    await check(id, { itemKey: "no_leak_noise", confirmed: true }, techToken);
+    const ready = await check(id, { itemKey: "safety_guard", confirmed: true }, techToken);
+    expect(ready.body.allPassed).toBe(true);
+    // 会话如实给出执行人（按 ID 解析）
+    expect(ready.body.repairer.id).toBe("u-tech1");
+
+    // tech1 的账号姓名是"张建国"，与派工记录的"张建国（旧名）"不同 —— 仍必须放行
+    const signed = await sign(id, "technician", techToken);
+    expect(signed.status).toBe(200);
+    expect(signed.body.signatures[0].userId).toBe("u-tech1");
+  });
+});

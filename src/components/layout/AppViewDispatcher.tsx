@@ -38,6 +38,7 @@ const SparePartsView = React.lazy(() => import('../SparePartsView').then(m => ({
 const HazardsView = React.lazy(() => import('../HazardsView').then(m => ({ default: m.HazardsView })));
 const Equipment3DView = React.lazy(() => import('../equipment3d/DrilldownShell').then(m => ({ default: m.Equipment3DShell })));
 const MazeGameView = React.lazy(() => import('../game/MazeGameView').then(m => ({ default: m.MazeGameView })));
+const HermesWorkbenchView = React.lazy(() => import('../hermes/HermesWorkbenchView').then(m => ({ default: m.HermesWorkbenchView })));
 
 export interface AppViewDispatcherProps {
   activeTab: string;
@@ -332,6 +333,10 @@ export const AppViewDispatcher: React.FC<AppViewDispatcherProps> = (props) => {
         )}
 
         {activeTab === 'ai_pipeline' && <AiPipelineView onGoDispatch={navigateToDispatch} />}
+
+        {activeTab === 'ai_business_butler' && (
+          <HermesWorkbenchView onNavigateTab={setActiveTab} />
+        )}
 
         {activeTab === 'dispatch' && (
           <DispatchBoardView
