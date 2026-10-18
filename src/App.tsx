@@ -22,6 +22,7 @@ import { OnboardingGuide } from './components/OnboardingGuide';
 import { AppLoadingScreen, AppLoadErrorScreen } from './components/layout/AppStatusScreens';
 import { QrScannerModal } from './components/modals/QrScannerModal';
 import { AppViewDispatcher } from './components/layout/AppViewDispatcher';
+import type { LoopHeaderStats } from './components/hermes/types';
 import type { Equipment, UserProfile, KnowledgeArticle, WorkOrderCreatePrefill } from './types';
 
 const LoginView = React.lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
@@ -112,6 +113,8 @@ function AppShell() {
   const [showQrScannerModal, setShowQrScannerModal] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 1024);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
+  // Hermes 页头指标：由闭环视图用接口数据回传，null 表示尚未取到（显示「—」，不编数）
+  const [hermesStats, setHermesStats] = useState<LoopHeaderStats | null>(null);
 
   useEffect(() => {
     const handleResize = () => { if (window.innerWidth < 1024) setIsSidebarCollapsed(true); };
@@ -216,9 +219,9 @@ function AppShell() {
                   }
                   metrics={
                     activeTab === 'ai_business_butler' ? [
-                      { label: '在办业务', value: '1', tone: 'warning' },
-                      { label: '本周闭环', value: '3', tone: 'success' },
-                      { label: '平均闭环', value: '4.2h', tone: 'default' },
+                      { label: '在办业务', value: hermesStats ? String(hermesStats.runningCount) : '—', tone: 'warning' },
+                      { label: '本周闭环', value: hermesStats ? String(hermesStats.archivedThisWeek) : '—', tone: 'success' },
+                      { label: '平均闭环', value: hermesStats && hermesStats.avgDurationHours != null ? `${hermesStats.avgDurationHours}h` : '—', tone: 'default' },
                     ] : undefined
                   }
                 />
@@ -237,6 +240,7 @@ function AppShell() {
                   showGlobalCreateWorkOrder={showGlobalCreateWorkOrder} workOrderCreatePrefill={workOrderCreatePrefill} setWorkOrderCreatePrefill={setWorkOrderCreatePrefill}
                   spareProcurePrefill={spareProcurePrefill} setSpareProcurePrefill={setSpareProcurePrefill}
                   handleAddUser={handleAddUser} handleSwitchUserWithHome={handleSwitchUserWithHome}
+                  handleHermesStatsChange={setHermesStats}
                 />
               )}
             </div>

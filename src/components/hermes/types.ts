@@ -92,6 +92,16 @@ export interface HistoryLoopItem {
   leadUser: string;
 }
 
+/**
+ * 页头三颗实时指标：全部由 /business-loops 列表与 /history 现算，
+ * 不允许写死；无样本时 avgDurationHours 为 null（页面显示「—」而不是假数）。
+ */
+export interface LoopHeaderStats {
+  runningCount: number;
+  archivedThisWeek: number;
+  avgDurationHours: number | null;
+}
+
 export interface BusinessClosedLoopData {
   id: string;
   loopCode: string;

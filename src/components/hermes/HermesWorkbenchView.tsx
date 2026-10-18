@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { businessLoopApi, type BusinessLoopSummary } from '../../api/businessLoopApi';
-import type { BusinessClosedLoopData, HistoryLoopItem, StageId } from './types';
+import type { BusinessClosedLoopData, HistoryLoopItem, LoopHeaderStats, StageId } from './types';
 import { BusinessOverviewCard } from './BusinessOverviewCard';
 import { ClosedLoopStepper } from './ClosedLoopStepper';
 import { StageWorkbench } from './StageWorkbench';
@@ -25,6 +25,33 @@ type Phase = 'loading' | 'ready' | 'unreachable';
 
 interface HermesWorkbenchViewProps {
   onNavigateTab?: (tabKey: string) => void;
+  /** 把页头实时指标回传给 App（数据源仍是本视图的接口结果，不在页头另写死） */
+  onStatsChange?: (stats: LoopHeaderStats) => void;
+}
+
+/** 归档时间落在本自然周（周一起）的条数；closedDate 形如 2026-10-18 18:20 */
+function countArchivedThisWeek(history: HistoryLoopItem[]): number {
+  const now = new Date();
+  const offsetToMonday = (now.getDay() + 6) % 7;
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offsetToMonday).getTime();
+  return history.filter((h) => {
+    const t = new Date(h.closedDate.replace(' ', 'T')).getTime();
+    return Number.isFinite(t) && t >= weekStart;
+  }).length;
+}
+
+function buildHeaderStats(running: BusinessLoopSummary[], history: HistoryLoopItem[]): LoopHeaderStats {
+  const durations = history
+    .map((h) => Number.parseFloat(h.duration))
+    .filter((n) => Number.isFinite(n));
+  const avg = durations.length
+    ? Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10
+    : null;
+  return {
+    runningCount: running.length,
+    archivedThisWeek: countArchivedThisWeek(history),
+    avgDurationHours: avg,
+  };
 }
 
 /** 尚未拿到 AI 预填结果的环节（仅 1-4 会在创建时异步预填） */
@@ -39,7 +66,7 @@ function currentStageOf(detail: BusinessClosedLoopData | null): StageId | null {
   return (inProgress || detail.stages[detail.stages.length - 1])?.id ?? null;
 }
 
-export const HermesWorkbenchView: React.FC<HermesWorkbenchViewProps> = ({ onNavigateTab }) => {
+export const HermesWorkbenchView: React.FC<HermesWorkbenchViewProps> = ({ onNavigateTab, onStatsChange }) => {
   const { show: showToast } = useToast();
   const auth = useOptionalAuth();
   const currentUser = auth?.currentUser;
@@ -145,6 +172,11 @@ export const HermesWorkbenchView: React.FC<HermesWorkbenchViewProps> = ({ onNavi
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 页头指标随接口结果重算（列表或历史一变就回传，不保留上一次的读数）
+  useEffect(() => {
+    onStatsChange?.(buildHeaderStats(runningLoops, history));
+  }, [runningLoops, history, onStatsChange]);
 
   const handleGeneratePlan = async (goalText: string) => {
     setBusy('create');

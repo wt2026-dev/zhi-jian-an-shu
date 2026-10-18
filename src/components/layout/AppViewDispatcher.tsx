@@ -11,6 +11,7 @@ import type {
   WorkOrderCreatePrefill,
 } from '../../types';
 import type { SpareProcurePrefill } from '../../api';
+import type { LoopHeaderStats } from '../hermes/types';
 import { logger } from '../../utils/logger';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { useAiChatContext } from '../../context/AiChatContext';
@@ -84,6 +85,8 @@ export interface AppViewDispatcherProps {
   handleCreateWorkOrderFromAi?: (title: string, equipmentName: string, description: string, currentUser: UserProfile, onSuccess: () => void) => Promise<any> | void;
   handleAddUser?: (user: UserProfile) => void | Promise<any>;
   handleSwitchUserWithHome: (user: UserProfile) => void;
+  /** Hermes 页头实时指标回传（真接口现算，不在页头写死） */
+  handleHermesStatsChange?: (stats: LoopHeaderStats) => void;
 }
 
 /**
@@ -335,7 +338,7 @@ export const AppViewDispatcher: React.FC<AppViewDispatcherProps> = (props) => {
         {activeTab === 'ai_pipeline' && <AiPipelineView onGoDispatch={navigateToDispatch} />}
 
         {activeTab === 'ai_business_butler' && (
-          <HermesWorkbenchView onNavigateTab={setActiveTab} />
+          <HermesWorkbenchView onNavigateTab={setActiveTab} onStatsChange={props.handleHermesStatsChange} />
         )}
 
         {activeTab === 'dispatch' && (

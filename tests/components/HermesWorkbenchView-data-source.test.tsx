@@ -10,6 +10,7 @@ import type {
   BusinessClosedLoopData,
   ButlerSuggestion,
   HistoryLoopItem,
+  LoopHeaderStats,
   StageStepMeta,
 } from '../../src/components/hermes/types';
 
@@ -266,6 +267,36 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     renderView();
     expect(await screen.findByText('PL-20261010-002')).toBeInTheDocument();
     expect(screen.getByText(/1 条归档记录/)).toBeInTheDocument();
+  });
+
+  it('页头三颗指标由接口现算：在办=列表长度，本周=归档落在本自然周，平均=历史耗时均值', async () => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 10:00`;
+    const now = new Date();
+    const thisWeekItem: HistoryLoopItem = { ...historyItem, closedDate: stamp(now), duration: '6.0h' };
+    const lastMonthItem: HistoryLoopItem = {
+      ...historyItem,
+      id: 'hl-older',
+      loopCode: 'PL-20260918-001',
+      closedDate: stamp(new Date(now.getTime() - 30 * 86400000)),
+      duration: '2.0h',
+    };
+    api.history.mockResolvedValue([thisWeekItem, lastMonthItem]);
+
+    const seen: LoopHeaderStats[] = [];
+    render(
+      <ToastProvider>
+        <HermesWorkbenchView onStatsChange={(s) => seen.push(s)} />
+      </ToastProvider>
+    );
+    await screen.findByText(/2#无油螺杆空压机主机振动偏高/);
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+
+    const stats = seen[seen.length - 1];
+    expect(stats.runningCount).toBe(1);
+    // 30 天前那条不属于本自然周，不能拿「归档总条数」冒充「本周闭环」
+    expect(stats.archivedThisWeek).toBe(1);
+    expect(stats.avgDurationHours).toBe(4);
   });
 
   it('后端不可达时只提示无法连接，不回落任何闭环数据', async () => {
