@@ -294,6 +294,8 @@ export function GodotGameView({ currentUser }: GodotGameViewProps) {
           </button>
         </span>
       </div>
+            {/* 2026-10-18 清理：2D 横版导出（public/godot-game-2d/）已随范围收口移除；
+          本组件无运行入口（AppViewDispatcher 仅引用 MazeGameView），保留仅因 mazeLevels.ts 引用其类型 */}
       <iframe
         key={epoch}
         ref={frameRef}
