@@ -1,627 +1,94 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { AlertTriangle } from 'lucide-react';
 import {
-  Activity,
-  AlertTriangle,
-  ArrowDown,
-  ArrowRight,
-  ArrowUp,
-  CheckCircle2,
-  GitBranch,
-  Layers,
-  Loader2,
-  PlugZap,
-  Plus,
-  Power,
-  RefreshCw,
-  Repeat,
-  Route,
-  ShieldAlert,
-  Sparkles,
-  XCircle,
-  Zap,
-} from 'lucide-react';
-import { adminAiModelApi, AiModelConfig } from '../api';
-
-const CAP_LABELS: Record<string, string> = { chat: '对话', vision: '视觉', video: '视频' };
-
-const HEALTH_META: Record<string, { label: string; cls: string }> = {
-  healthy: { label: '健康', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  unhealthy: { label: '异常', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
-  unknown: { label: '未检测', cls: 'bg-slate-50 text-slate-500 border-slate-200' },
-};
-
-interface TestResult {
-  id: string;
-  ok: boolean;
-  latencyMs?: number;
-  error?: string;
-}
+  AiModelsHeader,
+  AiModelsFailoverBanner,
+  AiModelsStatBar,
+  AiModelList,
+  AiModelFormModal,
+  useAdminAiModels,
+} from './admin-ai-models';
 
 export const AdminAiModelsView: React.FC = () => {
-  const [models, setModels] = useState<AiModelConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [testing, setTesting] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
-  const [acting, setActing] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<AiModelConfig | null>(null);
-  const [form, setForm] = useState({
-    provider: 'dashscope',
-    displayName: '',
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    modelName: '',
-    apiKey: '',
-    apiKeyEnv: 'DASHSCOPE_API_KEY',
-    capabilities: ['chat'] as ('chat' | 'vision' | 'video')[],
-    enabled: true,
-  });
-
-  const fetchList = async () => {
-    setLoading(true);
-    try {
-      setModels(await adminAiModelApi.list());
-      setError(null);
-    } catch (e: any) {
-      setError(e?.data?.message || e?.message || '模型配置列表加载失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchList();
-  }, []);
-
-  const toggleEnabled = async (m: AiModelConfig) => {
-    setActing(true);
-    try {
-      await adminAiModelApi.upsert({
-        id: m.id,
-        provider: m.provider,
-        displayName: m.displayName,
-        baseUrl: m.baseUrl,
-        modelName: m.modelName,
-        capabilities: m.capabilities,
-        enabled: !m.enabled,
-      });
-      await fetchList();
-    } catch (e: any) {
-      setError(e?.data?.message || e?.message || '启停操作失败');
-    } finally {
-      setActing(false);
-    }
-  };
-
-  const move = async (index: number, dir: -1 | 1) => {
-    const next = [...models];
-    const target = index + dir;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
-    setModels(next);
-    try {
-      const res = await adminAiModelApi.reorder(next.map((m) => m.id));
-      setModels(res.configs);
-    } catch (e: any) {
-      setError(e?.data?.message || e?.message || '排序失败');
-      await fetchList();
-    }
-  };
-
-  const handleTest = async (m: AiModelConfig) => {
-    setTesting(m.id);
-    try {
-      const res = await adminAiModelApi.test(m.id);
-      setTestResults((prev) => ({
-        ...prev,
-        [m.id]: { id: m.id, ok: res.success, latencyMs: res.latencyMs, error: res.error },
-      }));
-      await fetchList();
-    } catch (e: any) {
-      setTestResults((prev) => ({ ...prev, [m.id]: { id: m.id, ok: false, error: e?.data?.message || e?.message } }));
-    } finally {
-      setTesting(null);
-    }
-  };
-
-  const openForm = (m?: AiModelConfig) => {
-    setEditing(m || null);
-    setForm(
-      m
-        ? {
-            provider: m.provider,
-            displayName: m.displayName,
-            baseUrl: m.baseUrl,
-            modelName: m.modelName,
-            apiKey: '',
-            apiKeyEnv: '',
-            capabilities: m.capabilities,
-            enabled: m.enabled,
-          }
-        : {
-            provider: 'dashscope',
-            displayName: '',
-            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            modelName: '',
-            apiKey: '',
-            apiKeyEnv: 'DASHSCOPE_API_KEY',
-            capabilities: ['chat'],
-            enabled: true,
-          }
-    );
-    setFormOpen(true);
-  };
-
-  const handleSave = async () => {
-    // Unicode NFC 规范化 + trim：防止粘贴入异常编码字符（如分解形字符）或首尾空白入库产生乱码观感
-    const clean = (s: string) => s.normalize("NFC").trim();
-    if (!clean(form.displayName) || !clean(form.modelName) || !form.capabilities.length) {
-      setError('名称、模型名、能力至少一项能力为必填');
-      return;
-    }
-    setActing(true);
-    try {
-      await adminAiModelApi.upsert({
-        id: editing?.id,
-        provider: clean(form.provider),
-        displayName: clean(form.displayName),
-        baseUrl: form.baseUrl.trim(),
-        modelName: clean(form.modelName),
-        capabilities: form.capabilities,
-        enabled: form.enabled,
-        ...(form.apiKeyEnv ? { apiKeyEnv: form.apiKeyEnv.trim() } : {}),
-        ...(form.apiKey ? { apiKey: form.apiKey.trim() } : {}),
-      });
-      setFormOpen(false);
-      await fetchList();
-    } catch (e: any) {
-      setError(e?.data?.message || e?.message || '保存失败');
-    } finally {
-      setActing(false);
-    }
-  };
-
-  const toggleCap = (cap: 'chat' | 'vision' | 'video') => {
-    setForm((f) => ({
-      ...f,
-      capabilities: f.capabilities.includes(cap)
-        ? f.capabilities.filter((c) => c !== cap)
-        : [...f.capabilities, cap],
-    }));
-  };
-
-  const totalCount = models.length;
-  const enabledCount = models.filter((m) => m.enabled).length;
-  const healthyCount = models.filter((m) => m.healthStatus === 'healthy').length;
-  const unhealthyCount = models.filter((m) => m.healthStatus === 'unhealthy').length;
-  const unknownCount = models.filter((m) => m.healthStatus === 'unknown' || !m.healthStatus).length;
+  const {
+    models,
+    loading,
+    error,
+    testing,
+    testResults,
+    acting,
+    formOpen,
+    editing,
+    form,
+    refresh,
+    toggleEnabled,
+    move,
+    handleTest,
+    openForm,
+    closeForm,
+    handleSave,
+    toggleCap,
+    setFormField,
+    totalCount,
+    enabledCount,
+    healthyCount,
+    unhealthyCount,
+    unknownCount,
+  } = useAdminAiModels();
 
   return (
     <div className="p-4 md:p-6 max-w-[1100px] mx-auto">
       {/* 页头 */}
-      <div className="glass-card p-5 shadow-sm mb-4">
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center">
-              <Route className="w-5 h-5 mr-2 text-blue-600" />
-              AI 模型路由
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              多模型接入与降级顺序管理：按优先级依次尝试，失败（超时/5xx/鉴权失败）自动切换下一候选，全链路审计可查
-            </p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={fetchList}
-              className="p-2 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-blue-600 transition-colors cursor-pointer"
-              title="刷新"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-blue-600' : ''}`} />
-            </button>
-            <button
-              onClick={() => openForm()}
-              className="px-3.5 py-1.5 rounded-lg btn-gradient text-xs font-medium flex items-center space-x-1.5 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>新增模型</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      <AiModelsHeader
+        loading={loading}
+        onRefresh={refresh}
+        onAddNew={() => openForm()}
+      />
 
       {/* 路由与降级机制流程示意 */}
-      <div className="glass-card p-5 shadow-sm mb-4 border border-blue-100/70 bg-gradient-to-r from-blue-50/20 via-white/50 to-indigo-50/20">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 flex-wrap gap-2">
-          <div className="flex items-center space-x-2">
-            <div className="p-1.5 rounded-lg bg-blue-100/80 text-blue-700">
-              <GitBranch className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">多模型容灾与路由降级机制</h2>
-              <p className="text-[11px] text-slate-500">优先级路由分发 · 异常自动故障转移 (Failover) · 规则引擎专家库底线兜底</p>
-            </div>
-          </div>
-          <span className="text-[11px] px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-            多模型容灾 · 故障转移 · 审计可溯 · 零单点故障
-          </span>
-        </div>
-
-        {/* 横向步骤链路 */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5">
-          {/* 步骤 1 */}
-          <div className="flex-1 p-3 rounded-xl border border-slate-200 bg-white/90 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono">
-                  步骤 1
-                </span>
-                <Zap className="w-3.5 h-3.5 text-blue-600" />
-              </div>
-              <div className="font-bold text-xs text-slate-800">业务请求发起</div>
-              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                诊断/方案/报告等业务模块统一调用 AI 网关入口
-              </p>
-            </div>
-            <div className="mt-2 pt-2 border-t border-slate-100 text-[9px] text-slate-500 font-mono">
-              入参校验与上下文装配
-            </div>
-          </div>
-
-          {/* 连接箭头 1 */}
-          <div className="flex items-center justify-center text-blue-400 shrink-0">
-            <ArrowRight className="w-4 h-4 hidden lg:block" />
-            <div className="text-center py-0.5 lg:hidden text-blue-500 text-[11px] font-medium">↓</div>
-          </div>
-
-          {/* 步骤 2 */}
-          <div className="flex-1 p-3 rounded-xl border border-blue-200 bg-white/90 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono">
-                  步骤 2
-                </span>
-                <Route className="w-3.5 h-3.5 text-blue-600" />
-              </div>
-              <div className="font-bold text-xs text-slate-800">候选 #1 优先尝试</div>
-              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                按 Priority 优先级顺序路由首选已启用模型
-              </p>
-            </div>
-            <div className="mt-2 pt-2 border-t border-slate-100 text-[9px] text-emerald-600 font-mono font-semibold">
-              成功：直接返回并记健康
-            </div>
-          </div>
-
-          {/* 连接箭头 2 */}
-          <div className="flex items-center justify-center text-amber-400 shrink-0">
-            <ArrowRight className="w-4 h-4 hidden lg:block" />
-            <div className="text-center py-0.5 lg:hidden text-amber-500 text-[11px] font-medium">↓ 失败（超时/5xx/鉴权）</div>
-          </div>
-
-          {/* 步骤 3 */}
-          <div className="flex-1 p-3 rounded-xl border border-amber-200 bg-amber-50/30 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-mono">
-                  步骤 3
-                </span>
-                <Repeat className="w-3.5 h-3.5 text-amber-600" />
-              </div>
-              <div className="font-bold text-xs text-slate-800">切换候选 #2 … #N</div>
-              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                前序异常熔断，自动故障转移至次级候选重试
-              </p>
-            </div>
-            <div className="mt-2 pt-2 border-t border-slate-100 text-[9px] text-amber-700 font-mono">
-              回写首选 unhealthy 状态
-            </div>
-          </div>
-
-          {/* 连接箭头 3 */}
-          <div className="flex items-center justify-center text-rose-400 shrink-0">
-            <ArrowRight className="w-4 h-4 hidden lg:block" />
-            <div className="text-center py-0.5 lg:hidden text-rose-500 text-[11px] font-medium">↓ 全部候选失效</div>
-          </div>
-
-          {/* 步骤 4 */}
-          <div className="flex-1 p-3 rounded-xl border border-rose-200 bg-rose-50/30 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-mono">
-                  步骤 4
-                </span>
-                <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-              </div>
-              <div className="font-bold text-xs text-slate-800">规则引擎专家降级</div>
-              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                全部模型不可用时，无缝回退专家规则库安全执行
-              </p>
-            </div>
-            <div className="mt-2 pt-2 border-t border-slate-100 text-[9px] text-rose-700 font-mono font-medium">
-              degraded 标记 + FAILOVER 审计
-            </div>
-          </div>
-        </div>
-      </div>
+      <AiModelsFailoverBanner />
 
       {/* 统计摘要行 */}
-      <div className="glass-card p-4 shadow-sm mb-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center space-x-2 text-xs font-bold text-slate-800">
-            <Layers className="w-4 h-4 text-blue-600" />
-            <span>模型池状态统计</span>
-            <span className="text-[10px] text-slate-500 font-normal">（自动计算，操作后实时同步）</span>
-          </div>
-          <div className="flex items-center flex-wrap gap-2 text-xs">
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-              模型总数 <strong className="ml-1.5 font-bold font-mono text-slate-900">{totalCount}</strong>
-            </span>
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-              已启用 <strong className="ml-1.5 font-bold font-mono text-blue-800">{enabledCount}</strong>
-            </span>
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-              健康 <strong className="ml-1.5 font-bold font-mono text-emerald-800">{healthyCount}</strong>
-            </span>
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-medium">
-              异常 <strong className="ml-1.5 font-bold font-mono text-rose-800">{unhealthyCount}</strong>
-            </span>
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-50 text-slate-500 border border-slate-200 font-medium">
-              未检测 <strong className="ml-1.5 font-bold font-mono text-slate-600">{unknownCount}</strong>
-            </span>
-          </div>
-        </div>
-      </div>
+      <AiModelsStatBar
+        totalCount={totalCount}
+        enabledCount={enabledCount}
+        healthyCount={healthyCount}
+        unhealthyCount={unhealthyCount}
+        unknownCount={unknownCount}
+      />
 
       {error && (
         <p className="mb-3 text-xs text-rose-600 flex items-center">
-          <AlertTriangle className="w-3.5 h-3.5 mr-1" />
+          <AlertTriangle className="w-3.5 h-3.5 mr-1 shrink-0" />
           {error}
         </p>
       )}
 
       {/* 模型卡片列表（按降级优先级排序） */}
-      {loading ? (
-        <div className="glass-card p-10 flex flex-col items-center text-slate-500 text-xs">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-2" />
-          加载模型配置…
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          {models.map((m, i) => {
-            const hm = HEALTH_META[m.healthStatus] || HEALTH_META.unknown;
-            const tr = testResults[m.id];
-            return (
-              <div
-                key={m.id}
-                className={`glass-card p-4 shadow-sm flex items-start justify-between gap-3 border-l-4 ${
-                  m.enabled ? 'border-l-blue-500' : 'border-l-slate-300 opacity-70'
-                }`}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[10px] text-slate-500 font-bold">#{i + 1}</span>
-                    <span className="text-sm font-bold text-slate-900">{m.displayName}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${hm.cls}`}>
-                      {hm.label}
-                    </span>
-                    {m.capabilities.map((c) => (
-                      <span key={c} className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-semibold">
-                        {CAP_LABELS[c] || c}
-                      </span>
-                    ))}
-                    {!m.enabled && (
-                      <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-semibold">
-                        已停用
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-[11px] text-slate-500 font-mono truncate">
-                    {m.provider} · {m.modelName} · {m.baseUrl}
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-slate-500 font-mono">
-                    密钥：{m.apiKeyMasked}
-                    {m.lastCheckedAt ? ` · 最近检测 ${new Date(m.lastCheckedAt).toLocaleString('zh-CN')}` : ''}
-                  </p>
-                  {tr && (
-                    <p className={`mt-1 text-[11px] flex items-center ${tr.ok ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {tr.ok ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
-                      {tr.ok ? `连接正常，耗时 ${tr.latencyMs}ms` : `连接失败：${tr.error}`}
-                    </p>
-                  )}
-                </div>
-
-                {/* 操作区：排序 / 测试 / 启停 / 编辑 */}
-                <div className="flex flex-col gap-1.5 shrink-0">
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => move(i, -1)}
-                      disabled={i === 0}
-                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 cursor-pointer disabled:opacity-40"
-                      title="提高优先级"
-                    >
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => move(i, 1)}
-                      disabled={i === models.length - 1}
-                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 cursor-pointer disabled:opacity-40"
-                      title="降低优先级"
-                    >
-                      <ArrowDown className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => handleTest(m)}
-                    disabled={testing === m.id}
-                    className="px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 text-[11px] font-semibold cursor-pointer disabled:opacity-60 flex items-center justify-center"
-                  >
-                    {testing === m.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <PlugZap className="w-3 h-3 mr-1" />}
-                    测试连接
-                  </button>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => toggleEnabled(m)}
-                      disabled={acting}
-                      className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-60 flex items-center justify-center border ${
-                        m.enabled
-                          ? 'bg-white border-slate-200 text-slate-600 hover:text-rose-600'
-                          : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                      }`}
-                      title={m.enabled ? '停用该模型' : '启用该模型'}
-                    >
-                      <Power className="w-3 h-3 mr-1" />
-                      {m.enabled ? '停用' : '启用'}
-                    </button>
-                    <button
-                      onClick={() => openForm(m)}
-                      className="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-blue-600 text-[11px] font-semibold cursor-pointer"
-                    >
-                      编辑
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {models.length === 0 && (
-            <div className="glass-card p-10 text-center">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-                <Route className="w-6 h-6" />
-              </div>
-              <p className="text-sm font-bold text-slate-800">暂无模型配置</p>
-              <p className="text-xs text-slate-500 mt-2 max-w-xl mx-auto leading-relaxed">
-                点击右上角「<span className="font-semibold text-slate-700">新增模型</span>」接入 OpenAI 兼容接口（如 <span className="font-semibold text-blue-700">DeepSeek</span>、<span className="font-semibold text-blue-700">通义千问</span>、<span className="font-semibold text-blue-700">智谱 GLM</span>、<span className="font-semibold text-blue-700">讯飞星火</span>）；不配置时 AI 调用自动回退使用环境变量 <code className="font-mono text-blue-600 bg-slate-100 px-1 py-0.5 rounded">DASHSCOPE_*</code>。
-              </p>
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => openForm()}
-                  className="inline-flex items-center px-4 py-2 rounded-lg btn-gradient text-white text-xs font-semibold cursor-pointer hover:shadow-md transition-all"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  <span>新增模型配置</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <AiModelList
+        models={models}
+        loading={loading}
+        testing={testing}
+        acting={acting}
+        testResults={testResults}
+        onMove={move}
+        onTest={handleTest}
+        onToggleEnabled={toggleEnabled}
+        onEdit={openForm}
+        onAddNew={() => openForm()}
+      />
 
       {/* 新增/编辑表单弹层 */}
-      {formOpen && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setFormOpen(false)}>
-          <div className="w-full max-w-md glass-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-slate-800 flex items-center mb-3">
-              <Route className="w-4 h-4 mr-1.5 text-blue-600" />
-              {editing ? '编辑模型配置' : '新增模型配置'}
-            </h3>
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-slate-500 block mb-1">Provider *</label>
-                  <input
-                    value={form.provider}
-                    onChange={(e) => setForm({ ...form, provider: e.target.value })}
-                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    placeholder="dashscope / openai / deepseek…"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-500 block mb-1">显示名称 *</label>
-                  <input
-                    value={form.displayName}
-                    onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    placeholder="如：DeepSeek V3（备用）"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-slate-500 block mb-1">模型名（model）*</label>
-                <input
-                  value={form.modelName}
-                  onChange={(e) => setForm({ ...form, modelName: e.target.value })}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  placeholder="如：deepseek-chat / qwen-plus"
-                />
-              </div>
-              <div>
-                <label className="text-slate-500 block mb-1">Base URL（OpenAI 兼容）</label>
-                <input
-                  value={form.baseUrl}
-                  onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-slate-500 block mb-1">API Key（明文，加密入库）</label>
-                  <input
-                    type="password"
-                    value={form.apiKey}
-                    onChange={(e) => setForm({ ...form, apiKey: e.target.value, apiKeyEnv: '' })}
-                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    placeholder="留空则不修改"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-500 block mb-1">或引用环境变量名</label>
-                  <input
-                    value={form.apiKeyEnv}
-                    onChange={(e) => setForm({ ...form, apiKeyEnv: e.target.value, apiKey: '' })}
-                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    placeholder="DASHSCOPE_API_KEY"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-slate-500 block mb-1">能力（多选）</label>
-                <div className="flex gap-2">
-                  {(['chat', 'vision', 'video'] as const).map((cap) => (
-                    <button
-                      key={cap}
-                      type="button"
-                      onClick={() => toggleCap(cap)}
-                      className={`px-3 py-1.5 rounded-lg border text-[11px] font-semibold cursor-pointer ${
-                        form.capabilities.includes(cap)
-                          ? 'bg-blue-50 border-blue-300 text-blue-700'
-                          : 'bg-white border-slate-200 text-slate-500'
-                      }`}
-                    >
-                      {CAP_LABELS[cap]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label className="flex items-center space-x-2 text-slate-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.enabled}
-                  onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-                  className="rounded"
-                />
-                <span>启用该模型（参与路由与降级）</span>
-              </label>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={handleSave}
-                disabled={acting}
-                className="flex-1 py-2.5 rounded-lg btn-gradient text-xs font-semibold text-white cursor-pointer disabled:opacity-60 flex items-center justify-center"
-              >
-                {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
-                保存
-              </button>
-              <button
-                onClick={() => setFormOpen(false)}
-                className="flex-1 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-semibold cursor-pointer"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AiModelFormModal
+        isOpen={formOpen}
+        editing={editing}
+        form={form}
+        acting={acting}
+        onClose={closeForm}
+        onSave={handleSave}
+        onChangeField={setFormField}
+        onToggleCap={toggleCap}
+      />
     </div>
   );
 };
