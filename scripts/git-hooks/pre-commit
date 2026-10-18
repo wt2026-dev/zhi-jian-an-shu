@@ -32,6 +32,16 @@ set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
+# git 调 hook 时把 GIT_DIR 设成相对路径 `.git`。`git worktree add` 会 chdir 进新目录再写索引，
+# 于是 `.git` 被解析成 <新目录>/.git —— 报
+#   fatal: Unable to create '.../precommit-wt-xxxx/.git/index.lock': No such file or directory
+# 所以 worktree 系列命令统一换成绝对 GIT_DIR / GIT_WORK_TREE，并把 GIT_INDEX_FILE 丢掉
+# （留着它会把临时 worktree 的索引写到主仓库的索引文件上）。
+gwt() {
+  env -u GIT_INDEX_FILE -u GIT_PREFIX \
+    GIT_DIR="$ROOT/.git" GIT_WORK_TREE="$ROOT" git "$@"
+}
+
 TREE="$(git write-tree)"
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   VERIFY_COMMIT="$(git commit-tree "$TREE" -p HEAD -m "pre-commit verify")"
@@ -39,17 +49,17 @@ else
   VERIFY_COMMIT="$(git commit-tree "$TREE" -m "pre-commit verify")"
 fi
 
-WT="$ROOT/scratch/.precommit-wt-$$"
+WT="$ROOT/scratch/precommit-wt-$$"
 mkdir -p "$ROOT/scratch"
-git worktree prune >/dev/null 2>&1 || true
+gwt worktree prune >/dev/null 2>&1 || true
 cleanup() {
-  git worktree remove --force "$WT" >/dev/null 2>&1 || rm -rf "$WT"
-  git worktree prune >/dev/null 2>&1 || true
+  gwt worktree remove --force "$WT" >/dev/null 2>&1 || rm -rf "$WT"
+  gwt worktree prune >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 echo "[pre-commit] 0/2 检出待提交的树到 $WT ..."
-if ! git worktree add --detach "$WT" "$VERIFY_COMMIT" >/dev/null 2>&1; then
+if ! gwt worktree add --detach "$WT" "$VERIFY_COMMIT"; then
   echo "[pre-commit] ✗ 无法为校验建立临时 worktree（scratch/ 被占用？git worktree list 检查残留）。" >&2
   exit 1
 fi
