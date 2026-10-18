@@ -53,6 +53,8 @@ export interface LotoConfirmationItem {
   point: string;
   requirement: string;
   lockNumber: string;
+  /** 隔离点出处：JSA 评估输出 / 类别规则兜底（降级清单需现场核对） */
+  basis?: string;
   confirmed: boolean;
   operator: string;
   confirmTime?: string;
@@ -93,6 +95,7 @@ export interface HistoryLoopItem {
 export interface BusinessClosedLoopData {
   id: string;
   loopCode: string;
+  status: 'running' | 'paused' | 'archived';
   businessGoal: string;
   equipment: {
     id: string;
@@ -123,7 +126,6 @@ export interface BusinessClosedLoopData {
   lotoItems: LotoConfirmationItem[];
   artifacts: ArtifactItem[];
   suggestions: ButlerSuggestion[];
-  historyLoops: HistoryLoopItem[];
 }
 
 /** 业务目标解析结果（服务端识别出的设备与故障线索） */
@@ -131,4 +133,92 @@ export interface GoalParseResult {
   equipmentId: string | null;
   equipmentName: string | null;
   faultKeyword: string | null;
+}
+
+// ==================== ai_prefill_json 结构（与后端 businessLoopService 写入字段一致） ====================
+
+/** 环节 1：generate-work-order 的工单草稿 */
+export interface WorkOrderDraftPrefill {
+  title?: string;
+  faultType?: string;
+  priority?: string;
+  description?: string;
+  estimatedHours?: number;
+  recommendedSteps?: string[];
+  safetyNotes?: string[];
+}
+
+export interface Stage1Prefill {
+  workOrderDraft?: WorkOrderDraftPrefill | null;
+  message?: string | null;
+}
+
+/** 环节 2：safety-risk-assessment 的 JSA 评估 */
+export interface JsaMeasure {
+  hazard?: string;
+  control?: string;
+}
+
+export interface Stage2Prefill {
+  assessment?: {
+    riskLevel?: string;
+    riskReason?: string;
+    jsaMeasures?: JsaMeasure[];
+    hazardIdentifications?: Array<{ category?: string; hazard?: string; level?: string }>;
+    lotoAdvice?: { required?: boolean; lockCount?: number; isolationPoints?: string[] };
+  } | null;
+  degraded?: boolean;
+  message?: string | null;
+}
+
+/** 环节 3：safety-interlock 规则推演的 LOTO 建议（含人工逐项确认状态） */
+export interface Stage3Prefill {
+  isolationPoints?: string[];
+  lockRequired?: boolean;
+  lockCount?: number;
+  existingLocks?: Array<{ lockNo?: string; status?: string; pointName?: string }>;
+  lotoItems?: Array<{
+    id: string;
+    type: string;
+    point: string;
+    requirement: string;
+    lockNumber: string;
+    confirmed: boolean;
+    operator: string;
+    confirmTime?: string;
+  }>;
+  standards?: string[];
+  note?: string;
+}
+
+/** 环节 4：generate-maintenance-plan 的检修方案 */
+export interface Stage4Prefill {
+  plan?: {
+    overview?: string;
+    steps?: Array<{ step?: number; operation?: string; qualityStandard?: string }>;
+    spareParts?: Array<{ name?: string; spec?: string; qty?: number }>;
+    safetyMeasures?: { lotoPoints?: string[]; ppe?: string[] };
+    estimatedHours?: number;
+    workers?: number;
+  } | null;
+  degraded?: boolean;
+  message?: string | null;
+}
+
+export interface Stage5Prefill {
+  acceptanceSummary?: string | null;
+}
+
+/** 环节 6：归档时的 suggest-contribution 判定 */
+export interface Stage6Prefill {
+  contribution?: {
+    worthContributing?: boolean;
+    id?: string;
+    title?: string;
+    type?: string;
+    equipment?: string;
+    summary?: string;
+    solution?: string;
+    message?: string;
+  } | null;
 }

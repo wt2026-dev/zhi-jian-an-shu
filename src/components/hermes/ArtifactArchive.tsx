@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  FolderArchive, 
-  FileText, 
-  CheckCircle2, 
-  Clock, 
-  Eye, 
-  Download, 
-  X,
-  FileBox,
-  Sparkles
+import {
+  FolderArchive,
+  FileText,
+  CheckCircle2,
+  Clock,
+  X
 } from 'lucide-react';
-import type { ArtifactItem } from './demoData';
+import type { ArtifactItem } from './types';
 import { useToast } from '../../context/ToastContext';
 
 interface ArtifactArchiveProps {
@@ -36,15 +32,6 @@ export const ArtifactArchive: React.FC<ArtifactArchiveProps> = ({ artifacts }) =
     }
   };
 
-  const handleExportZip = () => {
-    showToast({
-      type: 'success',
-      title: '导出申请已提交',
-      message: '正在将已归档的业务单据打包为符合档案标准的 PDF/A 压缩包（演示）',
-      duration: 3000,
-    });
-  };
-
   return (
     <div className="rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm p-4 sm:p-5 backdrop-blur-md flex flex-col justify-between space-y-3.5">
       {/* 标题栏 */}
@@ -55,26 +42,25 @@ export const ArtifactArchive: React.FC<ArtifactArchiveProps> = ({ artifacts }) =
           </div>
           <div>
             <h3 className="text-xs font-bold text-slate-800 tracking-tight">业务闭环产出物档案</h3>
-            <p className="text-[11px] text-slate-400">本次业务闭环共标准化沉淀 8 项工程核心单据</p>
+            <p className="text-[11px] text-slate-400">
+              本闭环登记 {artifacts.length} 项单据，已入库 {readyCount} 项
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200/70">
-            已就绪 {readyCount}/8
+            已就绪 {readyCount}/{artifacts.length}
           </span>
-          <button
-            type="button"
-            onClick={handleExportZip}
-            className="text-[11px] text-slate-600 hover:text-indigo-600 font-medium px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1"
-          >
-            <Download className="w-3 h-3" />
-            <span className="hidden sm:inline">打包导出</span>
-          </button>
         </div>
       </div>
 
-      {/* 8 项单据网格 */}
+      {/* 产出物网格（行数由 business_loop_artifacts 真实记录决定） */}
+      {artifacts.length === 0 && (
+        <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+          该闭环尚未登记任何产出物记录
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {artifacts.map((art) => {
           const isReady = art.status === 'ready';
@@ -153,10 +139,16 @@ export const ArtifactArchive: React.FC<ArtifactArchiveProps> = ({ artifacts }) =
               {selectedArtifact.previewContent}
             </div>
 
-            <div className="pt-2 flex items-center justify-between">
-              <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                防篡改 SHA-256 数字校验通过
+            <div className="pt-2 flex items-center justify-between gap-3">
+              <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
+                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600">
+                  {selectedArtifact.category}
+                </span>
+                <span className="font-mono">{selectedArtifact.code}</span>
+                <span className="text-emerald-600 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  已入库 business_loop_artifacts
+                </span>
               </span>
               <button
                 type="button"

@@ -5,82 +5,114 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
-  SlidersHorizontal,
   ExternalLink,
   ShieldCheck,
   FileText,
-  Info,
-  Layers,
+  Loader2,
   Wrench,
   Check,
   Eye,
   X,
-  FileCheck,
-  Hammer,
-  ClipboardCheck,
-  BookOpen
+  Clock
 } from 'lucide-react';
-import type { StageId, StageStepMeta, LotoConfirmationItem, BusinessClosedLoopData } from './demoData';
+import type {
+  BusinessClosedLoopData,
+  LotoConfirmationItem,
+  Stage1Prefill,
+  Stage2Prefill,
+  Stage3Prefill,
+  Stage4Prefill,
+  Stage5Prefill,
+  Stage6Prefill,
+  StageId,
+  StageStepMeta,
+} from './types';
 import { useToast } from '../../context/ToastContext';
 
 interface StageWorkbenchProps {
-  currentStageId: StageId;
+  currentStageId: StageId | null;
   stages: StageStepMeta[];
   lotoItems: LotoConfirmationItem[];
   loopData: BusinessClosedLoopData;
-  onToggleLotoItem: (itemId: string) => void;
-  onAdvanceStage: (fromStageId: StageId) => void;
+  canOperate: boolean;
+  busy?: boolean;
+  onToggleLotoItem: (itemId: string, confirmed: boolean) => void;
+  onAdvanceStage: (stageNo: number) => void;
   onNavigateToTab?: (tabKey: string) => void;
 }
+
+/** 环节说明取自服务端 STAGE_DEFS（与 aiBadge/outputSummary 同源），不在前端另写一套 */
+const STAGE_INTRO: Record<StageId, string> = {
+  stage_report: '遥测越限与业务目标自动生成报修工单草稿，人工核对确认后落库为真实工单',
+  stage_permit: '作业安全分析 (JSA) 识别危险能量与控制措施，确认后落成真实作业票（待双人会签）',
+  stage_loto: '按 GB/T 33579 推演隔离点并匹配台账真实锁具，须现场逐项人工确认方可开工',
+  stage_execution: '依据设备档案与历史检修记录生成检修方案，确认后转为作业指引档案',
+  stage_completion: '引用真实工单状态与台账遥测基线生成完工验收记录',
+  stage_archive: '汇总全链路数据生成质检报告，并判定是否沉淀知识条目入知识库',
+};
+
+const fmtClock = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
 
 export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
   currentStageId,
   stages,
   lotoItems,
   loopData,
+  canOperate,
+  busy,
   onToggleLotoItem,
   onAdvanceStage,
   onNavigateToTab,
 }) => {
   const { show: showToast } = useToast();
   const [showAiReasonModal, setShowAiReasonModal] = useState(false);
-  const [showAdjustModal, setShowAdjustModal] = useState(false);
-  const [adjustNote, setAdjustNote] = useState('隔离方案由智能管家根据Atlas Copco维护手册与电气单线图自动匹配，参数已校准。');
 
-  const currentStage = stages.find((s) => s.id === currentStageId) || stages[2];
+  const currentStage = stages.find((s) => s.id === currentStageId) || null;
+  const activeStage = stages.find((s) => s.status === 'in_progress') || null;
   const confirmedCount = lotoItems.filter((i) => i.confirmed).length;
-  const isAllConfirmed = confirmedCount === lotoItems.length;
+  const isAllConfirmed = lotoItems.length > 0 && confirmedCount === lotoItems.length;
+
+  if (!currentStage) {
+    return (
+      <div className="rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm p-6 text-sm text-slate-500">
+        请在上方路线条选择要查看的环节。
+      </div>
+    );
+  }
+
+  const prefill = currentStage.aiPrefill || {};
+  const isViewingActive = activeStage?.id === currentStage.id && currentStage.status === 'in_progress';
+  const hasEquipment = loopData.equipment.id !== '';
 
   const handleAdvance = () => {
-    // TODO: 调用后端接口进行状态推进与自动化流转
-    // - 环节 1 (现场报修): POST /api/ai/generate-work-order
-    // - 环节 2 (高危作业票): POST /api/ai/safety-risk-assessment
-    // - 环节 3 (LOTO能量隔离): GET /api/loto-locks & POST /api/ai/safety-risk-assessment
-    // - 环节 4 (检修执行): POST /api/ai/generate-maintenance-plan
-    // - 环节 5 (完工): POST /api/ai/generate-report
-    // - 环节 6 (质检归档): POST /api/ai/suggest-contribution & POST /api/knowledge/contributions
-
-    if (currentStageId === 'stage_loto' && !isAllConfirmed) {
+    if (!canOperate) {
+      showToast({ type: 'warning', title: '当前角色无确认权限', message: '确认推进需 admin / manager / technician 角色', duration: 3500 });
+      return;
+    }
+    if (!isViewingActive) {
       showToast({
         type: 'warning',
-        title: '关键安全环节未确认',
-        message: 'LOTO 能量隔离要求必须 100% 确认（当前已确认 2/3 项），请勾选残余能量泄压后再推进！',
+        title: '环节顺序校验未通过',
+        message: activeStage ? `服务端进行中的环节是「${activeStage.title}」，请先完成该环节确认` : '六个环节均已确认，请直接执行归档',
         duration: 4000,
       });
       return;
     }
-
-    onAdvanceStage(currentStageId);
-  };
-
-  const handleAdjustSubmit = () => {
-    setShowAdjustModal(false);
-    showToast({
-      type: 'success',
-      title: '内容调整已暂存',
-      message: '人工补充说明已更新至本环节元数据中，AI 依据已同步沉淀日志',
-      duration: 3000,
-    });
+    if (currentStage.id === 'stage_loto' && !isAllConfirmed) {
+      showToast({
+        type: 'warning',
+        title: '关键安全环节未确认',
+        message: `LOTO 能量隔离要求 100% 确认（当前 ${confirmedCount}/${lotoItems.length} 项），请现场逐项勾选后再推进`,
+        duration: 4000,
+      });
+      return;
+    }
+    onAdvanceStage(currentStage.order);
   };
 
   return (
@@ -92,25 +124,16 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
             <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/80">
               环节 {currentStage.order}/6
             </span>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <span>{currentStage.title}</span>
-            </h2>
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">{currentStage.title}</h2>
             <span className="text-slate-300">·</span>
             <span className="text-xs text-slate-500">
               对应页面：<strong className="text-slate-700">{currentStage.targetPage}</strong>
             </span>
+            <StageStatusBadge status={currentStage.status} />
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            {currentStageId === 'stage_loto' && '对动力源进行机械与电气彻底闭锁，严格防范检修期间误合闸或残余蓄压伤害'}
-            {currentStageId === 'stage_report' && '遥测超温自动生成现场报修工单，结合设备健康画像与 AI 根因推演'}
-            {currentStageId === 'stage_permit' && '作业安全分析 (JSA) 自动识别高危能量，出具二级动火与机械拆装许可'}
-            {currentStageId === 'stage_execution' && '根据历史优秀工单与 SOP 自动派发离心机轴承拆装更换作业指引'}
-            {currentStageId === 'stage_completion' && '检修完成后就地试车、轴温振动遥测复核、现场工完料净场地清验收'}
-            {currentStageId === 'stage_archive' && '全链路数据汇总质检评估，形成闭环电子档案包，沉淀典型案例至知识库'}
-          </p>
+          <p className="text-xs text-slate-500 mt-1">{STAGE_INTRO[currentStage.id]}</p>
         </div>
 
-        {/* 跳转关联页面 */}
         {onNavigateToTab && (
           <button
             type="button"
@@ -123,142 +146,85 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
         )}
       </div>
 
-      {/* ── 环节 3：LOTO 能量隔离专属工作台（核心演示区） ── */}
-      {currentStageId === 'stage_loto' && (
+      {/* AI 预填状态条：真实引擎名 + ok/degraded 如实标注 */}
+      <PrefillBanner stage={currentStage} waitingPrefill={!prefill.engine && currentStage.order <= 4} />
+
+      {/* 环节 3：LOTO 能量隔离（隔离点与锁号全部来自服务端预填 + 现场确认） */}
+      {currentStage.id === 'stage_loto' && (
         <div className="space-y-4">
-          {/* 金色标识卡：「AI 已预填」 */}
-          <div 
-            className="relative overflow-hidden rounded-xl p-4 border"
-            style={{
-              backgroundColor: 'rgba(232, 163, 61, 0.08)',
-              borderColor: 'rgba(232, 163, 61, 0.4)',
-            }}
+          <StructuredBlock
+            title={`LOTO 能量隔离确认矩阵（${lotoItems.length} 个隔离点）`}
+            icon={<Lock className="w-3.5 h-3.5 text-blue-600" />}
+            note={(currentStage.aiPrefill?.raw as Stage3Prefill | undefined)?.note}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div 
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs"
-                  style={{ backgroundColor: '#E8A33D' }}
-                >
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span 
-                      className="text-xs font-bold px-2 py-0.5 rounded text-amber-900"
-                      style={{ backgroundColor: 'rgba(232, 163, 61, 0.25)' }}
-                    >
-                      AI 已预填
-                    </span>
-                    <span className="text-[11px] text-amber-800 font-mono">
-                      10:28 完成 · 基于设备图谱与 14 条历史工单
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">
-                    智能建议：建议隔离主电源 <strong className="text-amber-900 underline underline-offset-2">QF-03</strong>、关闭压缩空气入口阀 <strong className="text-amber-900 underline underline-offset-2">V-301</strong>、管路泄压至 <strong className="text-amber-900 underline underline-offset-2">0MPa</strong>。
-                  </p>
-                </div>
-              </div>
-
-              <div className="hidden sm:flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white/80 text-amber-800 border border-amber-200/80">
-                  图谱匹配 99%
-                </span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white/80 text-amber-800 border border-amber-200/80">
-                  GB/T 33579 合规
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 隔离确认表格 */}
-          <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-2xs">
-            <div className="px-3.5 py-2.5 bg-slate-50/90 border-b border-slate-200/80 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-blue-600" />
-                LOTO 能量隔离确认矩阵
-              </span>
-              <span className="text-[11px] text-slate-500">
-                严格遵循断电上锁挂牌双人复核流程
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50/50 text-slate-500 border-b border-slate-100 font-medium">
-                    <th className="py-2.5 px-3 w-24">隔离类型</th>
-                    <th className="py-2.5 px-3 w-40">隔离点</th>
-                    <th className="py-2.5 px-3 min-w-[200px]">操作要求与规范</th>
-                    <th className="py-2.5 px-3 w-28">锁具/牌号</th>
-                    <th className="py-2.5 px-3 w-28 text-center">确认勾选</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {lotoItems.map((item) => (
-                    <tr 
-                      key={item.id} 
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        item.confirmed ? 'bg-emerald-50/20' : 'bg-amber-50/15'
-                      }`}
-                    >
-                      <td className="py-3 px-3 font-semibold text-slate-800">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-medium ${
-                          item.type === '电气隔离' 
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                            : item.type === '气源隔离'
-                            ? 'bg-cyan-50 text-cyan-700 border border-cyan-200/60'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                        }`}>
-                          {item.type}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 font-medium text-slate-900">
-                        <div>{item.point}</div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-600 leading-relaxed">
-                        {item.requirement}
-                      </td>
-                      <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
-                        <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/70">
-                          {item.lockNumber}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <label className="inline-flex items-center justify-center cursor-pointer p-1">
-                          <input
-                            type="checkbox"
-                            checked={item.confirmed}
-                            onChange={() => onToggleLotoItem(item.id)}
-                            className="sr-only"
-                          />
-                          <div 
-                            className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
-                              item.confirmed 
-                                ? 'bg-emerald-500 text-white shadow-2xs' 
-                                : 'border-2 border-slate-300 bg-white hover:border-blue-500'
-                            }`}
-                          >
-                            {item.confirmed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                          </div>
-                        </label>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          {item.confirmed ? `${item.confirmTime || '已确认'}` : '点击确认'}
-                        </div>
-                      </td>
+            {lotoItems.length === 0 ? (
+              <EmptyLine text="服务端尚未回写隔离点：环节 2 的 JSA 评估未输出 lotoAdvice 时，请前往「安全与LOTO」页按现场实际补充隔离方案后再确认。" />
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/50 text-slate-500 border-b border-slate-100 font-medium">
+                      <th className="py-2.5 px-3 w-24">隔离类型</th>
+                      <th className="py-2.5 px-3 w-40">隔离点</th>
+                      <th className="py-2.5 px-3 min-w-[200px]">操作要求与规范</th>
+                      <th className="py-2.5 px-3 w-28">锁具/牌号</th>
+                      <th className="py-2.5 px-3 w-28 text-center">确认勾选</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {lotoItems.map((item) => (
+                      <tr key={item.id} className={`transition-colors ${item.confirmed ? 'bg-emerald-50/20' : 'bg-amber-50/15'}`}>
+                        <td className="py-3 px-3 font-semibold text-slate-800">
+                          <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-medium ${typeChip(item.type)}`}>
+                            {item.type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-medium text-slate-900">
+                          {item.point}
+                          {item.basis === '类别规则兜底' && (
+                            <span className="mt-1 block text-[11px] font-normal text-amber-700">类别规则推演，点位编号需现场核对</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 leading-relaxed">{item.requirement}</td>
+                        <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
+                          <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/70">
+                            {item.lockNumber || '现场登记'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                            <input
+                              type="checkbox"
+                              checked={item.confirmed}
+                              disabled={!canOperate || currentStage.status === 'completed' || busy}
+                              onChange={() => onToggleLotoItem(item.id, !item.confirmed)}
+                              className="sr-only"
+                            />
+                            <div
+                              className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
+                                item.confirmed
+                                  ? 'bg-emerald-500 text-white shadow-2xs'
+                                  : 'border-2 border-slate-300 bg-white hover:border-blue-500'
+                              }`}
+                            >
+                              {item.confirmed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+                          </label>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {item.confirmed ? `${item.operator || '已确认'} ${item.confirmTime || ''}` : '点击确认'}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </StructuredBlock>
 
-          {/* 关键安全环节人工确认提示横条 */}
-          <div 
+          <div
             className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-colors ${
-              isAllConfirmed 
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                : 'bg-amber-50/80 text-amber-900 border-amber-200/80'
+              isAllConfirmed ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50/80 text-amber-900 border-amber-200/80'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -268,169 +234,186 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
               )}
               <span>
-                关键安全环节需人工逐项确认 · <strong>当前已确认 {confirmedCount}/3 项</strong>
+                关键安全环节需人工逐项确认 · <strong>当前已确认 {confirmedCount}/{lotoItems.length} 项</strong>
               </span>
             </div>
-
             <span className="text-[11px] font-semibold">
-              {isAllConfirmed ? '安全核准已满足，允许推进下发检修' : '待操作技师完成第 3 项管路泄压确认'}
+              {isAllConfirmed ? '安全核准已满足，允许推进下发检修' : '服务端闸门会拒绝未满 100% 的推进请求'}
             </span>
           </div>
+
+          <StandardsList raw={currentStage.aiPrefill?.raw as Stage3Prefill | undefined} />
         </div>
       )}
 
-      {/* ── 环节 1：现场报修工作台 ── */}
-      {currentStageId === 'stage_report' && (
+      {/* 环节 1：现场报修（generate-work-order 草稿） */}
+      {currentStage.id === 'stage_report' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-900">报修信息预填 (工单 WO-2025-0618-042)</span>
-              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                已由陈主管下发
-              </span>
-            </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              <strong>故障现象：</strong>3#离心式空压机非驱动端轴承温度实测 68.4℃（越上限阈值 65℃），振动烈度 3.8mm/s。
-            </p>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              <strong>AI 诊断推演：</strong>基于时序遥测与故障树机理分析，推断为润滑脂热降解与局部点蚀，置信度 94.2%。已自动匹配备件储备库（SKF 6314-2Z 现存 4 件）。
-            </p>
-          </div>
+          {prefill.engine ? (
+            <StructuredBlock title="工单草稿（AI 预填，确认后才落库）" icon={<FileText className="w-3.5 h-3.5 text-blue-600" />}>
+              <DraftGrid
+                items={[
+                  { label: '工单标题', value: (prefill.raw as Stage1Prefill)?.workOrderDraft?.title },
+                  { label: '故障类型', value: (prefill.raw as Stage1Prefill)?.workOrderDraft?.faultType },
+                  { label: '优先级', value: (prefill.raw as Stage1Prefill)?.workOrderDraft?.priority },
+                  { label: '预计工时', value: (prefill.raw as Stage1Prefill)?.workOrderDraft?.estimatedHours != null ? `${(prefill.raw as Stage1Prefill)?.workOrderDraft?.estimatedHours} 小时` : undefined },
+                ]}
+              />
+              <Para label="现场情况描述" text={(prefill.raw as Stage1Prefill)?.workOrderDraft?.description} />
+              <ListBlock label="AI 建议工序" items={(prefill.raw as Stage1Prefill)?.workOrderDraft?.recommendedSteps} />
+              <ListBlock label="开工前安全注意" items={(prefill.raw as Stage1Prefill)?.workOrderDraft?.safetyNotes} />
+            </StructuredBlock>
+          ) : (
+            <EmptyBlock text="工单草稿尚未回写，AI 能力调用完成后自动出现在这里。" />
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-slate-400 text-[11px]">报修单号</div>
-              <div className="font-mono font-bold text-slate-800 mt-0.5">WO-2025-0618-042</div>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-slate-400 text-[11px]">指定主修</div>
-              <div className="font-bold text-slate-800 mt-0.5">李工 (机修一班班长)</div>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-slate-400 text-[11px]">优先级评定</div>
-              <div className="font-bold text-rose-600 mt-0.5">P1 - 紧急工单</div>
-            </div>
+            <Field label="业务目标" value={loopData.businessGoal} />
+            <Field label="识别设备" value={hasEquipment ? `${loopData.equipment.name}（${loopData.equipment.code}）` : '未识别到台账设备'} />
+            <Field label="关联工单" value={loopData.artifacts.find((a) => a.category === '检修工单' && a.status === 'ready')?.code || '确认环节 1 后生成'} />
           </div>
         </div>
       )}
 
-      {/* ── 环节 2：高危作业票工作台 ── */}
-      {currentStageId === 'stage_permit' && (
+      {/* 环节 2：高危作业票（safety-risk-assessment JSA） */}
+      {currentStage.id === 'stage_permit' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-200/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-indigo-900">作业安全分析 JSA 与安全许可</span>
-              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                安监专员已签发
-              </span>
-            </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              <strong>识别危险能量：</strong>高压电气 (380V)、蓄能管路气压 (0.85MPa)、转动部件挤夹、高温表面烫伤。
-            </p>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              <strong>核准控制要求：</strong>实施严格 LOTO 上锁挂牌，划定 10 米现场警戒区，配备 ABC 干粉灭火器，全程佩戴防烫手套与护目镜。
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-slate-400 text-[11px]">许可票号</div>
-              <div className="font-mono font-bold text-slate-800 mt-0.5">HWP-250618-011</div>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-slate-400 text-[11px]">风险等级</div>
-              <div className="font-bold text-amber-600 mt-0.5">Level II (中度高危)</div>
-            </div>
-          </div>
+          {prefill.engine ? (
+            <StructuredBlock title="作业安全分析 JSA（确认后才落库为作业票）" icon={<ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}>
+              <DraftGrid
+                items={[
+                  { label: '风险等级', value: (prefill.raw as Stage2Prefill)?.assessment?.riskLevel },
+                  { label: '判定理由', value: (prefill.raw as Stage2Prefill)?.assessment?.riskReason },
+                ]}
+              />
+              <ListBlock
+                label="危险源辨识"
+                items={(prefill.raw as Stage2Prefill)?.assessment?.hazardIdentifications?.map(
+                  (h) => `${h.category || '危险源'}：${h.hazard || ''}${h.level ? `（等级 ${h.level}）` : ''}`,
+                )}
+              />
+              <ListBlock
+                label="控制措施"
+                items={(prefill.raw as Stage2Prefill)?.assessment?.jsaMeasures?.map((m) => `${m.hazard || ''}：${m.control || ''}`)}
+              />
+              <ListBlock
+                label="LOTO 建议"
+                items={(prefill.raw as Stage2Prefill)?.assessment?.lotoAdvice?.isolationPoints}
+              />
+            </StructuredBlock>
+          ) : (
+            <EmptyBlock text="JSA 评估尚未回写。" />
+          )}
+          <Field
+            label="关联作业票"
+            value={loopData.artifacts.find((a) => a.category === '安全许可' && a.status === 'ready')?.code || '确认环节 2 后生成（状态 pending_approval，需双人会签）'}
+          />
         </div>
       )}
 
-      {/* ── 环节 4：检修执行工作台 ── */}
-      {currentStageId === 'stage_execution' && (
+      {/* 环节 4：检修执行（generate-maintenance-plan） */}
+      {currentStage.id === 'stage_execution' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-200/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-900">检修方案与作业步骤 (SOP-AC-008)</span>
-              <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
-                AI 已编排就绪
-              </span>
-            </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              <strong>执行指引：</strong>① 拆卸联轴器护罩 → ② 电磁感应加热拆卸轴承内圈 (加热温度 ≤ 110℃) → ③ 轴颈跳动测量与清理 → ④ 安装新备件 SKF 6314-2Z → ⑤ 涂抹美孚 Mobilith SHC 220 润滑脂 (400g)。
-            </p>
-          </div>
-          <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs flex items-center justify-between">
-            <span className="text-slate-600">领料清单已自动预占备件库存：</span>
-            <span className="font-mono font-medium text-blue-700">SKF 6314-2Z × 1 / 耐温密封圈 × 2</span>
-          </div>
+          {prefill.engine ? (
+            <StructuredBlock title="检修方案与作业步骤（AI 预填）" icon={<Wrench className="w-3.5 h-3.5 text-indigo-600" />}>
+              <Para label="方案概述" text={(prefill.raw as Stage4Prefill)?.plan?.overview} />
+              <ListBlock
+                label="作业步骤与验收标准"
+                items={(prefill.raw as Stage4Prefill)?.plan?.steps?.map(
+                  (s) => `${s.step ?? ''}. ${s.operation || ''}${s.qualityStandard ? `（验收：${s.qualityStandard}）` : ''}`,
+                )}
+              />
+              <ListBlock
+                label="备件与工具"
+                items={(prefill.raw as Stage4Prefill)?.plan?.spareParts?.map((p) => `${p.name || ''}${p.spec ? `（${p.spec}）` : ''}×${p.qty ?? 1}`)}
+              />
+              <ListBlock label="PPE 要求" items={(prefill.raw as Stage4Prefill)?.plan?.safetyMeasures?.ppe} />
+              <DraftGrid
+                items={[
+                  { label: '预估工时', value: (prefill.raw as Stage4Prefill)?.plan?.estimatedHours != null ? `${(prefill.raw as Stage4Prefill)?.plan?.estimatedHours} 小时` : undefined },
+                  { label: '作业人数', value: (prefill.raw as Stage4Prefill)?.plan?.workers != null ? `${(prefill.raw as Stage4Prefill)?.plan?.workers} 人` : undefined },
+                ]}
+              />
+            </StructuredBlock>
+          ) : (
+            <EmptyBlock text="检修方案尚未回写。" />
+          )}
         </div>
       )}
 
-      {/* ── 环节 5：完工工作台 ── */}
-      {currentStageId === 'stage_completion' && (
+      {/* 环节 5：完工 */}
+      {currentStage.id === 'stage_completion' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-900">现场完工与试运行核验标准</span>
-              <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                待现场试车
-              </span>
-            </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              <strong>验收标准：</strong>空载试运转 30 分钟，轴承温度温升不得超过 20℃，实测轴温 ≤ 50℃，振动速度有效值 ≤ 1.8mm/s，盘车均匀无杂音。
-            </p>
-          </div>
+          <StructuredBlock title="完工验收记录（引用真实工单状态与台账遥测基线）" icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}>
+            <Para label="验收摘要" text={(prefill.raw as Stage5Prefill)?.acceptanceSummary || prefill.content} />
+            <ListBlock
+              label="修前基线（设备台账真实遥测）"
+              items={
+                hasEquipment
+                  ? [
+                      `轴承温度 ${loopData.equipment.temperature}°C（经验限值 ${loopData.equipment.temperatureThreshold}°C）`,
+                      `振动 RMS ${loopData.equipment.vibration} mm/s`,
+                      `负载率 ${loopData.equipment.loadRate}%`,
+                      `健康分 ${loopData.equipment.healthScore}`,
+                    ]
+                  : ['未识别到台账设备，无遥测基线']
+              }
+            />
+          </StructuredBlock>
+          <Field
+            label="验收记录档案"
+            value={loopData.artifacts.find((a) => a.category === '现场验收' && a.status === 'ready')?.code || '确认环节 5 后生成'}
+          />
         </div>
       )}
 
-      {/* ── 环节 6：质检归档工作台 ── */}
-      {currentStageId === 'stage_archive' && (
+      {/* 环节 6：质检归档 */}
+      {currentStage.id === 'stage_archive' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-200/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-indigo-900">闭环综合评估与知识库沉淀</span>
-              <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                待终审归档
-              </span>
-            </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              <strong>归档内容：</strong>本次闭环自动聚合 8 项标准业务资料，并自动提炼出《3#空压机轴承高温劣化快速应急排查案例》，一键挂载至工业知识库 RAG 索引树。
-            </p>
-          </div>
+          <StructuredBlock title="质检归档与知识沉淀" icon={<Sparkles className="w-3.5 h-3.5 text-indigo-600" />}>
+            <Para
+              label="质检报告"
+              text={loopData.artifacts.find((a) => a.category === '质量评估' && a.status === 'ready')?.previewContent || '执行归档后由 generate-report 生成'}
+            />
+            <Para
+              label="知识沉淀判定"
+              text={
+                (prefill.raw as Stage6Prefill)?.contribution
+                  ? `${(prefill.raw as Stage6Prefill)?.contribution?.worthContributing ? '已达沉淀标准，' : '未达沉淀标准，'}${(prefill.raw as Stage6Prefill)?.contribution?.title || (prefill.raw as Stage6Prefill)?.contribution?.message || ''}`
+                  : '执行归档后由 suggest-contribution 判定并写入知识贡献审核台'
+              }
+            />
+          </StructuredBlock>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            归档请求会校验六个环节是否全部人工确认；未全部确认时服务端直接拒绝（HTTP 400），前端不做假成功。
+          </p>
         </div>
       )}
 
       {/* 底部操作区 */}
       <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setShowAdjustModal(true)}
-            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
-            <span>调整内容</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowAiReasonModal(true)}
-            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-blue-700 bg-blue-50/70 border border-blue-200/70 hover:bg-blue-100 transition-colors cursor-pointer"
-          >
-            <Eye className="w-3.5 h-3.5 text-blue-600" />
-            <span>查看 AI 依据</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowAiReasonModal(true)}
+          className="w-full sm:w-auto flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-blue-700 bg-blue-50/70 border border-blue-200/70 hover:bg-blue-100 transition-colors cursor-pointer"
+        >
+          <Eye className="w-3.5 h-3.5 text-blue-600" />
+          <span>查看 AI 依据原文</span>
+        </button>
 
         <button
           type="button"
           onClick={handleAdvance}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-sm hover:shadow transition-all cursor-pointer"
+          disabled={busy || !isViewingActive}
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span>确认并推进环节 →</span>
-          <ArrowRight className="w-4 h-4" />
+          {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+          <span>{isViewingActive ? '确认并推进环节 →' : `服务端进行中为第 ${activeStage?.order ?? '—'} 环节`}</span>
+          {isViewingActive && <ArrowRight className="w-4 h-4" />}
         </button>
       </div>
 
-      {/* ── 弹窗：查看 AI 依据 ── */}
+      {/* 弹窗：AI 依据原文（服务端 ai_prefill_json 真实内容） */}
       {showAiReasonModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
@@ -439,7 +422,7 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
                 <div className="p-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200/80">
                   <Sparkles className="w-4 h-4 text-[#E8A33D]" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-900">AI 推理依据与图谱链条</h3>
+                <h3 className="text-sm font-bold text-slate-900">环节 {currentStage.order} AI 依据原文</h3>
               </div>
               <button
                 type="button"
@@ -450,21 +433,19 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
               </button>
             </div>
 
-            <div className="space-y-3 text-xs text-slate-600 max-h-[60vh] overflow-y-auto pr-1">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1">
-                <div className="font-bold text-slate-800">1. 设备图谱拓扑推导 (Knowledge Graph)</div>
-                <p>3#空压机进线电源隶属于 10kV变电所 0.4kV 低压配电段 QF-03 抽屉开关；出风管线直连车间压缩空气总管，通过手动截止阀 V-301 切断返压。</p>
+            <div className="space-y-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <MetaChip label="AI 能力" value={prefill.engine || '未回写'} />
+                <MetaChip label="结果状态" value={prefill.status === 'degraded' ? 'degraded（降级兜底）' : prefill.status === 'ok' ? 'ok' : '—'} />
+                <MetaChip label="回写时间" value={fmtClock(prefill.generatedAt) || '—'} />
               </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1">
-                <div className="font-bold text-slate-800">2. 历史相似检修案例召回 (14 条)</div>
-                <p>在过去 24 个月内，同车间 1#、2#、3# 空压机共发生 14 起轴承温度偏高检修，历史工单均记录断开 QF-03 与关闭 V-301 为标准隔离防线，零发生能量反串。</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1">
-                <div className="font-bold text-slate-800">3. 国家安全规范合规校验</div>
-                <p>严格符合 GB/T 33579-2017《机械安全 危险能量控制方法》：对于气动受压管路，除关闭切断阀外，必须包含泄放降压并就地目视确认归零的要求。</p>
-              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                以下原文来自 business_loop_stages.ai_prefill_json，为服务端真实调用结果；degraded 表示 AI 未产出可信结构化结果，
+                需人工核校后方可确认。
+              </p>
+              <pre className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px] font-mono text-slate-700 max-h-[50vh] overflow-auto whitespace-pre-wrap break-all">
+                {JSON.stringify(prefill.raw ?? { message: '该环节暂无 AI 预填内容' }, null, 2)}
+              </pre>
             </div>
 
             <div className="pt-2 flex justify-end">
@@ -479,59 +460,195 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
           </div>
         </div>
       )}
-
-      {/* ── 弹窗：调整内容 ── */}
-      {showAdjustModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-blue-600" />
-                <h3 className="text-sm font-bold text-slate-900">人工调整本环节参数</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAdjustModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-700 font-medium mb-1">人工干预说明 / 补充约束</label>
-                <textarea
-                  value={adjustNote}
-                  onChange={(e) => setAdjustNote(e.target.value)}
-                  rows={4}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400">
-                提示：人工干预将生成独立审计留痕，并在闭环归档报告中加盖「人工校准」标签。
-              </p>
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAdjustModal(false)}
-                className="px-3.5 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={handleAdjustSubmit}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
-              >
-                保存调整
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
+
+function StageStatusBadge({ status }: { status: StageStepMeta['status'] }) {
+  const map = {
+    completed: { text: '已人工确认', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200/80' },
+    in_progress: { text: '进行中', cls: 'bg-blue-50 text-blue-700 border-blue-200/80' },
+    pending: { text: '待开始', cls: 'bg-slate-50 text-slate-500 border-slate-200/80' },
+  } as const;
+  const m = map[status];
+  return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${m.cls}`}>{m.text}</span>;
+}
+
+/** AI 预填状态条：引擎名、真实回写时间、ok/degraded 明示；degraded 不得伪装成成功 */
+function PrefillBanner({ stage, waitingPrefill }: { stage: StageStepMeta; waitingPrefill: boolean }) {
+  const prefill = stage.aiPrefill || {};
+  if (waitingPrefill) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-600 flex items-center gap-2">
+        <Clock className="w-3.5 h-3.5 text-slate-400" />
+        <span>该环节的 AI 预填仍在服务端排队（创建闭环后异步调用），结果回写后自动展示。</span>
+      </div>
+    );
+  }
+  if (!prefill.engine) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-600">
+        该环节不走 AI 预填：{prefill.content || '由现场人工完成后确认'}。
+      </div>
+    );
+  }
+  const degraded = prefill.status === 'degraded';
+  return (
+    <div
+      className="relative overflow-hidden rounded-xl p-4 border"
+      style={
+        degraded
+          ? { backgroundColor: 'rgba(244, 63, 94, 0.06)', borderColor: 'rgba(244, 63, 94, 0.35)' }
+          : { backgroundColor: 'rgba(232, 163, 61, 0.08)', borderColor: 'rgba(232, 163, 61, 0.4)' }
+      }
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs"
+          style={{ backgroundColor: degraded ? '#E11D48' : '#E8A33D' }}
+        >
+          {degraded ? <AlertTriangle className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+        </div>
+        <div className="space-y-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`text-xs font-bold px-2 py-0.5 rounded ${degraded ? 'text-rose-900 bg-rose-100' : 'text-amber-900'}`}
+              style={degraded ? undefined : { backgroundColor: 'rgba(232, 163, 61, 0.25)' }}
+            >
+              {degraded ? 'AI 降级结果' : 'AI 已预填'}
+            </span>
+            <span className={`text-[11px] font-mono ${degraded ? 'text-rose-800' : 'text-amber-800'}`}>
+              {prefill.engine}
+              {fmtClock(prefill.generatedAt) ? ` · ${fmtClock(prefill.generatedAt)} 回写` : ''}
+            </span>
+          </div>
+          {prefill.content && (
+            <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">{prefill.content}</p>
+          )}
+        </div>
+      </div>
+      {prefill.advice && (
+        <pre className="mt-3 text-[11px] text-slate-600 leading-relaxed whitespace-pre-wrap font-sans border-t border-slate-200/60 pt-2">
+          {prefill.advice}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function StructuredBlock({
+  title,
+  icon,
+  note,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  note?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-blue-200/80 bg-blue-50/40 p-4 space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+          {icon}
+          {title}
+        </span>
+      </div>
+      {note && <p className="text-[11px] text-slate-500 leading-relaxed">{note}</p>}
+      {children}
+    </div>
+  );
+}
+
+function DraftGrid({ items }: { items: Array<{ label: string; value?: string | number | null }> }) {
+  const filled = items.filter((i) => i.value !== undefined && i.value !== null && String(i.value) !== '');
+  if (!filled.length) return <EmptyLine text="AI 未输出结构化字段，请人工核对后在对应业务页补录。" />;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+      {filled.map((i) => (
+        <div key={i.label} className="p-2.5 rounded-lg bg-white/80 border border-slate-200/70">
+          <div className="text-slate-400 text-[11px]">{i.label}</div>
+          <div className="font-semibold text-slate-800 mt-0.5">{String(i.value)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Para({ label, text }: { label: string; text?: string | null }) {
+  if (!text) return null;
+  return (
+    <p className="text-xs text-slate-700 leading-relaxed">
+      <strong>{label}：</strong>
+      {text}
+    </p>
+  );
+}
+
+function ListBlock({ label, items }: { label: string; items?: string[] }) {
+  const list = (items || []).filter((x) => String(x || '').trim() !== '');
+  if (!list.length) return null;
+  return (
+    <div className="text-xs text-slate-700 space-y-1">
+      <div className="font-semibold text-slate-800">{label}</div>
+      <ul className="space-y-1">
+        {list.map((item, idx) => (
+          <li key={idx} className="flex gap-1.5 leading-relaxed">
+            <span className="text-blue-500 shrink-0">·</span>
+            <span className="text-slate-600">{String(item)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+      <div className="text-slate-400 text-[11px]">{label}</div>
+      <div className="font-semibold text-slate-800 mt-0.5 break-all">{value || '—'}</div>
+    </div>
+  );
+}
+
+function StandardsList({ raw }: { raw?: Stage3Prefill }) {
+  const standards = raw?.standards || [];
+  if (!standards.length) return null;
+  return (
+    <div className="text-[11px] text-slate-500 space-y-0.5">
+      {standards.map((s) => (
+        <div key={s} className="flex items-center gap-1.5">
+          <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+          <span>{s}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyBlock({ text }: { text: string }) {
+  return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-4 text-xs text-slate-500">{text}</div>;
+}
+
+function EmptyLine({ text }: { text: string }) {
+  return <p className="text-[11px] text-slate-500 leading-relaxed">{text}</p>;
+}
+
+function MetaChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200/80">
+      <span className="text-slate-400">{label}</span>
+      <span className="font-mono">{value}</span>
+    </span>
+  );
+}
+
+function typeChip(type: string) {
+  if (type === '电气隔离') return 'bg-blue-50 text-blue-700 border border-blue-200/60';
+  if (type === '气源隔离') return 'bg-cyan-50 text-cyan-700 border border-cyan-200/60';
+  if (type === '残余能量') return 'bg-amber-50 text-amber-700 border border-amber-200/60';
+  if (type === '液压隔离') return 'bg-sky-50 text-sky-700 border border-sky-200/60';
+  return 'bg-slate-50 text-slate-600 border border-slate-200/60';
+}

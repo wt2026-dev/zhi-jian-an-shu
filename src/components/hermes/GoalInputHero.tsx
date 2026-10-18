@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  Sparkles, 
-  ArrowRight, 
-  RotateCcw, 
-  Bot, 
-  CheckCircle2, 
-  Lightbulb, 
-  Workflow, 
+import {
+  Sparkles,
+  ArrowRight,
+  Lightbulb,
+  Workflow,
   Cpu,
-  Layers,
   ShieldCheck,
+  CheckCircle2,
   Loader2
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';

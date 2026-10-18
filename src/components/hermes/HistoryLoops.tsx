@@ -1,24 +1,18 @@
 import React, { useState } from 'react';
-import { 
-  History, 
-  CheckCircle2, 
-  Clock, 
-  FileBox, 
-  BookOpen, 
-  ExternalLink,
+import {
+  History,
+  Clock,
   ChevronRight,
   X,
   FileCheck
 } from 'lucide-react';
-import type { HistoryLoopItem } from './demoData';
-import { useToast } from '../../context/ToastContext';
+import type { HistoryLoopItem } from './types';
 
 interface HistoryLoopsProps {
   historyLoops: HistoryLoopItem[];
 }
 
 export const HistoryLoops: React.FC<HistoryLoopsProps> = ({ historyLoops }) => {
-  const { show: showToast } = useToast();
   const [selectedHistory, setSelectedHistory] = useState<HistoryLoopItem | null>(null);
 
   const handleOpenDetail = (item: HistoryLoopItem) => {
@@ -35,16 +29,21 @@ export const HistoryLoops: React.FC<HistoryLoopsProps> = ({ historyLoops }) => {
           </div>
           <div>
             <h3 className="text-xs font-bold text-slate-800 tracking-tight">近期已归档业务闭环</h3>
-            <p className="text-[11px] text-slate-400">已形成工业标准案例沉淀至企业知识库</p>
+            <p className="text-[11px] text-slate-400">数据来自 GET /api/v1/business-loops/history</p>
           </div>
         </div>
 
-        <span className="text-[11px] text-emerald-600 font-medium">
-          闭环归档率 100%
+        <span className="text-[11px] text-emerald-600 font-mono font-semibold">
+          {historyLoops.length} 条归档记录
         </span>
       </div>
 
-      {/* 3 条历史记录列表 */}
+      {/* 归档闭环列表 */}
+      {historyLoops.length === 0 && (
+        <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+          暂无归档闭环：闭环表为空说明还没有业务动作归档过，推进完六个环节并归档后即出现
+        </div>
+      )}
       <div className="space-y-2.5">
         {historyLoops.map((item) => (
           <div
@@ -91,7 +90,7 @@ export const HistoryLoops: React.FC<HistoryLoopsProps> = ({ historyLoops }) => {
                   {item.closedDate}
                 </div>
                 <div className="text-[10px] text-indigo-600 font-medium">
-                  产出资料 {item.artifactCount} 项 · 采纳知识 {item.knowledgeCount} 条
+                  产出资料 {item.artifactCount} 项 · 知识条目 {item.knowledgeCount} 条
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
@@ -144,9 +143,11 @@ export const HistoryLoops: React.FC<HistoryLoopsProps> = ({ historyLoops }) => {
               </div>
 
               <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100 space-y-1">
-                <div className="font-bold text-indigo-900">闭环知识包提炼</div>
+                <div className="font-bold text-indigo-900">闭环知识沉淀判定</div>
                 <p className="text-slate-600 leading-relaxed">
-                  已沉淀 {selectedHistory.knowledgeCount} 条专家排障经验到知识中心，并在该设备档案树生成关联卡片。
+                  {selectedHistory.knowledgeCount > 0
+                    ? `归档时 suggest-contribution 判定可复用，已写入 ${selectedHistory.knowledgeCount} 条知识贡献记录（待知识审核台会签通过后正式入库）。`
+                    : '归档时 AI 判定本次未达到「完整可复用案例」沉淀标准，未自动生成知识条目。'}
                 </p>
               </div>
             </div>

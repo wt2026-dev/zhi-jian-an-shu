@@ -171,7 +171,9 @@ export const BusinessOverviewCard: React.FC<BusinessOverviewCardProps> = ({
           <button
             type="button"
             onClick={onNewGoal}
-            className="flex-1 lg:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-sm hover:shadow transition-all cursor-pointer"
+            disabled={!canOperate}
+            className="flex-1 lg:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title={canOperate ? '新建业务目标并编排六环节' : '当前角色无新建闭环权限'}
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>新建业务目标</span>

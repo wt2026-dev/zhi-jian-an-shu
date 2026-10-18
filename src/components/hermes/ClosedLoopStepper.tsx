@@ -8,14 +8,13 @@ import {
   Hammer, 
   ClipboardCheck, 
   FileArchive,
-  ChevronRight,
-  ArrowRight
+  ChevronRight
 } from 'lucide-react';
-import type { StageStepMeta, StageId } from './demoData';
+import type { StageStepMeta, StageId } from './types';
 
 interface ClosedLoopStepperProps {
   stages: StageStepMeta[];
-  selectedStageId: StageId;
+  selectedStageId: StageId | null;
   onSelectStage: (id: StageId) => void;
 }
 

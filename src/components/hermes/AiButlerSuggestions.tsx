@@ -1,20 +1,16 @@
 import React from 'react';
-import { 
-  Sparkles, 
-  Clock, 
-  AlertTriangle, 
-  ArrowRight, 
-  CheckCircle,
-  Lightbulb,
+import {
+  Sparkles,
+  Clock,
   ShieldAlert,
   ChevronRight
 } from 'lucide-react';
-import type { ButlerSuggestion } from './demoData';
+import type { ButlerSuggestion } from './types';
 import { useToast } from '../../context/ToastContext';
 
 interface AiButlerSuggestionsProps {
   suggestions: ButlerSuggestion[];
-  onActionClick?: (sugId: string) => void;
+  onActionClick?: (sug: ButlerSuggestion) => void;
 }
 
 export const AiButlerSuggestions: React.FC<AiButlerSuggestionsProps> = ({
@@ -23,30 +19,16 @@ export const AiButlerSuggestions: React.FC<AiButlerSuggestionsProps> = ({
 }) => {
   const { show: showToast } = useToast();
 
+  // 建议正文完全来自服务端 buildSuggestions（按当前环节 / LOTO 进度 / AI 降级状态生成），
+  // 点击只做一件事：把工作台切到该建议指向的环节，并把建议原文如实提示出来。
   const handleAction = (sug: ButlerSuggestion) => {
-    if (sug.id === 'sug-1') {
-      if (onActionClick) onActionClick('sug-1');
-      showToast({
-        type: 'info',
-        title: '已定位至 LOTO 确认区',
-        message: '请在上方工作台确认「残余能量泄压」项',
-        duration: 3000,
-      });
-    } else if (sug.id === 'sug-2') {
-      showToast({
-        type: 'warning',
-        title: '高低温安全防护标准',
-        message: '作业规范要求：凡工件表面温度 > 60℃ 时，现场作业人员须全程穿戴防烫长袖作业服与耐高温防穿刺劳保手套。',
-        duration: 5000,
-      });
-    } else if (sug.id === 'sug-3') {
-      showToast({
-        type: 'info',
-        title: '自动编排已就绪',
-        message: '系统已把《离心机轴承检修规程》与备件领用二维码推送至机修一班移动端看板。',
-        duration: 4000,
-      });
-    }
+    if (onActionClick) onActionClick(sug);
+    showToast({
+      type: sug.type === 'risk' ? 'warning' : 'info',
+      title: sug.title,
+      message: sug.content,
+      duration: 4500,
+    });
   };
 
   return (
@@ -62,16 +44,21 @@ export const AiButlerSuggestions: React.FC<AiButlerSuggestionsProps> = ({
           </div>
           <div>
             <h3 className="text-xs font-bold text-slate-800 tracking-tight">AI 智能管家行动建议</h3>
-            <p className="text-[11px] text-slate-400">基于多模态遥测与闭环规则库动态推演</p>
+            <p className="text-[11px] text-slate-400">由服务端按当前环节、LOTO 进度与 AI 预填状态实时推演</p>
           </div>
         </div>
 
         <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 border border-amber-200/70 px-2 py-0.5 rounded-full">
-          实时干预保障
+          共 {suggestions.length} 条
         </span>
       </div>
 
-      {/* 3 条建议列表 */}
+      {/* 建议列表 */}
+      {suggestions.length === 0 && (
+        <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+          暂无建议：读取闭环详情接口后即可看到服务端推演结果
+        </div>
+      )}
       <div className="space-y-2.5">
         {suggestions.map((sug) => {
           const isTodo = sug.type === 'todo';
