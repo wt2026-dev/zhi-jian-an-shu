@@ -39,6 +39,8 @@ const KIND_META: Record<FieldWorkLog['events'][number]['kind'], { label: string;
   measure: { label: '测量', cls: 'bg-violet-500/15 text-violet-700 border-violet-500/40' },
   photo: { label: '照片', cls: 'bg-sky-500/15 text-sky-700 border-sky-500/40' },
   complete: { label: '完工', cls: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40' },
+  acceptance: { label: '验收', cls: 'bg-teal-500/15 text-teal-700 border-teal-500/40' },
+  sign: { label: '签字', cls: 'bg-indigo-500/15 text-indigo-700 border-indigo-500/40' },
 };
 
 const STEP_LABEL: Record<'done' | 'skip' | 'issue', string> = {

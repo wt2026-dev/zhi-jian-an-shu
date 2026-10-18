@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Loader2,
   UserCheck,
-  Star,
   AlertTriangle,
   Package,
   X,
 } from 'lucide-react';
+import { AcceptancePanel } from './AcceptancePanel';
 import {
   WorkOrder,
   UserProfile,
@@ -298,6 +298,9 @@ export const RepairLogModal: React.FC<RepairLogModalProps> = ({
 };
 
 // ── 3. Acceptance Modal ───────────────────────────────────────────────────────
+// 修后验收已升级为完整闭环（验收清单 / 修前修后对比 / 双签字关单 / 维修总结沉淀），
+// 由 AcceptancePanel 承载。旧的"打星 + 评语"表单只写 acceptance 字段、不推进状态，
+// 会让工单停在「待验收」却显示已签评语，因此整体替换而不是并存。
 interface AcceptanceModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -313,79 +316,39 @@ export const AcceptanceModal: React.FC<AcceptanceModalProps> = ({
   currentUser,
   onSuccess,
 }) => {
-  const { show: showToast } = useToast();
-  const [acceptanceForm, setAcceptanceForm] = useState({
-    score: 5,
-    pass: true,
-    comment: '检修质量合格，经空载与满载试车2小时，振动与温升均符合国家及企业标准。',
-  });
-
   if (!isOpen || !order) return null;
-
-  const handleAcceptanceSubmit = async () => {
-    try {
-      const updated = await workOrderApi.accept(order.id, {
-        inspectorName: `${currentUser.name} (${currentUser.roleTitle})`,
-        pass: acceptanceForm.pass,
-        score: acceptanceForm.score,
-        comment: acceptanceForm.comment,
-        version: order.version,
-      });
-      onSuccess(updated);
-      onClose();
-    } catch (err: any) {
-      const msg = err.data?.message || err.message || '验收归档失败';
-      showToast({ type: 'warning', title: '状态互斥拦截', message: msg });
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-        <h3 className="text-sm font-bold text-slate-100">检修质量复核与验收归档</h3>
-        <div className="space-y-3 text-xs">
-          <div>
-            <label className="block text-slate-300 mb-1">检修质量评分 (1 - 5 星)</label>
-            <div className="flex items-center space-x-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setAcceptanceForm({ ...acceptanceForm, score: star })}
-                  className="p-1 text-amber-400 hover:scale-110 transition-transform cursor-pointer"
-                >
-                  <Star
-                    className={`w-6 h-6 ${star <= acceptanceForm.score ? 'fill-current' : 'text-slate-600'}`}
-                  />
-                </button>
-              ))}
-            </div>
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl">
+        <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-slate-200 sticky top-0 bg-white rounded-t-2xl z-10">
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-slate-900">修后验收与效果验证</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+              {order.orderNo} · {order.equipmentName} · {order.title}
+            </p>
           </div>
-
-          <div>
-            <label className="block text-slate-300 mb-1">验收评语与试车结论 *</label>
-            <textarea
-              rows={3}
-              value={acceptanceForm.comment}
-              onChange={(e) => setAcceptanceForm({ ...acceptanceForm, comment: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-cyan-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800">
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg text-xs"
+            className="shrink-0 h-11 min-h-[44px] px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer"
           >
-            取消
+            关闭
           </button>
-          <button
-            onClick={handleAcceptanceSubmit}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
-          >
-            签署验收并归档
-          </button>
+        </div>
+        <div className="px-4 py-4">
+          <AcceptancePanel
+            orderId={order.id}
+            currentUser={currentUser}
+            onClosed={async () => {
+              // 关单后回读真实工单，把 completed 状态同步回列表/抽屉（不本地猜状态）
+              try {
+                const fresh = await workOrderApi.getById(order.id);
+                onSuccess(fresh);
+              } catch {
+                /* 回读失败不影响关单本身，父级刷新时会再取 */
+              }
+            }}
+          />
         </div>
       </div>
     </div>

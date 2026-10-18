@@ -45,6 +45,7 @@ import { registerDispatchRoutes } from "./routes/dispatch.ts";
 import { registerFactoryRoutes } from "./routes/factories.ts";
 import { registerExplodedViewRoutes } from "./routes/explodedView.ts";
 import { registerFieldOpsRoutes } from "./routes/fieldOps.ts";
+import { registerAcceptanceRoutes } from "./routes/acceptance.ts";
 
 // 重构说明：本文件为应用装配与启动入口，自 server.ts（原 7329 行单文件）拆出。
 // 各业务域路由/控制器/服务见同目录 routes/、controllers/、services/、middleware/、schemas/、utils/。
@@ -356,6 +357,7 @@ export async function createApp() {
   registerFactoryRoutes(app); // 多厂区层级（全国地图下钻）
   registerExplodedViewRoutes(app); // 拆解视图 ↔ 检修业务联动（工单跳转 / 零件维修历史）
   registerFieldOpsRoutes(app); // 拆解作业终端（现场维修闭环：LOTO / 步骤留痕 / 测量 / 照片 → 自动完工）
+  registerAcceptanceRoutes(app); // 修后验收（验收清单 / 修前修后对比 / 双签字关单 / 维修总结沉淀）
 
   // 全局异常处理中间件 (Global Error Handling Middleware)
   app.use(globalErrorHandler);

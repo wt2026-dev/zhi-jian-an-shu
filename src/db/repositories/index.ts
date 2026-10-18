@@ -21,3 +21,4 @@ export { AiTaskRepository, AiTaskStepRepository } from "./aiTaskRepository.ts";
 export { AiGenerationReviewRepository } from "./aiGenerationReviewRepository.ts";
 export { AiModelConfigRepository } from "./aiModelConfigRepository.ts";
 export { FactoryRepository } from "./factoryRepository.ts";
+export { AcceptanceStandardRepository } from "./acceptanceStandardRepository.ts";

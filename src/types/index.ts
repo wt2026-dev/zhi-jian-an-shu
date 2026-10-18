@@ -156,16 +156,83 @@ export interface FieldPartPhoto {
   at: string;
 }
 export interface FieldWorkLog {
-  /** 人类可读全过程时间线（LOTO → 每步 → 测量/照片 → 自动完工），按时间升序 */
-  events: Array<{ at: string; kind: 'loto' | 'step' | 'measure' | 'photo' | 'complete'; text: string; by?: string }>;
+  /** 人类可读全过程时间线（LOTO → 每步 → 测量/照片 → 自动完工 / 验收 → 签字） */
+  events: Array<{ at: string; kind: 'loto' | 'step' | 'measure' | 'photo' | 'complete' | 'acceptance' | 'sign'; text: string; by?: string }>;
   loto?: FieldLotoRecord | null;
   /** key = 步骤序号（1-based string） */
   steps: Record<string, FieldStepRecord>;
   measurements: FieldMeasurement[];
   partPhotos: FieldPartPhoto[];
-  /** 步骤全部完成/跳过（无问题项）时服务端自动完工的留档 */
+  /** 步骤全部完成/跳过（无问题项）时服务端自动完工上报的留档 */
   completed?: { at: string; by: string; workHours: number; total: number; done: number; skipped: number } | null;
+  /** 修后验收与效果验证留档（关单前必须走完） */
+  acceptance?: FieldAcceptanceLog | null;
 }
+
+/* ---------------- 修后验收（最后一环） ---------------- */
+
+/** 单个验收项的判定结果：pass=合格 / fail=超标 / unconfigured=该项无标准不可判 / pending=未测 */
+export type AcceptanceVerdict = 'pass' | 'fail' | 'unconfigured' | 'pending';
+
+export interface AcceptanceCheckRecord {
+  itemKey: string;
+  itemLabel: string;
+  metric: string;
+  unit: string | null;
+  /** 实测值；定性项或未测时为 null（绝不补 0） */
+  value: number | null;
+  /** 录入时使用的标准（快照，防止标准后续变更导致历史判定漂移） */
+  minLimit: number | null;
+  maxLimit: number | null;
+  standardSource: string;
+  verdict: AcceptanceVerdict;
+  /** 定性项的人工确认（目视/听音） */
+  confirmed: boolean;
+  note?: string;
+  by: FieldWorkOperator;
+  at: string;
+}
+
+/** 修前基线：来自真实遥测表 equipment_telemetry 的窗口统计 */
+export interface AcceptanceBaseline {
+  metric: 'temperature' | 'vibration' | 'current';
+  label: string;
+  unit: string;
+  /** 窗口内最大值（修前最坏状态） */
+  preMax: number | null;
+  /** 窗口内均值 */
+  preAvg: number | null;
+  /** 样本数（0 表示该指标无遥测数据 → 如实显示"未接入"） */
+  samples: number;
+  windowFrom: string | null;
+  windowTo: string | null;
+  /** 每个功率阈值有多少样本超限（用系统既有报警口径） */
+  overLimitSamples: number | null;
+}
+
+/** 双签字：维修人 + 班组长，必须两人 */
+export interface AcceptanceSignature {
+  step: 'technician' | 'teamlead';
+  name: string;
+  userId?: string;
+  role: string;
+  roleTitle: string;
+  signedAt: string;
+  /** 签字内容摘要的 sha256 前 16 位，防事后篡改比对 */
+  signatureHash: string;
+}
+
+export interface FieldAcceptanceLog {
+  startedAt: string | null;
+  checks: Record<string, AcceptanceCheckRecord>;
+  baselines: AcceptanceBaseline[];
+  signatures: AcceptanceSignature[];
+  /** 全部合格且两人签字完成的时间 */
+  closedAt: string | null;
+  /** 维修总结沉淀结果 */
+  summary?: { knowledgeId: string; title: string; createdAt: string } | null;
+}
+
 
 export interface WorkOrder {
   id: string;

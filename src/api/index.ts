@@ -13,6 +13,10 @@ import {
   FieldStepRecord,
   FieldMeasurement,
   FieldPartPhoto,
+  AcceptanceVerdict,
+  AcceptanceCheckRecord,
+  AcceptanceBaseline,
+  AcceptanceSignature,
 } from '../types';
 import { FORBIDDEN_HINT } from '../utils/rbac';
 
@@ -745,6 +749,78 @@ export const fieldOpsApi = {
   /** 关联现场照片（url 必须是先经 /upload/image 真实落盘的 /uploads/ 资源） */
   addPartPhoto: (orderId: string, data: { posNo: string; url: string; filename?: string; size?: number }) =>
     request<FieldSessionData>(`/work-orders/${encodeURIComponent(orderId)}/field-actions/photo`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+/* ---------------- 修后验收与效果验证 ---------------- */
+
+export interface AcceptanceItem {
+  itemKey: string;
+  itemLabel: string;
+  metric: string;
+  unit: string | null;
+  minLimit: number | null;
+  maxLimit: number | null;
+  judgedBy: 'auto' | 'manual';
+  standardSource: string;
+  confidence: string;
+  note: string | null;
+  record: AcceptanceCheckRecord | null;
+  verdict: AcceptanceVerdict;
+}
+
+export interface AcceptanceSessionData {
+  order: {
+    id: string;
+    orderNo: string;
+    title: string;
+    equipmentId: string;
+    equipmentName: string;
+    faultType: string;
+    status: string;
+    statusLabel: string;
+    createdAt: string | null;
+    assignee: string | null;
+  };
+  canAccept: boolean;
+  blockedReason: string | null;
+  items: AcceptanceItem[];
+  allPassed: boolean;
+  failed: number;
+  unconfigured: number;
+  pending: number;
+  baselines: AcceptanceBaseline[];
+  signatures: AcceptanceSignature[];
+  nextSigner: 'technician' | 'teamlead' | null;
+  closedAt: string | null;
+  summary: { knowledgeId: string; title: string; createdAt: string } | null;
+  events: FieldWorkLog['events'];
+  version: number | null;
+  dataNote: string;
+}
+
+/** 签字端点额外返回本次是否关单 + 生成的维修案例引用 */
+export type AcceptanceSignResult = AcceptanceSessionData & {
+  justClosed: boolean;
+  summaryRef: { knowledgeId: string; title: string } | null;
+};
+
+export const acceptanceApi = {
+  /** 验收会话：清单 + 修前遥测基线 + 已签字 + 总结 */
+  get: (orderId: string) => request<AcceptanceSessionData>(`/work-orders/${encodeURIComponent(orderId)}/acceptance`),
+
+  /** 记录一项验收结果（判定由服务端按标准快照复算，前端 verdict 一律忽略） */
+  check: (orderId: string, data: { itemKey: string; value?: number | null; confirmed?: boolean; note?: string }) =>
+    request<AcceptanceSessionData>(`/work-orders/${encodeURIComponent(orderId)}/acceptance/checks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** 签字：先 technician（当前登录者）后 teamlead（manager/admin 且必须另一人） */
+  sign: (orderId: string, data: { step: 'technician' | 'teamlead'; comment?: string }) =>
+    request<AcceptanceSignResult>(`/work-orders/${encodeURIComponent(orderId)}/acceptance/sign`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
