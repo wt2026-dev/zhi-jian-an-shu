@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -22,6 +23,8 @@ describe('DigitalHumanGLB — china_engineer.glb 静态模型验证', () => {
     for (let i = 0; i < buf.length; i++) view[i] = buf[i];
 
     const loader = new GLTFLoader();
+    // 2026-10-18 起模型经 gltf-transform meshopt 压缩（EXT_meshopt_compression），解析必须挂解码器
+    loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await new Promise<any>((resolve, reject) => {
       loader.parse(ab, '', resolve, reject);
     });
@@ -30,12 +33,12 @@ describe('DigitalHumanGLB — china_engineer.glb 静态模型验证', () => {
     animations = gltf.animations || [];
   });
 
-  it('模型文件存在且体积合理（已压缩至 ~1MB 低模，绑定动画后续补齐）', () => {
+  it('模型文件存在且体积合理（meshopt 全精度压缩 ~8.5MB，画质对齐原版 78MB）', () => {
     expect(fs.existsSync(glbPath)).toBe(true);
     const stat = fs.statSync(glbPath);
-    // 2026-10-17 提交 e5d3bdc 已将 78MB 高模压缩至 981KB：断言压缩后体积区间
+    // 2026-10-17 e5d3bdc：78MB→981KB（过度简化）；2026-10-18：改 meshopt 全精度 → 8.5MB
     expect(stat.size).toBeGreaterThan(300 * 1024); // 不是空壳 / 损坏文件
-    expect(stat.size).toBeLessThan(5 * 1024 * 1024); // 压缩生效，未回退到大文件
+    expect(stat.size).toBeLessThan(16 * 1024 * 1024); // 压缩生效，未回退到大文件
   });
 
   it('模型可被 GLTFLoader 正常解析（不抛错）', () => {

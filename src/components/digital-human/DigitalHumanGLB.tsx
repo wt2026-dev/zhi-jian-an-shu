@@ -25,6 +25,7 @@
 import React, { useRef, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { speakChinese, cancelSpeech, primeSpeech, voiceGenderFor } from './speech';
 
 // ─── Public interface (与 DigitalHumanVRM 同构) ──────────────────────────
@@ -336,6 +337,8 @@ export const DigitalHumanGLB = forwardRef<DigitalHumanGLBHandle, DigitalHumanGLB
     const loadGLB = useCallback((url: string, ctx: NonNullable<typeof sceneRef.current>): Promise<void> => {
       return new Promise<void>((resolve, reject) => {
         const loader = new GLTFLoader();
+        // EXT_meshopt_compression：模型经 gltf-transform meshopt 压缩（78MB→8.5MB），需解码器
+        loader.setMeshoptDecoder(MeshoptDecoder);
         loader.loadAsync(url).then((gltf) => {
           if (ctx.disposed) {
             gltf.scene.traverse((o) => {
