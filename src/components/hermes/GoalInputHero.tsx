@@ -16,7 +16,8 @@ import { useToast } from '../../context/ToastContext';
 
 interface GoalInputHeroProps {
   onGeneratePlan: (goalText: string) => Promise<void> | void;
-  onCancel: () => void;
+  onCancel?: () => void;
+  busy?: boolean;
 }
 
 const PRESET_GOALS = [
@@ -29,11 +30,13 @@ const PRESET_GOALS = [
 export const GoalInputHero: React.FC<GoalInputHeroProps> = ({
   onGeneratePlan,
   onCancel,
+  busy,
 }) => {
   const { show: showToast } = useToast();
   const [goalInput, setGoalInput] = useState('2#无油螺杆空压机主机振动偏高，走检修流程');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStep, setGenerationStep] = useState(0);
+
+  const generating = isGenerating || Boolean(busy);
 
   const handleStartGenerate = async () => {
     if (!goalInput.trim()) {
@@ -47,19 +50,6 @@ export const GoalInputHero: React.FC<GoalInputHeroProps> = ({
     }
 
     setIsGenerating(true);
-    setGenerationStep(1);
-
-    // 保留动画节拍；实际走真实接口 businessLoopApi.create，由父组件透传成败 toast
-    setTimeout(() => {
-      setGenerationStep(2);
-    }, 450);
-
-    setTimeout(() => {
-      setGenerationStep(3);
-    }, 900);
-
-    await new Promise((resolve) => setTimeout(resolve, 1300));
-
     try {
       await Promise.resolve(onGeneratePlan(goalInput));
     } finally {
@@ -96,13 +86,15 @@ export const GoalInputHero: React.FC<GoalInputHeroProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-xs text-slate-500 hover:text-slate-800 font-medium px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
-        >
-          返回当前闭环
-        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-xs text-slate-500 hover:text-slate-800 font-medium px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
+          >
+            返回当前闭环
+          </button>
+        )}
       </div>
 
       {/* 输入框主卡片 */}
@@ -111,7 +103,7 @@ export const GoalInputHero: React.FC<GoalInputHeroProps> = ({
           <textarea
             value={goalInput}
             onChange={(e) => setGoalInput(e.target.value)}
-            disabled={isGenerating}
+            disabled={generating}
             placeholder="例如：2#无油螺杆空压机主机振动偏高，走检修流程..."
             rows={3}
             className="w-full p-4 rounded-2xl border-2 border-blue-200/80 bg-slate-50/50 text-slate-800 text-sm sm:text-base font-medium placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner resize-none"
@@ -120,14 +112,14 @@ export const GoalInputHero: React.FC<GoalInputHeroProps> = ({
           <div className="absolute bottom-3.5 right-3.5 flex items-center gap-2">
             <button
               type="button"
-              disabled={isGenerating}
+              disabled={generating}
               onClick={handleStartGenerate}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md hover:shadow-lg disabled:opacity-70 transition-all cursor-pointer"
             >
-              {isGenerating ? (
+              {generating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>正在编排路线...</span>
+                  <span>服务端受理中…</span>
                 </>
               ) : (
                 <>
@@ -162,34 +154,34 @@ export const GoalInputHero: React.FC<GoalInputHeroProps> = ({
         </div>
       </div>
 
-      {/* 编排中动态动画卡片 */}
-      {isGenerating && (
-        <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-2.5 animate-in fade-in duration-200">
+      {/* 受理中提示：只说明服务端此刻真实在做什么，不放假进度条 */}
+      {generating && (
+        <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-2.5">
           <div className="text-xs font-bold text-blue-900 flex items-center gap-2">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-            <span>Hermes Multi-Agent 正在规划业务闭环流水线</span>
+            <span>POST /api/v1/business-loops 受理中</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-            <div className={`p-2.5 rounded-xl border transition-colors ${generationStep >= 1 ? 'bg-white border-blue-300 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+            <div className="p-2.5 rounded-xl border bg-white border-blue-300 text-blue-700">
               <div className="font-semibold flex items-center gap-1.5">
-                <Cpu className="w-3.5 h-3.5" /> 1. 设备机理与图谱对齐
+                <Cpu className="w-3.5 h-3.5" /> 1. 目标解析与设备对齐
               </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">语义解析目标并识别目标设备</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">按 seed 设备台账匹配目标设备并登记闭环</div>
             </div>
 
-            <div className={`p-2.5 rounded-xl border transition-colors ${generationStep >= 2 ? 'bg-white border-blue-300 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+            <div className="p-2.5 rounded-xl border bg-white border-blue-300 text-blue-700">
               <div className="font-semibold flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5" /> 2. JSA 危险源与 LOTO 规划
+                <ShieldCheck className="w-3.5 h-3.5" /> 2. 写入六环节与产出物空档
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5">解析危险源并规划能量隔离</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">business_loop_stages / artifacts 落库</div>
             </div>
 
-            <div className={`p-2.5 rounded-xl border transition-colors ${generationStep >= 3 ? 'bg-white border-blue-300 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+            <div className="p-2.5 rounded-xl border bg-white border-blue-300 text-blue-700">
               <div className="font-semibold flex items-center gap-1.5">
-                <Workflow className="w-3.5 h-3.5" /> 3. 编排六大流转闸门
+                <Workflow className="w-3.5 h-3.5" /> 3. 环节 1-4 异步调用真实 AI 能力
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5">装配工作台与档案沉淀树</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">工单草稿 / JSA / LOTO / 检修方案逐环节回写</div>
             </div>
           </div>
         </div>

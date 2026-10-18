@@ -1,22 +1,22 @@
-import React, { useState } from 'react';
-import { 
-  Sparkles, 
-  Pause, 
-  Play, 
-  Archive, 
-  Clock, 
-  User, 
-  Cpu, 
-  CheckCircle2, 
-  AlertCircle,
-  Copy,
-  ChevronRight
+import React from 'react';
+import {
+  Sparkles,
+  Archive,
+  Clock,
+  User,
+  Cpu,
+  Loader2,
+  Copy
 } from 'lucide-react';
 import type { BusinessClosedLoopData } from './types';
 import { useToast } from '../../context/ToastContext';
 
 interface BusinessOverviewCardProps {
   data: BusinessClosedLoopData;
+  /** 闭环状态取自服务端 business_loops.status，不在前端另造状态机 */
+  status: BusinessClosedLoopData['status'];
+  canOperate: boolean;
+  busy?: boolean;
   onNewGoal: () => void;
   onArchive: () => void;
   onSelectStage: (stageIndex: number) => void;
@@ -24,12 +24,14 @@ interface BusinessOverviewCardProps {
 
 export const BusinessOverviewCard: React.FC<BusinessOverviewCardProps> = ({
   data,
+  status,
+  canOperate,
+  busy,
   onNewGoal,
   onArchive,
   onSelectStage,
 }) => {
   const { show: showToast } = useToast();
-  const [isPaused, setIsPaused] = useState(false);
 
   const completedCount = data.stages.filter((s) => s.status === 'completed').length;
   const currentStage = data.stages.find((s) => s.status === 'in_progress') || data.stages[data.stages.length - 1];
@@ -45,16 +47,12 @@ export const BusinessOverviewCard: React.FC<BusinessOverviewCardProps> = ({
     });
   };
 
-  const handleTogglePause = () => {
-    const nextState = !isPaused;
-    setIsPaused(nextState);
-    showToast({
-      type: nextState ? 'warning' : 'info',
-      title: nextState ? '闭环流程已暂停' : '闭环流程已继续',
-      message: '自带快照自动保存，可随时继续',
-      duration: 3000,
-    });
-  };
+  const statusMeta =
+    status === 'archived'
+      ? { text: '已归档', dot: 'bg-slate-400', tone: 'text-slate-600 bg-slate-100 border-slate-200/70' }
+      : status === 'paused'
+        ? { text: '已暂停', dot: 'bg-amber-500', tone: 'text-amber-700 bg-amber-50 border-amber-200/70' }
+        : { text: '闭环进行中', dot: 'bg-emerald-500 animate-pulse', tone: 'text-emerald-600 bg-emerald-50 border-emerald-200/60' };
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-6 backdrop-blur-md">
@@ -91,9 +89,9 @@ export const BusinessOverviewCard: React.FC<BusinessOverviewCardProps> = ({
                 <Copy className="w-3 h-3" />
               </button>
             </span>
-            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {isPaused ? '已挂起' : '闭环管家执行中'}
+            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${statusMeta.tone}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dot}`} />
+              {statusMeta.text}
             </span>
           </div>
 
@@ -150,9 +148,18 @@ export const BusinessOverviewCard: React.FC<BusinessOverviewCardProps> = ({
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-            <span className="text-blue-700 font-medium truncate">
-              当前：{currentStage ? `${currentStage.order}. ${currentStage.title}` : '已完成'}
-            </span>
+          {currentStage && currentStage.status !== 'completed' ? (
+            <button
+              type="button"
+              onClick={() => onSelectStage(currentStage.order - 1)}
+              className="text-blue-700 font-medium truncate text-left hover:text-blue-900 hover:underline underline-offset-2 transition-colors cursor-pointer"
+              title="跳到该环节工作台"
+            >
+              当前：{currentStage.order}. {currentStage.title}
+            </button>
+          ) : (
+            <span className="text-slate-500 truncate">当前：全部环节已确认</span>
+          )}
             <span className="text-slate-400 shrink-0">
               剩余 {data.stages.length - completedCount} 环节待推进
             </span>
@@ -170,24 +177,26 @@ export const BusinessOverviewCard: React.FC<BusinessOverviewCardProps> = ({
             <span>新建业务目标</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleTogglePause}
-            className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
-            title={isPaused ? '继续流转' : '暂停当前闭环'}
-          >
-            {isPaused ? <Play className="w-3.5 h-3.5 text-emerald-600" /> : <Pause className="w-3.5 h-3.5 text-slate-500" />}
-            <span>{isPaused ? '继续' : '暂停'}</span>
-          </button>
 
           <button
             type="button"
             onClick={onArchive}
-            className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
-            title="沉淀归档"
+            disabled={!canOperate || status === 'archived' || Boolean(busy)}
+            className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title={
+              status === 'archived'
+                ? '该闭环已归档'
+                : canOperate
+                  ? '沉淀归档（生成质检报告与知识条目）'
+                  : '当前角色无归档权限'
+            }
           >
-            <Archive className="w-3.5 h-3.5 text-slate-500" />
-            <span>归档</span>
+            {busy ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
+            ) : (
+              <Archive className="w-3.5 h-3.5 text-slate-500" />
+            )}
+            <span>{status === 'archived' ? '已归档' : '归档'}</span>
           </button>
         </div>
       </div>
