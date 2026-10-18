@@ -16,16 +16,21 @@ export function generateArtifactId(loopId: string, seq: number): string {
   return `${loopId}-art-${seq}`;
 }
 
-/** PL-YYYYMMDD-NNN：同日序号按库内真实行数自增，唯一索引兜底 */
+/**
+ * PL-YYYYMMDD-NNN：同日序号取库内**当天最大数字后缀 +1**。
+ * 旧实现用 `COUNT(*) + 1`：删掉一条闭环后行数回退，新号就会撞上仍存在的 loop_no，
+ * 而 loop_no 带 UNIQUE 约束 —— 撞号不是覆盖，是整条创建请求 500。
+ */
 export async function generateLoopNo(): Promise<string> {
   const db = await getDb();
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const prefix = `PL-${dateStr}-`;
   const { rows } = await db.query(
-    `SELECT COUNT(*)::int AS cnt FROM business_loops WHERE loop_no LIKE $1 || '%';`,
+    `SELECT COALESCE(MAX((regexp_match(loop_no, '(\\d+)$'))[1])::bigint, 0) + 1 AS seq
+       FROM business_loops WHERE loop_no LIKE $1 || '%';`,
     [prefix]
   );
-  const seq = (rows[0]?.cnt || 0) + 1;
+  const seq = Number(rows[0]?.seq ?? 1);
   return `${prefix}${String(seq).padStart(3, "0")}`;
 }
 

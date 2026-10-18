@@ -9,6 +9,7 @@ import {
 } from "../../db/repositories/index.ts";
 import { authenticateBearer } from "../services/authService.ts";
 import { addAuditLog, pushNotification } from "../services/auditService.ts";
+import { nextDailyNo, withNumberLock } from "../../db/dailyNo.ts";
 
 // 原 createApp 闭包内的内存作业票列表（对应 server.ts:3576-3676）。
 // 生产级一致性：列表以数据库真实落库为准（含种子扩写的全部作业票，原硬编码数组仅作启动兜底）。
@@ -40,11 +41,12 @@ export const handleGetSafetyPermitById = (req: any, res: any) => {
 export const handleCreateSafetyPermit = async (req: any, res: any) => {
   const user = authenticateBearer(req);
   const now = new Date();
-  const permitNo = `SP-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const permitPrefix = `SP-${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}-`;
 
   const newPermit = {
-    id: `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-    permitNo,
+    id: `sp-${crypto.randomUUID()}`,
+    permitNo: "", // 占位：真正的号在下面这把锁里分配（permit_no 列 UNIQUE）
     permitType: req.body.permitType || "动火作业票",
     riskLevel: req.body.riskLevel || "较大风险 (Level 2)",
     title: req.body.title,
@@ -67,9 +69,19 @@ export const handleCreateSafetyPermit = async (req: any, res: any) => {
     version: 1,
   };
 
-  // 真实落库：同时写入 safety_permits 表，保证重启不丢失
-  const created = await SafetyPermitRepository.create(newPermit);
-  const resultPermit = created || newPermit;
+  // 真实落库：同时写入 safety_permits 表，保证重启不丢失。
+  // 取号与落库必须在同一把进程内锁里：permit_no 是 UNIQUE 列，两个并发请求读到同一个
+  // 当天最大号就会让其中一条整请求 500；旧实现是在 4 位随机数里摇，摇重同理。
+  const resultPermit = await withNumberLock("safety_permits", async () => {
+    newPermit.permitNo = await nextDailyNo({
+      table: "safety_permits",
+      column: "permit_no",
+      prefix: permitPrefix,
+      pad: 4,
+    });
+    const created = await SafetyPermitRepository.create(newPermit);
+    return created || newPermit;
+  });
   dbSafetyPermits.unshift(resultPermit);
   addAuditLog(req, {
     actionType: "PERMIT_CREATE",

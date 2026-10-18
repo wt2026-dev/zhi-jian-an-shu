@@ -70,14 +70,11 @@ export async function handleCreateWorkOrder(req: any, res: any) {
     }
 
     const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const orderNo = `WO-${dateStr}-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`;
     const id = `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const createdAtStr = now.toISOString();
 
     const newOrder = {
       id,
-      orderNo,
       title,
       equipmentId: eq.id,
       equipmentName: eq.name,
@@ -102,6 +99,7 @@ export async function handleCreateWorkOrder(req: any, res: any) {
     };
 
     const created = await WorkOrderRepository.create(newOrder);
+    const orderNo = created?.orderNo ?? "";
 
     if (priority === "urgent" || priority === "high") {
       await EquipmentRepository.updateStatus(eq.id, "fault");
@@ -126,7 +124,7 @@ export async function handleCreateWorkOrder(req: any, res: any) {
       refId: orderNo,
     });
 
-    res.status(201).json(created || newOrder);
+    res.status(201).json(created || { ...newOrder, orderNo });
   } catch (err: any) {
     logger.error({ err }, `[handleCreateWorkOrder] 创建工单失败: ${err?.message}`);
     res.status(500).json({ error: "创建工单失败: " + err.message });

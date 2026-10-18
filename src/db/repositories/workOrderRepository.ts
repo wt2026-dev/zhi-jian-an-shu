@@ -1,4 +1,5 @@
 import { getDb } from "../db.ts";
+import { nextDailyNo, withNumberLock } from "../dailyNo.ts";
 import { parseJson, VersionConflictError } from "./shared.ts";
 
 export const WorkOrderRepository = {
@@ -72,12 +73,15 @@ export const WorkOrderRepository = {
     return mapWorkOrderRow(rows[0]);
   },
 
-  async create(order: any) {
+  /** 只在 create() 与显式传号的调用方内部使用；缺号时的取号必须发生在锁内，见 create()。 */
+  async insert(order: any) {
     const db = await getDb();
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
     const id = order.id || `wo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const orderNo = order.orderNo || `WO-${dateStr}-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`;
+    const orderNo =
+      order.orderNo ||
+      (await nextDailyNo({ table: "work_orders", column: "order_no", prefix: `WO-${dateStr}-`, pad: 4 }));
     const createdAt = order.createdAt || now.toISOString();
     const status = order.status || (order.assigneeId || order.assignee ? "dispatched" : "created");
 
@@ -117,6 +121,17 @@ export const WorkOrderRepository = {
       ]
     );
     return this.getById(id);
+  },
+
+  /**
+   * `work_orders.order_no` 是 UNIQUE 的：旧实现拿 `Date.now()` 尾 4 位再拼 4 位随机数，
+   * 同毫秒并发或尾号每 100 秒轮回一次都会撞号，而撞号的后果不是覆盖旧单，是
+   * 整条创建请求 500（扫码报修、隐患整改、业务闭环三处入口共用这条链）。
+   * 缺号时把「取号 + 插入」放进同一次进程内互斥里，显式传号的调用方不必排队。
+   */
+  async create(order: any) {
+    if (order.orderNo) return this.insert(order);
+    return withNumberLock("work_orders", () => this.insert(order));
   },
 
   async update(id: string, updates: Partial<any>, expectedVersion?: number) {
