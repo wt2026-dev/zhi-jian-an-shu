@@ -2,6 +2,11 @@
 *.sh text eol=lf
 *.bat text eol=crlf
 *.md text eol=lf
+# 带 shebang 的脚本必须是 LF：CRLF 时 Vite/vitest 剥离 `#!` 行会在模块开头留下裸 \r，
+# 整个文件报 SyntaxError: Invalid or unexpected token（2026-10-18 在 pre-commit 的临时
+# worktree 里实炸 —— 工作区是 LF 所以本地全绿，检出成 CRLF 就把口径守卫本身弄挂了）。
+*.mjs text eol=lf
+*.cjs text eol=lf
 *.glb filter=lfs diff=lfs merge=lfs -text
 *.gltf filter=lfs diff=lfs merge=lfs -text
 *.vrm filter=lfs diff=lfs merge=lfs -text

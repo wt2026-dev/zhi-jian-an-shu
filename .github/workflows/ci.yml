@@ -60,5 +60,12 @@ jobs:
       - name: Run Automated Test Suite (npm test)
         run: npm test
 
+      - name: 口径守卫 (npm run metrics:check)
+        # README/CHANGELOG 对外的表数与测试基线是散文写的，散文不会自己更新。
+        # 2026-10-18 实测：脚本早已存在但从未被任何闸门调用，README 因此从 29 漂到 30
+        # 再到 34 而无人报错。这里把它变成 CI 的硬性一步（内部会跑一次真实 vitest 取基线；
+        # 只有判红时才二次复跑复核，正常路径不额外翻倍时间）。
+        run: npm run metrics:check
+
       - name: Build Production Bundle (npm run build)
         run: npm run build

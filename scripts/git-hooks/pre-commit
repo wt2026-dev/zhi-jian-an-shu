@@ -9,25 +9,67 @@
 #
 # 启用：git config core.hooksPath scripts/git-hooks
 # 关闭：git config --unset core.hooksPath（并行会话被拦时可随时关，但要先说一声）
-# 注意：hook 扫的是工作区（含未提交 WIP），这正是 AGENTS.md 想要的 ——
-#       提交前必须自证清白；其他人未提交的改动也会被同一道门拦下。
+#
+# 校验对象 = **索引里的树**，不是工作区（2026-10-18 改）。
+#   旧做法直接对着工作区跑 tsc/vitest，把别人还没提交的 WIP 也算进我这次提交头上：
+#   实测一个只动 docs/CI 脚本的提交被 9 条 business-loop/hermes 红灯拦下，而那 9 条
+#   在工作区红、在索引的树里全绿（33/33）。这正是 AGENTS.md「并行会话互相打红」的病根。
+#   现在把索引封成临时 tree/commit，用 `git worktree add --detach` 单独检出再验：
+#     · 验的是"我这次到底提交了什么"，与 CI 的口径一致；
+#     · 别人的未提交改动既拦不住我，也不该由我负责；
+#     · 全量校验仍在 CI 的完整工作区上兜底（.github/workflows/ci.yml）。
+#   依赖不用复制：worktree 建在 scratch/ 下，Node 向上查找会命中仓库根的 node_modules。
+#   代价：多 3~6s 检出 1159 个文件；tsc + 全量 vitest 约 60~95s 不变。
+#
+# 口径守卫住在哪里（2026-10-18 接线）：
+#   · `scripts/check-metrics.mjs` 早前只是「写了但没人按下」的可选脚本，README 的表数
+#     因此从 29 漂到 34 而全绿。现在它挂在 CI 的 `npm run metrics:check` 上。
+#   · 结构性数字（表数 / 迁移编号区间 / 能力清单内部一致性）由 `tests/project-facts.test.ts`
+#     静态派生核对，跟着下面第 2 步的全量 vitest 自动生效 —— 本地零额外耗时。
 # ============================================================
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
+TREE="$(git write-tree)"
+if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  VERIFY_COMMIT="$(git commit-tree "$TREE" -p HEAD -m "pre-commit verify")"
+else
+  VERIFY_COMMIT="$(git commit-tree "$TREE" -m "pre-commit verify")"
+fi
+
+WT="$ROOT/scratch/.precommit-wt-$$"
+mkdir -p "$ROOT/scratch"
+git worktree prune >/dev/null 2>&1 || true
+cleanup() {
+  git worktree remove --force "$WT" >/dev/null 2>&1 || rm -rf "$WT"
+  git worktree prune >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+echo "[pre-commit] 0/2 检出待提交的树到 $WT ..."
+if ! git worktree add --detach "$WT" "$VERIFY_COMMIT" >/dev/null 2>&1; then
+  echo "[pre-commit] ✗ 无法为校验建立临时 worktree（scratch/ 被占用？git worktree list 检查残留）。" >&2
+  exit 1
+fi
+# 测试与仓库代码要读 .env（AI 密钥、端口），它不进索引
+[ -f "$ROOT/.env" ] && cp "$ROOT/.env" "$WT/.env"
+
+cd "$WT"
+
 echo "[pre-commit] 1/2 tsc --noEmit（类型零错误）..."
 if ! npx tsc --noEmit; then
-  echo "[pre-commit] ✗ TypeScript 类型错误，提交被拦截。" >&2
+  echo "[pre-commit] ✗ 待提交内容存在 TypeScript 类型错误，提交被拦截。" >&2
   exit 1
 fi
 
 echo "[pre-commit] 2/2 vitest run（全量测试必绿，约 60~90s）..."
 if ! npx vitest run --reporter=dot; then
-  echo "[pre-commit] ✗ 存在失败测试，提交被拦截（先同步测试契约或修复实现）。" >&2
+  echo "[pre-commit] ✗ 待提交内容存在失败测试，提交被拦截（先同步测试契约或修复实现）。" >&2
+  echo "[pre-commit]   若只有少数用例红且确认是 gitignore 资源在临时树里缺失，报出来讨论，别静默绕过。" >&2
   exit 1
 fi
 
-echo "[pre-commit] ✓ tsc + 全量测试通过，放行。"
+echo "[pre-commit] ✓ 待提交内容 tsc + 全量测试通过，放行。"
 exit 0
