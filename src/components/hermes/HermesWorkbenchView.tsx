@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { businessLoopApi, type BusinessLoopSummary } from '../../api/businessLoopApi';
-import type { BusinessClosedLoopData, HistoryLoopItem, LoopHeaderStats, StageId } from './types';
+import type {
+  BusinessClosedLoopData,
+  HistoryLoopItem,
+  LoopHeaderStats,
+  LotoFieldDraft,
+  StageHumanEdits,
+  StageId,
+} from './types';
 import { BusinessOverviewCard } from './BusinessOverviewCard';
 import { ClosedLoopStepper } from './ClosedLoopStepper';
 import { StageWorkbench } from './StageWorkbench';
@@ -216,19 +223,20 @@ export const HermesWorkbenchView: React.FC<HermesWorkbenchViewProps> = ({ onNavi
     }
   };
 
-  const handleConfirmStage = async (stageNo: number) => {
+  const handleConfirmStage = async (stageNo: number, edits?: StageHumanEdits) => {
     if (!detail) return;
     setBusy('confirm');
     try {
-      const next = await businessLoopApi.confirmStage(detail.id, stageNo);
+      const next = await businessLoopApi.confirmStage(detail.id, stageNo, edits);
       setDetail(next);
       setSelectedStageId(currentStageOf(next));
       const stillRunning = next.stages.some((s) => s.status === 'in_progress');
+      const editCount = Object.values(edits || {}).reduce((acc, g: any) => acc + Object.keys(g || {}).length, 0);
       showToast({
         type: 'success',
-        title: `环节 ${stageNo} 已确认`,
+        title: `环节 ${stageNo} 已确认${editCount ? `（含 ${editCount} 处人工修订）` : ''}`,
         message: stillRunning
-          ? `已落成真实业务记录并推进至「${next.stages.find((s) => s.status === 'in_progress')?.title || '下一环节'}」`
+          ? `已按确认人核对后的值落成真实业务记录并推进至「${next.stages.find((s) => s.status === 'in_progress')?.title || '下一环节'}」`
           : '六个环节已全部确认，可执行归档生成质检报告与知识沉淀',
         duration: 4000,
       });
@@ -240,14 +248,33 @@ export const HermesWorkbenchView: React.FC<HermesWorkbenchViewProps> = ({ onNavi
     }
   };
 
-  const handleToggleLotoItem = async (itemId: string, confirmed: boolean) => {
+  const handleToggleLotoItem = async (itemId: string, confirmed: boolean, fields?: LotoFieldDraft) => {
     if (!detail) return;
     setBusy('loto');
     try {
-      const next = await businessLoopApi.toggleLotoItem(detail.id, { itemId, confirmed });
+      const next = await businessLoopApi.toggleLotoItem(detail.id, { itemId, confirmed, fields });
       setDetail(next);
     } catch (err) {
       showToast({ type: 'error', title: 'LOTO 确认失败', message: describeError(err), duration: 4500 });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleAddLotoItem = async (fields: { type: string; point: string; requirement?: string; lockNumber?: string }) => {
+    if (!detail) return;
+    setBusy('loto');
+    try {
+      const next = await businessLoopApi.addLotoItem(detail.id, fields);
+      setDetail(next);
+      showToast({
+        type: 'success',
+        title: '隔离点已补登',
+        message: `「${fields.point}」已按「人工登记」写入清单，需再逐项勾选确认方可推进`,
+        duration: 4000,
+      });
+    } catch (err) {
+      showToast({ type: 'error', title: '隔离点补登失败', message: describeError(err), duration: 4500 });
     } finally {
       setBusy(null);
     }
@@ -397,8 +424,10 @@ export const HermesWorkbenchView: React.FC<HermesWorkbenchViewProps> = ({ onNavi
             onSelectStage={(id) => setSelectedStageId(id)}
           />
 
+          {/* 两栏流式排版：左列按内容高度顺排工作台/档案/建议，右列放 AI 上下文与历史，
+              不再用 min-h 撑高卡片（原实现会在环节卡片下方与下一行卡片上方留出一整片白） */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-            <div className="lg:col-span-8 min-h-[460px] flex flex-col">
+            <div className="lg:col-span-8 space-y-4">
               <StageWorkbench
                 currentStageId={selectedStageId}
                 stages={detail.stages}
@@ -407,34 +436,32 @@ export const HermesWorkbenchView: React.FC<HermesWorkbenchViewProps> = ({ onNavi
                 canOperate={canOperate}
                 busy={busy === 'confirm' || busy === 'loto'}
                 onToggleLotoItem={handleToggleLotoItem}
+                onAddLotoItem={handleAddLotoItem}
                 onAdvanceStage={handleConfirmStage}
                 onNavigateToTab={onNavigateTab}
               />
+              <ArtifactArchive artifacts={detail.artifacts} />
+              <AiButlerSuggestions
+                suggestions={detail.suggestions}
+                onActionClick={(sug) => {
+                  // 建议由服务端按环节状态生成：风险类指向降级环节，其余回到进行中环节
+                  const target =
+                    sug.type === 'risk'
+                      ? detail.stages.find((s) => s.aiPrefill?.status === 'degraded')
+                      : detail.stages.find((s) => s.status === 'in_progress');
+                  if (target) setSelectedStageId(target.id);
+                  else {
+                    const cur = currentStageOf(detail);
+                    if (cur) setSelectedStageId(cur);
+                  }
+                }}
+              />
             </div>
 
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-4 space-y-4">
               <AiContextRail data={detail} />
+              <HistoryLoops historyLoops={history} />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <ArtifactArchive artifacts={detail.artifacts} />
-            <AiButlerSuggestions
-              suggestions={detail.suggestions}
-              onActionClick={(sug) => {
-                // 建议由服务端按环节状态生成：风险类指向降级环节，其余回到进行中环节
-                const target =
-                  sug.type === 'risk'
-                    ? detail.stages.find((s) => s.aiPrefill?.status === 'degraded')
-                    : detail.stages.find((s) => s.status === 'in_progress');
-                if (target) setSelectedStageId(target.id);
-                else {
-                  const cur = currentStageOf(detail);
-                  if (cur) setSelectedStageId(cur);
-                }
-              }}
-            />
-            <HistoryLoops historyLoops={history} />
           </div>
         </>
       )}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HermesWorkbenchView } from '../../src/components/hermes/HermesWorkbenchView';
 import { businessLoopApi } from '../../src/api/businessLoopApi';
@@ -134,6 +134,55 @@ const allConfirmedLoop: BusinessClosedLoopData = {
   lotoItems: loop.lotoItems.map((i) => ({ ...i, confirmed: true, operator: i.operator || '李工', confirmTime: '10:09' })),
 };
 
+/** 停在环节 1 的闭环：用于验证「确认前可改写 AI 预填要素」（人工闸门不是只能点确认） */
+const loopAtStage1: BusinessClosedLoopData = {
+  ...loop,
+  progress: { ...loop.progress, currentStageOrder: 1, percent: 0 },
+  stages: loop.stages.map((s) => ({
+    ...s,
+    status: s.order === 1 ? 'in_progress' : 'pending',
+    completedTime: undefined,
+  })),
+  lotoItems: [],
+  artifacts: [],
+};
+
+/** 停在环节 6（质检归档）的闭环：归档核对卡必须有实际内容，不能只剩一个空壳 */
+const loopAtStage6: BusinessClosedLoopData = {
+  ...loop,
+  progress: { ...loop.progress, currentStageOrder: 6, percent: 83 },
+  stages: loop.stages
+    .map((s) =>
+      s.order < 6
+        ? { ...s, status: 'completed' as const, completedTime: s.completedTime || `10:0${s.order}` }
+        : {
+            ...s,
+            status: 'in_progress' as const,
+            aiPrefill: {
+              engine: 'suggest-contribution',
+              status: 'ok' as const,
+              generatedAt: '2026-10-18 11:20',
+              content: '已达沉淀标准，建议入库',
+              raw: { contribution: { worthContributing: true, title: '2# 空压机主机振动：以人工复测替代 AI 初判' } },
+            },
+          }
+    )
+    .map((s) =>
+      s.order === 1
+        ? { ...s, aiPrefill: { ...s.aiPrefill, revised: { by: '陈主管', at: '2026-10-18 10:05', fields: ['工单标题', '优先级', '预计工时'] } } }
+        : s
+    ),
+  lotoItems: loop.lotoItems.map((i) => ({
+    ...i,
+    confirmed: true,
+    confirmedBy: '陈主管',
+    operator: i.operator || '李工',
+    editedBy: i.id === 'loto-3' ? '陈主管' : null,
+    editedAt: i.id === 'loto-3' ? '10:08' : null,
+  })),
+  artifacts: loop.artifacts.map((a) => (a.category === '质量评估' ? { ...a, status: 'ready' as const, previewContent: '【结论】修复后振动 1.6 mm/s，达标' } : a)),
+};
+
 const historyItem: HistoryLoopItem = {
   id: 'hl-1',
   loopCode: 'PL-20261010-002',
@@ -160,6 +209,7 @@ vi.mock('../../src/api/businessLoopApi', () => ({
     create: vi.fn(),
     confirmStage: vi.fn(),
     toggleLotoItem: vi.fn(),
+    addLotoItem: vi.fn(),
     complete: vi.fn(),
     history: vi.fn(),
   },
@@ -196,6 +246,7 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     api.create.mockResolvedValue(loop);
     api.confirmStage.mockResolvedValue(loop);
     api.toggleLotoItem.mockResolvedValue(loop);
+    api.addLotoItem.mockResolvedValue(loop);
     api.complete.mockResolvedValue({ ...loop, status: 'archived' });
   });
 
@@ -223,21 +274,65 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     expect(screen.getByText('压缩空气蓄能管路及冷却器腔体')).toBeInTheDocument();
   });
 
+  /** LOTO 行卡片：隔离点位文本所在的一行（行内即现场登记输入框与确认勾选） */
+  const lotoRow = (pointText: string) => {
+    const el = screen.getByText(pointText).closest('[class*="rounded-xl"]');
+    if (!el) throw new Error(`未找到隔离点行：${pointText}`);
+    return el as HTMLElement;
+  };
+
   const checkToggle = (pointText: string) => {
-    const row = screen.getByText(pointText).closest('tr')!;
-    return row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const box = lotoRow(pointText).querySelector('input[type="checkbox"]');
+    if (!box) throw new Error(`隔离点行内未找到确认勾选：${pointText}`);
+    return box as HTMLInputElement;
+  };
+
+  /** 补登面板：点「补登隔离点」后展开的虚线框，行内也有同名的「隔离点位」输入框，必须按面板取 */
+  const lotoAddPanel = () => {
+    const el = screen.getByText(/现场补登/).closest('[class*="rounded-xl"]');
+    if (!el) throw new Error('未找到补登面板');
+    return el as HTMLElement;
   };
 
   it('勾选隔离点只发 PATCH loto-confirm，前端不自建确认状态', async () => {
     renderView();
     await screen.findByText('压缩空气蓄能管路及冷却器腔体');
     fireEvent.click(checkToggle('压缩空气蓄能管路及冷却器腔体'));
-    await waitFor(() => expect(api.toggleLotoItem).toHaveBeenCalledWith('bl-1', { itemId: 'loto-3', confirmed: true }));
+    await waitFor(() =>
+      expect(api.toggleLotoItem).toHaveBeenCalledWith('bl-1', { itemId: 'loto-3', confirmed: true, fields: undefined })
+    );
+  });
+
+  it('LOTO 行内点位/锁号可现场登记，保存时只提交改过的字段', async () => {
+    renderView();
+    const row = await screen.findByText('压缩空气蓄能管路及冷却器腔体');
+    const lockInput = within(lotoRow('压缩空气蓄能管路及冷却器腔体')).getByLabelText(/锁具/) as HTMLInputElement;
+    fireEvent.change(lockInput, { target: { value: 'LK-RS-902' } });
+    expect(row).toBeInTheDocument();
+    fireEvent.click(within(lotoRow('压缩空气蓄能管路及冷却器腔体')).getByRole('button', { name: /保存登记/ }));
+    await waitFor(() =>
+      expect(api.toggleLotoItem).toHaveBeenCalledWith('bl-1', {
+        itemId: 'loto-3',
+        confirmed: false,
+        fields: { lockNumber: 'LK-RS-902' },
+      })
+    );
+  });
+
+  it('AI 清单漏项时可补登隔离点，来源由服务端标人工登记', async () => {
+    renderView();
+    await screen.findByText('压缩空气蓄能管路及冷却器腔体');
+    fireEvent.click(screen.getByRole('button', { name: /补登隔离点/ }));
+    fireEvent.change(within(lotoAddPanel()).getByLabelText(/隔离点位/), { target: { value: '润滑油泵电机接线端子' } });
+    fireEvent.click(screen.getByRole('button', { name: /提交补登/ }));
+    await waitFor(() =>
+      expect(api.addLotoItem).toHaveBeenCalledWith('bl-1', { type: '电气隔离', point: '润滑油泵电机接线端子' })
+    );
   });
 
   it('LOTO 未 100% 确认时前端拦住推进，不把半成品请求发给服务端', async () => {
     renderView();
-    const advance = await screen.findByRole('button', { name: /确认并推进环节/ });
+    const advance = await screen.findByRole('button', { name: /确认推进/ });
     fireEvent.click(advance);
     await waitFor(() => expect(api.confirmStage).not.toHaveBeenCalled());
     // 页面上挂着的是真实闸门说明，而不是「已推进」的假成功
@@ -251,9 +346,36 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     fireEvent.click(checkToggle('压缩空气蓄能管路及冷却器腔体'));
     await waitFor(() => expect(screen.getByText(/当前已确认 3\/3 项/)).toBeInTheDocument());
 
-    const advance = await screen.findByRole('button', { name: /确认并推进环节/ });
+    const advance = await screen.findByRole('button', { name: /确认推进/ });
     fireEvent.click(advance);
-    await waitFor(() => expect(api.confirmStage).toHaveBeenCalledWith('bl-1', 3));
+    await waitFor(() => expect(api.confirmStage).toHaveBeenCalledWith('bl-1', 3, undefined));
+  });
+
+  it('工单要素在确认前可改写：确认请求带 edits，未改的字段不提交', async () => {
+    api.getById.mockResolvedValue(loopAtStage1);
+    renderView();
+    const hours = await screen.findByLabelText(/预计工时/);
+    fireEvent.change(hours, { target: { value: '2.5' } });
+    fireEvent.change(screen.getByLabelText(/优先级/), { target: { value: 'urgent' } });
+    // 提示条如实标出待提交处数，确认按钮文案同步
+    expect(await screen.findByText(/待提交人工修订 2 处/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /确认落库（含 2 处人工修订）/ }));
+    await waitFor(() =>
+      expect(api.confirmStage).toHaveBeenCalledWith('bl-1', 1, {
+        workOrderDraft: { estimatedHours: 2.5, priority: 'urgent' },
+      })
+    );
+  });
+
+  it('「恢复 AI 原值」丢弃本地改写，确认后按 AI 预填原值落库', async () => {
+    api.getById.mockResolvedValue(loopAtStage1);
+    renderView();
+    const title = await screen.findByLabelText(/工单标题/);
+    fireEvent.change(title, { target: { value: '人工改过的标题名字' } });
+    fireEvent.click(screen.getByRole('button', { name: /恢复 AI 原值/ }));
+    expect((title as HTMLInputElement).value).toBe('2# 无油螺杆空压机主机振动偏高检修');
+    fireEvent.click(screen.getByRole('button', { name: /确认推进/ }));
+    await waitFor(() => expect(api.confirmStage).toHaveBeenCalledWith('bl-1', 1, undefined));
   });
 
   it('产出物计数取接口数组长度，且不再保留「打包导出」等无接口入口', async () => {
@@ -267,6 +389,34 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     renderView();
     expect(await screen.findByText('PL-20261010-002')).toBeInTheDocument();
     expect(screen.getByText(/1 条归档记录/)).toBeInTheDocument();
+  });
+
+  it('排版：两栏流式落位，卡片不再被写死的最小高度撑出整片空白', async () => {
+    renderView();
+    await screen.findByText(/2#无油螺杆空压机主机振动偏高/);
+    const left = document.querySelector('[class*="lg:col-span-8"]');
+    const right = document.querySelector('[class*="lg:col-span-4"]');
+    if (!left || !right) throw new Error('未渲染 lg:col-span-8 / lg:col-span-4 两栏容器');
+
+    // 用户点名的空白来源：档案/建议曾挂在被撑高的第三行上方，现在按内容高度顺排
+    expect(within(left as HTMLElement).getByText('业务闭环产出物档案')).toBeInTheDocument();
+    expect(within(left as HTMLElement).getByText('AI 智能管家行动建议')).toBeInTheDocument();
+    expect(within(right as HTMLElement).getByText('AI 全域上下文贯穿链')).toBeInTheDocument();
+    expect(within(right as HTMLElement).getByText('近期已归档业务闭环')).toBeInTheDocument();
+    // 全站不允许再出现 min-h-* 撑高（原 min-h-[460px] 在任何视口宽度下都会留白）
+    expect(document.querySelector('[class*="min-h-"]')).toBeNull();
+  });
+
+  it('质检归档环节不是空面板：进环节 6 渲染归档前核对与人工修订台账', async () => {
+    api.getById.mockResolvedValue(loopAtStage6);
+    renderView();
+    expect(await screen.findByText(/归档前核对/)).toBeInTheDocument();
+    // 六环节确认态 + 产出物实况 + 修订台账，全部取自接口
+    expect(screen.getByText('环节 6·质检归档')).toBeInTheDocument();
+    expect(screen.getByText('人工修订台账')).toBeInTheDocument();
+    expect(screen.getByText(/环节 1：工单标题、优先级、预计工时（陈主管/)).toBeInTheDocument();
+    expect(screen.getByText(/LOTO「压缩空气蓄能管路及冷却器腔体」：陈主管/)).toBeInTheDocument();
+    expect(screen.getByText(/【结论】修复后振动 1\.6 mm\/s，达标/)).toBeInTheDocument();
   });
 
   it('页头三颗指标由接口现算：在办=列表长度，本周=归档落在本自然周，平均=历史耗时均值', async () => {

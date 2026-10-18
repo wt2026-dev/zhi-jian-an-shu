@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Sparkles,
   Lock,
@@ -10,24 +10,48 @@ import {
   FileText,
   Loader2,
   Wrench,
-  Check,
   Eye,
   X,
-  Clock
+  PencilLine,
+  Plus
 } from 'lucide-react';
 import type {
   BusinessClosedLoopData,
   LotoConfirmationItem,
+  LotoFieldDraft,
   Stage1Prefill,
   Stage2Prefill,
   Stage3Prefill,
   Stage4Prefill,
   Stage5Prefill,
   Stage6Prefill,
+  StageHumanEdits,
   StageId,
   StageStepMeta,
 } from './types';
 import { useToast } from '../../context/ToastContext';
+import {
+  EMPTY_EDIT_SPECS,
+  LOTO_TYPES,
+  STAGE_EDIT_SPECS,
+  STAGE_INTRO,
+  fmtClock,
+  groupValue,
+} from './stageEditSpecs';
+import { PrefillBanner, RevisionLedger, RevisionRecordBanner, StageStatusBadge } from './StagePrefillParts';
+import { EditForm, LabeledInput } from './StageEditForm';
+import { LotoRowEditor } from './LotoRowEditor';
+import {
+  EmptyBlock,
+  EmptyLine,
+  Field,
+  ListBlock,
+  MetaChip,
+  Para,
+  RevertButton,
+  StandardsList,
+  StructuredBlock,
+} from './StageAtoms';
 
 interface StageWorkbenchProps {
   currentStageId: StageId | null;
@@ -36,27 +60,11 @@ interface StageWorkbenchProps {
   loopData: BusinessClosedLoopData;
   canOperate: boolean;
   busy?: boolean;
-  onToggleLotoItem: (itemId: string, confirmed: boolean) => void;
-  onAdvanceStage: (stageNo: number) => void;
+  onToggleLotoItem: (itemId: string, confirmed: boolean, fields?: LotoFieldDraft) => void;
+  onAddLotoItem: (fields: { type: string; point: string; requirement?: string; lockNumber?: string }) => void;
+  onAdvanceStage: (stageNo: number, edits?: StageHumanEdits) => void;
   onNavigateToTab?: (tabKey: string) => void;
 }
-
-/** 环节说明取自服务端 STAGE_DEFS（与 aiBadge/outputSummary 同源），不在前端另写一套 */
-const STAGE_INTRO: Record<StageId, string> = {
-  stage_report: '遥测越限与业务目标自动生成报修工单草稿，人工核对确认后落库为真实工单',
-  stage_permit: '作业安全分析 (JSA) 识别危险能量与控制措施，确认后落成真实作业票（待双人会签）',
-  stage_loto: '按 GB/T 33579 推演隔离点并匹配台账真实锁具，须现场逐项人工确认方可开工',
-  stage_execution: '依据设备档案与历史检修记录生成检修方案，确认后转为作业指引档案',
-  stage_completion: '引用真实工单状态与台账遥测基线生成完工验收记录',
-  stage_archive: '汇总全链路数据生成质检报告，并判定是否沉淀知识条目入知识库',
-};
-
-const fmtClock = (iso?: string) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
 
 export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
   currentStageId,
@@ -66,16 +74,87 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
   canOperate,
   busy,
   onToggleLotoItem,
+  onAddLotoItem,
   onAdvanceStage,
   onNavigateToTab,
 }) => {
   const { show: showToast } = useToast();
   const [showAiReasonModal, setShowAiReasonModal] = useState(false);
+  /** 人工修订表单（确认前只存本地，点「确认并推进」才随 edits 提交） */
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [lotoForm, setLotoForm] = useState<Record<string, LotoFieldDraft>>({});
+  const [showLotoAdd, setShowLotoAdd] = useState(false);
+  const [lotoAddForm, setLotoAddForm] = useState<{ type: string; point: string; requirement: string; lockNumber: string }>({
+    type: '电气隔离',
+    point: '',
+    requirement: '',
+    lockNumber: '',
+  });
 
   const currentStage = stages.find((s) => s.id === currentStageId) || null;
   const activeStage = stages.find((s) => s.status === 'in_progress') || null;
   const confirmedCount = lotoItems.filter((i) => i.confirmed).length;
   const isAllConfirmed = lotoItems.length > 0 && confirmedCount === lotoItems.length;
+
+  // 切换环节 / 服务端回写新预填后丢弃旧表单，避免把上一环节的修订带到下一环节。
+  // 用「渲染期对齐 key」而不是 useEffect：effect 里 setState 会多渲染一轮，
+  // 那半帧里挂着的是上一环节的表单值，确认按钮的处数提示会闪。
+  const stageResetKey = `${currentStage?.id}|${currentStage?.aiPrefill?.generatedAt}|${currentStage?.status}`;
+  const [appliedResetKey, setAppliedResetKey] = useState(stageResetKey);
+  if (appliedResetKey !== stageResetKey) {
+    setAppliedResetKey(stageResetKey);
+    setForm({});
+    setLotoForm({});
+    setShowLotoAdd(false);
+  }
+
+  const prefill = currentStage?.aiPrefill || {};
+  // specs 必须是稳定引用（空数组也复用同一个），否则 dirtyKeys 的 useMemo 每帧都重算
+  const specs = useMemo(
+    () => (currentStage ? (STAGE_EDIT_SPECS[currentStage.id] ?? EMPTY_EDIT_SPECS) : EMPTY_EDIT_SPECS),
+    [currentStage],
+  );
+  const isViewingActive = !!activeStage && !!currentStage && activeStage.id === currentStage.id && currentStage.status === 'in_progress';
+  const canEdit = canOperate && isViewingActive;
+  const hasEquipment = loopData.equipment.id !== '';
+
+  const dirtyKeys = useMemo(
+    () =>
+      specs
+        .map((f) => `${f.group}.${f.key}`)
+        .filter((id) => id in form)
+        .filter((id) => {
+          const spec = specs.find((f) => `${f.group}.${f.key}` === id)!;
+          const next = (form[id] ?? '').trim();
+          const base = groupValue(prefill.raw, spec.group, spec.key).trim();
+          if (spec.kind === 'number') {
+            const n = Number(next);
+            return !!next && Number.isFinite(n) && String(n) !== base;
+          }
+          return next !== base;
+        }),
+    [specs, form, prefill.raw],
+  );
+
+  const buildEdits = (): StageHumanEdits => {
+    const out: Record<string, Record<string, any>> = {};
+    for (const f of specs) {
+      const id = `${f.group}.${f.key}`;
+      if (!(id in form)) continue;
+      const rawVal = (form[id] ?? '').trim();
+      const base = groupValue(prefill.raw, f.group, f.key).trim();
+      if (f.kind === 'number') {
+        const n = Number(rawVal);
+        if (!rawVal || !Number.isFinite(n)) continue;
+        if (String(n) === base) continue;
+        (out[f.group] ||= {})[f.key] = n;
+        continue;
+      }
+      if (!rawVal || rawVal === base) continue;
+      (out[f.group] ||= {})[f.key] = rawVal;
+    }
+    return out as StageHumanEdits;
+  };
 
   if (!currentStage) {
     return (
@@ -85,9 +164,19 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
     );
   }
 
-  const prefill = currentStage.aiPrefill || {};
-  const isViewingActive = activeStage?.id === currentStage.id && currentStage.status === 'in_progress';
-  const hasEquipment = loopData.equipment.id !== '';
+  const lotoChangedFields = (item: LotoConfirmationItem): LotoFieldDraft | undefined => {
+    const draft = lotoForm[item.id];
+    if (!draft) return undefined;
+    const changed: LotoFieldDraft = {};
+    (['type', 'point', 'requirement', 'lockNumber', 'operator'] as const).forEach((key) => {
+      const next = String(draft[key] ?? '').trim();
+      const base = String((item as any)[key] ?? '').trim();
+      if (next && next !== base) (changed as any)[key] = next;
+    });
+    return Object.keys(changed).length ? changed : undefined;
+  };
+
+  const dirtyLotoCount = lotoItems.filter((i) => lotoChangedFields(i)).length;
 
   const handleAdvance = () => {
     if (!canOperate) {
@@ -112,11 +201,30 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
       });
       return;
     }
-    onAdvanceStage(currentStage.order);
+    const edits = buildEdits();
+    const editCount = Object.values(edits).reduce((acc, g: any) => acc + Object.keys(g || {}).length, 0);
+    onAdvanceStage(currentStage.order, editCount ? edits : undefined);
+  };
+
+  const submitLotoAdd = () => {
+    const point = lotoAddForm.point.trim();
+    const type = lotoAddForm.type.trim();
+    if (!point) {
+      showToast({ type: 'warning', title: '补登隔离点缺少点位', message: '请填写实际隔离点位（如「储气罐出口截止阀」）后再提交', duration: 3500 });
+      return;
+    }
+    onAddLotoItem({
+      type,
+      point,
+      requirement: lotoAddForm.requirement.trim() || undefined,
+      lockNumber: lotoAddForm.lockNumber.trim() || undefined,
+    });
+    setShowLotoAdd(false);
+    setLotoAddForm({ type: '电气隔离', point: '', requirement: '', lockNumber: '' });
   };
 
   return (
-    <div className="rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-6 backdrop-blur-md flex flex-col justify-between space-y-5">
+    <div className="rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-6 backdrop-blur-md space-y-5">
       {/* 顶部环节标题栏 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
         <div>
@@ -130,6 +238,18 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
               对应页面：<strong className="text-slate-700">{currentStage.targetPage}</strong>
             </span>
             <StageStatusBadge status={currentStage.status} />
+            {dirtyKeys.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700">
+                <PencilLine className="w-3 h-3" />
+                待提交人工修订 {dirtyKeys.length} 处
+              </span>
+            )}
+            {dirtyLotoCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-800">
+                <PencilLine className="w-3 h-3" />
+                LOTO 待登记 {dirtyLotoCount} 行
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-1">{STAGE_INTRO[currentStage.id]}</p>
         </div>
@@ -149,75 +269,116 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
       {/* AI 预填状态条：真实引擎名 + ok/degraded 如实标注 */}
       <PrefillBanner stage={currentStage} waitingPrefill={!prefill.engine && currentStage.order <= 4} />
 
-      {/* 环节 3：LOTO 能量隔离（隔离点与锁号全部来自服务端预填 + 现场确认） */}
+      {/* 已持久化的人工修订留痕（服务端 prefill.humanRevised） */}
+      {prefill.revised && <RevisionRecordBanner revised={prefill.revised} />}
+
+      {/* 环节 3：LOTO 能量隔离（隔离点与锁号来自服务端预填 + 现场人工登记确认） */}
       {currentStage.id === 'stage_loto' && (
         <div className="space-y-4">
           <StructuredBlock
             title={`LOTO 能量隔离确认矩阵（${lotoItems.length} 个隔离点）`}
             icon={<Lock className="w-3.5 h-3.5 text-blue-600" />}
             note={(currentStage.aiPrefill?.raw as Stage3Prefill | undefined)?.note}
+            aside={
+              canEdit && lotoItems.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowLotoAdd((v) => !v)}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 px-2 py-1 rounded-lg border border-blue-200 bg-white hover:bg-blue-50 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>{showLotoAdd ? '收起补登' : '补登隔离点'}</span>
+                </button>
+              ) : null
+            }
           >
             {lotoItems.length === 0 ? (
               <EmptyLine text="服务端尚未回写隔离点：环节 2 的 JSA 评估未输出 lotoAdvice 时，请前往「安全与LOTO」页按现场实际补充隔离方案后再确认。" />
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-50/50 text-slate-500 border-b border-slate-100 font-medium">
-                      <th className="py-2.5 px-3 w-24">隔离类型</th>
-                      <th className="py-2.5 px-3 w-40">隔离点</th>
-                      <th className="py-2.5 px-3 min-w-[200px]">操作要求与规范</th>
-                      <th className="py-2.5 px-3 w-28">锁具/牌号</th>
-                      <th className="py-2.5 px-3 w-28 text-center">确认勾选</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {lotoItems.map((item) => (
-                      <tr key={item.id} className={`transition-colors ${item.confirmed ? 'bg-emerald-50/20' : 'bg-amber-50/15'}`}>
-                        <td className="py-3 px-3 font-semibold text-slate-800">
-                          <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-medium ${typeChip(item.type)}`}>
-                            {item.type}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 font-medium text-slate-900">
-                          {item.point}
-                          {item.basis === '类别规则兜底' && (
-                            <span className="mt-1 block text-[11px] font-normal text-amber-700">类别规则推演，点位编号需现场核对</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-slate-600 leading-relaxed">{item.requirement}</td>
-                        <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
-                          <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/70">
-                            {item.lockNumber || '现场登记'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <label className="inline-flex items-center justify-center cursor-pointer p-1">
-                            <input
-                              type="checkbox"
-                              checked={item.confirmed}
-                              disabled={!canOperate || currentStage.status === 'completed' || busy}
-                              onChange={() => onToggleLotoItem(item.id, !item.confirmed)}
-                              className="sr-only"
-                            />
-                            <div
-                              className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
-                                item.confirmed
-                                  ? 'bg-emerald-500 text-white shadow-2xs'
-                                  : 'border-2 border-slate-300 bg-white hover:border-blue-500'
-                              }`}
-                            >
-                              {item.confirmed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </div>
-                          </label>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {item.confirmed ? `${item.operator || '已确认'} ${item.confirmTime || ''}` : '点击确认'}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-2.5">
+                {lotoItems.map((item) => (
+                  <LotoRowEditor
+                    key={item.id}
+                    item={item}
+                    form={lotoForm[item.id]}
+                    editable={canEdit}
+                    busy={!!busy}
+                    onChangeField={(key, value) =>
+                      setLotoForm((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] || {}), [key]: value } }))
+                    }
+                    onToggle={(confirmed) => onToggleLotoItem(item.id, confirmed, lotoChangedFields(item))}
+                    onSaveFields={() => {
+                      const changed = lotoChangedFields(item);
+                      if (!changed) return;
+                      onToggleLotoItem(item.id, item.confirmed, changed);
+                      setLotoForm((prev) => {
+                        const next = { ...prev };
+                        delete next[item.id];
+                        return next;
+                      });
+                    }}
+                    onResetFields={() =>
+                      setLotoForm((prev) => {
+                        const next = { ...prev };
+                        delete next[item.id];
+                        return next;
+                      })
+                    }
+                  />
+                ))}
+
+                {showLotoAdd && (
+                  <div className="rounded-xl border border-dashed border-blue-300 bg-blue-50/40 p-3 space-y-2">
+                    <div className="text-[11px] font-bold text-blue-900">现场补登（AI/JSA 清单外的能量源，来源将如实标「人工登记」）</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <LabeledInput
+                        label="能量类型"
+                        kind="select"
+                        options={LOTO_TYPES}
+                        value={lotoAddForm.type}
+                        onChange={(v) => setLotoAddForm((f) => ({ ...f, type: v }))}
+                      />
+                      <LabeledInput
+                        label="隔离点位"
+                        kind="text"
+                        value={lotoAddForm.point}
+                        placeholder="如：储气罐出口截止阀"
+                        onChange={(v) => setLotoAddForm((f) => ({ ...f, point: v }))}
+                      />
+                      <LabeledInput
+                        label="操作要求（留空按 GB/T 33579 规则生成）"
+                        kind="text"
+                        value={lotoAddForm.requirement}
+                        onChange={(v) => setLotoAddForm((f) => ({ ...f, requirement: v }))}
+                      />
+                      <LabeledInput
+                        label="锁具牌号"
+                        kind="text"
+                        value={lotoAddForm.lockNumber}
+                        placeholder="台账未匹配时现场登记"
+                        onChange={(v) => setLotoAddForm((f) => ({ ...f, lockNumber: v }))}
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowLotoAdd(false)}
+                        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={submitLotoAdd}
+                        disabled={!!busy}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+                      >
+                        {busy && <Loader2 className="w-3 h-3 animate-spin" />}
+                        <span>提交补登</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </StructuredBlock>
@@ -246,25 +407,27 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
         </div>
       )}
 
-      {/* 环节 1：现场报修（generate-work-order 草稿） */}
+      {/* 环节 1：现场报修（generate-work-order 草稿，确认要素可人工改写） */}
       {currentStage.id === 'stage_report' && (
         <div className="space-y-4">
           {prefill.engine ? (
-            <StructuredBlock title="工单草稿（AI 预填，确认后才落库）" icon={<FileText className="w-3.5 h-3.5 text-blue-600" />}>
-              <DraftGrid
-                items={[
-                  { label: '工单标题', value: (prefill.raw as Stage1Prefill)?.workOrderDraft?.title },
-                  { label: '故障类型', value: (prefill.raw as Stage1Prefill)?.workOrderDraft?.faultType },
-                  { label: '优先级', value: (prefill.raw as Stage1Prefill)?.workOrderDraft?.priority },
-                  { label: '预计工时', value: (prefill.raw as Stage1Prefill)?.workOrderDraft?.estimatedHours != null ? `${(prefill.raw as Stage1Prefill)?.workOrderDraft?.estimatedHours} 小时` : undefined },
-                ]}
+            <StructuredBlock
+              title="工单草稿（AI 预填，人工核对改写后落库）"
+              icon={<FileText className="w-3.5 h-3.5 text-blue-600" />}
+              aside={dirtyKeys.length ? <RevertButton onRevert={() => setForm({})} /> : null}
+            >
+              <EditForm
+                specs={specs}
+                raw={prefill.raw}
+                form={form}
+                editable={canEdit}
+                onChange={(id, v) => setForm((prev) => ({ ...prev, [id]: v }))}
               />
-              <Para label="现场情况描述" text={(prefill.raw as Stage1Prefill)?.workOrderDraft?.description} />
               <ListBlock label="AI 建议工序" items={(prefill.raw as Stage1Prefill)?.workOrderDraft?.recommendedSteps} />
               <ListBlock label="开工前安全注意" items={(prefill.raw as Stage1Prefill)?.workOrderDraft?.safetyNotes} />
             </StructuredBlock>
           ) : (
-            <EmptyBlock text="工单草稿尚未回写，AI 能力调用完成后自动出现在这里。" />
+            <EmptyBlock text="工单草稿尚未回写，AI 能力调用完成后自动出现在这里。回写前也可等服务端降级后人工填写要素。" />
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -279,12 +442,17 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
       {currentStage.id === 'stage_permit' && (
         <div className="space-y-4">
           {prefill.engine ? (
-            <StructuredBlock title="作业安全分析 JSA（确认后才落库为作业票）" icon={<ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}>
-              <DraftGrid
-                items={[
-                  { label: '风险等级', value: (prefill.raw as Stage2Prefill)?.assessment?.riskLevel },
-                  { label: '判定理由', value: (prefill.raw as Stage2Prefill)?.assessment?.riskReason },
-                ]}
+            <StructuredBlock
+              title="作业安全分析 JSA（人工定级确认后落库为作业票）"
+              icon={<ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}
+              aside={dirtyKeys.length ? <RevertButton onRevert={() => setForm({})} /> : null}
+            >
+              <EditForm
+                specs={specs}
+                raw={prefill.raw}
+                form={form}
+                editable={canEdit}
+                onChange={(id, v) => setForm((prev) => ({ ...prev, [id]: v }))}
               />
               <ListBlock
                 label="危险源辨识"
@@ -315,8 +483,11 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
       {currentStage.id === 'stage_execution' && (
         <div className="space-y-4">
           {prefill.engine ? (
-            <StructuredBlock title="检修方案与作业步骤（AI 预填）" icon={<Wrench className="w-3.5 h-3.5 text-indigo-600" />}>
-              <Para label="方案概述" text={(prefill.raw as Stage4Prefill)?.plan?.overview} />
+            <StructuredBlock
+              title="检修方案与作业步骤（工时人数可人工校正）"
+              icon={<Wrench className="w-3.5 h-3.5 text-indigo-600" />}
+              aside={dirtyKeys.length ? <RevertButton onRevert={() => setForm({})} /> : null}
+            >
               <ListBlock
                 label="作业步骤与验收标准"
                 items={(prefill.raw as Stage4Prefill)?.plan?.steps?.map(
@@ -328,11 +499,12 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
                 items={(prefill.raw as Stage4Prefill)?.plan?.spareParts?.map((p) => `${p.name || ''}${p.spec ? `（${p.spec}）` : ''}×${p.qty ?? 1}`)}
               />
               <ListBlock label="PPE 要求" items={(prefill.raw as Stage4Prefill)?.plan?.safetyMeasures?.ppe} />
-              <DraftGrid
-                items={[
-                  { label: '预估工时', value: (prefill.raw as Stage4Prefill)?.plan?.estimatedHours != null ? `${(prefill.raw as Stage4Prefill)?.plan?.estimatedHours} 小时` : undefined },
-                  { label: '作业人数', value: (prefill.raw as Stage4Prefill)?.plan?.workers != null ? `${(prefill.raw as Stage4Prefill)?.plan?.workers} 人` : undefined },
-                ]}
+              <EditForm
+                specs={specs}
+                raw={prefill.raw}
+                form={form}
+                editable={canEdit}
+                onChange={(id, v) => setForm((prev) => ({ ...prev, [id]: v }))}
               />
             </StructuredBlock>
           ) : (
@@ -367,9 +539,37 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
         </div>
       )}
 
-      {/* 环节 6：质检归档 */}
+      {/* 环节 6：质检归档（归档前核对清单，全部取自接口真实状态） */}
       {currentStage.id === 'stage_archive' && (
         <div className="space-y-4">
+          <StructuredBlock title="归档前核对（六环节人工确认与产出物实况）" icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {stages.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/80 border border-slate-200/70 text-xs">
+                  <span className="text-slate-600">
+                    环节 {s.order}·{s.title}
+                  </span>
+                  <span
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                      s.status === 'completed'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : s.status === 'in_progress'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                    }`}
+                  >
+                    {s.status === 'completed' ? `已确认 ${s.completedTime || ''}`.trim() : s.status === 'in_progress' ? '进行中' : '待开始'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <ListBlock
+              label="产出物"
+              items={loopData.artifacts.map((a) => `${a.name}：${a.status === 'ready' ? `已生成（${a.code}）` : '待生成'}`)}
+            />
+            <RevisionLedger stages={stages} lotoItems={lotoItems} />
+          </StructuredBlock>
+
           <StructuredBlock title="质检归档与知识沉淀" icon={<Sparkles className="w-3.5 h-3.5 text-indigo-600" />}>
             <Para
               label="质检报告"
@@ -408,7 +608,13 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-          <span>{isViewingActive ? '确认并推进环节 →' : `服务端进行中为第 ${activeStage?.order ?? '—'} 环节`}</span>
+          <span>
+            {isViewingActive
+              ? dirtyKeys.length
+                ? `确认落库（含 ${dirtyKeys.length} 处人工修订）→`
+                : '核对/修订后确认推进 →'
+              : `服务端进行中为第 ${activeStage?.order ?? '—'} 环节`}
+          </span>
           {isViewingActive && <ArrowRight className="w-4 h-4" />}
         </button>
       </div>
@@ -441,7 +647,7 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 以下原文来自 business_loop_stages.ai_prefill_json，为服务端真实调用结果；degraded 表示 AI 未产出可信结构化结果，
-                需人工核校后方可确认。
+                需人工核校后方可确认。人工修订后 aiOriginal 保留 AI 原值，humanRevised 记录修订人与字段。
               </p>
               <pre className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px] font-mono text-slate-700 max-h-[50vh] overflow-auto whitespace-pre-wrap break-all">
                 {JSON.stringify(prefill.raw ?? { message: '该环节暂无 AI 预填内容' }, null, 2)}
@@ -463,192 +669,3 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
     </div>
   );
 };
-
-function StageStatusBadge({ status }: { status: StageStepMeta['status'] }) {
-  const map = {
-    completed: { text: '已人工确认', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200/80' },
-    in_progress: { text: '进行中', cls: 'bg-blue-50 text-blue-700 border-blue-200/80' },
-    pending: { text: '待开始', cls: 'bg-slate-50 text-slate-500 border-slate-200/80' },
-  } as const;
-  const m = map[status];
-  return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${m.cls}`}>{m.text}</span>;
-}
-
-/** AI 预填状态条：引擎名、真实回写时间、ok/degraded 明示；degraded 不得伪装成成功 */
-function PrefillBanner({ stage, waitingPrefill }: { stage: StageStepMeta; waitingPrefill: boolean }) {
-  const prefill = stage.aiPrefill || {};
-  if (waitingPrefill) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-600 flex items-center gap-2">
-        <Clock className="w-3.5 h-3.5 text-slate-400" />
-        <span>该环节的 AI 预填仍在服务端排队（创建闭环后异步调用），结果回写后自动展示。</span>
-      </div>
-    );
-  }
-  if (!prefill.engine) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-600">
-        该环节不走 AI 预填：{prefill.content || '由现场人工完成后确认'}。
-      </div>
-    );
-  }
-  const degraded = prefill.status === 'degraded';
-  return (
-    <div
-      className="relative overflow-hidden rounded-xl p-4 border"
-      style={
-        degraded
-          ? { backgroundColor: 'rgba(244, 63, 94, 0.06)', borderColor: 'rgba(244, 63, 94, 0.35)' }
-          : { backgroundColor: 'rgba(232, 163, 61, 0.08)', borderColor: 'rgba(232, 163, 61, 0.4)' }
-      }
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs"
-          style={{ backgroundColor: degraded ? '#E11D48' : '#E8A33D' }}
-        >
-          {degraded ? <AlertTriangle className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-        </div>
-        <div className="space-y-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={`text-xs font-bold px-2 py-0.5 rounded ${degraded ? 'text-rose-900 bg-rose-100' : 'text-amber-900'}`}
-              style={degraded ? undefined : { backgroundColor: 'rgba(232, 163, 61, 0.25)' }}
-            >
-              {degraded ? 'AI 降级结果' : 'AI 已预填'}
-            </span>
-            <span className={`text-[11px] font-mono ${degraded ? 'text-rose-800' : 'text-amber-800'}`}>
-              {prefill.engine}
-              {fmtClock(prefill.generatedAt) ? ` · ${fmtClock(prefill.generatedAt)} 回写` : ''}
-            </span>
-          </div>
-          {prefill.content && (
-            <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">{prefill.content}</p>
-          )}
-        </div>
-      </div>
-      {prefill.advice && (
-        <pre className="mt-3 text-[11px] text-slate-600 leading-relaxed whitespace-pre-wrap font-sans border-t border-slate-200/60 pt-2">
-          {prefill.advice}
-        </pre>
-      )}
-    </div>
-  );
-}
-
-function StructuredBlock({
-  title,
-  icon,
-  note,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  note?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-blue-200/80 bg-blue-50/40 p-4 space-y-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-          {icon}
-          {title}
-        </span>
-      </div>
-      {note && <p className="text-[11px] text-slate-500 leading-relaxed">{note}</p>}
-      {children}
-    </div>
-  );
-}
-
-function DraftGrid({ items }: { items: Array<{ label: string; value?: string | number | null }> }) {
-  const filled = items.filter((i) => i.value !== undefined && i.value !== null && String(i.value) !== '');
-  if (!filled.length) return <EmptyLine text="AI 未输出结构化字段，请人工核对后在对应业务页补录。" />;
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-      {filled.map((i) => (
-        <div key={i.label} className="p-2.5 rounded-lg bg-white/80 border border-slate-200/70">
-          <div className="text-slate-400 text-[11px]">{i.label}</div>
-          <div className="font-semibold text-slate-800 mt-0.5">{String(i.value)}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Para({ label, text }: { label: string; text?: string | null }) {
-  if (!text) return null;
-  return (
-    <p className="text-xs text-slate-700 leading-relaxed">
-      <strong>{label}：</strong>
-      {text}
-    </p>
-  );
-}
-
-function ListBlock({ label, items }: { label: string; items?: string[] }) {
-  const list = (items || []).filter((x) => String(x || '').trim() !== '');
-  if (!list.length) return null;
-  return (
-    <div className="text-xs text-slate-700 space-y-1">
-      <div className="font-semibold text-slate-800">{label}</div>
-      <ul className="space-y-1">
-        {list.map((item, idx) => (
-          <li key={idx} className="flex gap-1.5 leading-relaxed">
-            <span className="text-blue-500 shrink-0">·</span>
-            <span className="text-slate-600">{String(item)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function Field({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-      <div className="text-slate-400 text-[11px]">{label}</div>
-      <div className="font-semibold text-slate-800 mt-0.5 break-all">{value || '—'}</div>
-    </div>
-  );
-}
-
-function StandardsList({ raw }: { raw?: Stage3Prefill }) {
-  const standards = raw?.standards || [];
-  if (!standards.length) return null;
-  return (
-    <div className="text-[11px] text-slate-500 space-y-0.5">
-      {standards.map((s) => (
-        <div key={s} className="flex items-center gap-1.5">
-          <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
-          <span>{s}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EmptyBlock({ text }: { text: string }) {
-  return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-4 text-xs text-slate-500">{text}</div>;
-}
-
-function EmptyLine({ text }: { text: string }) {
-  return <p className="text-[11px] text-slate-500 leading-relaxed">{text}</p>;
-}
-
-function MetaChip({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200/80">
-      <span className="text-slate-400">{label}</span>
-      <span className="font-mono">{value}</span>
-    </span>
-  );
-}
-
-function typeChip(type: string) {
-  if (type === '电气隔离') return 'bg-blue-50 text-blue-700 border border-blue-200/60';
-  if (type === '气源隔离') return 'bg-cyan-50 text-cyan-700 border border-cyan-200/60';
-  if (type === '残余能量') return 'bg-amber-50 text-amber-700 border border-amber-200/60';
-  if (type === '液压隔离') return 'bg-sky-50 text-sky-700 border border-sky-200/60';
-  return 'bg-slate-50 text-slate-600 border border-slate-200/60';
-}
