@@ -51,6 +51,7 @@ export function pushWorkOrderLog(log: {
 export async function handleGetWorkOrderStats(req: any, res: any) {
   try {
     const stats = await WorkOrderRepository.getStats();
+    const metrics = await WorkOrderRepository.getReliabilityMetrics();
     const total = stats.total;
     const completed = stats.completed;
 
@@ -66,8 +67,8 @@ export async function handleGetWorkOrderStats(req: any, res: any) {
       highCount: stats.high,
       mediumCount: stats.medium,
       lowCount: stats.low,
-      mttrHours: 3.2,
-      mtbfHours: 720.0,
+      mttrHours: metrics.mttrHours,
+      mtbfHours: metrics.mtbfHours,
       completionRate: total > 0 ? Number(((completed / total) * 100).toFixed(1)) : 100,
     });
   } catch (err: any) {

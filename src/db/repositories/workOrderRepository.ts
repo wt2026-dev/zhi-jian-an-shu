@@ -66,6 +66,42 @@ export const WorkOrderRepository = {
     };
   },
 
+  /**
+   * 可靠性指标（由真实工单数据计算，杜绝硬编码假值）：
+   * - MTTR：已完成工单的 (completed_at - created_at) 均值，单位小时。
+   * - MTBF：全部工单按 created_at 排序后，相邻两次故障工单创建的均值间隔，单位小时。
+   *   全局口径（非逐设备），用作看板趋势参考；样本不足 2 条时返回 0。
+   */
+  async getReliabilityMetrics() {
+    const db = await getDb();
+    const { rows: mttrRows } = await db.query(
+      `SELECT AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 3600.0) AS mttr
+         FROM work_orders
+        WHERE status = 'completed'
+          AND completed_at IS NOT NULL
+          AND created_at IS NOT NULL;`
+    );
+    const mttrHours =
+      mttrRows[0]?.mttr != null && !isNaN(Number(mttrRows[0].mttr))
+        ? Number(Number(mttrRows[0].mttr).toFixed(2))
+        : 0;
+
+    const { rows: tsRows } = await db.query(
+      `SELECT created_at FROM work_orders WHERE created_at IS NOT NULL ORDER BY created_at ASC;`
+    );
+    let mtbfHours = 0;
+    if (tsRows.length >= 2) {
+      let sum = 0;
+      for (let i = 1; i < tsRows.length; i++) {
+        const prev = new Date(tsRows[i - 1].created_at).getTime();
+        const cur = new Date(tsRows[i].created_at).getTime();
+        if (!isNaN(prev) && !isNaN(cur) && cur > prev) sum += (cur - prev) / 3600000;
+      }
+      mtbfHours = Number((sum / (tsRows.length - 1)).toFixed(2));
+    }
+    return { mttrHours, mtbfHours };
+  },
+
   async getById(id: string) {
     const db = await getDb();
     const { rows } = await db.query(`SELECT * FROM work_orders WHERE id = $1 LIMIT 1;`, [id]);

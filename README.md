@@ -5,7 +5,7 @@
 ## 技术栈
 
 - 前端：React 19 + TypeScript + TailwindCSS + Recharts
-- 后端：Node.js 20 + Express 4 + Zod + pino（日志文件轮转）
+- 后端：Node.js 20 + Express 4 + Zod + 内置分级日志（生产环境静默 debug/info，仅 warn/error 常驻）
 - 数据：PGlite（嵌入式 PostgreSQL，34 张业务表，幂等迁移与种子）
 - AI：阿里云百炼 DashScope（OpenAI 兼容模式，qwen-plus / qwen-vl-max），SSE 流式输出
 - 部署：Docker 多阶段构建 + docker compose（含每日 2:00 数据库自动备份服务）
@@ -112,12 +112,14 @@ docker compose up -d
 
 > 包管理器统一使用 **npm**（Dockerfile 与 CI 均为 `npm ci`），禁止混用 bun/pnpm/yarn，
 > 以唯一锁文件 `package-lock.json` 为准，避免依赖不一致。
-> 测试基线：**131 个测试文件 / 1453 个用例**（`npx vitest run` 独立环境实测全绿），
+> 测试基线：**130 个测试文件 / 1448 个用例**（`npx vitest run` 独立环境实测全绿），
 > 类型检查 `npx tsc --noEmit` 零错误（实测 exit 0）。
 > 数字随并行会话变动，**以 `npm run metrics:check` 实测为准**，不要手改别处。
 > 注意：守卫对 README/CHANGELOG 要求**精确匹配**（不适用"低于实测=历史快照"的宽容），
 > 所以并行会话提交/回退用例后本行必然过期 —— 直接跑 `npm run metrics:check -- --fix`
-> 重测重写，不要手算。
+> 重测重写，不要手算。但要在**干净检出**里跑（`git worktree add --detach ../pcheck HEAD`）：
+> 共享工作区里别人未提交的测试文件会被一起算成实测基线，2026-10-18 就是这样把 130/1448
+> 写成 131/1453 的。
 >
 > **2026-10-17 复核修订**：此前本行写作"89 文件 / 1073 用例，1068 通过 / 5 失败"（历史值，不参与校验）<!-- 口径历史快照 -->，并把这 5 项失败
 > 一句话解释成"属并行会话在途改动，与主流程无关"——**该措辞不成立**。它们是三个真实缺陷，
