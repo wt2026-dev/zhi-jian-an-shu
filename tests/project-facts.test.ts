@@ -7,9 +7,13 @@
  * pre-commit 与 CI 都跑全量 vitest，这道门因此自动生效，成本只是几次文件读（毫秒级）。
  *
  * 分工（刻意不重叠）：
- *   · 本文件守**静态可派生**的量：表数、迁移编号区间、能力清单内部一致性。
- *   · 测试基线（N 文件 / M 用例）要跑真实 vitest 才是真值，由 `npm run metrics:check`
- *     守（已接进 CI）；放在这里就是拿静态估算冒充运行时结果。
+ *   · 本文件守**静态可派生**的量：表数、迁移编号区间、能力清单内部一致性，以及测试基线
+ *     里的**文件数**一半 —— 文件数静态扫出来的值与 vitest 运行时报的数量恒等（2026-10-18
+ *     在干净检出里并排核对：131 = 131），所以能放进毫秒级的 pre-commit。这一半只拦**超报**
+ *     （对外虚报），容忍低估：共享工作区里别人的未入库测试文件会让派生数偏高，精确匹配
+ *     等于把邻居的 WIP 打在我的闸门上；低估由 CI 的 `metrics:check` 精确核对。
+ *   · 用例数（`M 个用例`）要跑真实 vitest 才是真值（含参数化展开），由
+ *     `npm run metrics:check` 守（已接进 CI）。这里刻意不拿静态 `it(` 计数冒充它。
  *   · AI 能力数的对外文案漂移由 `tests/ai-capability-registry.test.ts` 守（它核对
  *     package.json 与 openapi）。这里刻意**不**扫散文：README 的「历史漂移提醒」句里
  *     就带着 "24 项"「20 项」这两个故意留下的错误数字，任何全文扫描都会把坦白打成违规。
@@ -50,6 +54,27 @@ function collectClaims(rel: string): { tables: Claim[]; ranges: Claim[] } {
 }
 
 const allClaims = CANONICAL_DOCS.map(collectClaims);
+
+/**
+ * 「N 个测试文件 / M 个用例」声明。成对写法与 `scripts/check-metrics.mjs` 的
+ * `PAIR_PATTERNS` 保持一致 —— 两边解析不一致，就会出现「CI 说一致、pre-commit 说超报」
+ * 这种互相打红的口径裂缝。
+ */
+function collectBaselineClaims(): { file: string; line: number; files: number; cases: number; text: string }[] {
+  const out: { file: string; line: number; files: number; cases: number; text: string }[] = [];
+  for (const rel of CANONICAL_DOCS) {
+    const lines = fs.readFileSync(path.join(ROOT, rel), "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (line.includes(HISTORICAL_LINE_MARK)) return;
+      for (const m of line.matchAll(
+        /(\d{1,6})\s*个?\s*(?:测试)?文件\s*[\s/、，,共]{1,6}(\d{1,6})\s*个?\s*(?:测试用例|用例|项用例)/g
+      )) {
+        out.push({ file: rel, line: i + 1, files: Number(m[1]), cases: Number(m[2]), text: line.trim() });
+      }
+    });
+  }
+  return out;
+}
 
 describe("派生器本身可信（scripts/project-facts.mjs）", () => {
   it("迁移编号从 001 起连续无断号，README 的「按编号连续唯一」才成立", () => {
@@ -125,5 +150,21 @@ describe("权威文档的结构性数字 = 派生真值", () => {
     const readme = collectClaims("README.md");
     expect(readme.tables.length).toBeGreaterThan(0);
     expect(readme.ranges.length).toBeGreaterThan(0);
+  });
+
+  it(`测试基线的文件数声明不得超过同一棵树里派生的 ${facts.tests.files} 个`, () => {
+    const claims = collectBaselineClaims();
+    // 空扫描 = 假绿：删掉那两行声明就能绕过这条守卫，所以先钉扫描本身有产出
+    expect(claims.length, "README/CHANGELOG 里没扫到「N 个测试文件」声明，核对已退化成空扫描").toBeGreaterThan(0);
+    // 单向（只拦超报）而不是精确匹配，是有意的：共享工作区里躺着别人未提交的测试文件时，
+    // 树内派生数会**大于**已提交口径，精确匹配就把邻居的 WIP 打在我的闸门上 —— 那正是本仓
+    // 要避免的互相打红。对外虚报才是这条守的东西；低估留给 CI 的 metrics:check 精确核对。
+    const bad = claims.filter((c) => c.files > facts.tests.files);
+    expect(
+      bad.map((x) => `${x.file}:${x.line} 声明 ${x.files} 个文件 → 该树只有 ${facts.tests.files}`),
+      `文档的测试文件数是**别的树**里的读数（多半是共享工作区里那个未入库的测试文件）。` +
+        `改这个数字前想清楚：CI 在干净检出里跑，认的是提交内容里的文件数。\n` +
+        bad.map((x) => `  ${x.file}:${x.line}  ${x.text.slice(0, 90)}`).join("\n")
+    ).toEqual([]);
   });
 });

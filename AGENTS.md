@@ -108,10 +108,17 @@ git switch -c feat/<任务名>                     # 短期分支，合完就删
    README/CHANGELOG，在共享工作区跑会把别人未提交的测试文件算成口径（我就是这么把
    130/1448 写成 131/1453 的）。复现方法：
    `git worktree add --detach ../pcheck HEAD && cp .env ../pcheck/ && (cd ../pcheck && npm run metrics:check)`。
+   另一条同类通路同样危险：**别人把工作区读数暂存进索引，我的提交替它背书** —— 2026-10-18
+   `aa3cf5a` 里 README/CHANGELOG 的测试基线被写成了共享工作区的读数（工作区多一个未入库的
+   测试文件），而该树真实读数是 131 文件 / 1451 用例，CI 判超报。为此测试文件数那一半已改由
+   `tests/project-facts.test.ts` 静态核对（干净检出里静态文件数 == vitest 运行时文件数，实测
+   131=131），这条超报在 pre-commit 就会红。该条只拦**超报**、容忍低估 —— 共享工作区里别人
+   多一个未入库测试文件时精确匹配会把我自己的门打红；用例数仍需运行时，只有 CI 守。
 4. **索引是共享的**：`git commit` 提交的是索引，不是你以为的"我 add 的那几个文件"。2026-10-18
    就发生过并行会话把我刚改的 `scripts/git-hooks/pre-commit` 暂存进去、被我的提交一起带走。
    所以每次 commit 前跑 `git diff --cached --name-only`，并逐文件核对
-   `git ls-files -s <path>` 的 blob 是否等于 `git hash-object <path>`。
+   `git ls-files -s <path>` 的 blob 是否等于 `git hash-object <path>`。**add 与 commit 之间也算窗口**：
+   `aa3cf5a` 就是这样带上了 `README.md`/`CHANGELOG.md` 两行（我当时核对过，暂存表里只有 2 个文件）。
 5. **结构性数字的唯一来源是 `scripts/project-facts.mjs`**（表数、迁移区间、AI 能力计数、
    测试规模），由 `tests/project-facts.test.ts` 在 vitest 里核对，README/答辩稿/PPT 抄的都是
    同一份。要改数字先改代码，别改散文。
