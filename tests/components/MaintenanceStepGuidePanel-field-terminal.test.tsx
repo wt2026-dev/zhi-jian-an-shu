@@ -216,7 +216,7 @@ describe('边拆边记：一次点击 = 一条工单留痕', () => {
     expect(screen.getByTestId('equipment3d-step-guide-current').textContent).toContain('第 5 步');
   });
 
-  it('自动完工卡片：完工时间 / 实际维修人 / 工时读服务端留档，不显示假数字', () => {
+  it('完工上报卡片：上报时间 / 实际维修人 / 工时读服务端留档，并说明转入待验收', () => {
     renderPanel(
       makeSession({
         canOperate: false,
@@ -225,10 +225,13 @@ describe('边拆边记：一次点击 = 一条工单留痕', () => {
       } as Partial<FieldSessionData>)
     );
     const card = screen.getByTestId('equipment3d-step-guide-complete');
-    expect(card.textContent).toContain('维修流程结束 · 工单已自动完工');
+    expect(card.textContent).toContain('已自动提交完工上报');
     expect(card.textContent).toContain('张建国');
     expect(card.textContent).toContain('2.5 h');
     expect(card.textContent).toContain('repair_log.fieldLog');
+    // 自动完工 = 完工上报 → 待验收，不能让人以为已经归档
+    expect(card.textContent).toContain('待验收');
+    expect(card.textContent).not.toContain('已闭环归档');
   });
 
   it('时间线：按服务端事件条数显示，展开可回放每条留痕', () => {

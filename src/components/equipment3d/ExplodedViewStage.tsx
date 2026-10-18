@@ -988,7 +988,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
               >
                 <ShieldCheck className="w-3 h-3" />
                 {fieldSession.autoCompleted
-                  ? '工单已自动完工'
+                  ? '已完工上报 · 待验收'
                   : fieldSession.canOperate && !fieldSession.loto
                   ? '待 LOTO 安全确认'
                   : `现场留痕 ${fieldSession.progress.done + fieldSession.progress.skipped + fieldSession.progress.issue}/${fieldSession.progress.total}`}

@@ -363,8 +363,9 @@ describe('维修步骤指引 · iframe 桥洞洞（F3）', () => {
     // 每步的"定位零件"按钮与"未匹配"如实态
     expect(src).toContain('equipment3d-step-guide-part-');
     expect(src).toContain('未匹配到具体零件');
-    // 全部完成 → "维修流程结束"提示
-    expect(src).toContain('维修流程结束');
+    // 全部完成 → 自动提交"完工上报"提示（转待验收，不绕过质检）
+    expect(src).toContain('已自动提交完工上报');
+    expect(src).toContain('待验收');
     // 折叠态
     expect(src).toContain('equipment3d-step-guide-collapsed');
   });

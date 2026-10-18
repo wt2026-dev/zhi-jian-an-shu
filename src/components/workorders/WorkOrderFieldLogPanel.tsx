@@ -142,15 +142,15 @@ export const WorkOrderFieldLogPanel: React.FC<WorkOrderFieldLogPanelProps> = ({ 
         </div>
       )}
 
-      {/* 自动完工留档 */}
+      {/* 自动完工上报留档 */}
       {log.completed && (
         <div className="rounded-lg border border-emerald-500/40 bg-emerald-50/60 p-2.5 text-[11px] text-emerald-800" data-testid="work-order-field-log-completed">
           <div className="flex items-center gap-1.5 font-semibold">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            全部步骤记录完成，工单自动完工
+            全部步骤记录完成，已自动提交完工上报
           </div>
           <div className="mt-0.5 text-emerald-700">
-            完工时间 {fmtTime(log.completed.at)} · 实际维修人 {log.completed.by} · 工时 {log.completed.workHours} h · 完成 {log.completed.done} / 跳过 {log.completed.skipped}（共 {log.completed.total} 步）
+            上报时间 {fmtTime(log.completed.at)} · 实际维修人 {log.completed.by} · 工时 {log.completed.workHours} h · 完成 {log.completed.done} / 跳过 {log.completed.skipped}（共 {log.completed.total} 步）
           </div>
         </div>
       )}
@@ -208,6 +208,9 @@ export const WorkOrderFieldLogPanel: React.FC<WorkOrderFieldLogPanelProps> = ({ 
             <Ruler className="w-3.5 h-3.5 text-violet-500" />
             零件测量记录
           </div>
+          <div className="mb-1 text-[9px] text-slate-500">
+            比对口径：设备点检标准（部位级），非零件图纸公差；数值按录入时的位号留档。
+          </div>
           <div className="space-y-1">
             {measurements.map((m) => (
               <div
@@ -225,7 +228,7 @@ export const WorkOrderFieldLogPanel: React.FC<WorkOrderFieldLogPanelProps> = ({ 
                     {m.unit ?? ''}
                   </span>
                   <span className="text-slate-500">
-                    标准 {m.standard ?? '—'}
+                    点检标准 {m.standard ?? '—'}
                     {m.minLimit != null || m.maxLimit != null
                       ? `（${m.minLimit ?? '—'} ~ ${m.maxLimit ?? '—'}${m.unit ?? ''}）`
                       : ''}

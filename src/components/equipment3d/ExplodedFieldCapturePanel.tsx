@@ -205,7 +205,9 @@ export const ExplodedFieldCapturePanel: React.FC<ExplodedFieldCapturePanelProps>
       <div className="px-3 pb-3 pt-2 text-[11px] leading-relaxed">
         {/* ── 录入测量数据 ── */}
         <div data-testid="equipment3d-field-measure-block">
-          <div className="mb-1 text-[10px] tracking-wide text-slate-400">录入测量数据（拆下零件的间隙 / 振动 / 磨损量）</div>
+          <div className="mb-1 text-[10px] tracking-wide text-slate-400">
+            录入测量数据（按设备点检标准比对，关联到当前零件位号）
+          </div>
           {items.length === 0 ? (
             <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-200" data-testid="equipment3d-field-measure-no-standard">
               该设备在真实点检系统（inspections.points）里没有登记任何带标准的测点，因此不提供测量录入 —— 无标准可比对时不做测量留痕，不编造允许区间。
@@ -233,6 +235,10 @@ export const ExplodedFieldCapturePanel: React.FC<ExplodedFieldCapturePanelProps>
                   <div className="mt-0.5 text-slate-400">
                     {limitText(picked)}
                     {picked.method ? ` · 方法 ${picked.method}` : ''}
+                  </div>
+                  {/* 如实标明口径：限值来自设备点检标准，不是该零件的出厂/图纸公差 */}
+                  <div className="mt-1 rounded border border-cyan-400/30 bg-cyan-500/10 px-1.5 py-1 text-[9px] text-cyan-200/90" data-testid="equipment3d-field-measure-scope">
+                    口径说明：该限值取自设备点检标准（点检系统登记的测点），并按所选部位比对；它是<b>设备/部位级</b>标准，并非该零件的图纸公差。测量值与照片都会留档到当前位号。
                   </div>
                 </div>
               )}

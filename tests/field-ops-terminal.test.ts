@@ -334,19 +334,22 @@ describe("边拆边记：步骤留痕 + 跳过/问题 + 测量比对 + 现场照
   });
 });
 
-describe("全部步骤记录完成 → 工单自动完工闭环", () => {
-  it("第 5 步改记完成后自动完工：状态/完工时间/实际维修人/工时全部自动写回工单", async () => {
+describe("全部步骤记录完成 → 自动提交完工上报（待验收，不绕过质检）", () => {
+  it("第 5 步改记完成后自动完工上报：状态/上报时间/实际维修人/工时全部自动写回工单", async () => {
     const res = await request(app)
       .post(`/api/v1/work-orders/${ORDER_ID}/field-actions/step`)
       .set("Authorization", `Bearer ${techToken}`)
       .send({ index: 5, action: "done" });
     expect(res.status).toBe(200);
     expect(res.body.justCompleted).toBe(true);
-    // 完工后会话仍钉在本单（只读留档），不跳到该设备的下一张单
+    // 完工后会话仍钉在本单（只读回看），不跳到该设备的下一张单
     expect(res.body.order.id).toBe(ORDER_ID);
-    expect(res.body.order.status).toBe("completed");
+    // 关键流程口径：自动完工 = 完工上报 → pending_acceptance（待验收），
+    // 与「技师完工上报」同一落点，**不得**直接写成 completed（那等于绕过质检验收）。
+    expect(res.body.order.status).toBe("pending_acceptance");
+    expect(res.body.order.status).not.toBe("completed");
     expect(Date.parse(res.body.order.completedAt)).toBeGreaterThan(0);
-    expect(res.body.blockedReason).toContain("只读留档");
+    expect(res.body.blockedReason).toContain("质检验收");
     expect(res.body.autoCompleted).toMatchObject({ total: 5, done: 4, skipped: 1 });
     expect(res.body.autoCompleted.workHours).toBeGreaterThanOrEqual(0.1);
     expect(res.body.autoCompleted.by).toBe("张建国");
@@ -356,7 +359,7 @@ describe("全部步骤记录完成 → 工单自动完工闭环", () => {
       .get(`/api/v1/work-orders/${ORDER_ID}`)
       .set("Authorization", `Bearer ${techToken}`);
     expect(order.status).toBe(200);
-    expect(order.body.status).toBe("completed");
+    expect(order.body.status).toBe("pending_acceptance");
     expect(order.body.assignee).toBe("张建国");
     expect(order.body.repairLog.workHours).toBeGreaterThanOrEqual(0.1);
     // 工单原有真实根因分析不被自动完工覆盖
@@ -374,9 +377,11 @@ describe("全部步骤记录完成 → 工单自动完工闭环", () => {
     // 时间线完整可回放：LOTO + 6 次步骤写（含问题改完成）+ 2 测量 + 1 照片 + 完工
     expect(fieldLog.events.length).toBeGreaterThanOrEqual(10);
     expect(fieldLog.events[fieldLog.events.length - 1].kind).toBe("complete");
+    // 时间线文案必须说清"等待质检验收"，不能让人以为已经归档
+    expect(fieldLog.events[fieldLog.events.length - 1].text).toContain("等待质检验收");
   });
 
-  it("闭环后终端转只读留档：再写任何现场记录一律 409 状态互斥", async () => {
+  it("完工上报后终端转只读回看：再写任何现场记录一律 409 状态互斥", async () => {
     const step = await request(app)
       .post(`/api/v1/work-orders/${ORDER_ID}/field-actions/step`)
       .set("Authorization", `Bearer ${techToken}`)
@@ -397,6 +402,18 @@ describe("全部步骤记录完成 → 工单自动完工闭环", () => {
     expect(measure.status).toBe(409);
   });
 
+  it("完工上报不动归档位：completedAt 已填但状态仍是待验收（归档只能经质检）", async () => {
+    const order = await request(app)
+      .get(`/api/v1/work-orders/${ORDER_ID}`)
+      .set("Authorization", `Bearer ${techToken}`);
+    expect(order.status).toBe(200);
+    // completedAt 表达"现场作业干完了"，status 表达"还没验收" —— 两者并存是正确语义
+    expect(order.body.completedAt).toBeTruthy();
+    expect(order.body.status).toBe("pending_acceptance");
+    expect(order.body.status).not.toBe("completed");
+    expect(order.body.repairLog.remark).toContain("待质检验收");
+  });
+
   it("闭环留痕进入工单流转日志与设备会话（后续可查完整维修记录）", async () => {
     const logs = await request(app)
       .get(`/api/v1/work-orders/${ORDER_ID}/logs`)
@@ -406,11 +423,42 @@ describe("全部步骤记录完成 → 工单自动完工闭环", () => {
     expect(actions).toContain("SAFETY_CONFIRM");
     expect(actions).toContain("COMPLETE");
 
-    // 会话自动切到该设备下一张可操作工单；已闭环单的留痕不会污染新单
+    // 会话仍指向**刚完工上报的这张单**（待验收、只读回看），
+    // 不能跳到设备上另一张更早的待验收单 —— 否则维修人员看不到自己刚写的留痕。
+    // eq-103 上另有两张真实种子待验收单（wo-...013 / ...019），这里正是防回归的关键。
     const s = await getSession();
-    expect(s.body.order.id).toBe("wo-20240902-013");
+    expect(s.body.order.id).toBe(ORDER_ID);
+    expect(s.body.order.status).toBe("pending_acceptance");
     expect(s.body.canOperate).toBe(false);
     expect(s.body.blockedReason).toContain("验收");
     expect(s.body.steps.every((x: any) => x.recordable === false)).toBe(true);
   });
+  it("会话取「最近完工」的待验收单，而不是创建时间最新的那张", async () => {
+    // 构造：同设备两张待验收单，创建顺序与完工顺序**相反**。
+    // getAll 是按 created_timestamp DESC 排的，若 pickSessionOrder 图省事直接取 pending[0]，
+    // 就会选中"创建更晚、但完工更早"的那张 —— 这正是本用例要钉住的行为。
+    const { WorkOrderRepository } = await import("../src/db/repositories/workOrderRepository.ts");
+    const mk = (id: string, orderNo: string, createdAt: string, completedAt: string) => ({
+      id,
+      orderNo,
+      title: `排序回归用例 ${id}`,
+      equipmentId: DEVICE_ID,
+      status: "pending_acceptance",
+      createdAt,
+      createdTimestamp: Date.parse(createdAt),
+      completedAt,
+      description: "排序回归用例",
+      repairLog: { causeAnalysis: "", resolutionSteps: "1. 步骤一", partsUsed: [], workHours: 0.5, completionPhotos: [] },
+    });
+    // A：创建晚（10-10）但完工早（10-11）
+    // B：创建早（10-01）但完工晚（10-20）
+    await WorkOrderRepository.create(mk("wo-sort-A", "WO-SORT-A", "2026/10/10 08:00:00", "2026-10-11T08:00:00.000Z"));
+    await WorkOrderRepository.create(mk("wo-sort-B", "WO-SORT-B", "2026/10/01 08:00:00", "2026-10-20T08:00:00.000Z"));
+
+    const s = await getSession();
+    expect(s.status).toBe(200);
+    // 必须选完工更晚的 B
+    expect(s.body.order.id).toBe("wo-sort-B");
+  });
+
 });

@@ -197,18 +197,33 @@ export async function getMeasurementStandards(deviceId: string): Promise<FieldMe
   return Array.from(byKey.values());
 }
 
-/** 设备 → 会话工单：检修中优先，其次待验收（只读回看），再次已闭环（只读留档），其他状态不入会话 */
+/**
+ * 设备 → 会话工单：检修中优先，其次待验收，再次已归档。
+ *
+ * 待验收 / 已归档都可能有多张，必须按**最近完工**取，不能按数组顺序：
+ * 自动完工上报会把单子推进 pending_acceptance，如果设备上本来就有一张更早的
+ * 待验收单，按顺序取就会跳到那张"别人的单"，维修人员刚写完的留痕反而看不到了。
+ */
 async function pickSessionOrder(deviceId: string, pinnedOrderId?: string): Promise<WorkOrder | null> {
-  // 写操作刚把当前工单推完工时，会话仍要展示**这张**单（否则页面会跳到下一张单，
-  // 维修人员看不到自己刚闭环的留痕）。
+  // 写操作刚把当前工单推入待验收时，会话仍要展示**这张**单（否则页面会跳到下一张单，
+  // 维修人员看不到自己刚提交的完工留痕）。
   if (pinnedOrderId) {
     const pinned = await WorkOrderRepository.getById(pinnedOrderId);
     if (pinned && pinned.equipmentId === deviceId) return pinned;
   }
   const all = await WorkOrderRepository.getAll({ equipmentId: deviceId });
+  const latestFirst = (list: WorkOrder[]): WorkOrder[] =>
+    [...list].sort((a, b) => {
+      const ta = a.completedAt ? Date.parse(a.completedAt) : NaN;
+      const tb = b.completedAt ? Date.parse(b.completedAt) : NaN;
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+      if (Number.isNaN(ta)) return 1;
+      if (Number.isNaN(tb)) return -1;
+      return tb - ta;
+    });
   const inProgress = all.filter((o) => o.status === 'in_progress');
-  const pending = all.filter((o) => o.status === 'pending_acceptance');
-  const archived = all.filter((o) => o.status === 'completed');
+  const pending = latestFirst(all.filter((o) => o.status === 'pending_acceptance'));
+  const archived = latestFirst(all.filter((o) => o.status === 'completed'));
   return inProgress[0] ?? pending[0] ?? archived[0] ?? null;
 }
 
@@ -475,12 +490,24 @@ async function autoComplete(
       ? `步骤现场留痕存在的问题记录：${issueNotes.join('；')}`
       : `按拆解作业终端逐步执行并留痕，共 ${total} 步（完成 ${done}，跳过 ${skipped}）；全程时间线见 repair_log.fieldLog.events。`;
   log.completed = { at: asIso(now), by: operator.name, workHours, total, done, skipped };
-  log.events = [...log.events, { at: asIso(now), kind: 'complete', text: `全部步骤记录完成（完成 ${done}/跳过 ${skipped}），工单自动完工闭环，实际维修人 ${operator.name}。`, by: operator.name }];
+  log.events = [
+    ...log.events,
+    {
+      at: asIso(now),
+      kind: 'complete',
+      text: `全部步骤记录完成（完成 ${done}/跳过 ${skipped}），自动提交完工上报，实际维修人 ${operator.name}，等待质检验收。`,
+      by: operator.name,
+    },
+  ];
 
+  // 自动完工 = **完工上报**，不是归档。
+  // 与标准流程（workOrderWorkflowController 的「技师完工上报」）保持同一落点：
+  // in_progress → pending_acceptance →（质检复核）→ completed。
+  // 直接写 completed 会绕过质检验收环节，把「已归档」硬塞给一张没验收过的工单。
   const updated = await WorkOrderRepository.update(
     order.id,
     {
-      status: 'completed',
+      status: 'pending_acceptance',
       completedAt: asIso(now),
       assignee: operator.name || order.assignee || null,
       version: order.version,
@@ -490,7 +517,7 @@ async function autoComplete(
         causeAnalysis: prevLog.causeAnalysis || derivedCause,
         workHours,
         completionPhotos: log.partPhotos.map((p) => p.url),
-        remark: `${prevLog.remark ?? ''}${prevLog.remark ? '；' : ''}拆解作业终端自动完工（现场逐步留痕）。`,
+        remark: `${prevLog.remark ?? ''}${prevLog.remark ? '；' : ''}拆解作业终端自动完工上报（现场逐步留痕，待质检验收）。`,
         fieldLog: log,
       },
     },
@@ -503,15 +530,15 @@ async function autoComplete(
     workOrderId: order.id,
     action: 'COMPLETE',
     previousStatus: 'in_progress',
-    newStatus: 'completed',
+    newStatus: 'pending_acceptance',
     operatorName: operator.name,
-    comment: `拆解作业终端自动完工：步骤 ${total}（完成 ${done}/跳过 ${skipped}），工时 ${workHours}h，时间线留档 fieldLog.events`,
+    comment: `拆解作业终端自动完工上报：步骤 ${total}（完成 ${done}/跳过 ${skipped}），工时 ${workHours}h，时间线留档 fieldLog.events，等待质检验收`,
     createdAt: asIso(now),
   });
   pushNotification({
-    title: `【已闭环】${order.orderNo} 现场作业全部完成，工单自动完工`,
-    content: `「${order.title}」按拆解作业终端留痕流程自动完工（${done}/${total} 步完成），实际维修人 ${operator.name}，工时 ${workHours}h。`,
-    type: 'success',
+    title: `【待验收】${order.orderNo} 现场作业全部完成，已自动提交完工上报`,
+    content: `「${order.title}」按拆解作业终端留痕流程完成（${done}/${total} 步完成），实际维修人 ${operator.name}，工时 ${workHours}h，等待质检验收归档。`,
+    type: 'warning',
     refType: 'work_order',
     refId: order.orderNo,
   });

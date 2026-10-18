@@ -143,6 +143,11 @@ describe('现场采集面板（真实标准，不编造区间）', () => {
     fireEvent.change(screen.getByTestId('equipment3d-field-measure-select'), { target: { value: VIB_ITEM.key } });
     expect(screen.getByTestId('equipment3d-field-measure-standard').textContent).toContain('≤ 4.5 mm/s');
     expect(screen.getByTestId('equipment3d-field-measure-standard').textContent).toContain('标准区间 0 ~ 4.5 mm/s');
+    // 口径必须如实：限值来自设备点检标准，不是该零件的图纸公差
+    const scope = screen.getByTestId('equipment3d-field-measure-scope').textContent ?? '';
+    expect(scope).toContain('设备点检标准');
+    expect(scope).toContain('设备/部位级');
+    expect(scope).toContain('并非该零件的图纸公差');
     expect((screen.getByTestId('equipment3d-field-measure-submit') as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.change(screen.getByTestId('equipment3d-field-measure-input'), { target: { value: '3.2' } });

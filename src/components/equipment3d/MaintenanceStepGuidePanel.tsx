@@ -13,7 +13,8 @@
  *     操作人由服务端会话身份写入（不信任前端传的身份），完成时间与用时同样由服务端计时；
  *     跳过与有问题必须填原因（服务端 422 硬校验）。
  *   · LOTO 未确认 ⇒ 服务端 403 拒绝任何步骤记录，本面板据此把记录按钮置灰并给出入口。
- *   · 全部步骤 done/skip（无 issue）⇒ 服务端自动完工，面板如实回显完工留档。
+ *   · 全部步骤 done/skip（无 issue）⇒ 服务端自动**提交完工上报**（转「待验收」，
+ *     与标准流程同一落点，不绕过质检验收），面板如实回显上报留档。
  *
  * 交互口径：现场戴手套操作 —— 记录按钮给足点击面积（py-2.5 + 明确文案），
  * 一行一步、一步一动作，不需要长按/双击/悬停。
@@ -297,15 +298,17 @@ export const MaintenanceStepGuidePanel: React.FC<MaintenanceStepGuidePanelProps>
           >
             <div className="flex items-center gap-2">
               <CircleCheck className="h-4 w-4 shrink-0" />
-              <span className="text-[12px] font-semibold">维修流程结束 · 工单已自动完工</span>
+              <span className="text-[12px] font-semibold">全部步骤已记录 · 已自动提交完工上报</span>
             </div>
             <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-emerald-200/90">
-              <span>完工时间：{new Date(autoCompleted.at).toLocaleString('zh-CN', { hour12: false })}</span>
+              <span>上报时间：{new Date(autoCompleted.at).toLocaleString('zh-CN', { hour12: false })}</span>
               <span>实际维修人：{autoCompleted.by}</span>
               <span>工时：{autoCompleted.workHours} h</span>
               <span>步骤：完成 {autoCompleted.done} / 跳过 {autoCompleted.skipped}</span>
             </div>
-            <div className="mt-1 text-[9px] text-emerald-200/60">无需再手工填报工单，留痕已写入工单 repair_log.fieldLog。</div>
+            <div className="mt-1 text-[9px] text-emerald-200/70">
+              工单已转入「待验收」，需质检复核验收后才归档；现场留痕已写入工单 repair_log.fieldLog，无需再手工填报。
+            </div>
           </div>
         )}
 
