@@ -6,7 +6,7 @@ import express from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.ts";
 import { validateBody, validateParams, validateQuery } from "../middleware/validate.ts";
-import { createBusinessLoopSchema, listLoopsQuerySchema, loopIdParamSchema, stageNoParamSchema, lotoConfirmSchema } from "../schemas/businessLoop.ts";
+import { createBusinessLoopSchema, listLoopsQuerySchema, loopIdParamSchema, stageNoParamSchema, lotoConfirmSchema, lotoAddItemSchema, stageConfirmBodySchema } from "../schemas/businessLoop.ts";
 import {
   handleCreateBusinessLoop,
   handleListBusinessLoops,
@@ -14,6 +14,7 @@ import {
   handleGetBusinessLoopHistory,
   handleConfirmStage,
   handleConfirmLotoItem,
+  handleAddLotoItem,
   handleCompleteBusinessLoop,
 } from "../controllers/businessLoopController.ts";
 
@@ -42,22 +43,31 @@ export function registerBusinessLoopRoutes(app: express.Express) {
   // 详情（六环节 + AI 预填 + 产出物）
   app.get("/api/v1/business-loops/:id", requireAuth, validateParams(loopIdParamSchema), handleGetBusinessLoop);
 
-  // 环节确认闸门
+  // 环节确认闸门（body 可选 edits：确认人当场修订的 AI 预填字段）
   app.post(
     "/api/v1/business-loops/:id/stages/:stageNo/confirm",
     requireRole(FIELD_ROLES, "确认业务闭环环节"),
     validateParams(stageNoParamSchema),
-    validateBody(emptyBody()),
+    validateBody(stageConfirmBodySchema),
     handleConfirmStage
   );
 
-  // LOTO 隔离点逐项确认
+  // LOTO 隔离点逐项确认（body 可选 fields：现场登记点位/要求/锁号/操作人）
   app.patch(
     "/api/v1/business-loops/:id/loto-confirm",
         requireRole(FIELD_ROLES, "确认 LOTO 隔离点"),
     validateParams(loopIdParamSchema),
     validateBody(lotoConfirmSchema),
     handleConfirmLotoItem
+  );
+
+  // LOTO 隔离点现场补登（AI/JSA 清单漏项）
+  app.post(
+    "/api/v1/business-loops/:id/loto-items",
+    requireRole(FIELD_ROLES, "补登 LOTO 隔离点"),
+    validateParams(loopIdParamSchema),
+    validateBody(lotoAddItemSchema),
+    handleAddLotoItem
   );
 
   // 归档闭环（质检报告 + 知识沉淀 + 档案包）

@@ -20,6 +20,13 @@ export type StageId =
 
 export type StageStatus = 'completed' | 'in_progress' | 'pending';
 
+/** 人工修订留痕（服务端 prefill.humanRevised：确认落库前人改过的字段清单） */
+export interface HumanRevisionRecord {
+  by: string;
+  at: string;
+  fields: string[];
+}
+
 /** 环节 AI 预填内容（来自 stages.ai_prefill_json，前端原样渲染；degraded 必须如实展示） */
 export interface StageAiPrefill {
   engine?: string;
@@ -29,6 +36,8 @@ export interface StageAiPrefill {
   content?: string | null;
   /** 工作台建议正文（工单草稿要点 / JSA 措施 / LOTO 说明 / SOP 概述） */
   advice?: string | null;
+  /** 已持久化的人工修订（无修订为 null） */
+  revised?: HumanRevisionRecord | null;
   /** 原始 JSON（可自由渲染） */
   raw?: unknown;
 }
@@ -53,11 +62,44 @@ export interface LotoConfirmationItem {
   point: string;
   requirement: string;
   lockNumber: string;
-  /** 隔离点出处：JSA 评估输出 / 类别规则兜底（降级清单需现场核对） */
+  /** 隔离点出处：JSA 评估输出 / 类别规则兜底 / 人工登记（降级清单需现场核对） */
   basis?: string;
   confirmed: boolean;
+  /** 现场操作人（可由确认人改填实际挂牌的人） */
   operator: string;
   confirmTime?: string;
+  /** 确认人：只取登录身份，不可手填 */
+  confirmedBy?: string | null;
+  /** 该行被谁改过（人工修订留痕） */
+  editedBy?: string | null;
+  editedAt?: string | null;
+  /** AI/规则原值留底（改过的字段才在此，供 tooltip 对照） */
+  aiOriginal?: Record<string, string> | null;
+}
+
+/** LOTO 行内现场登记字段（服务端白名单） */
+export interface LotoFieldDraft {
+  type?: string;
+  point?: string;
+  requirement?: string;
+  lockNumber?: string;
+  operator?: string;
+}
+
+/**
+ * 确认闸门随附的人工修订（与服务端 HUMAN_EDITABLE_FIELDS 白名单一致）：
+ * 只有这里列出的字段会被采纳，其他键服务端直接丢弃。
+ */
+export interface StageHumanEdits {
+  workOrderDraft?: {
+    title?: string;
+    faultType?: string;
+    priority?: string;
+    estimatedHours?: number;
+    description?: string;
+  };
+  assessment?: { riskLevel?: string; riskReason?: string };
+  plan?: { overview?: string; estimatedHours?: number; workers?: number };
 }
 
 export interface ArtifactItem {

@@ -3,6 +3,7 @@ import {
   createLoop,
   confirmStage,
   confirmLotoPoint,
+  addLotoItem,
   completeLoop,
   listLoops,
   buildLoopDetail,
@@ -66,13 +67,14 @@ export async function handleGetBusinessLoopHistory(_req: any, res: Response) {
   }
 }
 
-// POST /api/v1/business-loops/:id/stages/:stageNo/confirm（人工确认闸门）
+// POST /api/v1/business-loops/:id/stages/:stageNo/confirm（人工确认闸门，可带人工修订 edits）
 export async function handleConfirmStage(req: any, res: Response) {
   try {
     const detail = await confirmStage({
       loopId: req.params.id,
       stageNo: Number(req.params.stageNo),
       user: (req as AuthedRequest).currentUser,
+      edits: req.body?.edits,
     });
     return res.json(detail);
   } catch (err: any) {
@@ -80,7 +82,7 @@ export async function handleConfirmStage(req: any, res: Response) {
   }
 }
 
-// PATCH /api/v1/business-loops/:id/loto-confirm（LOTO 隔离点逐项确认）
+// PATCH /api/v1/business-loops/:id/loto-confirm（LOTO 隔离点逐项确认 + 现场登记字段修订）
 export async function handleConfirmLotoItem(req: any, res: Response) {
   try {
     const detail = await confirmLotoPoint({
@@ -88,10 +90,25 @@ export async function handleConfirmLotoItem(req: any, res: Response) {
       itemId: req.body.itemId,
       confirmed: req.body.confirmed,
       user: (req as AuthedRequest).currentUser,
+      fields: req.body?.fields,
     });
     return res.json(detail);
   } catch (err: any) {
     return loopErrorResponse(res, err, "LOTO 隔离点确认失败");
+  }
+}
+
+// POST /api/v1/business-loops/:id/loto-items（现场补登 AI 清单外的隔离点）
+export async function handleAddLotoItem(req: any, res: Response) {
+  try {
+    const detail = await addLotoItem({
+      loopId: req.params.id,
+      fields: req.body,
+      user: (req as AuthedRequest).currentUser,
+    });
+    return res.status(201).json(detail);
+  } catch (err: any) {
+    return loopErrorResponse(res, err, "LOTO 隔离点补登失败");
   }
 }
 

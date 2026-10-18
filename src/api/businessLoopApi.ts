@@ -7,6 +7,8 @@ import { request, ApiError } from './index';
 import type {
   BusinessClosedLoopData,
   HistoryLoopItem,
+  LotoFieldDraft,
+  StageHumanEdits,
 } from '../components/hermes/types';
 
 /** 闭环列表摘要（/history 与列表页共用；详情字段走 detail） */
@@ -44,17 +46,27 @@ export const businessLoopApi = {
       body: JSON.stringify(data),
     }),
 
-  /** 人工确认闸门：校验当前环节，置 completed 并推进 */
-  confirmStage: (id: string, stageNo: number) =>
+  /**
+   * 人工确认闸门：校验当前环节，置 completed 并推进。
+   * edits 为确认人当场修订的 AI 预填字段（服务端白名单逐字段采纳），无修订时传空。
+   */
+  confirmStage: (id: string, stageNo: number, edits?: StageHumanEdits) =>
     request<BusinessClosedLoopData>(`/business-loops/${id}/stages/${stageNo}/confirm`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(edits && Object.keys(edits).length ? { edits } : {}),
     }),
 
-  /** LOTO 隔离点逐项确认（环节 3，操作人由服务端会话取） */
-  toggleLotoItem: (id: string, data: { itemId: string; confirmed: boolean }) =>
+  /** LOTO 隔离点逐项确认（环节 3；确认人由服务端会话取，fields 为现场登记字段修订） */
+  toggleLotoItem: (id: string, data: { itemId: string; confirmed: boolean; fields?: LotoFieldDraft }) =>
     request<BusinessClosedLoopData>(`/business-loops/${id}/loto-confirm`, {
       method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  /** LOTO 隔离点现场补登（AI/JSA 清单漏项，来源如实标人工登记） */
+  addLotoItem: (id: string, data: { type: string; point: string; requirement?: string; lockNumber?: string }) =>
+    request<BusinessClosedLoopData>(`/business-loops/${id}/loto-items`, {
+      method: 'POST',
       body: JSON.stringify(data),
     }),
 

@@ -565,10 +565,113 @@ function lotoRequirement(type: string, point: string): string {
 
 // ==================== 人工确认闸门 ====================
 
+/**
+ * 各环节允许人工改写 AI 预填的字段白名单（服务端逐字段取，未列出的键一律忽略）。
+ * 人工闸门必须真的能改：AI 给的预计工时/优先级/风险档只是预填，确认人签字的才是落库值。
+ */
+const HUMAN_EDITABLE_FIELDS: Record<number, Array<{ group: "workOrderDraft" | "assessment" | "plan"; key: string; label: string }>> = {
+  1: [
+    { group: "workOrderDraft", key: "title", label: "工单标题" },
+    { group: "workOrderDraft", key: "faultType", label: "故障类型" },
+    { group: "workOrderDraft", key: "priority", label: "优先级" },
+    { group: "workOrderDraft", key: "estimatedHours", label: "预计工时" },
+    { group: "workOrderDraft", key: "description", label: "现场情况描述" },
+  ],
+  2: [
+    { group: "assessment", key: "riskLevel", label: "JSA 风险等级" },
+    { group: "assessment", key: "riskReason", label: "风险定级理由" },
+  ],
+  4: [
+    { group: "plan", key: "overview", label: "方案概述" },
+    { group: "plan", key: "estimatedHours", label: "预估工时" },
+    { group: "plan", key: "workers", label: "作业人数" },
+  ],
+};
+
+function isBlank(v: any): boolean {
+  return v === undefined || v === null || (typeof v === "string" && !v.trim());
+}
+
+/** 比较用归一：数字按数值比，字符串按去空白比（避免「4」与 4 被判成两处修订） */
+function sameEditValue(a: any, b: any): boolean {
+  if (typeof a === "number" || typeof b === "number") {
+    const na = Number(a);
+    const nb = Number(b);
+    return Number.isFinite(na) && Number.isFinite(nb) && na === nb;
+  }
+  return String(a ?? "").trim() === String(b ?? "").trim();
+}
+
+/**
+ * 把确认闸门上的人工修订写进环节预填：AI 原值留底在 prefill.aiOriginal，
+ * 修订人/时间/字段清单落在 prefill.humanRevised。
+ * 必须在各 settle 之前调用并同步 stage.aiPrefill，落库的才是确认人签字的值而不是 AI 默认值。
+ */
+async function applyHumanEdits(params: {
+  loopId: string;
+  stageNo: number;
+  stage: any;
+  edits: any;
+  user: any;
+}): Promise<string[]> {
+  const allowed = HUMAN_EDITABLE_FIELDS[params.stageNo];
+  const edits = params.edits && typeof params.edits === "object" ? params.edits : null;
+
+  if (!allowed) {
+    // 环节 3 的隔离点走 LOTO 专用接口逐行改；环节 5/6 无 AI 预填要素可改
+    if (edits && Object.values(edits).some((g: any) => g && typeof g === "object" && Object.values(g).some((v) => !isBlank(v)))) {
+      throw new BusinessLoopError(
+        400,
+        `环节 ${params.stageNo} 不支持提交人工修订字段（环节 3 请逐条使用 LOTO 隔离点登记）`,
+        "STAGE_EDITS_NOT_SUPPORTED"
+      );
+    }
+    return [];
+  }
+
+  const prefill: any = { ...(params.stage.aiPrefill || {}) };
+  const aiOriginal: any = { ...(prefill.aiOriginal || {}) };
+  const diffs: string[] = [];
+  const labels: string[] = [];
+
+  for (const field of allowed) {
+    const incoming = edits?.[field.group]?.[field.key];
+    if (isBlank(incoming)) continue;
+    if (!prefill[field.group] || typeof prefill[field.group] !== "object") prefill[field.group] = {};
+    const current = prefill[field.group][field.key];
+    const value = typeof incoming === "string" ? incoming.trim() : incoming;
+    if (sameEditValue(current, value)) continue;
+    if (!aiOriginal[field.group]) aiOriginal[field.group] = {};
+    // 只在首次修订时留底，后续再改也不覆盖 AI 原值（归档要能追溯是谁改的、原本是什么）
+    if (!(field.key in aiOriginal[field.group])) aiOriginal[field.group][field.key] = isBlank(current) ? null : current;
+    prefill[field.group][field.key] = value;
+    diffs.push(`${field.label}「${isBlank(current) ? "（AI 未给出）" : String(current)}」→「${String(value)}」`);
+    labels.push(field.label);
+  }
+
+  if (!diffs.length) return [];
+
+  prefill.aiOriginal = aiOriginal;
+  const prevFields: string[] = Array.isArray(prefill.humanRevised?.fields) ? prefill.humanRevised.fields : [];
+  prefill.humanRevised = {
+    by: params.user?.name || params.user?.username || "未知用户",
+    at: fmtNow(),
+    fields: Array.from(new Set([...prevFields, ...labels])),
+  };
+  await BusinessLoopRepository.updateStagePrefill(params.loopId, params.stageNo, {
+    aiPrefillJson: JSON.stringify(prefill),
+    aiEngine: params.stage.aiEngine || PREFILL_ENGINES[params.stageNo] || "human-revision",
+    aiStatus: params.stage.aiStatus || "degraded",
+  });
+  params.stage.aiPrefill = prefill;
+  return diffs;
+}
+
 export async function confirmStage(params: {
   loopId: string;
   stageNo: number;
   user: any;
+  edits?: any;
 }): Promise<any> {
   const loop = await BusinessLoopRepository.getLoopById(params.loopId);
   if (!loop) throw new BusinessLoopError(404, "闭环不存在，请刷新列表", "LOOP_NOT_FOUND");
@@ -596,6 +699,15 @@ export async function confirmStage(params: {
 
   const eq = loop.equipmentId ? await EquipmentRepository.getById(loop.equipmentId) : null;
   const confirmBy = params.user?.name || params.user?.username || "未知用户";
+
+  // 人工修订先落环节预填，再进各 settle —— 顺序错了就会把 AI 默认值落成"人工确认值"
+  const revisionDiffs = await applyHumanEdits({
+    loopId: params.loopId,
+    stageNo: params.stageNo,
+    stage,
+    edits: params.edits,
+    user: params.user,
+  });
 
   // 各环节闸门动作：落成真实业务记录（写现有 repository，禁止伪造记录）
   switch (params.stageNo) {
@@ -633,9 +745,16 @@ export async function confirmStage(params: {
   addAuditLog(null, {
     actionType: "BUSINESS_LOOP_STAGE_CONFIRM",
     module: "业务管家",
-    detail: `${confirmBy} 确认闭环 ${loop.loopNo} 环节${params.stageNo}（${stageDef(params.stageNo).title}）`,
+    detail: `${confirmBy} 确认闭环 ${loop.loopNo} 环节${params.stageNo}（${stageDef(params.stageNo).title}）${
+      revisionDiffs.length ? `；人工修订 ${revisionDiffs.length} 处：${revisionDiffs.join("；")}` : "；无修订，按 AI 预填原值确认"
+    }`,
     status: "SUCCESS",
-    metadata: { loopId: params.loopId, stageNo: params.stageNo, confirmBy },
+    metadata: {
+      loopId: params.loopId,
+      stageNo: params.stageNo,
+      confirmBy,
+      humanRevisedFields: revisionDiffs,
+    },
   });
 
   const detail = await buildLoopDetail(params.loopId);
@@ -647,6 +766,18 @@ async function settleWorkOrder(loop: any, stage: any, eq: any | null, user: any)
   if (stage.producedArtifactRef) return; // 幂等
   const draft = stage.aiPrefill?.workOrderDraft || {};
   const creator = user?.name || user?.username || "业务管家";
+  // 描述以确认页上看到的内容为准（人工改过就是人工的），缺省才回落业务目标
+  const descBody = String(draft.description || "").trim() || loop.goal;
+  const stepsNote =
+    Array.isArray(draft.recommendedSteps) && draft.recommendedSteps.length
+      ? `\nAI 建议步骤：${draft.recommendedSteps.join("；")}`
+      : "";
+  // work_orders 没有工时列，预计工时如实写进描述并标来源，绝不静默丢掉确认人改过的数
+  const hoursNote =
+    draft.estimatedHours != null
+      ? `\n预计工时：${draft.estimatedHours} 小时（来源：${stage.aiPrefill?.humanRevised ? "人工修订" : "AI 预填"}）`
+      : "";
+  const prefillNote = stage.aiPrefill?.message ? `\n（AI 预填状态：${stage.aiPrefill.message}）` : "";
   const order = await WorkOrderRepository.create({
     title: draft.title || `${eq ? eq.name : "设备"}故障检修`,
     equipmentId: eq?.id || undefined,
@@ -655,7 +786,7 @@ async function settleWorkOrder(loop: any, stage: any, eq: any | null, user: any)
     workshop: eq?.workshop || "",
     faultType: draft.faultType || "其他",
     priority: draft.priority || "medium",
-    description: `${loop.goal}${Array.isArray(draft.recommendedSteps) && draft.recommendedSteps.length ? "\nAI 建议步骤：" + draft.recommendedSteps.join("；") : ""}${stage.aiPrefill?.message ? "\n（AI 预填状态：" + stage.aiPrefill.message + "）" : ""}`,
+    description: `${descBody}${stepsNote}${hoursNote}${prefillNote}`,
     safetyRequirements: Array.isArray(draft.safetyNotes) ? draft.safetyNotes.slice(0, 6) : [],
     creator,
     source: "business_loop",
@@ -673,10 +804,17 @@ async function settleWorkOrder(loop: any, stage: any, eq: any | null, user: any)
 /** 环节2 确认：JSA 预填落成真实作业票（safety_permits，状态 pending_approval 待双人会签） */
 async function settleSafetyPermit(loop: any, stage: any, eq: any | null, user: any) {
   if (stage.producedArtifactRef) return; // 幂等
-  const assessment = stage.aiPrefill?.assessment || {};
+  const prefill = stage.aiPrefill || {};
+  const assessment = prefill.assessment || {};
   // JSA 输出 4 档结论，作业票按站内 Level 1-4 口径登记（getRiskBadge 只认 Level 字样，
   // 传裸「高/中/低」会被兜底渲染成「低风险」）；未评定时如实标注，绝不落到最低档。
   const riskLevel = JSA_RISK_TO_LEVEL[String(assessment.riskLevel || "").trim()] || "待人工 JSA 评定（未评级）";
+  // 会签人要能在票面上看到"这一档是 AI 给的还是人改的"，所以把修订差值如实追加进措施清单
+  const aiRisk = prefill.aiOriginal?.assessment?.riskLevel;
+  const revisionNote =
+    aiRisk !== undefined && String(aiRisk ?? "") !== String(assessment.riskLevel ?? "")
+      ? `【人工修订留痕】JSA 风险等级 ${aiRisk || "（AI 未给出）"} → ${assessment.riskLevel || "—"}（${prefill.humanRevised?.by || "确认人"} ${prefill.humanRevised?.at || ""}，本行是修订留痕，不是现场安全措施）`
+      : null;
   const now = new Date();
   const p2 = (n: number) => String(n).padStart(2, "0");
   const dateStr = `${now.getFullYear()}${p2(now.getMonth() + 1)}${p2(now.getDate())}`;
@@ -684,6 +822,10 @@ async function settleSafetyPermit(loop: any, stage: any, eq: any | null, user: a
   // 同一天两条闭环并发确认也不会撞号；用 HHMM/HHMMSS 计时会在同一秒内撞。
   const loopSeq = String(loop.loopNo || "").split("-").pop();
   const permitNo = `SP-${dateStr}-L${/^\d{3}$/.test(loopSeq || "") ? loopSeq : `${p2(now.getHours())}${p2(now.getMinutes())}${p2(now.getSeconds())}`}`;
+  const precautions = [
+    ...(Array.isArray(assessment.jsaMeasures) ? assessment.jsaMeasures.map((m: any) => `${m.hazard}: ${m.control}`) : []),
+    ...(revisionNote ? [revisionNote] : []),
+  ];
   const result = await SafetyPermitRepository.create({
     id: `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     permitNo,
@@ -699,7 +841,7 @@ async function settleSafetyPermit(loop: any, stage: any, eq: any | null, user: a
     appliedAt: now.toISOString(),
     validUntil: new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString(),
     status: "pending_approval",
-    precautions: Array.isArray(assessment.jsaMeasures) ? assessment.jsaMeasures.map((m: any) => `${m.hazard}: ${m.control}`) : [],
+    precautions,
     lotoNumber: null,
     hazards: Array.isArray(assessment.hazardIdentifications) ? assessment.hazardIdentifications.map((h: any) => `${h.category}: ${h.hazard}（等级 ${h.level}）`) : [],
     safetyChecklist: [],
@@ -772,32 +914,135 @@ export async function confirmLotoPoint(params: {
   itemId: string;
   confirmed: boolean;
   user: any;
+  fields?: any;
 }): Promise<any> {
   const stage = await BusinessLoopRepository.getStage(params.loopId, 3);
   if (!stage) throw new BusinessLoopError(404, "闭环或环节记录不存在", "STAGE_NOT_FOUND");
   if (stage.status === "completed") {
     throw new BusinessLoopError(409, "LOTO 环节已确认完成，隔离点状态不可再修改", "STAGE_LOCKED");
   }
-  const prefill = stage.aiPrefill || {};
+  const prefill = { ...(stage.aiPrefill || {}) };
   const items: any[] = Array.isArray(prefill.lotoItems) ? prefill.lotoItems : [];
   const idx = items.findIndex((i) => i.id === params.itemId);
   if (idx < 0) throw new BusinessLoopError(404, `隔离点 ${params.itemId} 不存在`, "LOTO_ITEM_NOT_FOUND");
 
   const now = new Date();
   const fmtTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  items[idx] = {
-    ...items[idx],
-    confirmed: params.confirmed,
-    operator: params.confirmed ? `${params.user?.name || params.user?.username || "未知用户"} (${params.user?.roleTitle || params.user?.role || ""})`.replace(/ \(\)$/, "") : "待现场确认",
-    confirmTime: params.confirmed ? fmtTime : undefined,
-  };
+  const actor = params.user?.name || params.user?.username || "未知用户";
+
+  // 现场登记字段：AI 推演的点位/要求/锁号只是草稿，标错必须能改，改前先留 AI 原值
+  const editedFields = lotoEditableFields(params.fields);
+  const next: any = { ...items[idx] };
+  const itemOriginal: any = { ...(next.aiOriginal || {}) };
+  const changedLabels: string[] = [];
+  for (const [key, label] of editedFields) {
+    const incoming = String(params.fields[key]).trim();
+    if (!incoming || sameEditValue(next[key], incoming)) continue;
+    if (!(key in itemOriginal)) itemOriginal[key] = next[key] ?? "";
+    next[key] = incoming;
+    changedLabels.push(label);
+  }
+  if (changedLabels.length) {
+    next.aiOriginal = itemOriginal;
+    next.editedBy = actor;
+    next.editedAt = fmtNow();
+  }
+
+  next.confirmed = params.confirmed;
+  // 确认人只认真实登录身份（可核签），现场操作人允许由人改填实际挂牌的那位；
+  // 规则清单里的「待现场确认」是占位符，不算人工填过的值，勾选确认时要换成记账人。
+  next.confirmedBy = params.confirmed ? actor : next.confirmedBy;
+  const operatorDraft = String(next.operator || "").trim();
+  const isPlaceholder = operatorDraft === "" || operatorDraft === "待现场确认";
+  next.operator = params.confirmed
+    ? isPlaceholder
+      ? `${actor} (${params.user?.roleTitle || params.user?.role || ""})`.replace(/ \(\)$/, "")
+      : operatorDraft
+    : isPlaceholder
+      ? "待现场确认"
+      : operatorDraft;
+  next.confirmTime = params.confirmed ? fmtTime : undefined;
+
+  items[idx] = next;
   prefill.lotoItems = items;
-  await BusinessLoopRepository.updateStagePrefill(params.loopId, 3, {
+  if (Array.isArray(prefill.isolationPoints)) {
+    prefill.isolationPoints = items.map((i: any) => i.point);
+  }
+  prefill.humanRevised = changedLabels.length
+    ? mergeHumanRevised(prefill.humanRevised, changedLabels, params.user, "LOTO 隔离点登记")
+    : prefill.humanRevised;
+  await writeLotoPrefill(params.loopId, stage, prefill);
+  return buildLoopDetail(params.loopId);
+}
+
+/** 现场补登隔离点（AI/JSA 推演漏项时由人加，来源如实标「人工登记」，不冒充模型结论） */
+export async function addLotoItem(params: {
+  loopId: string;
+  fields: { type: string; point: string; requirement?: string; lockNumber?: string };
+  user: any;
+}): Promise<any> {
+  const stage = await BusinessLoopRepository.getStage(params.loopId, 3);
+  if (!stage) throw new BusinessLoopError(404, "闭环或环节记录不存在", "STAGE_NOT_FOUND");
+  if (stage.status === "completed") {
+    throw new BusinessLoopError(409, "LOTO 环节已确认完成，不能再补登隔离点", "STAGE_LOCKED");
+  }
+  const prefill = { ...(stage.aiPrefill || {}) };
+  const items: any[] = Array.isArray(prefill.lotoItems) ? prefill.lotoItems : [];
+  const type = String(params.fields.type || "").trim();
+  const point = String(params.fields.point || "").trim();
+  if (!type || !point) throw new BusinessLoopError(400, "补登隔离点必须填写能量类型与点位", "LOTO_ITEM_INCOMPLETE");
+  if (items.some((i) => String(i.point || "").trim() === point)) {
+    throw new BusinessLoopError(409, `点位「${point}」已在清单中，请直接修改该行而不是重复补登`, "LOTO_POINT_DUPLICATE");
+  }
+
+  const item = {
+    // 人工补登用 h+时间戳后缀，避免与规则推演的 loto-<loopId>-<序号> 撞 id
+    id: `loto-${params.loopId}-h${Date.now().toString(36)}`,
+    type,
+    point,
+    requirement: String(params.fields.requirement || "").trim() || lotoRequirement(type, point),
+    lockNumber: String(params.fields.lockNumber || "").trim(),
+    basis: "人工登记（AI/JSA 清单外补充）",
+    confirmed: false, // 新补的点同样要过 100% 人工确认闸门
+    operator: "待现场确认",
+  };
+  items.push(item);
+  prefill.lotoItems = items;
+  if (Array.isArray(prefill.isolationPoints)) prefill.isolationPoints = items.map((i: any) => i.point);
+  prefill.lockCount = items.length;
+  prefill.humanRevised = mergeHumanRevised(prefill.humanRevised, ["补登隔离点"], params.user, "LOTO 隔离点登记");
+  await writeLotoPrefill(params.loopId, stage, prefill);
+  return buildLoopDetail(params.loopId);
+}
+
+/** LOTO 行内允许人工改的字段（顺序即审计里的展示顺序） */
+function lotoEditableFields(fields: any): Array<[string, string]> {
+  if (!fields || typeof fields !== "object") return [];
+  const allowed: Array<[string, string]> = [
+    ["type", "能量类型"],
+    ["point", "隔离点位"],
+    ["requirement", "隔离要求"],
+    ["lockNumber", "锁具编号"],
+    ["operator", "现场操作人"],
+  ];
+  return allowed.filter(([key]) => typeof fields[key] === "string");
+}
+
+function mergeHumanRevised(prev: any, labels: string[], user: any, actorNote: string): any {
+  const existingFields: string[] = Array.isArray(prev?.fields) ? prev.fields : [];
+  return {
+    by: user?.name || user?.username || "未知用户",
+    at: fmtNow(),
+    fields: Array.from(new Set([...existingFields, ...labels.map((l) => `${actorNote}：${l}`)])),
+  };
+}
+
+async function writeLotoPrefill(loopId: string, stage: any, prefill: any): Promise<void> {
+  await BusinessLoopRepository.updateStagePrefill(loopId, 3, {
     aiPrefillJson: JSON.stringify(prefill),
     aiEngine: stage.aiEngine || "safety-interlock-rules",
     aiStatus: stage.aiStatus || "ok",
   });
-  return buildLoopDetail(params.loopId);
 }
 
 // ==================== 归档闭环（质检报告 + 知识沉淀 + 全套产出物） ====================
@@ -1058,6 +1303,8 @@ export async function buildLoopDetail(loopId: string): Promise<any> {
         generatedAt: s.updatedAt ? new Date(s.updatedAt).toISOString() : undefined,
         content: stagePrefillContent(s),
         advice: stagePrefillAdvice(s),
+        // 已持久化的人工修订（谁/几点/改了哪些字段），前端徽章与只读态直接用它
+        revised: s.aiPrefill?.humanRevised || null,
         raw: s.aiPrefill || null,
       },
     };
@@ -1088,6 +1335,11 @@ export async function buildLoopDetail(loopId: string): Promise<any> {
     confirmed: !!i.confirmed,
     operator: i.operator || "待现场确认",
     confirmTime: i.confirmTime,
+    // 人工登记留痕：确认人（登录身份）+ 改动人/时间 + AI 原值（供前端「恢复」与 tooltip 用）
+    confirmedBy: i.confirmedBy || null,
+    editedBy: i.editedBy || null,
+    editedAt: i.editedAt || null,
+    aiOriginal: i.aiOriginal || null,
   }));
 
   const completedCount = stages.filter((s) => s.status === "completed").length;
@@ -1316,13 +1568,18 @@ function buildWorkOrderPreview(order: any, loop: any): string {
 }
 
 function buildPermitPreview(permit: any): string {
+  // 措施清单可能超过 5 条，人工修订留痕不能被 slice 掉——它会替票面说话，所以单列一行。
+  const all = (permit.precautions || []).map((p: any) => String(p));
+  const revisionLines = all.filter((p) => p.startsWith("【人工修订留痕】"));
+  const measures = all.filter((p) => !p.startsWith("【人工修订留痕】"));
   return [
     `【作业票号】${permit.permitNo}`,
     `【作业类型】${permit.permitType}｜风险等级：${permit.riskLevel}`,
     `【关联设备】${permit.equipmentName || "—"}｜车间：${permit.workshop || "—"}`,
     `【申请人】${permit.applicant}${permit.applicantDept ? `（${permit.applicantDept}）` : ""}`,
     `【有效期至】${permit.validUntil}`,
-    `【安全措施】${(permit.precautions || []).slice(0, 5).join("；") || "—（JSA 未输出，请人工补充）"}`,
+    `【安全措施】${measures.slice(0, 5).join("；") || "—（JSA 未输出，请人工补充）"}`,
+    ...revisionLines,
     `【会签状态】${permit.status}（需现场监护与主管双人会签后方可生效）`,
   ].join("\n");
 }
