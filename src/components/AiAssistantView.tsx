@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Equipment, UserProfile } from '../types';
 import { buildChatHistory, readWireError } from '../utils/chatWire';
+import { readSseChatStream } from '../utils/sseChatStream';
 import { DiagnosisPanel, VisionPanel } from './ai/AiModePanels';
 import { aiApi } from '../api';
 import { logger } from '../utils/logger';
@@ -187,55 +188,38 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         throw new Error(msg);
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
       let streamError: string | null = null;
       let modelName: string | undefined;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || '';
-        for (const evt of events) {
-          const line = evt.trim();
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (payload === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.chatId) chatId = parsed.chatId;
-            if (parsed.model) modelName = parsed.model;
-            if (parsed.content) {
-              const firstToken = replyText.length === 0;
-              replyText += parsed.content;
-              streamBufferRef.current = replyText;
-              const commit = () => {
-                const snapshot = streamBufferRef.current;
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === aiMsgId ? { ...m, text: snapshot } : m))
-                );
-              };
-              // 首字立即落屏（去掉白等的 100ms 节流），后续按 100ms 批量提交，渲染频率与 SSE chunk 解耦
-              if (firstToken) {
-                if (streamFlushTimerRef.current !== null) {
-                  clearTimeout(streamFlushTimerRef.current);
-                  streamFlushTimerRef.current = null;
-                }
-                commit();
-              } else if (streamFlushTimerRef.current === null) {
-                streamFlushTimerRef.current = setTimeout(() => {
-                  streamFlushTimerRef.current = null;
-                  commit();
-                }, 100);
-              }
+      await readSseChatStream(res.body, (parsed) => {
+        if (parsed.chatId) chatId = parsed.chatId;
+        if (parsed.model) modelName = parsed.model;
+        if (parsed.content) {
+          const firstToken = replyText.length === 0;
+          replyText += parsed.content;
+          streamBufferRef.current = replyText;
+          const commit = () => {
+            const snapshot = streamBufferRef.current;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === aiMsgId ? { ...m, text: snapshot } : m))
+            );
+          };
+          // 首字立即落屏（去掉白等的 100ms 节流），后续按 100ms 批量提交，渲染频率与 SSE chunk 解耦
+          if (firstToken) {
+            if (streamFlushTimerRef.current !== null) {
+              clearTimeout(streamFlushTimerRef.current);
+              streamFlushTimerRef.current = null;
             }
-            if (parsed.error) streamError = parsed.error;
-          } catch {}
+            commit();
+          } else if (streamFlushTimerRef.current === null) {
+            streamFlushTimerRef.current = setTimeout(() => {
+              streamFlushTimerRef.current = null;
+              commit();
+            }, 100);
+          }
         }
-      }
+        if (parsed.error) streamError = parsed.error;
+      });
 
       if (streamFlushTimerRef.current !== null) {
         clearTimeout(streamFlushTimerRef.current);
@@ -272,19 +256,25 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
         streamFlushTimerRef.current = null;
       }
       const aborted = e?.name === 'AbortError';
+      // 看门狗判失联：保留已收到的部分并如实标注中断，不伪装成完整回答
+      const interrupted = e?.name === 'SseIdleError';
       setMessages((prev) =>
         prev.map((m) =>
           m.id === aiMsgId
             ? {
                 ...m,
-                kind: aborted ? 'normal' : 'error',
-                text: aborted ? (replyText ? `${replyText}\n\n*[生成已中止]*` : '*(已停止生成)*') : `⚠️ 请求失败: ${e?.message || '网络异常'}`,
+                kind: aborted || interrupted ? 'normal' : 'error',
+                text: aborted
+                  ? (replyText ? `${replyText}\n\n*[生成已中止]*` : '*(已停止生成)*')
+                  : interrupted
+                    ? (replyText ? `${replyText}\n\n*[${e.message}]*` : `*[${e.message}]*`)
+                    : `⚠️ 请求失败: ${e?.message || '网络异常'}`,
                 streaming: false,
               }
             : m
         )
       );
-      if (!aborted && replyText) {
+      if (!aborted && !interrupted && replyText) {
         loadFollowups(text, replyText);
         checkKnowledgeContribution(text, replyText);
       }

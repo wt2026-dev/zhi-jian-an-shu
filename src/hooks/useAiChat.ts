@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { aiApi, safeStorage } from '../api';
 import { buildChatHistory, readWireError } from '../utils/chatWire';
+import { readSseChatStream } from '../utils/sseChatStream';
 
 /** 会话消息结构（与 AI 助手页保持一致，保证同一会话数组可跨组件共享） */
 export interface ChatMessage {
@@ -177,55 +178,38 @@ export function useAiChat(userRoleTitle?: string) {
         throw new Error(msg);
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
       let streamError: string | null = null;
       let modelName: string | undefined;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || '';
-        for (const evt of events) {
-          const line = evt.trim();
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (payload === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.chatId) chatId = parsed.chatId;
-            if (parsed.model) modelName = parsed.model;
-            if (parsed.content) {
-              const firstToken = replyText.length === 0;
-              replyText += parsed.content;
-              streamBufferRef.current = replyText;
-              const commit = () => {
-                const snapshot = streamBufferRef.current;
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === aiMsgId ? { ...m, text: snapshot } : m))
-                );
-              };
-              // 首字立即落屏（去掉白等的 100ms 节流），后续按 100ms 批量提交，渲染频率与 SSE chunk 解耦
-              if (firstToken) {
-                if (flushTimerRef.current !== null) {
-                  clearTimeout(flushTimerRef.current);
-                  flushTimerRef.current = null;
-                }
-                commit();
-              } else if (flushTimerRef.current === null) {
-                flushTimerRef.current = setTimeout(() => {
-                  flushTimerRef.current = null;
-                  commit();
-                }, 100);
-              }
+      await readSseChatStream(res.body, (parsed) => {
+        if (parsed.chatId) chatId = parsed.chatId;
+        if (parsed.model) modelName = parsed.model;
+        if (parsed.content) {
+          const firstToken = replyText.length === 0;
+          replyText += parsed.content;
+          streamBufferRef.current = replyText;
+          const commit = () => {
+            const snapshot = streamBufferRef.current;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === aiMsgId ? { ...m, text: snapshot } : m))
+            );
+          };
+          // 首字立即落屏（去掉白等的 100ms 节流），后续按 100ms 批量提交，渲染频率与 SSE chunk 解耦
+          if (firstToken) {
+            if (flushTimerRef.current !== null) {
+              clearTimeout(flushTimerRef.current);
+              flushTimerRef.current = null;
             }
-            if (parsed.error) streamError = parsed.error;
-          } catch {}
+            commit();
+          } else if (flushTimerRef.current === null) {
+            flushTimerRef.current = setTimeout(() => {
+              flushTimerRef.current = null;
+              commit();
+            }, 100);
+          }
         }
-      }
+        if (parsed.error) streamError = parsed.error;
+      });
 
       if (flushTimerRef.current !== null) {
         clearTimeout(flushTimerRef.current);
@@ -251,21 +235,25 @@ export function useAiChat(userRoleTitle?: string) {
         flushTimerRef.current = null;
       }
       const aborted = e?.name === 'AbortError';
+      // 看门狗判失联：保留已收到的部分并如实标注中断，不伪装成完整回答
+      const interrupted = e?.name === 'SseIdleError';
       setMessages((prev) =>
         prev.map((m) =>
           m.id === aiMsgId
             ? {
                 ...m,
                 streaming: false,
-                kind: aborted ? 'normal' : 'error',
+                kind: aborted || interrupted ? 'normal' : 'error',
                 text: aborted
                   ? (m.text || '') + '\n\n_(已手动停止生成)_'
-                  : `⚠️ AI 服务请求失败: ${e?.message || '网络异常'}。请检查后端 AI 服务配置后重试。`,
+                  : interrupted
+                    ? (m.text || '') + `\n\n_(${e.message})_`
+                    : `⚠️ AI 服务请求失败: ${e?.message || '网络异常'}。请检查后端 AI 服务配置后重试。`,
               }
             : m
         )
       );
-      if (!aborted && replyText) loadFollowups(text, replyText);
+      if (!aborted && !interrupted && replyText) loadFollowups(text, replyText);
     } finally {
       setIsLoading(false);
       setIsStreaming(false);
