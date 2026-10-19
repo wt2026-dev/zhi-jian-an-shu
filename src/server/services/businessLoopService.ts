@@ -39,6 +39,7 @@ import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
 import { TREND_METRICS } from "./degradationTrend.ts";
 import { addAuditLog } from "./auditService.ts";
 import { logger } from "../../utils/logger.ts";
+import type { Equipment } from "../../types/index.ts";
 
 // ==================== 闭环常量定义 ====================
 
@@ -142,7 +143,7 @@ export async function resolveEquipment(
   const all = await EquipmentRepository.getAll();
   compact(goal);
   const goalCompact = compact(goal);
-  let best: { eq: any; score: number } | null = null;
+  let best: { eq: Equipment; score: number } | null = null;
   for (const eq of all) {
     let score = 0;
     const nameTokens = String(eq.name || "").split(/\s*#/);
@@ -247,7 +248,7 @@ export async function createLoop(params: {
 
 // ==================== 异步 AI 预填编排（环节 1-4 串行，输出互为上下文） ====================
 
-async function prefillStages(loopId: string, goal: string, eq: any | null): Promise<void> {
+async function prefillStages(loopId: string, goal: string, eq: Equipment | null): Promise<void> {
   try {
     await runPrefillSequence(loopId, goal, eq);
   } finally {
@@ -286,8 +287,8 @@ const PREFILL_ENGINES: Record<number, string> = {
   4: "generate-maintenance-plan",
 };
 
-async function runPrefillSequence(loopId: string, goal: string, eq: any | null): Promise<void> {
-  const telemetry = eq?.telemetry || {};
+async function runPrefillSequence(loopId: string, goal: string, eq: Equipment | null): Promise<void> {
+  const telemetry = eq?.telemetry ?? null;
   const eqCtx = eq
     ? `${eq.name} (${eq.code}) | 类别: ${eq.category || "未知"} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop || "未知"} | 位置: ${eq.location || "未知"}`
     : "未识别到具体设备（目标文本未命中设备台账）";
@@ -296,10 +297,11 @@ async function runPrefillSequence(loopId: string, goal: string, eq: any | null):
     const n = telemetryValueOrNull(v);
     return n == null ? "未接入" : `${n}${unit} (限值 < ${limit}${unit.replace(/^ /, "")})`;
   };
-  const hasAnyTele = [telemetry.temperature, telemetry.vibration, telemetry.loadRate]
-    .some((v) => telemetryValueOrNull(v) != null);
+  const hasAnyTele = telemetry
+    ? [telemetry.temperature, telemetry.vibration, telemetry.loadRate].some((v) => telemetryValueOrNull(v) != null)
+    : false;
   const teleCtx = eq
-    ? (hasAnyTele
+    ? (hasAnyTele && telemetry
       ? `温度 ${fmtTele(telemetry.temperature, "°C", TEMP_LIMIT)} | 振动 ${fmtTele(telemetry.vibration, " mm/s", VIB_LIMIT)} | 负载率 ${fmtTele(telemetry.loadRate, "%", LOAD_LIMIT)} | 健康分 ${eq.healthScore ?? "未知"}`
       : `遥测未接入（该设备无有效读数，不得据此推断运行状态）| 健康分 ${eq.healthScore ?? "未知"}`)
     : "无遥测数据";
@@ -381,7 +383,7 @@ function telemetryValueOrNull(v: unknown): number | null {
 /** 环节 1 核心：工单草稿生成（与 /api/v1/ai/generate-work-order 同源 DashScope 通道 + aiCache） */
 async function runWorkOrderDraftCore(input: {
   goal: string;
-  eq: any | null;
+  eq: Equipment | null;
   telemetry: any;
   eqCtx: string;
   teleCtx: string;
@@ -428,7 +430,7 @@ async function runWorkOrderDraftCore(input: {
 }
 
 /** 环节 3 核心：LOTO 隔离建议（safety-interlock 规则推演：JSA 隔离点 → 类别能量源兜底 + 库内真实锁具匹配） */
-async function buildLotoAdvisory(eq: any | null, jsaAssessment: any, loopId: string) {
+async function buildLotoAdvisory(eq: Equipment | null, jsaAssessment: any, loopId: string) {
   const jsaPoints: string[] = Array.from(new Set((jsaAssessment?.lotoAdvice?.isolationPoints || []).map((s: any) => String(s))));
   // JSA（环节 2 的 AI 能力）未输出隔离点时，退到设备类别的通用能量源清单：
   // 只到「能量源 + 部位」粒度，不虚构点位编号与锁号，逐项人工确认的闸门一分不放。
@@ -547,7 +549,7 @@ const GENERIC_ENERGY_ITEMS = [
   { type: "残余能量", point: "停机后残余压力/张力泄放" },
 ];
 
-function energySourceItemsFor(eq: any | null): Array<{ type: string; point: string }> {
+function energySourceItemsFor(eq: Equipment | null): Array<{ type: string; point: string }> {
   if (!eq) return [];
   const key = `${eq.category || ""}${eq.name || ""}`;
   const rule = ENERGY_SOURCE_RULES.find((r) => r.match.test(key));
@@ -779,7 +781,7 @@ export async function confirmStage(params: {
 }
 
 /** 环节1 确认：工单草稿落成真实工单（work_orders） */
-async function settleWorkOrder(loop: any, stage: any, eq: any | null, user: any) {
+async function settleWorkOrder(loop: any, stage: any, eq: Equipment | null, user: any) {
   if (stage.producedArtifactRef) return; // 幂等
   const draft = stage.aiPrefill?.workOrderDraft || {};
   const creator = user?.name || user?.username || "业务管家";
@@ -819,7 +821,7 @@ async function settleWorkOrder(loop: any, stage: any, eq: any | null, user: any)
 }
 
 /** 环节2 确认：JSA 预填落成真实作业票（safety_permits，状态 pending_approval 待双人会签） */
-async function settleSafetyPermit(loop: any, stage: any, eq: any | null, user: any) {
+async function settleSafetyPermit(loop: any, stage: any, eq: Equipment | null, user: any) {
   if (stage.producedArtifactRef) return; // 幂等
   const prefill = stage.aiPrefill || {};
   const assessment = prefill.assessment || {};
@@ -912,7 +914,7 @@ async function settleWorkGuide(loop: any, stage: any) {
 }
 
 /** 环节5 确认：验收记录（引用真实工单状态与遥测限值） */
-async function settleAcceptance(loop: any, eq: any | null) {
+async function settleAcceptance(loop: any, eq: Equipment | null) {
   const woArtifact = await BusinessLoopRepository.getArtifactByType(loop.id, "work_order");
   const order = woArtifact?.refId ? await WorkOrderRepository.getById(woArtifact.refId) : null;
   const telemetry = eq?.telemetry || {};
@@ -1164,7 +1166,7 @@ export async function listLoops(filters?: { status?: string; limit?: number }) {
 /** 汇总真实闭环数据（目标/设备遥测/工单/JSA/LOTO/方案）后生成质检报告；失败如实 degraded，不伪造结论 */
 async function runGenerateReportCore(
   loop: any,
-  eq: any | null,
+  eq: Equipment | null,
   order: any | null
 ): Promise<CapabilityResult> {
   const stages = await BusinessLoopRepository.listStages(loop.id);
@@ -1224,7 +1226,7 @@ worthContributing=false 时其他字段全部为空字符串。`;
 async function runSuggestContributionCore(
   loopId: string,
   loop: any,
-  eq: any | null,
+  eq: Equipment | null,
   order: any | null,
   report: any | null,
   user: any
@@ -1419,8 +1421,8 @@ export async function buildHistoryItems(): Promise<any[]> {
 
 // ==================== 内部组装工具 ====================
 
-function mapEquipmentForFrontend(eq: any | null) {
-  const te = eq?.telemetry || {};
+function mapEquipmentForFrontend(eq: Equipment | null) {
+  const te = eq?.telemetry ?? null;
   if (!eq) {
     return {
       id: "",
@@ -1447,10 +1449,10 @@ function mapEquipmentForFrontend(eq: any | null) {
     model: eq.model || "",
     workshop: String(eq.workshop || ""),
     status,
-    temperature: telemetryValueOrNull(te.temperature),
+    temperature: telemetryValueOrNull(te?.temperature),
     temperatureThreshold: TEMP_LIMIT,
-    vibration: telemetryValueOrNull(te.vibration),
-    loadRate: telemetryValueOrNull(te.loadRate),
+    vibration: telemetryValueOrNull(te?.vibration),
+    loadRate: telemetryValueOrNull(te?.loadRate),
     healthScore: Number.isFinite(Number(eq.healthScore)) ? Number(eq.healthScore) : null,
   };
 }
@@ -1635,7 +1637,7 @@ function buildGuidePreview(loop: any, plan: any, degraded: boolean): string {
   ].join("\n");
 }
 
-function buildAcceptancePreview(loop: any, order: any | null, eq: any | null, telemetry: any): string {
+function buildAcceptancePreview(loop: any, order: any | null, eq: Equipment | null, telemetry: any): string {
   const fmtBase = (v: unknown, unit: string, limit: number) => {
     const n = telemetryValueOrNull(v);
     return n == null ? `未接入（限值 ${limit}${unit}）` : `${n}${unit}（限值 ${limit}${unit}）`;
