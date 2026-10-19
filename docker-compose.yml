@@ -55,6 +55,11 @@ services:
       # 魔珐星云 3D 数字人配置 (运行期注入，严禁打包进前端 bundle)
       XINGYUN_APP_ID: ${XINGYUN_APP_ID}
       XINGYUN_APP_SECRET: ${XINGYUN_APP_SECRET}
+      # AI 每日预算闸门：默认开启。2026-10-19 实测演示容器里这两个变量从未注入，
+      # isAiBudgetEnabled() 恒 false，「AI 调用走预算」在运行态其实是空话；
+      # 上限按「一整天连轴演示也打不满」取 50 万 tokens/日，可在 .env 覆盖。
+      AI_BUDGET_ENABLED: ${AI_BUDGET_ENABLED:-true}
+      AI_DAILY_BUDGET: ${AI_DAILY_BUDGET:-500000}
     volumes:
       - appdata:/app/data           # PGlite 数据库持久化
       - uploads:/app/public/uploads # 缺陷图片上传持久化
