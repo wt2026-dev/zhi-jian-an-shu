@@ -365,7 +365,7 @@ export async function streamAiStructured(
     equipmentId?: (ctx: any) => string | undefined;
     prepare: () => Promise<{ system: string; user: string; ctx: any }>;
     buildSuccessBody: (ctx: any, data: any) => any;
-    buildDegraded: (ctx: any) => { data: any; message: string };
+    buildDegraded?: (ctx: any) => { data: any; message: string };
   }
 ): Promise<void> {
   sseInit(res);
@@ -433,7 +433,7 @@ export async function streamAiStructured(
         logger.error(`[AI:${opts.actionType}] 规则降级失败:`, de?.message || de);
       }
     }
-    sseSend(res, { type: "error", message: `AI 流式调用失败: ${String(err?.message || err).slice(0, 160)}` });
+    sseSend(res, { type: "error", message: `AI 流式调用失败: ${String(err?.message || err).slice(0, 160)}`, degraded: true });
     res.write("data: [DONE]\n\n");
     res.end();
     addAuditLog(req, {
