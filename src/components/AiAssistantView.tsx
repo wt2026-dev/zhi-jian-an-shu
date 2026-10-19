@@ -20,6 +20,7 @@ import { useAiFeedbackModal } from './ai/useAiFeedbackModal';
 import { useHotKnowledgePrompts } from './ai/useHotKnowledgePrompts';
 import { useAiContribution } from './ai/useAiContribution';
 import { useAiEngineLabel } from './ai/useAiEngineLabel';
+import { useSourceConnectivity } from './ai/useSourceConnectivity';
 
 export type { ChatMessage };
 
@@ -427,6 +428,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   const latestAiModel = [...messages].reverse().find((m) => m.sender === 'assistant' && m.modelName)?.modelName;
   // 刚进页面还没问过 AI 时，引擎名以真实模型配置为准，不要一律报「未连接」
   const configuredEngine = useAiEngineLabel();
+  const sourceStatus = useSourceConnectivity();
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -444,6 +446,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
           <div className="lg:col-span-8 h-full flex flex-col overflow-hidden lg:sticky lg:top-0 lg:self-start glass-card border border-slate-200/80 rounded-xl shadow-sm relative">
             <AiChatMessagesList
               messages={messages}
+              sourceStatus={sourceStatus}
               currentUser={currentUser}
               isSpeaking={isSpeaking}
               isStreaming={isStreaming}

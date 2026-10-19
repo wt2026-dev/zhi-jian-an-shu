@@ -12,6 +12,7 @@ import {
 import { UserProfile } from '../../types';
 import { ChatMessage } from '../../hooks/useAiChat';
 import { Markdown } from './Markdown';
+import { SourceConnectivity, SourceStatus } from './useSourceConnectivity';
 
 export const WELCOME_PROMPTS = [
   '离心泵、压缩机、减速箱等典型故障树与振动对中分析',
@@ -30,8 +31,53 @@ export interface ContributionSuggestionData {
   solution: string;
 }
 
+/** 状态标签：三态由真实探测结果决定，离线时不再挂绿色呼吸点冒充在线 */
+const SourceChip: React.FC<{ label: string; status: SourceStatus; tone: 'emerald' | 'cyan' }> = ({
+  label,
+  status,
+  tone,
+}) => {
+  const skin =
+    status === 'offline'
+      ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+      : status === 'checking'
+      ? 'bg-slate-50 text-slate-600 border-slate-200'
+      : tone === 'emerald'
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+      : 'bg-cyan-50 text-cyan-700 border-cyan-200/80';
+  const dot =
+    status === 'offline'
+      ? 'bg-rose-500'
+      : status === 'checking'
+      ? 'bg-slate-400'
+      : tone === 'emerald'
+      ? 'bg-emerald-500 animate-pulse'
+      : 'bg-cyan-500 animate-pulse';
+  const tail = status === 'offline' ? '无法连接' : status === 'checking' ? '检测中' : '已连接';
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${skin}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+      {label} · {tail}
+    </span>
+  );
+};
+
+/** 问候语里的数据源那半句：只有探测通过才说「已连接」，否则如实说当前状态 */
+function greetingSourceLine(sourceStatus: SourceConnectivity): string {
+  const down = [
+    sourceStatus.knowledge === 'offline' ? '工厂知识库' : null,
+    sourceStatus.telemetry === 'offline' ? '设备遥测中枢' : null,
+  ].filter(Boolean);
+  if (down.length > 0) return `${down.join('与')}当前无法连接，回答可能不完整，`;
+  if (sourceStatus.knowledge === 'checking' || sourceStatus.telemetry === 'checking') {
+    return '正在确认工厂知识库与设备遥测中枢的连通状态，';
+  }
+  return '已连接工厂知识库与设备遥测中枢，';
+}
+
 interface AiChatMessagesListProps {
   messages: ChatMessage[];
+  sourceStatus: SourceConnectivity;
   currentUser: UserProfile;
   isSpeaking: boolean;
   isStreaming: boolean;
@@ -54,6 +100,7 @@ interface AiChatMessagesListProps {
 
 export const AiChatMessagesList: React.FC<AiChatMessagesListProps> = ({
   messages,
+  sourceStatus,
   currentUser,
   isSpeaking,
   isStreaming,
@@ -135,18 +182,12 @@ export const AiChatMessagesList: React.FC<AiChatMessagesListProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        知识库 · 已连接
-                      </span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-50 text-cyan-700 border border-cyan-200/80">
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
-                        设备遥测中枢 · 已连接
-                      </span>
+                      <SourceChip label="知识库" status={sourceStatus.knowledge} tone="emerald" />
+                      <SourceChip label="设备遥测中枢" status={sourceStatus.telemetry} tone="cyan" />
                     </div>
                   </div>
                   <p className="text-slate-600 text-xs">
-                    你好，我是 <strong className="text-slate-800">智检安枢的工业设备检修 AI 专家</strong>。已连接工厂知识库与设备遥测中枢，您可以直接点击下方推荐场景发起研判或在底部自由提问：
+                    你好，我是 <strong className="text-slate-800">智检安枢的工业设备检修 AI 专家</strong>。{greetingSourceLine(sourceStatus)}您可以直接点击下方推荐场景发起研判或在底部自由提问：
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
                     {WELCOME_PROMPTS.map((prompt, pIdx) => (
