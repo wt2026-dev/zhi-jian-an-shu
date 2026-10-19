@@ -83,4 +83,15 @@ describe("健康分/工时不得用编造默认值兜底", () => {
     expect(src).toMatch(/typeof score === "number" && Number\.isFinite\(score\)/);
     expect(src).toMatch(/未评估/);
   });
+
+  it("二维码/打印物料不得把空字段填成具体名字（这是要印出来贴在设备上的）", () => {
+    // QR 物料会被打印、张贴、扫码 —— 文案上的兜底字符串会被当成真实信息。
+    // "生产保全部" / "生产A线" / "工业重型标准型" 都是曾真实出现过的编造。
+    const qr1 = read("src/components/equipment-archives/EquipmentQrModal.tsx");
+    const qr2 = read("src/components/inspection/InspectionQrModal.tsx");
+    for (const [code, name] of [[qr1, "EquipmentQrModal"], [qr2, "InspectionQrModal"]] as const) {
+      expect(code, `${name} 不得兜底成具体车间/部门/型号`).not.toMatch(/\|\|\s*['"](生产|工业|未知设备|默认车间)/);
+      expect(code, `${name} 空字段应显示「未登记/未指派」`).toMatch(/\|\|\s*['"]未(登记|指派)/);
+    }
+  });
 });

@@ -175,8 +175,8 @@ export const InspectionQrModal: React.FC<InspectionQrModalProps> = ({
                 </div>
                 <h4 className="text-sm font-bold text-slate-900">{curEq?.name}</h4>
                 <div className="text-[11px] text-slate-500 space-y-0.5">
-                  <div>车间位置: <span className="text-slate-800">{curEq?.workshop} / {curEq?.location || '生产A线'}</span></div>
-                  <div>规格型号: <span className="text-slate-800">{curEq?.model || '工业重型标准型'}</span></div>
+                  <div>车间位置: <span className="text-slate-800">{curEq?.workshop} / {curEq?.location || '未登记'}</span></div>
+                  <div>规格型号: <span className="text-slate-800">{curEq?.model || '未登记'}</span></div>
                   <div>健康度指数: <strong className="text-emerald-700 font-bold">{typeof curEq?.healthScore === 'number' ? `${curEq.healthScore}%` : '—'}</strong></div>
                 </div>
               </div>

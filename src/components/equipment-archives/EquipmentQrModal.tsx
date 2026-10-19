@@ -61,7 +61,8 @@ export const EquipmentQrModal: React.FC<EquipmentQrModalProps> = ({
                 <div>设备名称: <b>${activeEquipment.name}</b></div>
                 <div>设备位号: <span class="highlight font-mono">${activeEquipment.code}</span></div>
                 <div>安装车间: ${activeEquipment.workshop} · ${activeEquipment.location}</div>
-                <div>责任技师: ${activeEquipment.assignedTechnician || '生产保全部'}</div>
+                {/* 责任技师可以为 NULL（001_init.sql 未设默认），此处不得编造一个部门顶替 */}
+                <div>责任技师: ${activeEquipment.assignedTechnician || '未指派'}</div>
               </div>
             </div>
             <script>
