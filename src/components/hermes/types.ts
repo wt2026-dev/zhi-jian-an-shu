@@ -156,11 +156,12 @@ export interface BusinessClosedLoopData {
     model: string;
     workshop: string;
     status: 'warning' | 'normal' | 'danger';
-    temperature: number;
+    /** 遥测缺测时为 null —— 界面必须显示「未接入」，不得显示 0（0 是可判定的真实读数） */
+    temperature: number | null;
     temperatureThreshold: number;
-    vibration: number;
-    loadRate: number;
-    healthScore: number;
+    vibration: number | null;
+    loadRate: number | null;
+    healthScore: number | null;
   };
   initiator: {
     name: string;

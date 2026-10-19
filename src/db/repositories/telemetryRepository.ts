@@ -4,8 +4,21 @@ function padHour(n: number): string {
   return n.toString().padStart(2, "0");
 }
 
+/**
+ * 遥测历史仓储。
+ *
+ * ⚠️ 数据来源诚实性声明（勿删）：本表当前有**两条**写入通路——
+ * 1. 种子期写入（`src/db/seed.ts` 调用 `insertBatch`，按 sin 曲线 + 伪随机确定性合成），
+ *    仍是演示/开发默认数据源；
+ * 2. **摄入接口** `POST /api/v1/telemetry/ingest`（`ingestBatch` 经 `insertBatch` 落库，
+ *    见 `src/server/controllers/telemetryController.ts`）：可接入真实采集或模拟采集，
+ *    调用方在 source 字段与审计日志中自述来源。
+ * 落库后两条通路同表，消费方无法从数据本身区分来源 —— UI 与文档一律不得表述为
+ * “真实读数 / 实测数据”；对外口径见 `docs/工业化演进与硬件对接方案.md` 第四节
+ * （OPC-UA / Modbus-TCP 协议级接入为 3.0 规划，本端点提供 HTTP 层的先行通道）。
+ */
 export const TelemetryRepository = {
-  // 读取某设备最近 N 条真实落库遥测历史（按时间升序返回，供图表绘制）
+  // 读取某设备最近 N 条已落库遥测（仿真数据，来源见文件头声明；按时间升序返回，供图表绘制）
   async getHistory(equipmentId: string, limit = 24) {
     const db = await getDb();
     const { rows } = await db.query(
@@ -55,7 +68,7 @@ export const TelemetryRepository = {
     }));
   },
 
-  // 批量写入遥测历史（种子与后续采集共用）
+  // 批量写入遥测历史。种子与摄入接口共用；摄入入口见 ingestBatch。
   async insertBatch(rows: {
     equipmentId: string;
     equipmentCode?: string;
@@ -105,5 +118,21 @@ export const TelemetryRepository = {
   async clearAll() {
     const db = await getDb();
     await db.query(`DELETE FROM equipment_telemetry;`);
+  },
+
+  // 摄入入口：POST /api/v1/telemetry/ingest 的落库通道。controller 已做设备存在性、
+  // 读数范围校验与审计留痕；此处与种子共用 insertBatch 底层写入（见文件头声明）。
+  async ingestBatch(rows: {
+    equipmentId: string;
+    recordedAtDt?: Date | string;
+    temperature?: number;
+    vibration?: number;
+    current?: number;
+    voltage?: number;
+    pressure?: number;
+    loadRate?: number;
+    rpm?: number;
+  }[]) {
+    return TelemetryRepository.insertBatch(rows);
   },
 };

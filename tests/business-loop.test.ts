@@ -673,3 +673,59 @@ describe("preview 文本标点收口", () => {
     expect(joinClauses([])).toBe("");
   });
 });
+
+/**
+ * 遥测缺测不得被填成 0（数据红线）。
+ *
+ * 旧实现 `tele0()` 把任何非法值转成 0，于是缺测设备在闭环详情里显示成
+ * 「温度 0°C（经验限值 80°C）」，在 AI 上下文栏里显示成一台正常设备；
+ * 更糟的是这句 `.teleCtx` 会进 AI 提示词，模型照着 0 写诊断结论。
+ *
+ * 这组用例真改库（把该设备 telemetry 置空）再读接口，证明返回的是 null 不是 0。
+ * ⚠️ 反向断言「不是 0」必须配正向断言「有遥测时确实是那个数」，否则
+ * 把字段整个删掉也能让"不是 0"通过 —— 那是零信息断言。
+ */
+describe("遥测缺测 → null（不得填 0）", () => {
+  it("设备 telemetry 置空后：闭环详情回 null，有读数时回真实数值", async () => {
+    const db = await getDb();
+    const eqId = "eq-102";
+    const before = await db.query(`SELECT telemetry FROM equipments WHERE id = $1;`, [eqId]);
+    const originalTelemetry = before.rows[0]?.telemetry ?? null;
+
+    try {
+      // ---- 正向对照：先把一份确定的读数写进去，读出来必须是这些数 ----
+      await db.query(
+        `UPDATE equipments SET telemetry = $1::jsonb WHERE id = $2;`,
+        [JSON.stringify({ temperature: 63.5, vibration: 3.25, loadRate: 71 }), eqId]
+      );
+      const withTele = await request(app)
+        .post("/api/v1/business-loops")
+        .set(bearer(managerToken))
+        .send({ goal: "2#无油螺杆空压机主机温度异常，走检修流程" });
+      expect(withTele.status).toBe(202);
+      const d1 = (await getDetail(withTele.body.id)).body;
+      expect(d1.equipment.temperature).toBe(63.5);
+      expect(d1.equipment.vibration).toBe(3.25);
+      expect(d1.equipment.loadRate).toBe(71);
+
+      // ---- 缺测：把 telemetry 置空，读出来必须是 null ----
+      await db.query(`UPDATE equipments SET telemetry = NULL WHERE id = $1;`, [eqId]);
+      const noTele = await request(app)
+        .post("/api/v1/business-loops")
+        .set(bearer(managerToken))
+        .send({ goal: "2#无油螺杆空压机主机振动偏高，走检修流程" });
+      expect(noTele.status).toBe(202);
+      const d2 = (await getDetail(noTele.body.id)).body;
+      expect(d2.equipment.id).toBe(eqId);
+      // 三处都不能是 0 —— 0°C / 0mm/s / 0% 都会被读成"设备完好"
+      expect(d2.equipment.temperature).toBeNull();
+      expect(d2.equipment.vibration).toBeNull();
+      expect(d2.equipment.loadRate).toBeNull();
+    } finally {
+      await db.query(`UPDATE equipments SET telemetry = $1::jsonb WHERE id = $2;`, [
+        JSON.stringify(originalTelemetry ?? {}),
+        eqId,
+      ]);
+    }
+  });
+});

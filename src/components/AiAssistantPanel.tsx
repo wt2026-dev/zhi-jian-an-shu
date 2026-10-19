@@ -453,6 +453,8 @@ export const AiAssistantPanel: React.FC = () => {
                 disabled={chat.isStreaming}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => {
+                  // 与主对话页同一口径：中文输入法候选未确认时的 Enter 属于选词上屏，不是发送
+                  if (e.nativeEvent.isComposing) return;
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSend();

@@ -132,6 +132,9 @@ export const AiChatInputBar: React.FC<AiChatInputBarProps> = ({
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={(e) => {
+            // 中文输入法候选未确认时的 Enter 属于「选词/上屏」，不是发送；
+            // 这里若照旧 preventDefault，会把候选提交一起吞掉，表现为按了没反应。
+            if (e.nativeEvent.isComposing) return;
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               onSendMessage();
