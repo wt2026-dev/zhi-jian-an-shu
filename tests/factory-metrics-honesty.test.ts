@@ -32,6 +32,12 @@ const BANNED: Array<{ file: string; snippets: string[] }> = [
     snippets: ['ZONE_METRICS', 'WORKSHOP_METRICS', 'list.length || 6', ': 95.2,', '{ output: 4860'],
   },
   {
+    // 第六刀（2026-10-19）把台账派生整块搬进 facilityLedgerSpecs：兜底假数的禁令跟着搬，
+    // 不然"不许写常量顶数"这条守卫会在新的落点上失去覆盖。
+    file: 'src/components/equipment3d/facilityLedgerSpecs.ts',
+    snippets: ['ZONE_METRICS', 'WORKSHOP_METRICS', 'list.length || 6', ': 95.2,', '{ output: 4860'],
+  },
+  {
     file: 'src/components/equipment3d/factoryOverview.ts',
     snippets: ['?? (3200 +', '99.2 - frVal', "'1,280 万元'", "'在岗: 26 人'", 'b.deviceCount ?? 6'],
   },
@@ -73,11 +79,16 @@ describe('厂区指标去假数守卫', () => {
   }
 
   it('产值/良率/在岗必须经 factoryMetrics 口径，而不是本地常量', () => {
-    const src = read('src', 'components', 'equipment3d', 'EquipmentScene.tsx');
-    expect(src).toContain('estimateWorkshopMetrics');
-    expect(src).toContain('aggregateZoneMetrics');
+    // 第六刀之后派生口径住在 facilityLedgerSpecs，宿主只留 memo 壳：两边都要钉，
+    // 少钉宿主那条就变成"谁都能把口径抄回组件里"的空门。
+    const specs = read('src', 'components', 'equipment3d', 'facilityLedgerSpecs.ts');
+    expect(specs).toContain('estimateWorkshopMetrics');
+    expect(specs).toContain('aggregateZoneMetrics');
     // 角色判定与几何外观共用同一个 resolveBuildingType，不允许第二套判定
-    expect(src).toContain('resolveBuildingType');
+    expect(specs).toContain('resolveBuildingType');
+    const host = read('src', 'components', 'equipment3d', 'EquipmentScene.tsx');
+    expect(host).toContain('buildFacilityLedgerSpecs(equipments, allOrders)');
+    expect(host).not.toContain('estimateWorkshopMetrics');
   });
 });
 
