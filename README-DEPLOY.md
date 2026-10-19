@@ -214,6 +214,33 @@ docker compose ps
 docker compose down
 ```
 
+### 4.5 数据库备份与恢复演练（2026-10-19 一致性改造）
+
+> ⚠️ 旧的 `backup.sh`（对活数据目录直接 tar）已被替换：对正在写入的 PGlite 数据目录打包会产出不可恢复的损坏备份。新方案使用 PGlite 官方 `dumpDataDir()` 一致性快照。
+
+**备份（`scripts/backup.sh` → `backup-db.mjs`）**：
+
+```bash
+# PGlite 模式：必须先停止应用（数据目录被持有会 fail-fast 退出，绝不产出不一致备份）
+systemctl stop industrial-app
+BACKUP_DIR=/backups BACKUP_KEEP_N=7 ./scripts/backup.sh
+systemctl start industrial-app
+
+# PostgreSQL 模式（不停机，pg_dump 自定义格式）
+DB_TYPE=postgres DB_HOST=... DB_PASSWORD=... ./scripts/backup.sh
+```
+
+配置项：`BACKUP_DIR`（输出目录，默认 `backups/`）、`BACKUP_KEEP_N`（保留份数，默认 7）、`PGDUMP_BIN`。备份完成后脚本自动做**快照自校验**（隔离目录解包重开、关键表与迁移版本可查），未通过自校验的备份文件会被删除并以非零退出码告警（cron 可据此发通知）。**备份的目标位置（异地/外接存储）与告警通道由部署方配置**，具体保留周期与频率值由现场确认。
+
+**恢复演练（`scripts/restore.sh` → `restore-drill.mjs`）**——上线前及定期执行：
+
+```bash
+./scripts/restore.sh backups/pglite-snapshot-<时间戳>.tar.gz
+# 输出 PASS / FAIL 与每张关键表行数；PASS 表示该备份可用于真实恢复
+```
+
+演练在系统临时目录隔离完成，**绝不触碰真实数据目录、绝不删除任何业务数据**。真实恢复（覆盖数据）不由脚本自动执行：须先停止应用、备份当前数据目录、人工确认后手工解包快照到数据目录，再启动应用并核对 `/ready` 与关键业务数据。该恢复流程与备份可用性属**待现场验证**项：上线前应在目标环境完成至少一次全流程演练。
+
 ---
 
 ## 五、Nginx 反向代理与安全配置
