@@ -14,6 +14,15 @@ import { STATUS_LABELS, pushWorkOrderLog, ALLOWED_TRANSITIONS, DUPLICATE_WINDOW_
 import { logger } from "../../utils/logger.ts";
 import { assertCanStartWork, assertCanArchiveWork, respondSafetyInterlock } from "../services/safetyInterlock.ts";
 
+// 认证身份标注：操作日志中的展示名（operatorName/inspectorName 等）可来自前端 body，存在伪造可能，
+// 但审计必须可溯源到真实登录账号。将 req.currentUser 的账号/角色追加到日志 comment，
+// 使时间线上每条记录都能与 JWT 认证身份对账（安全红线：不能信任前端传来的操作者身份）。
+function withAuthActor(comment: string | undefined, req: any): string {
+  const u = req?.currentUser;
+  const tag = u ? `（操作账号: ${u.username}/${u.roleTitle || u.role}）` : "（未认证操作）";
+  return `${comment || "操作"}${tag}`;
+}
+
 // 6. 创建工单
 export async function handleCreateWorkOrder(req: any, res: any) {
   try {
@@ -112,7 +121,7 @@ export async function handleCreateWorkOrder(req: any, res: any) {
       previousStatus: null,
       newStatus: "created",
       operatorName: creator,
-      comment: `创建工单: ${title}`,
+      comment: withAuthActor(`创建工单: ${title}`, req),
       createdAt: createdAtStr,
     });
 
@@ -173,7 +182,7 @@ export async function handleDispatchWorkOrder(req: any, res: any) {
       previousStatus: "created",
       newStatus: "dispatched",
       operatorName: dispatcher || "车间主管-陈建平",
-      comment: `指派责任技师: ${assigneeName || "张建国 (高级技师)"}，预估耗时: ${estimatedHours}h`,
+      comment: withAuthActor(`指派责任技师: ${assigneeName || "张建国 (高级技师)"}，预估耗时: ${estimatedHours}h`, req),
       createdAt: nowStr,
     });
 
@@ -239,7 +248,7 @@ export async function handleClaimWorkOrder(req: any, res: any) {
       previousStatus: "dispatched",
       newStatus: "in_progress",
       operatorName: operatorName || order.assignee || "责任技师",
-      comment: "确认接单，执行安全隔离并开展检修",
+      comment: withAuthActor("确认接单，执行安全隔离并开展检修", req),
       createdAt: nowStr,
     });
 
@@ -324,7 +333,7 @@ export async function handleCompleteWorkOrder(req: any, res: any) {
       previousStatus: "in_progress",
       newStatus: "pending_acceptance",
       operatorName: operatorName || order.assignee || "责任技师",
-      comment: `完工上报，工时: ${workHours}h，备件: ${partsUsed.length}项`,
+      comment: withAuthActor(`完工上报，工时: ${workHours}h，备件: ${partsUsed.length}项`, req),
       createdAt: nowStr,
     });
 
@@ -463,7 +472,7 @@ export async function handleAcceptWorkOrder(req: any, res: any) {
       previousStatus: "pending_acceptance",
       newStatus,
       operatorName: inspectorName || "质检专员",
-      comment: pass ? `验收合格闭环 (评分: ${score}星) - ${comment}` : `验收驳回 - ${comment}`,
+      comment: withAuthActor(pass ? `验收合格闭环 (评分: ${score}星) - ${comment}` : `验收驳回 - ${comment}`, req),
       createdAt: nowStr,
     });
 
@@ -542,7 +551,7 @@ export async function handleTransitionStatus(req: any, res: any) {
       previousStatus: current,
       newStatus: targetStatus,
       operatorName,
-      comment: comment || `状态变更为: ${STATUS_LABELS[targetStatus] || targetStatus}`,
+      comment: withAuthActor(comment || `状态变更为: ${STATUS_LABELS[targetStatus] || targetStatus}`, req),
       createdAt: nowStr,
     });
 
