@@ -19,6 +19,7 @@ import {
   AuditLogRepository,
 } from "../src/db/repositories/index.ts";
 import { getDb } from "../src/db/db.ts";
+import { joinClauses } from "../src/server/services/businessLoopService.ts";
 
 const GOAL = "2#无油螺杆空压机主机振动偏高，走检修流程";
 
@@ -649,5 +650,26 @@ describe("Hermes 业务闭环 - 确认前人工修订", () => {
     const s6 = (await getDetail(rev.id)).body.stages.find((s: any) => s.order === 6);
     expect(s6.status).toBe("in_progress");
     expect(s6.aiPrefill.raw?.workOrderDraft?.title).toBeUndefined();
+  });
+});
+
+/**
+ * 单据正文里的重复标点（真机截图暴露：「…断电。；…泄压。；」）源于 AI/JSA 输出的
+ * 每条措施自带句末标点，再用「；」join 就叠出来了。这里双向钉住：
+ * 带标点必须收口，不带标点的条目不得被改动一个字。
+ */
+describe("preview 文本标点收口", () => {
+  it("条目自带句末标点：剥掉后再 join，不出现「。；」与行尾悬空分隔符", () => {
+    const out = joinClauses(["作业前必须断电挂牌。", "残余气压泄压至零；", "  ", "监护人全程在场"]);
+    expect(out).toBe("作业前必须断电挂牌；残余气压泄压至零；监护人全程在场");
+    expect(out).not.toMatch(/[。；;]\s*[；;]/);
+    expect(out).not.toMatch(/[；;]$/);
+  });
+
+  it("条目本就没有标点：原样拼接、不吞字，空清单返回空串", () => {
+    expect(joinClauses(["GB/T 33579-2017 锁定/挂牌", "GB 30871 特殊作业安全规范"])).toBe(
+      "GB/T 33579-2017 锁定/挂牌；GB 30871 特殊作业安全规范"
+    );
+    expect(joinClauses([])).toBe("");
   });
 });
