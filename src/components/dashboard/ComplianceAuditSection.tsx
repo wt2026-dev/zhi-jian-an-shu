@@ -1,10 +1,20 @@
-import React, { useRef, useEffect } from 'react';
+import React from 'react';
 import {
   ShieldCheck,
   ChevronRight,
 } from 'lucide-react';
 import { ComplianceStats } from '../../types';
-import * as echarts from 'echarts';
+import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 export interface ComplianceAuditSectionProps {
   complianceStats: ComplianceStats | null;
@@ -14,6 +24,17 @@ export interface ComplianceAuditSectionProps {
   onNavigate: (tab: string) => void;
 }
 
+// 趋势为空时的兜底样例（与旧 echarts 实现的兜底数组一致）
+const FALLBACK_TREND = [
+  { date: '09-05', avgScore: 81, orders: 0 },
+  { date: '09-06', avgScore: 52, orders: 1 },
+  { date: '09-07', avgScore: 94, orders: 1 },
+  { date: '09-08', avgScore: 72, orders: 1 },
+  { date: '09-09', avgScore: 96, orders: 1 },
+  { date: '09-10', avgScore: 81, orders: 0 },
+  { date: '09-11', avgScore: 68, orders: 1 },
+];
+
 export const ComplianceAuditSection: React.FC<ComplianceAuditSectionProps> = ({
   complianceStats,
   complianceLoadFailed,
@@ -21,108 +42,11 @@ export const ComplianceAuditSection: React.FC<ComplianceAuditSectionProps> = ({
   recentAuditLogs,
   onNavigate,
 }) => {
-  const complianceChartRef = useRef<HTMLDivElement>(null);
-  const complianceChartInstance = useRef<echarts.ECharts | null>(null);
-
-  useEffect(() => {
-    if (!complianceChartRef.current) return;
-    if (!complianceChartInstance.current) {
-      complianceChartInstance.current = echarts.init(complianceChartRef.current);
-    }
-    const chart = complianceChartInstance.current;
-    const trend = complianceStats?.recentTrend || [];
-    const dates = trend.map((t) => t.date);
-    const scores = trend.map((t) => t.avgScore);
-    const orders = trend.map((t) => t.orders);
-
-    const option: echarts.EChartsOption = {
-      tooltip: {
-        trigger: 'axis',
-        backgroundColor: 'rgba(255, 255, 255, 0.96)',
-        borderColor: '#e2e8f0',
-        borderWidth: 1,
-        textStyle: { color: '#1e293b', fontSize: 11 },
-        padding: [6, 10],
-      },
-      legend: {
-        data: ['合规率 (%)', '审计单数 (单)'],
-        top: 0,
-        right: 10,
-        textStyle: { fontSize: 10, color: '#64748b' },
-        itemWidth: 10,
-        itemHeight: 6,
-        itemGap: 16,
-      },
-      grid: {
-        top: 32,
-        right: 30,
-        bottom: 12,
-        left: 12,
-        containLabel: true,
-      },
-      xAxis: {
-        type: 'category',
-        data: dates.length ? dates : ['09-05', '09-06', '09-07', '09-08', '09-09', '09-10', '09-11'],
-        axisLine: { lineStyle: { color: '#cbd5e1' } },
-        axisLabel: { color: '#64748b', fontSize: 10 },
-      },
-      yAxis: [
-        {
-          type: 'value',
-          name: '合规率%',
-          min: 0,
-          max: 100,
-          splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-          axisLabel: { color: '#64748b', fontSize: 10, formatter: '{value}%' },
-        },
-        {
-          type: 'value',
-          name: '审计单数',
-          min: 0,
-          splitLine: { show: false },
-          axisLabel: { color: '#64748b', fontSize: 10, formatter: '{value}单' },
-        },
-      ],
-      series: [
-        {
-          name: '合规率 (%)',
-          type: 'line',
-          yAxisIndex: 0,
-          smooth: true,
-          showSymbol: true,
-          symbolSize: 4,
-          itemStyle: { color: '#10b981' },
-          lineStyle: { width: 2.5, color: '#10b981' },
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(16, 185, 129, 0.18)' },
-              { offset: 1, color: 'rgba(16, 185, 129, 0.01)' },
-            ]),
-          },
-          data: scores.length ? scores : [81, 52, 94, 72, 96, 81, 68],
-        },
-        {
-          name: '审计单数 (单)',
-          type: 'line',
-          yAxisIndex: 1,
-          smooth: true,
-          showSymbol: true,
-          symbolSize: 4,
-          itemStyle: { color: '#3b82f6' },
-          lineStyle: { width: 2, color: '#3b82f6' },
-          data: orders.length ? orders : [0, 1, 1, 1, 1, 0, 1],
-        },
-      ],
-    };
-
-    chart.setOption(option);
-
-    const handleResize = () => chart.resize();
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [complianceStats]);
+  const trend =
+    complianceStats?.recentTrend && complianceStats.recentTrend.length > 0
+      ? complianceStats.recentTrend
+      : FALLBACK_TREND;
+  const chartData = trend.map((t) => ({ date: t.date, score: t.avgScore, orders: t.orders }));
 
   return (
     <div className="glass-card p-5 shadow-sm relative overflow-hidden bg-white border border-slate-200/80 rounded-xl -mt-2">
@@ -214,7 +138,73 @@ export const ComplianceAuditSection: React.FC<ComplianceAuditSectionProps> = ({
             </span>
             <span className="text-[10px] text-slate-500 mt-0.5 block">大模型核验步骤率 + 日审计工单</span>
           </div>
-          <div ref={complianceChartRef} className="w-full h-44" />
+          <div className="w-full h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="complianceFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.18} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.01} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" stroke="#f1f5f9" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10, fill: '#64748b' }}
+                  axisLine={{ stroke: '#cbd5e1' }}
+                  tickLine={false}
+                />
+                <YAxis
+                  yAxisId="score"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
+                  tickFormatter={(v: number) => `${v}%`}
+                  axisLine={false}
+                  tickLine={false}
+                  width={38}
+                />
+                <YAxis
+                  yAxisId="orders"
+                  orientation="right"
+                  tick={{ fontSize: 10, fill: '#64748b' }}
+                  tickFormatter={(v: number) => `${v}单`}
+                  axisLine={false}
+                  tickLine={false}
+                  width={32}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 8,
+                    fontSize: 11,
+                    color: '#1e293b',
+                    padding: '4px 10px',
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 10, color: '#64748b' }} iconSize={10} />
+                <Area
+                  yAxisId="score"
+                  type="monotone"
+                  dataKey="score"
+                  name="合规率 (%)"
+                  stroke="#10b981"
+                  strokeWidth={2.5}
+                  fill="url(#complianceFill)"
+                  dot={{ r: 2 }}
+                />
+                <Line
+                  yAxisId="orders"
+                  type="monotone"
+                  dataKey="orders"
+                  name="审计单数 (单)"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         <div className="flex flex-col justify-between border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-5">

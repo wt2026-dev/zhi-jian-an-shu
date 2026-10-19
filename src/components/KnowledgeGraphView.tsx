@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import * as echarts from 'echarts';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Share2,
   Sparkles,
@@ -14,6 +13,16 @@ import {
 } from 'lucide-react';
 import { knowledgeApi } from '../api';
 import { KnowledgeGraphNode, KnowledgeGraphEdge, UserProfile } from '../types';
+import { ForceGraph } from './knowledge/ForceGraph';
+
+// 节点类型颜色配置表（模块级常量，纯静态）
+const typeColors: Record<string, string> = {
+  设备: '#3b82f6', // 蓝
+  故障: '#ef4444', // 红
+  方法: '#10b981', // 绿
+  备件: '#f97316', // 橙
+  部件: '#8b5cf6', // 紫
+};
 
 interface KnowledgeGraphViewProps {
   currentUser: UserProfile;
@@ -24,9 +33,6 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   currentUser,
   onOpenArticle,
 }) => {
-  const chartRef = useRef<HTMLDivElement>(null);
-  const chartInstance = useRef<echarts.ECharts | null>(null);
-
   const [nodes, setNodes] = useState<KnowledgeGraphNode[]>([]);
   const [edges, setEdges] = useState<KnowledgeGraphEdge[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,15 +43,6 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
 
   // 选中节点详情抽屉
   const [selectedNode, setSelectedNode] = useState<KnowledgeGraphNode | null>(null);
-
-  // 节点类型颜色配置表
-  const typeColors: Record<string, string> = {
-    设备: '#3b82f6', // 蓝
-    故障: '#ef4444', // 红
-    方法: '#10b981', // 绿
-    备件: '#f97316', // 橙
-    部件: '#8b5cf6', // 紫
-  };
 
   const loadGraph = async (equip?: string) => {
     setLoading(true);
@@ -81,153 +78,35 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
     }
   };
 
-  // ECharts 渲染
-  useEffect(() => {
-    if (!chartRef.current) return;
-
-    if (!chartInstance.current) {
-      chartInstance.current = echarts.init(chartRef.current);
-    }
-
-    const chart = chartInstance.current;
-
-    if (nodes.length === 0) {
-      chart.clear();
-      return;
-    }
-
-    // 格式化 ECharts 节点与类别
-    const categories = [
-      { name: '设备', itemStyle: { color: typeColors['设备'] } },
-      { name: '故障', itemStyle: { color: typeColors['故障'] } },
-      { name: '方法', itemStyle: { color: typeColors['方法'] } },
-      { name: '备件', itemStyle: { color: typeColors['备件'] } },
-      { name: '部件', itemStyle: { color: typeColors['部件'] } },
-    ];
-
-    const chartNodes = nodes.map((n) => {
-      const isEquip = n.entity_type === '设备';
-      return {
+  // 力导向图数据构建（自研 SVG ForceGraph，替代原 echarts force graph）
+  const graphNodes = useMemo(
+    () =>
+      nodes.map((n) => ({
         id: n.id,
-        name: n.entity_name,
-        category: n.entity_type,
-        symbolSize: isEquip ? 55 : 42,
-        value: n.article_title || '',
-        itemStyle: {
-          color: typeColors[n.entity_type] || '#64748b',
-          borderColor: '#ffffff',
-          borderWidth: 2,
-          shadowBlur: 8,
-          shadowColor: 'rgba(0, 0, 0, 0.12)',
-        },
-        label: {
-          show: true,
-          position: 'inside',
-          color: '#ffffff',
-          fontSize: isEquip ? 11 : 10,
-          fontWeight: isEquip ? 'bold' : 'normal',
-          formatter: (params: any) => {
-            const name = params.name || '';
-            return name.length > 6 ? name.slice(0, 5) + '..' : name;
-          },
-        },
-        rawNode: n,
-      };
-    });
-
-    const chartEdges = edges.map((e) => ({
-      source: e.source_node_id,
-      target: e.target_node_id,
-      value: e.relation as any,
-      lineStyle: {
-        color: 'rgba(148, 163, 184, 0.6)',
-        width: 1.5,
-        curveness: 0.15,
-      },
-      label: {
-        show: true,
-        formatter: '{c}',
-        fontSize: 9,
-        color: '#64748b',
-      },
-    }));
-
-    const option: echarts.EChartsOption = {
-      backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'item',
-        backgroundColor: '#ffffff',
-        borderColor: '#e2e8f0',
-        textStyle: { color: '#1e293b' },
-        extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-radius: 8px;',
-        formatter: (params: any) => {
-          if (params.dataType === 'node') {
-            const n = params.data.rawNode;
-            return `<div style="font-size:12px;padding:4px 8px;color:#1e293b;">
-              <b style="color:${typeColors[n.entity_type]};">[${n.entity_type}]</b> ${n.entity_name}<br/>
-              <span style="color:#64748b;">关联知识: ${n.article_title || '规程文章'}</span><br/>
-              <span style="color:#0284c7;font-size:11px;">👉 点击节点查看完整规程</span>
-            </div>`;
-          } else if (params.dataType === 'edge') {
-            return `<div style="font-size:11px;padding:2px 6px;color:#1e293b;">关系: <b>${params.value || '关联'}</b></div>`;
-          }
-          return '';
-        },
-      },
-      legend: [
-        {
-          data: categories.map((c) => c.name),
-          orient: 'horizontal',
-          top: 10,
-          left: 15,
-          textStyle: { color: '#475569', fontSize: 11 },
-          icon: 'circle',
-        },
-      ],
-      series: [
-        {
-          type: 'graph',
-          layout: 'force',
-          data: chartNodes as any,
-          links: chartEdges as any,
-          categories: categories,
-          roam: true,
-          draggable: true,
-          edgeSymbol: ['none', 'arrow'],
-          edgeSymbolSize: [4, 8],
-          force: {
-            repulsion: 380,
-            edgeLength: [90, 160],
-            gravity: 0.08,
-            friction: 0.8,
-          },
-          emphasis: {
-            focus: 'adjacency',
-            lineStyle: { width: 3 },
-          },
-        },
-      ],
-    };
-
-    chart.setOption(option, true);
-
-    // 节点点击事件
-    const handleNodeClick = (params: any) => {
-      if (params.dataType === 'node' && params.data?.rawNode) {
-        setSelectedNode(params.data.rawNode);
-      }
-    };
-
-    chart.off('click');
-    chart.on('click', handleNodeClick);
-
-    const handleResize = () => chart.resize();
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [nodes, edges]);
+        label: n.entity_name,
+        color: typeColors[n.entity_type] || '#64748b',
+        radius: n.entity_type === '设备' ? 27 : 21,
+        tooltip: `[${n.entity_type}] ${n.entity_name}\n关联知识: ${n.article_title || '规程文章'}\n👉 点击节点查看完整规程`,
+      })),
+    [nodes]
+  );
+  const graphEdges = useMemo(
+    () =>
+      edges.map((e) => ({
+        source: e.source_node_id,
+        target: e.target_node_id,
+        label: e.relation,
+        tooltip: `关系: ${e.relation || '关联'}`,
+      })),
+    [edges]
+  );
+  const legend = useMemo(
+    () => Object.entries(typeColors).map(([label, color]) => ({ label, color })),
+    []
+  );
+  const handleGraphNodeClick = (id: string) => {
+    setSelectedNode(nodes.find((n) => n.id === id) ?? null);
+  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -242,7 +121,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
               <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 工业设备知识图谱 (Knowledge Graph)
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 font-mono font-medium">
-                  ECharts 5 拓扑推理
+                  力导向拓扑推理
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -343,7 +222,12 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
             )}
           </div>
         ) : (
-          <div ref={chartRef} className="w-full h-full" />
+          <ForceGraph
+            nodes={graphNodes}
+            edges={graphEdges}
+            legend={legend}
+            onNodeClick={handleGraphNodeClick}
+          />
         )}
 
         {/* 节点点击详情抽屉 */}

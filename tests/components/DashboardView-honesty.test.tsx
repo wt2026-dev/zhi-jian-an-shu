@@ -19,17 +19,16 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import type { UserProfile } from '../../src/types';
 
-// recharts / echarts 在 jsdom 里没有尺寸与 canvas，替换成空实现即可（本用例只验文案）
-vi.mock('echarts', () => ({
-  init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() })),
-  graphic: { LinearGradient: class { constructor() {} } },
-}));
+// recharts 在 jsdom 里没有尺寸与 canvas，替换成空实现即可（本用例只验文案）。
+// echarts 已从依赖中移除（双图表库收敛，见 ForceGraph.tsx / ComplianceAuditSection.tsx）。
 vi.mock('recharts', () => {
   const Box = ({ children }: any) => <div>{children}</div>;
   return {
     ResponsiveContainer: Box,
     AreaChart: Box,
     Area: () => null,
+    ComposedChart: Box,
+    Legend: () => null,
     LineChart: Box,
     Line: () => null,
     XAxis: () => null,
