@@ -1,7 +1,8 @@
 import { getDb } from "../db.ts";
+import type { LotoLock } from "../../types/index.ts";
 
 export const LotoLockRepository = {
-  mapRow(r: any) {
+  mapRow(r: any): LotoLock {
     return {
       id: r.id,
       lockNo: r.lock_no,
@@ -16,11 +17,18 @@ export const LotoLockRepository = {
       status: r.status,
       unlockedAt: r.unlocked_at,
       unlockRemark: r.unlock_remark,
-      // 智能物联网 LOTO 锁具物理硬件遥测与锁梁状态 (Smart Lockout IoT)
-      hardwareType: r.hardware_type || (r.id?.includes("2") ? "BLE_NFC_SMART_PADLOCK" : "BLE_SMART_HASP"),
-      batteryLevel: r.battery_level ?? (r.status === "locked" ? 94 : 88),
-      beamState: r.beam_state || (r.status === "locked" ? "LOCKED_ENGAGED" : "RELEASED"),
-      lastHeartbeat: r.last_heartbeat || r.locked_at || new Date().toISOString(),
+      // 智能物联网 LOTO 锁具硬件字段（Smart Lockout IoT）
+      //
+      // ⚠️ 数据红线（勿改回"兜底默认值"）：`loto_locks` 表**没有** hardware_type /
+      // battery_level / beam_state / last_heartbeat 这四列，本系统也没有任何
+      // 蓝牙/NFC 锁具的接入通路。旧实现按 status 编造 `batteryLevel ?? (locked ? 94 : 88)`、
+      // 按 `id.includes("2")` 猜硬件型号、用 `new Date()` 伪造心跳时间 ——
+      // 读起来完全像真实的设备遥测，但全部是凭空生成的。
+      // 现在一律如实返回 null；没有硬件就在界面上显示「未接入」。
+      hardwareType: null,
+      batteryLevel: null,
+      beamState: null,
+      lastHeartbeat: null,
     };
   },
 

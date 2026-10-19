@@ -491,11 +491,16 @@ export interface LotoLock {
   status: 'locked' | 'unlocked' | string;
   unlockedAt?: string | null;
   unlockRemark?: string | null;
-  // 智能物联网 LOTO 锁具物理硬件遥测与锁梁状态 (Smart Lockout IoT)
-  hardwareType?: 'BLE_NFC_SMART_PADLOCK' | 'MANUAL_HASP_LOCK' | string;
-  batteryLevel?: number; // 锁具电量百分比
-  beamState?: 'LOCKED_ENGAGED' | 'RELEASED' | 'TAMPER_ALERT' | string; // 锁梁物理咬合传感器状态
-  lastHeartbeat?: string; // 锁具基站通信心跳
+  // 智能物联网 LOTO 锁具硬件遥测与锁梁状态 (Smart Lockout IoT)
+  //
+  // ⚠️ 这里全部为可选且**当前恒为 null**：`loto_locks` 表没有对应列，系统也没有
+  // 蓝牙/NFC 锁具接入通路（详见 `lotoLockRepository.ts::mapRow` 的说明）。
+  // 保留字段是为了给未来硬件接入留位，但**不得**用默认值填充 ——
+  // "没有硬件" 与 "新硬件满电" 在界面上必须是两种不同的显示。
+  hardwareType?: 'BLE_NFC_SMART_PADLOCK' | 'MANUAL_HASP_LOCK' | string | null;
+  batteryLevel?: number | null; // 锁具电量百分比；未接入硬件时为 null
+  beamState?: 'LOCKED_ENGAGED' | 'RELEASED' | 'TAMPER_ALERT' | string | null; // 锁梁咬合传感器状态；未接入为 null
+  lastHeartbeat?: string | null; // 基站通信心跳；未接入为 null
 }
 
 // 生产环境安全审计日志数据模型 (Operation Audit Log)
