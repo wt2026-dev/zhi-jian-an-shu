@@ -5,6 +5,7 @@ import {
   readSseChatStream,
   SseIdleError,
   SSE_IDLE_TIMEOUT_MS,
+  SSE_FIRST_CONTENT_TIMEOUT_MS,
   type SseChatEvent,
 } from "../src/utils/sseChatStream.ts";
 
@@ -95,6 +96,104 @@ describe("AI 对话 SSE 读端口径（[DONE] 权威结束 + 静默看门狗）"
 
   it("默认静默预算 30 秒（改这个数要连用例一起改）", () => {
     expect(SSE_IDLE_TIMEOUT_MS).toBe(30000);
+    // 首个内容帧之前放宽到 90 秒：实测帧间最大静默 4.61 秒（30 秒够宽），
+    // 但服务端沿降级链重试时首帧可以合法迟到几十秒，用 30 秒卡它会把等待误报成中断。
+    expect(SSE_FIRST_CONTENT_TIMEOUT_MS).toBe(90000);
+  });
+
+  it("首个内容帧之前用 90 秒预算：满 30 秒不判死，卡到 90 秒才抛", async () => {
+    vi.useFakeTimers();
+    const { stream } = manualStream(); // 一帧都不吐：正是「上游还在排队换下一跳」的形状
+    const got: SseChatEvent[] = [];
+    let outcome = "pending";
+    let thrown: unknown;
+    const p = readSseChatStream(stream, (e) => got.push(e)).then(
+      () => { outcome = "resolved"; },
+      (e: unknown) => { thrown = e; outcome = `rejected:${(e as Error).name}`; },
+    );
+
+    await vi.advanceTimersByTimeAsync(SSE_IDLE_TIMEOUT_MS + 5000);
+    expect(outcome).toBe("pending"); // 旧口径在这里已经把还没开始吐字的请求掐了
+
+    await vi.advanceTimersByTimeAsync(SSE_FIRST_CONTENT_TIMEOUT_MS - SSE_IDLE_TIMEOUT_MS - 5000 - 1);
+    expect(outcome).toBe("pending"); // 差 1 毫秒都不许提前判死
+
+    await vi.advanceTimersByTimeAsync(1);
+    await p.catch(() => {});
+    expect(outcome).toBe("rejected:SseIdleError");
+    expect((thrown as SseIdleError).phase).toBe("first-content");
+    expect((thrown as SseIdleError).idleMs).toBe(SSE_FIRST_CONTENT_TIMEOUT_MS);
+    expect((thrown as Error).message).toContain("未收到模型首个内容");
+  });
+
+  it("前奏帧不算首帧：只发 chatId 与空 content 时仍按 90 秒这一段计", async () => {
+    vi.useFakeTimers();
+    const { stream, push } = manualStream();
+    let outcome = "pending";
+    let thrown: unknown;
+    const p = readSseChatStream(stream, () => {}).then(
+      () => { outcome = "resolved"; },
+      (e: unknown) => { thrown = e; outcome = `rejected:${(e as Error).name}`; },
+    );
+
+    push('data: {"chatId":"chat-1"}\n\n');
+    push('data: {"content":""}\n\n');
+    await vi.advanceTimersByTimeAsync(0); // 让这两帧真被读循环消费掉
+
+    await vi.advanceTimersByTimeAsync(SSE_IDLE_TIMEOUT_MS + 1);
+    expect(outcome).toBe("pending");
+    await vi.advanceTimersByTimeAsync(SSE_FIRST_CONTENT_TIMEOUT_MS - SSE_IDLE_TIMEOUT_MS - 2);
+    expect(outcome).toBe("pending");
+    await vi.advanceTimersByTimeAsync(1);
+    await p.catch(() => {});
+    expect(outcome).toBe("rejected:SseIdleError");
+    expect((thrown as SseIdleError).phase).toBe("first-content");
+  });
+
+  it("首帧一到预算立刻收回 30 秒：相位与文案都要跟着换", async () => {
+    vi.useFakeTimers();
+    const { stream, push } = manualStream();
+    let outcome = "pending";
+    let thrown: unknown;
+    const p = readSseChatStream(stream, () => {}).then(
+      () => { outcome = "resolved"; },
+      (e: unknown) => { thrown = e; outcome = `rejected:${(e as Error).name}`; },
+    );
+
+    push('data: {"content":"您好"}\n\n');
+    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(SSE_IDLE_TIMEOUT_MS - 1);
+    expect(outcome).toBe("pending");
+    await vi.advanceTimersByTimeAsync(1);
+    await p.catch(() => {});
+    expect(outcome).toBe("rejected:SseIdleError");
+    expect((thrown as SseIdleError).phase).toBe("between-frames");
+    expect((thrown as SseIdleError).idleMs).toBe(SSE_IDLE_TIMEOUT_MS);
+    expect((thrown as Error).message).toContain("未收到新内容");
+  });
+
+  it("吐过正文之后由首帧段切到帧间段：中途安静 60 秒仍算失联，不算「还没开始」", async () => {
+    vi.useFakeTimers();
+    const { stream, push } = manualStream();
+    const got: SseChatEvent[] = [];
+    let thrown: unknown;
+    const p = readSseChatStream(stream, (e) => got.push(e)).then(
+      () => { throw new Error("不该正常结束"); },
+      (e: unknown) => { thrown = e; },
+    );
+
+    push('data: {"chatId":"chat-1"}\n\n');
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(SSE_IDLE_TIMEOUT_MS + 10000); // 光有前奏帧：90 秒段内，不判死
+    expect(thrown).toBeUndefined();
+
+    push('data: {"content":"一、"}\n\n');
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(SSE_IDLE_TIMEOUT_MS + 1); // 已有正文：立刻回到 30 秒口径
+    await p.catch(() => {});
+    expect((thrown as SseIdleError).phase).toBe("between-frames");
+    expect(got.map((e) => e.content).join("")).toBe("一、");
   });
 });
 
