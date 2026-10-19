@@ -154,7 +154,13 @@ export function ActIncident(props: ActProps) {
         <DataRow label="设备" value={equipment.name} />
         <DataRow label="类别 / 车间" value={`${equipment.category} · ${equipment.workshop || <Missing text="未登记" />}`} />
         <DataRow label="安装位置" value={equipment.location || <Missing text="未登记" />} />
-        <DataRow label="健康分" value={typeof equipment.healthScore === 'number' ? equipment.healthScore : <Missing />} tone={(equipment.healthScore ?? 100) < 60 ? 'bad' : 'warn'} />
+        {/* 未评估时用 'default' 中性色：`null < 60` 为假，若延续 `?? 100` 就会拿到 'warn' 黄色，
+            让一台从未体检过的设备看起来"接近告警"——那是凭空白给的风险等级。 */}
+        <DataRow
+          label="健康分"
+          value={typeof equipment.healthScore === 'number' ? equipment.healthScore : <Missing />}
+          tone={equipment.healthScore == null ? 'default' : equipment.healthScore < 60 ? 'bad' : 'warn'}
+        />
         <DataRow label="下次检修计划" value={equipment.nextInspectionDate || <Missing text="未排期" />} />
         <div className="mt-1.5 grid grid-cols-2 gap-x-3 border-t border-white/8 pt-1.5">
           {spots.map((s) => (
