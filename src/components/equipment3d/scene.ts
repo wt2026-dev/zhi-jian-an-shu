@@ -24,9 +24,9 @@
  *   ✅ sceneMinimap.ts    小地图绘制（drawSceneMinimap 纯函数）
  *   ✅ safetyBoundaries.ts 安全边界层（安全圈 + LOTO 罩 + 标签贴片；锚点由场景侧解析后传入）
  *   ✅ faultChain.ts      故障传播链层（超阈读数观测标注；labelFactory 注入保测试替身）
+ *   ✅ workerFlow.ts      人员与工位动线（技师人形/轨迹 + 指引虚线 + 巡检数字人）
  *   ⬜ CameraRig          orbit 状态 + 滚轮/双指 + userZoomRange + update() 相机段
  *                         （最大一块：this.orbit 在本文件被引用 ~40 处，需一次性机械替换）
- *   ⬜ WorkerFlowLayer    buildWorkers/animateWorkers（依赖 coordMap/trajectory）
  *   ⬜ FocusEnvironment   applyDeviceMood + DeviceDetailEnv 生命周期
  *                         （该区当前由另一会话活跃调参，等收敛后移动）
  */
@@ -65,6 +65,7 @@ import {
 } from './factoryOverview';
 import { FaultLocator, type FaultAnchor } from './faultLocator';
 import { FaultChain } from './faultChain';
+import { WorkerFlow } from './workerFlow';
 import { SafetyBoundaries, type SafetyAnchor } from './safetyBoundaries';
 import { DeviceDetailEnv, type DeviceDetailEnvBox } from './deviceDetailEnv';
 import { computeIsolatedFraming } from './cameraFraming';
@@ -189,18 +190,12 @@ export class EquipmentScene {
   private workOrderGroup = new THREE.Group();
   private safety = new SafetyBoundaries();
   private faultChain = new FaultChain();
-  private workerGroup = new THREE.Group();
   /**
-   * 派工指引虚线层（技师 → 故障设备）。
-   *
-   * 刻意与 workerGroup 分开：聚焦层按既定口径（有单测守护：聚焦时
-   * workerGroup/safety.group 一律隐藏）整体隐藏 workerGroup —— 技师人形与历史
-   * 轨迹属于车间层信息，进详情层会与"画面里只剩这一台"冲突。而"选中哪台设备，
-   * 就看它相关的那条链路"要求这条虚线在聚焦层保留，所以单独成层，并且
-   * **不进 applyIsolationChrome 的隐藏表**。生命周期仍与 workerGroup 一致：
-   * buildWorkers / clearWorkers 里一起建、一起销毁，退出聚焦即清空。
+   * 人员与工位动线（技师人形/轨迹 + 派工指引虚线 + 巡检数字人）。
+   * 指引虚线在模块内单独成层（workers.guideGroup）：聚焦层隐藏人形与轨迹，
+   * 但保留选中设备的那条指引链路（口径见 workerFlow.ts 头注释）。
    */
-  private guideGroup = new THREE.Group();
+  private workers = new WorkerFlow();
   /** 厂区总览层（多栋厂房 + 道路） */
   private factoryGroup = new THREE.Group();
   /** 车间生产线层（机械臂工作站 + 传送带 + 物料箱 + 分区牌） */
@@ -285,18 +280,6 @@ export class EquipmentScene {
   private ambient: THREE.AmbientLight | null = null;
   private ceilingLight: THREE.DirectionalLight | null = null;
   private windowSun: THREE.DirectionalLight | null = null;
-  /** 车间巡检数字人工程师（在通道中巡检走动） */
-  private patrolAvatar: {
-    group: THREE.Group;
-    body: THREE.Mesh;
-    head: THREE.Mesh;
-    leftLeg: THREE.Mesh;
-    rightLeg: THREE.Mesh;
-    leftArm: THREE.Mesh;
-    rightArm: THREE.Mesh;
-    pathIndex: number;
-    progress: number;
-  } | null = null;
   private skyMesh: THREE.Mesh | null = null;
   private envRT: THREE.WebGLRenderTarget | null = null;
   private envSource: THREE.Texture | null = null;
@@ -453,8 +436,8 @@ export class EquipmentScene {
       this.workOrderGroup,
       this.safety.group,
       this.faultChain.group,
-      this.workerGroup,
-      this.guideGroup,
+      this.workers.group,
+      this.workers.guideGroup,
       this.factoryGroup,
       this.lineGroup,
       this.faultGroup,
@@ -987,21 +970,6 @@ export class EquipmentScene {
 
   /* ========================= 人员与工位动线 ========================= */
 
-  /** 每个技师的3D人形 + 轨迹 + 标签 */
-  private workerMeshes: Map<string, {
-    group: THREE.Group;
-    body: THREE.Mesh;
-    head: THREE.Mesh;
-    label: THREE.Object3D;
-    trail: THREE.Line | null;
-    trailMat: THREE.LineBasicMaterial;
-  }> = new Map();
-
-  /** 技师到设备的指引虚线（仅选中设备且有 assignee 时显示） */
-  private guideLine: THREE.Line | null = null;
-  private guideLineMat: THREE.LineDashedMaterial | null = null;
-  /** 指引线目标技师 id */
-  private guideTargetId: string | null = null;
 
   /** 地图坐标映射缓存：DB 0–1000 → 3D 场景坐标 */
   private mapScaleX = 1;
@@ -1056,6 +1024,7 @@ export class EquipmentScene {
   /**
    * 构建技师人形 + 轨迹 + 指引线。
    * 由 React 层在 API 数据就绪后调用（防抖由 React 层控制，3D 层只消费不访问网络）。
+   * 场景侧只做依赖解析（坐标映射/地形/设备 slot），网格生成在 workerFlow 模块。
    * @param technicians 技师列表（dispatchApi.listTechnicians 返回）
    * @param trajectories 轨迹缓存（Map<userId, {mapX,mapY}[]>）
    * @param selectedEqId 当前选中设备 id（用于指引线）
@@ -1075,322 +1044,31 @@ export class EquipmentScene {
     assigneeId: string | null = null,
     assigneeStatus: string | null = null,
   ): void {
-    this.disposeGroup(this.workerGroup);
-    if (this.guideGroup) this.disposeGroup(this.guideGroup);
-    this.workerMeshes.clear();
-    this.guideLine = null;
-    this.guideLineMat = null;
-    this.guideTargetId = null;
-    if (!this.hall || !this.equipment) return;
-
-    const isIsolation = this.isolationId !== null;
-
-    for (const tech of technicians) {
-      // 独占模式：只显示与选中设备相关的技师
-      if (isIsolation && tech.id !== assigneeId) continue;
-
-      const pos = this.mapToScene(tech.mapX, tech.mapY);
-      const y = this.hall.reliefAt(pos.x, pos.z);
-
-      // 在线状态颜色
-      const isOnline = tech.onlineStatus === 'online';
-      const isIdle = tech.onlineStatus === 'idle';
-      const bodyColor = isOnline ? 0x3b82f6 : isIdle ? 0x94a3b8 : 0x64748b;
-      const opacity = tech.onlineStatus === 'offline' ? 0.4 : 0.9;
-
-      // 创建人形组
-      const group = new THREE.Group();
-      group.name = `worker:${tech.id}`;
-
-      // 身体（胶囊体简化为圆柱 + 两端半球）
-      const bodyGeo = new THREE.CylinderGeometry(0.22, 0.18, 0.7, 8);
-      bodyGeo.userData.shared = true;
-      const bodyMat = new THREE.MeshStandardMaterial({
-        color: bodyColor, transparent: true, opacity,
-        roughness: 0.6, metalness: 0.2, toneMapped: false,
-      });
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
-      body.position.y = 0.55;
-      group.add(body);
-
-      // 头部
-      const headGeo = new THREE.SphereGeometry(0.16, 8, 6);
-      headGeo.userData.shared = true;
-      const headMat = new THREE.MeshStandardMaterial({
-        color: bodyColor, transparent: true, opacity,
-        roughness: 0.5, metalness: 0.1, toneMapped: false,
-      });
-      const head = new THREE.Mesh(headGeo, headMat);
-      head.position.y = 1.08;
-      group.add(head);
-
-      // 姓名标签（头顶悬浮）
-      const label = this.createWorkerLabel(tech.name, bodyColor, 0.72, 0.2);
-      label.position.set(0, 1.4, 0);
-      group.add(label);
-
-      group.position.set(pos.x, y, pos.z);
-      this.workerGroup.add(group);
-
-      // 轨迹线
-      const traj = trajectories.get(tech.id);
-      let trail: THREE.Line | null = null;
-      const trailMat = new THREE.LineBasicMaterial({
-        color: 0x3b82f6, transparent: true, opacity: 0.35,
-        toneMapped: false, depthWrite: false,
-      });
-      if (traj && traj.length >= 2) {
-        const pts = traj.map((p) => {
-          const sp = this.mapToScene(p.mapX, p.mapY);
-          return new THREE.Vector3(sp.x, this.hall!.reliefAt(sp.x, sp.z) + 0.05, sp.z);
-        });
-        const trailGeo = new THREE.BufferGeometry().setFromPoints(pts);
-        trailGeo.userData.shared = true;
-        trail = new THREE.Line(trailGeo, trailMat);
-        trail.name = `trail:${tech.id}`;
-        this.workerGroup.add(trail);
-
-        // 轨迹节点小球
-        for (const p of pts) {
-          const dotGeo = new THREE.SphereGeometry(0.04, 4, 3);
-          dotGeo.userData.shared = true;
-          const dotMat = new THREE.MeshBasicMaterial({
-            color: 0x3b82f6, transparent: true, opacity: 0.5, toneMapped: false,
-          });
-          const dot = new THREE.Mesh(dotGeo, dotMat);
-          dot.position.copy(p);
-          this.workerGroup.add(dot);
-        }
-      }
-
-      this.workerMeshes.set(tech.id, { group, body, head, label, trail, trailMat });
+    if (!this.hall || !this.equipment) {
+      this.workers.clear();
+      return;
     }
-
-    // 指引虚线：选中设备有 assignee 时显示
-    if (selectedEqId && assigneeId) {
-      const techData = technicians.find((t) => t.id === assigneeId);
-      if (techData) {
-        const techPos = this.mapToScene(techData.mapX, techData.mapY);
-        const techY = this.hall.reliefAt(techPos.x, techPos.z);
-        const eqIdx = this.equipment.indexById.get(selectedEqId);
-        if (typeof eqIdx === 'number' && this.slots[eqIdx]) {
-          const s = this.slots[eqIdx];
-          const eqY = this.hall.reliefAt(s.x, s.z);
-          const guideGeo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(techPos.x, techY + 1.2, techPos.z),
-            new THREE.Vector3(s.x, eqY + 0.5, s.z),
-          ]);
-          guideGeo.userData.shared = true;
-          // 工单完成/待验收 → 绿色，否则蓝色
-          const guideColor = (assigneeStatus === 'completed' || assigneeStatus === 'pending_acceptance')
-            ? 0x22c55e : 0x3b82f6;
-          this.guideLineMat = new THREE.LineDashedMaterial({
-            color: guideColor, transparent: true, opacity: 0.7,
-            dashSize: 0.3, gapSize: 0.15,
-            toneMapped: false, depthWrite: false,
-          });
-          this.guideLine = new THREE.Line(guideGeo, this.guideLineMat);
-          this.guideLine.computeLineDistances();
-          this.guideLine.name = `guide:${assigneeId}`;
-          // 挂 guideGroup 而不是 workerGroup：聚焦层要保留这条虚线（见字段注释）
-          this.guideGroup.add(this.guideLine);
-          this.guideTargetId = assigneeId;
-
-          // 高亮该技师人形
-          const wm = this.workerMeshes.get(assigneeId);
-          if (wm) {
-            (wm.body.material as THREE.MeshStandardMaterial).color.set(0xfbbf24);
-            (wm.head.material as THREE.MeshStandardMaterial).color.set(0xfbbf24);
-          }
-        }
-      }
-    }
-  }
-
-  /** 创建工人姓名标签（深色底板 + 彩色边线 + canvas 文字） */
-  private createWorkerLabel(name: string, accentColor: number, w: number, h: number): THREE.Object3D {
-    const group = new THREE.Group();
-    group.name = 'worker-label';
-
-    const bgGeo = new THREE.PlaneGeometry(w, h);
-    bgGeo.userData.shared = true;
-    const bgMat = new THREE.MeshBasicMaterial({
-      color: 0x0f172a, transparent: true, opacity: 0.88,
-      side: THREE.DoubleSide, toneMapped: false,
+    this.workers.build(technicians, trajectories, {
+      selectedEqId,
+      assigneeId,
+      assigneeStatus,
+      isIsolation: this.isolationId !== null,
+      toScene: (mapX, mapY) => this.mapToScene(mapX, mapY),
+      reliefAt: (x, z) => this.hall!.reliefAt(x, z),
+      equipmentSlot: (eqId) => {
+        const idx = this.equipment?.indexById.get(eqId);
+        if (typeof idx !== 'number' || !this.slots[idx]) return null;
+        return { x: this.slots[idx].x, z: this.slots[idx].z };
+      },
     });
-    const bg = new THREE.Mesh(bgGeo, bgMat);
-    bg.rotation.x = -Math.PI / 4;
-    group.add(bg);
-
-    const borderGeo = new THREE.PlaneGeometry(w * 1.02, h * 0.06);
-    borderGeo.userData.shared = true;
-    const borderMat = new THREE.MeshBasicMaterial({
-      color: accentColor, side: THREE.DoubleSide, toneMapped: false,
-    });
-    const border = new THREE.Mesh(borderGeo, borderMat);
-    border.position.set(0, h * 0.45, 0.001);
-    border.rotation.x = -Math.PI / 4;
-    group.add(border);
-
-    if (typeof document !== 'undefined') {
-      const cw = Math.round(w * 256);
-      const ch = Math.round(h * 256);
-      const canvas = document.createElement('canvas');
-      canvas.width = cw;
-      canvas.height = ch;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, cw, ch);
-        ctx.fillStyle = '#e8eef5';
-        ctx.font = `bold ${Math.round(ch * 0.4)}px ui-monospace, Menlo, Consolas, monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(name, cw / 2, ch / 2);
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.needsUpdate = true;
-        const texGeo = new THREE.PlaneGeometry(w * 0.96, h * 0.78);
-        texGeo.userData.shared = true;
-        const texMat = new THREE.MeshBasicMaterial({
-          map: tex, transparent: true, side: THREE.DoubleSide, toneMapped: false, depthWrite: false,
-        });
-        const texMesh = new THREE.Mesh(texGeo, texMat);
-        texMesh.position.set(0, 0, 0.002);
-        texMesh.rotation.x = -Math.PI / 4;
-        group.add(texMesh);
-      }
-    }
-    return group;
-  }
-
-  /** 初始化或获取车间内自主走动巡检工程师数字人 */
-  private ensurePatrolWorker(): void {
-    if (this.patrolAvatar) return;
-    const group = new THREE.Group();
-    group.name = 'patrol_engineer_avatar';
-
-    const blueSuit = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.6, metalness: 0.1 });
-    const vestYellow = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4, metalness: 0.2 });
-    const darkPants = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.1 });
-    const safetyHelmet = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3, metalness: 0.3 });
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffd1b3, roughness: 0.5, metalness: 0.05 });
-
-    // 躯干（蓝色工装 + 反光背心）
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.2, 0.65, 8), blueSuit);
-    body.position.y = 0.95;
-    group.add(body);
-    const vest = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.21, 0.38, 8), vestYellow);
-    vest.position.y = 0.98;
-    group.add(vest);
-
-    // 头部 + 安全帽
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), skinMat);
-    head.position.y = 1.42;
-    group.add(head);
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), safetyHelmet);
-    helmet.position.y = 1.46;
-    group.add(helmet);
-    const helmetBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.03, 10), safetyHelmet);
-    helmetBrim.position.set(0, 1.44, 0.04);
-    group.add(helmetBrim);
-
-    // 双腿（可摆动）
-    const leftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.65, 6), darkPants);
-    leftLeg.geometry.translate(0, -0.32, 0);
-    leftLeg.position.set(-0.11, 0.65, 0);
-    group.add(leftLeg);
-
-    const rightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.65, 6), darkPants);
-    rightLeg.geometry.translate(0, -0.32, 0);
-    rightLeg.position.set(0.11, 0.65, 0);
-    group.add(rightLeg);
-
-    // 双臂（可摆动）
-    const leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.055, 0.55, 6), blueSuit);
-    leftArm.geometry.translate(0, -0.27, 0);
-    leftArm.position.set(-0.28, 1.22, 0);
-    group.add(leftArm);
-
-    const rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.055, 0.55, 6), blueSuit);
-    rightArm.geometry.translate(0, -0.27, 0);
-    rightArm.position.set(0.28, 1.22, 0);
-    group.add(rightArm);
-
-    // 巡检员头顶标牌
-    const tag = this.createWorkerLabel('巡检工程师 · 张伟 [巡检中]', 0x22d3ee, 1.35, 0.24);
-    tag.position.set(0, 1.78, 0);
-    group.add(tag);
-
-    group.position.set(-14, 0, -6);
-    this.workerGroup.add(group);
-
-    this.patrolAvatar = {
-      group,
-      body,
-      head,
-      leftLeg,
-      rightLeg,
-      leftArm,
-      rightArm,
-      pathIndex: 0,
-      progress: 0,
-    };
   }
 
   /** 人员动画：数字人在车间安全通道持续巡检走动 + 迈步摆臂 */
   animateWorkers(time: number, dt = 0.016): void {
-    // 确保巡检数字人存在
-    if (!this.patrolAvatar && this.level !== 'factory') {
-      this.ensurePatrolWorker();
-    }
-
-    if (this.patrolAvatar && this.workerGroup.visible) {
-      const p = this.patrolAvatar;
-      const waypoints = [
-        { x: -16, z: -6 },
-        { x: 16, z: -6 },
-        { x: 16, z: 6 },
-        { x: -16, z: 6 },
-      ];
-      const p0 = waypoints[p.pathIndex];
-      const nextIdx = (p.pathIndex + 1) % waypoints.length;
-      const p1 = waypoints[nextIdx];
-      const dist = Math.hypot(p1.x - p0.x, p1.z - p0.z);
-
-      // 巡检移速 2.4 m/s
-      const speed = 2.4;
-      p.progress += (speed * dt) / Math.max(1, dist);
-      if (p.progress >= 1) {
-        p.progress = 0;
-        p.pathIndex = nextIdx;
-      }
-
-      const curX = p0.x + (p1.x - p0.x) * p.progress;
-      const curZ = p0.z + (p1.z - p0.z) * p.progress;
-      const gy = this.hall ? this.hall.reliefAt(curX, curZ) : 0;
-      const targetAng = Math.atan2(p1.x - p0.x, p1.z - p0.z);
-
-      p.group.position.set(curX, gy + Math.abs(Math.sin(time * 6.5)) * 0.04, curZ);
-      p.group.rotation.y = targetAng;
-
-      // 双腿双臂前后正弦交替摆动
-      const legSwing = Math.sin(time * 6.5) * 0.45;
-      p.leftLeg.rotation.x = legSwing;
-      p.rightLeg.rotation.x = -legSwing;
-      p.leftArm.rotation.x = -legSwing * 0.85;
-      p.rightArm.rotation.x = legSwing * 0.85;
-    }
-
-    // 既有人形呼吸灯
-    this.workerMeshes.forEach((wm) => {
-      const s = 1.0 + 0.04 * Math.sin(time * 2.0);
-      wm.body.scale.setScalar(s);
-      wm.head.scale.setScalar(s);
+    this.workers.animate(time, dt, {
+      allowPatrol: this.level !== 'factory',
+      reliefAt: (x, z) => (this.hall ? this.hall.reliefAt(x, z) : 0),
     });
-    // 指引虚线脉冲
-    if (this.guideLineMat) {
-      this.guideLineMat.opacity = 0.45 + 0.35 * Math.sin(time * 3.0);
-    }
   }
 
   /**
@@ -1401,23 +1079,16 @@ export class EquipmentScene {
    * 车间层没有选中设备时它本来也不存在。
    */
   setWorkerVisible(visible: boolean): void {
-    this.setChromeVisible(this.workerGroup, visible);
+    this.setChromeVisible(this.workers.group, visible);
     // if 兜底：既有单测用 Object.create(prototype) 构造精简实例，可能没有这一层。
-    if (this.guideGroup) this.guideGroup.visible = visible || this.isolationId !== null;
+    if (this.workers?.guideGroup) this.workers.guideGroup.visible = visible || this.isolationId !== null;
   }
 
   /** 清空人员动线与派工指引虚线 */
   clearWorkers(): void {
-    this.disposeGroup(this.workerGroup);
-    if (this.guideGroup) this.disposeGroup(this.guideGroup);
-    this.workerMeshes.clear();
-    // 巡检数字人也挂在 workerGroup 下，连同被 dispose —— 不清引用的话
-    // animateWorkers 会一直动画一个已经脱离场景的 group，数字人再也不回来。
-    this.patrolAvatar = null;
-    this.guideLine = null;
-    this.guideLineMat = null;
-    this.guideTargetId = null;
+    this.workers.clear();
   }
+
 
   /* ========================= 交互 ========================= */
 
@@ -2154,7 +1825,7 @@ export class EquipmentScene {
       // 按层级派生（进恢复表会让"厂区层→详情→退出"后车间层再也看不到产线）。
       // filter(Boolean)：既有单测用 Object.create(prototype) 构造精简实例，
       // 未定义这两个新增 group，直接 push 会把 undefined 混进数组并在下方 .visible 处炸掉。
-      const objects = [this.propsGroup, this.workerGroup, this.workOrderGroup, this.safety.group, this.helperGroup,
+      const objects = [this.propsGroup, this.workers?.group, this.workOrderGroup, this.safety.group, this.helperGroup,
         this.factoryGroup,
         ...this.hallGroup.children.filter(object => object.name !== 'floor' && object.name !== 'apron')]
         .filter((o): o is THREE.Object3D => !!o);
@@ -2345,10 +2016,10 @@ export class EquipmentScene {
     this.workOrderGroup.visible = !isFactory;
     this.safety.group.visible = !isFactory;
     this.faultChain.group.visible = !isFactory;
-    this.workerGroup.visible = !isFactory;
+    this.workers.group.visible = !isFactory;
     // 派工指引虚线：厂区层没有"车间内的人/设备链路"，一律不显示；
     // 车间/聚焦层由 setWorkerVisible 按总开关 + 是否选中设备决定。
-    if (isFactory && this.guideGroup) this.guideGroup.visible = false;
+    if (isFactory && this.workers.guideGroup) this.workers.guideGroup.visible = false;
     // 扫描线属于车间内的科技风装饰，厂区层不显示
     if (this.scanLine) this.scanLine.visible = !isFactory;
     this.dirty = true;
@@ -3045,7 +2716,7 @@ export class EquipmentScene {
     this.equipment?.hideDeviceInstances(deviceId);
     this.safety.group.visible = false;
     this.faultChain.group.visible = false;
-    this.workerGroup.visible = false;
+    this.workers.group.visible = false;
     const explodedGroup = this.scene.getObjectByName('explodedView') as THREE.Group | null;
     this.fluidFlow?.setExploded(deviceId, true, explodedGroup);
   }

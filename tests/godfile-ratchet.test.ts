@@ -24,7 +24,10 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 按 2026-10-18 HEAD 实测登记。 */
-const BUDGET = { gt300: 115, gt800: 26, gt1000: 17 };
+const BUDGET = { gt300: 116, gt800: 26, gt1000: 17 };
+// gt300 115 → 116（2026-10-19，refactor/godfile-phase2）：workerFlow.ts 430 行是
+// 从 scene.ts 机械切出的独立模块，scene.ts 同 commit 减重 ~430 行（3743 → 3073）。
+// gt1000 桶不升：scene.ts 仍在桶内。三个 >1000 的头部文件合计净减。
 
 /** 单独记账的最大头：文件 → 允许的最大行数。 */
 const TOP_FILES: Record<string, number> = {
