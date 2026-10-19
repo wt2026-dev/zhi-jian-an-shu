@@ -30,7 +30,19 @@ export interface NavItemConfig {
   highlight?: boolean;
   /** 限定可见角色（不设置则全员可见）；用于内部调度等受限页面 */
   roles?: string[];
+  /**
+   * 演示附件标记：试点部署（VITE_PILOT_MODE=1）时从导航隐藏，但视图/路由/资产保留。
+   * 隔离不删除——直接 URL / 业务深链仍可到达（如工单详情跳 3D 拆解）。
+   */
+  demo?: boolean;
 }
+
+/**
+ * 试点部署模式：构建/运行时设 VITE_PILOT_MODE=1 启用。
+ * 效果：导航默认聚焦正式业务闭环，演示附件（迷宫、独立 3D 演示入口）从菜单隐藏；
+ * 不删除任何资产与功能，演示环境不设置该变量即保持现状。
+ */
+export const PILOT_MODE = import.meta.env.VITE_PILOT_MODE === '1';
 
 export interface NavGroupConfig {
   id: string;
@@ -120,8 +132,8 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     id: 'demo_attachments',
     label: '演示附件',
     items: [
-      { id: 'equipment_3d', label: '3D 设备场景（演示）', icon: Boxes, roles: [...FIELD] },
-      { id: 'maintenance_maze', label: '故障侦探（演示）', icon: Compass },
+      { id: 'equipment_3d', label: '3D 设备场景（演示）', icon: Boxes, roles: [...FIELD], demo: true },
+      { id: 'maintenance_maze', label: '故障侦探（演示）', icon: Compass, demo: true },
     ],
   },
 ];
