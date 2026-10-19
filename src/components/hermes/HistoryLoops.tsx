@@ -3,10 +3,10 @@ import {
   History,
   Clock,
   ChevronRight,
-  X,
   FileCheck
 } from 'lucide-react';
 import type { HistoryLoopItem } from './types';
+import { ModalShell } from './ModalShell';
 
 interface HistoryLoopsProps {
   historyLoops: HistoryLoopItem[];
@@ -101,68 +101,55 @@ export const HistoryLoops: React.FC<HistoryLoopsProps> = ({ historyLoops }) => {
 
       {/* 历史记录复盘弹窗 */}
       {selectedHistory && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700">
-                  <FileCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">{selectedHistory.targetGoal}</h3>
-                  <p className="text-[11px] font-mono text-slate-500">{selectedHistory.loopCode}</p>
-                </div>
+        <ModalShell
+          title={selectedHistory.targetGoal}
+          subtitle={selectedHistory.loopCode}
+          icon={
+            <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 shrink-0">
+              <FileCheck className="w-4 h-4" />
+            </span>
+          }
+          onClose={() => setSelectedHistory(null)}
+          footer={
+            <button
+              type="button"
+              onClick={() => setSelectedHistory(null)}
+              className="ml-auto px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+            >
+              关闭
+            </button>
+          }
+        >
+          <div className="space-y-3 text-xs text-slate-600">
+            <div className="grid grid-cols-2 gap-2 text-slate-700">
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                <span className="text-[11px] text-slate-400 block">闭环设备</span>
+                <span className="font-semibold text-slate-800">{selectedHistory.equipmentName}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedHistory(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-600">
-              <div className="grid grid-cols-2 gap-2 text-slate-700">
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
-                  <span className="text-[11px] text-slate-400 block">闭环设备</span>
-                  <span className="font-semibold text-slate-800">{selectedHistory.equipmentName}</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
-                  <span className="text-[11px] text-slate-400 block">全流程耗时</span>
-                  <span className="font-semibold text-blue-600 font-mono">{selectedHistory.duration}</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
-                  <span className="text-[11px] text-slate-400 block">主导人</span>
-                  <span className="font-semibold text-slate-800">{selectedHistory.leadUser}</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
-                  <span className="text-[11px] text-slate-400 block">归档时间</span>
-                  <span className="font-semibold text-slate-800 font-mono">{selectedHistory.closedDate}</span>
-                </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                <span className="text-[11px] text-slate-400 block">全流程耗时</span>
+                <span className="font-semibold text-blue-600 font-mono">{selectedHistory.duration}</span>
               </div>
-
-              <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100 space-y-1">
-                <div className="font-bold text-indigo-900">闭环知识沉淀判定</div>
-                <p className="text-slate-600 leading-relaxed">
-                  {selectedHistory.knowledgeCount > 0
-                    ? `归档时 suggest-contribution 判定可复用，已写入 ${selectedHistory.knowledgeCount} 条知识贡献记录（待知识审核台会签通过后正式入库）。`
-                    : '归档时 AI 判定本次未达到「完整可复用案例」沉淀标准，未自动生成知识条目。'}
-                </p>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                <span className="text-[11px] text-slate-400 block">主导人</span>
+                <span className="font-semibold text-slate-800">{selectedHistory.leadUser}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                <span className="text-[11px] text-slate-400 block">归档时间</span>
+                <span className="font-semibold text-slate-800 font-mono">{selectedHistory.closedDate}</span>
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedHistory(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
-              >
-                关闭
-              </button>
+            <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100 space-y-1">
+              <div className="font-bold text-indigo-900">闭环知识沉淀判定</div>
+              <p className="text-slate-600 leading-relaxed">
+                {selectedHistory.knowledgeCount > 0
+                  ? `归档时 suggest-contribution 判定可复用，已写入 ${selectedHistory.knowledgeCount} 条知识贡献记录（待知识审核台会签通过后正式入库）。`
+                  : '归档时 AI 判定本次未达到「完整可复用案例」沉淀标准，未自动生成知识条目。'}
+              </p>
             </div>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );
