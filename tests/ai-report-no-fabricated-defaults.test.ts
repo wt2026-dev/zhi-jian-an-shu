@@ -95,6 +95,22 @@ describe("健康分/工时不得用编造默认值兜底", () => {
     }
   });
 
+  it("故障诊断提示词不得编造遥测读数或故障现象（真机无数据时曾喂出'轴承温度超限'）", () => {
+    // 曾把 `telemetry?.temperature ?? 82.5 °C` / `?? 7.8 mm/s` / `?? 54.2 A` / `?? 92%`
+    // 以及 `|| "工业多级离心泵"` / `|| "轴承箱剧烈振动…"` / `|| "E-VIB-02…"` 直接拼进
+    // /api/v1/ai/diagnose 的真实提示词——无遥测的设备被模型诊断为"轴承温度超限"。
+    // 这类写法一眼看不出问题（数字本身合法），所以源码级钉死。
+    const code = read("src/server/services/aiCapabilityService.ts");
+    expect(code, "遥测字段不得用具体数字兜底").not.toMatch(/telemetry\?\.\w+\s*\?\?\s*\d/);
+    expect(code, "不得残留具体编造设备编码").not.toMatch(/PUMP-2024-03/);
+    expect(code, "不得把缺失设备编成泵类场景").not.toMatch(/\|\|\s*["']工业多级离心泵["']/);
+    expect(code, "不得编造故障现象字符串").not.toMatch(/\|\|\s*["']轴承箱剧烈振动/);
+    expect(code, "不得编造报警代码").not.toMatch(/\|\|\s*["']E-VIB-02/);
+    // 缺失应标注「未接入」，且提示词必须有诚实约束（只把数据改成 null 不够，模型需显式口径）
+    expect(code, "遥测缺失应标注未接入").toMatch(/未接入/);
+    expect(code, "提示词必须声明缺失不得编造").toMatch(/严禁\*\*在缺失时编造/);
+  });
+
   it("代码里不得出现形如 '2026-03-15' 的硬编码业务日期", () => {
     // 已踩过两次：
     // - useInspectionAi 把巡检转隐患的 deadline 写死 '2026-03-15' —— 一入库就"逾期"。

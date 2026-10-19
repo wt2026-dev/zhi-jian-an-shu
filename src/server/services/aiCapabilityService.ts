@@ -45,17 +45,31 @@ export async function runFaultDiagnosisCore(input: {
   const { equipmentName, equipmentCode, category, symptoms, telemetry, errorCodes } = input;
   const ai = getAiClient();
 
+  // 口径红线：缺失字段一律标注「未接入/未提供」，严禁编造具体读数或故障现象——
+  // 编造的遥测会直接污染真实故障诊断结论（曾出现"无遥测设备被诊断为轴承温度超限"）。
+  const fmtTelemetry = (v: any) =>
+    typeof v === "number" && Number.isFinite(v) ? v : "未接入";
+  const eqNameStr = equipmentName || "未提供设备名称";
+  const eqCodeStr = equipmentCode || "未提供设备编码";
+  const catStr = category || "未提供设备类型";
+  const symStr = symptoms || "未描述现场故障现象";
+  const errStr = errorCodes || "无（未提供报警代码）";
+
   const prompt = `请对以下工业设备进行深度故障诊断分析并返回专业诊断报告：
-设备名称: ${equipmentName || "工业多级离心泵"} (${equipmentCode || "PUMP-2024-03"})
-设备类型: ${category || "泵类"}
-现场故障现象/异常征兆: ${symptoms || "轴承箱剧烈振动，伴随高温报警与空化异响"}
+设备名称: ${eqNameStr} (${eqCodeStr})
+设备类型: ${catStr}
+现场故障现象/异常征兆: ${symStr}
 遥测数据:
-- 轴承温度: ${telemetry?.temperature ?? 82.5} °C (正常阈值 < 70°C)
-- 振动速度有效值(RMS): ${telemetry?.vibration ?? 7.8} mm/s (正常阈值 < 4.5 mm/s)
-- 工作电压: ${telemetry?.voltage ?? 382} V
-- 运行电流: ${telemetry?.current ?? 54.2} A (额定 48A)
-- 负载率: ${telemetry?.loadRate ?? 92}%
-报警代码: ${errorCodes || "E-VIB-02 (振动超限), E-TEMP-04 (轴瓦过温)"}
+- 轴承温度: ${fmtTelemetry(telemetry?.temperature)} °C (正常阈值 < 70°C；标注"未接入"表示该测点无数据)
+- 振动速度有效值(RMS): ${fmtTelemetry(telemetry?.vibration)} mm/s (正常阈值 < 4.5 mm/s；标注"未接入"表示该测点无数据)
+- 工作电压: ${fmtTelemetry(telemetry?.voltage)} V (标注"未接入"表示该测点无数据)
+- 运行电流: ${fmtTelemetry(telemetry?.current)} A (额定值见设备铭牌；标注"未接入"表示该测点无数据)
+- 负载率: ${fmtTelemetry(telemetry?.loadRate)} (标注"未接入"表示该测点无数据)
+报警代码: ${errStr}
+
+【数据口径与诚实约束】字段标注"未接入"=该项遥测缺失未采集；标注"未提供/未描述"=前端未传入。
+你**严禁**在缺失时编造任何温度/振动/电压/电流/负载率读数或具体故障现象。若关键遥测缺失，
+请明确写"无法基于遥测判定"，并仅在"现场故障现象"已提供时结合现象给出方向性排查建议，不得虚构诊断结论。
 
 请严格按 JSON 格式返回分析结果，格式如下：
 {
