@@ -122,7 +122,7 @@ docker compose up -d
 
 > 包管理器统一使用 **npm**（Dockerfile 与 CI 均为 `npm ci`），禁止混用 bun/pnpm/yarn，
 > 以唯一锁文件 `package-lock.json` 为准，避免依赖不一致。
-> 测试基线：**146 个测试文件 / 1593 个用例**（`npx vitest run --no-file-parallelism` 实测全绿），
+> 测试基线：**148 个测试文件 / 1607 个用例**（`npx vitest run --no-file-parallelism` 实测全绿），
 > 类型检查 `npx tsc --noEmit` 零错误（实测 exit 0）。
 > 数字随并行会话变动，**以 `npm run metrics:check` 实测为准**，不要手改别处。
 > 注意：守卫对 README/CHANGELOG 要求**精确匹配**（不适用"低于实测=历史快照"的宽容），

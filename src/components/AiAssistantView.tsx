@@ -19,6 +19,7 @@ import { useAiVision } from './ai/useAiVision';
 import { useAiFeedbackModal } from './ai/useAiFeedbackModal';
 import { useHotKnowledgePrompts } from './ai/useHotKnowledgePrompts';
 import { useAiContribution } from './ai/useAiContribution';
+import { useAiEngineLabel } from './ai/useAiEngineLabel';
 
 export type { ChatMessage };
 
@@ -424,6 +425,8 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
   };
 
   const latestAiModel = [...messages].reverse().find((m) => m.sender === 'assistant' && m.modelName)?.modelName;
+  // 刚进页面还没问过 AI 时，引擎名以真实模型配置为准，不要一律报「未连接」
+  const configuredEngine = useAiEngineLabel();
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -431,7 +434,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
       <AiAssistantHeader
         activeMode={activeMode}
         onModeChange={setActiveMode}
-        latestAiModel={latestAiModel}
+        latestAiModel={latestAiModel || configuredEngine || '未探测'}
       />
 
       {/* MODE 1: CHAT EXPERT */}
