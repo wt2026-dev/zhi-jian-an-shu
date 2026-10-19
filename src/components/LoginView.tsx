@@ -38,14 +38,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [changePasswordMsg, setChangePasswordMsg] = useState<string | null>(null);
 
   // 预设快速体验账号 (涵盖 7 类角色)
+  // demoPassword 与 src/db/seed.ts 的 DEMO_PASSWORDS 同值：演示口令每次启动被重置成固定哈希，不是真实口令
   const presetUsers = [
-    { username: 'admin', name: '陈建平', role: '总工 / 机电部长', badgeColor: 'bg-red-50 text-red-700 border-red-200' },
-    { username: 'manager', name: '陈主管', role: '车间安全总监 / 维保主管', badgeColor: 'bg-purple-50 text-purple-700 border-purple-200' },
-    { username: 'tech1', name: '张建国', role: '机电检修高级技师', badgeColor: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { username: 'inspector', name: '赵安全', role: '点检工程师 / 安全监护', badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { username: 'operator', name: '王操作', role: '现场岗位操作工', badgeColor: 'bg-amber-50 text-amber-700 border-amber-200' },
-    { username: 'archivist', name: '吴晓芳', role: '技术档案管理员', badgeColor: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { username: 'operator2', name: '周大伟', role: '起重机械操作 / 吊装司机', badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    { username: 'admin', name: '陈建平', role: '总工 / 机电部长', badgeColor: 'bg-red-50 text-red-700 border-red-200', demoPassword: 'Admin@2026#Demo' },
+    { username: 'manager', name: '陈主管', role: '车间安全总监 / 维保主管', badgeColor: 'bg-purple-50 text-purple-700 border-purple-200', demoPassword: 'Manager@2026#Safe' },
+    { username: 'tech1', name: '张建国', role: '机电检修高级技师', badgeColor: 'bg-blue-50 text-blue-700 border-blue-200', demoPassword: 'Tech1@2026#Work' },
+    { username: 'inspector', name: '赵安全', role: '点检工程师 / 安全监护', badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200', demoPassword: 'Inspect@2026#Check' },
+    { username: 'operator', name: '王操作', role: '现场岗位操作工', badgeColor: 'bg-amber-50 text-amber-700 border-amber-200', demoPassword: 'Operator@2026#Line' },
+    { username: 'archivist', name: '吴晓芳', role: '技术档案管理员', badgeColor: 'bg-teal-50 text-teal-700 border-teal-200', demoPassword: 'Archive@2026#Doc' },
+    { username: 'operator2', name: '周大伟', role: '起重机械操作 / 吊装司机', badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200', demoPassword: 'Operator2@2026#Lift' },
   ];
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -103,9 +104,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setShowForcePasswordModal(false);
   };
 
-  const handleSelectPreset = (uname: string) => {
-    setUsername(uname);
-    setPassword('');
+  const handleSelectPreset = (preset: { username: string; demoPassword: string }) => {
+    setUsername(preset.username);
+    setPassword(preset.demoPassword);
     setErrorMessage(null);
   };
 
@@ -263,7 +264,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   <button
                     key={u.username}
                     type="button"
-                    onClick={() => handleSelectPreset(u.username)}
+                    onClick={() => handleSelectPreset(u)}
                     className={`p-2.5 rounded-xl text-left transition-all border cursor-pointer flex items-center space-x-2.5 ${
                       isSelected
                         ? 'bg-gradient-to-r from-amber-50 to-orange-50/60 border-amber-400 text-amber-950 shadow-sm ring-1 ring-amber-300/50'
