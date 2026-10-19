@@ -148,6 +148,35 @@ function consoleFallback(level: Level, args: unknown[]): void {
   (console as any)[level === "log" ? "log" : level](prefix, ...args);
 }
 
+// ===================== 敏感字段脱敏（G6，2026-10-19 试点加固） =====================
+// 日志禁止落盘/进入采集管道的字段：密码、令牌、密钥、凭证类。
+// 命中规则：键名包含 password/passwd/secret/token/authorization/apikey（大小写不敏感），
+// 值一律替换为 [REDACTED]；嵌套对象与数组内的对象同样递归处理（限深 4 层防循环引用）。
+const SENSITIVE_KEY_HINT = /(password|passwd|secret|token|authorization|apikey|api_key)/i;
+const REDACTED = "[REDACTED]";
+const REDACT_MAX_DEPTH = 4;
+
+function redactMeta(meta: Record<string, unknown>, depth = 0): Record<string, unknown> {
+  if (depth >= REDACT_MAX_DEPTH) return meta;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(meta)) {
+    if (SENSITIVE_KEY_HINT.test(k)) {
+      out[k] = REDACTED;
+    } else if (Array.isArray(v)) {
+      out[k] = v.map((item) =>
+        item && typeof item === "object" && !Array.isArray(item)
+          ? redactMeta(item as Record<string, unknown>, depth + 1)
+          : item
+      );
+    } else if (v && typeof v === "object") {
+      out[k] = redactMeta(v as Record<string, unknown>, depth + 1);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 function emit(level: Level, args: unknown[]): void {
   // 解析首个参数：对象视为结构化字段（meta），字符串视为消息。
   let meta: Record<string, unknown> = {};
@@ -171,7 +200,7 @@ function emit(level: Level, args: unknown[]): void {
     ts: new Date().toISOString(),
     level,
     msg,
-    ...meta,
+    ...redactMeta(meta),
   };
   const line = JSON.stringify(entry);
 
