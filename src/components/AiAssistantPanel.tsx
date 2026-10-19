@@ -380,9 +380,17 @@ export const AiAssistantPanel: React.FC = () => {
                       // AI 回复流式中也直接渲染 Markdown，避免裸 # / ** 文本先糊一屏、结束才排版
                       <Markdown content={m.text || ' '} tone="light" />
                     )}
-                    {m.streaming && (
-                      <span className="inline-block w-1.5 h-3 bg-blue-500 rounded-sm ml-0.5 align-text-bottom" />
-                    )}
+                    {m.streaming &&
+                      (m.text ? (
+                        <span className="inline-block w-1.5 h-3 bg-blue-500 rounded-sm ml-0.5 align-text-bottom" />
+                      ) : (
+                        // 首字到达前（模型 TTFT 空窗）：三个跳动小点，明确"正在响应"，非伪装内容
+                        <span className="inline-flex items-center gap-1 ml-0.5 align-middle py-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.3s]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.15s]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" />
+                        </span>
+                      ))}
                     <div className={`text-[9px] mt-1 ${isUser ? 'text-blue-200 text-right' : 'text-slate-500'}`}>
                       {m.timestamp}
                     </div>

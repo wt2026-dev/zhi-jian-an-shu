@@ -209,16 +209,26 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
             if (parsed.chatId) chatId = parsed.chatId;
             if (parsed.model) modelName = parsed.model;
             if (parsed.content) {
+              const firstToken = replyText.length === 0;
               replyText += parsed.content;
               streamBufferRef.current = replyText;
-              // 60ms 节流批量提交，渲染频率与 SSE chunk 频率解耦
-              if (streamFlushTimerRef.current === null) {
+              const commit = () => {
+                const snapshot = streamBufferRef.current;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === aiMsgId ? { ...m, text: snapshot } : m))
+                );
+              };
+              // 首字立即落屏（去掉白等的 100ms 节流），后续按 100ms 批量提交，渲染频率与 SSE chunk 解耦
+              if (firstToken) {
+                if (streamFlushTimerRef.current !== null) {
+                  clearTimeout(streamFlushTimerRef.current);
+                  streamFlushTimerRef.current = null;
+                }
+                commit();
+              } else if (streamFlushTimerRef.current === null) {
                 streamFlushTimerRef.current = setTimeout(() => {
                   streamFlushTimerRef.current = null;
-                  const snapshot = streamBufferRef.current;
-                  setMessages((prev) =>
-                    prev.map((m) => (m.id === aiMsgId ? { ...m, text: snapshot } : m))
-                  );
+                  commit();
                 }, 100);
               }
             }

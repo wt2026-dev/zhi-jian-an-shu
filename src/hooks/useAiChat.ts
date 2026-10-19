@@ -199,15 +199,26 @@ export function useAiChat(userRoleTitle?: string) {
             if (parsed.chatId) chatId = parsed.chatId;
             if (parsed.model) modelName = parsed.model;
             if (parsed.content) {
+              const firstToken = replyText.length === 0;
               replyText += parsed.content;
               streamBufferRef.current = replyText;
-              if (flushTimerRef.current === null) {
+              const commit = () => {
+                const snapshot = streamBufferRef.current;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === aiMsgId ? { ...m, text: snapshot } : m))
+                );
+              };
+              // 首字立即落屏（去掉白等的 100ms 节流），后续按 100ms 批量提交，渲染频率与 SSE chunk 解耦
+              if (firstToken) {
+                if (flushTimerRef.current !== null) {
+                  clearTimeout(flushTimerRef.current);
+                  flushTimerRef.current = null;
+                }
+                commit();
+              } else if (flushTimerRef.current === null) {
                 flushTimerRef.current = setTimeout(() => {
                   flushTimerRef.current = null;
-                  const snapshot = streamBufferRef.current;
-                  setMessages((prev) =>
-                    prev.map((m) => (m.id === aiMsgId ? { ...m, text: snapshot } : m))
-                  );
+                  commit();
                 }, 100);
               }
             }
