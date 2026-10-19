@@ -83,8 +83,9 @@ describe("工单高危端点 RBAC（越权拒绝矩阵）", () => {
     const eqId = await createEquipment("OP-DENY");
     const order = await createOrderAsOperator(eqId, "OP-DENY");
     const url = `/api/v1/work-orders/${order.id}${suffix}`;
-    const res = await (request(app) as any)
-      [method](url)
+    // 计算属性访问必须与 receivers 同行：换行写会被 no-unexpected-multiline 判 error（CI 第七步 lint 因此整条红，
+    // 后面 npm test / metrics:check / build 三步全被 skip）。语义完全一致。
+    const res = await (request(app) as any)[method](url)
       .set("Authorization", `Bearer ${operatorToken}`)
       .send(body);
     expect(res.status).toBe(403);
