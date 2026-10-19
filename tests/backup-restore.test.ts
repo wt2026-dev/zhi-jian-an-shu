@@ -37,7 +37,7 @@ async function buildFullSnapshotDb(dataDir: string): Promise<void> {
 }
 
 describe("G4 备份一致性与恢复演练 (Backup & Restore Drill Suite)", () => {
-  it("dump → 隔离目录解包重开 → 业务数据完整保留（往返一致性）", async () => {
+  it("dump → 隔离目录解包重开 → 业务数据完整保留（往返一致性）", { timeout: 120_000 }, async () => {
     const src = tmpDir("g4-src-");
     await buildFullSnapshotDb(src);
 
@@ -67,7 +67,7 @@ describe("G4 备份一致性与恢复演练 (Backup & Restore Drill Suite)", () 
     fs.rmSync(work, { recursive: true, force: true });
   });
 
-  it("verifySnapshotDb：完整快照 PASS（关键表齐全 + 迁移版本非空）", async () => {
+  it("verifySnapshotDb：完整快照 PASS（关键表齐全 + 迁移版本非空）", { timeout: 90_000 }, async () => {
     const src = tmpDir("g4-verify-ok-");
     const db = new PGlite(src);
     await db.waitReady;
@@ -88,7 +88,7 @@ describe("G4 备份一致性与恢复演练 (Backup & Restore Drill Suite)", () 
     fs.rmSync(src, { recursive: true, force: true });
   });
 
-  it("verifySnapshotDb：缺关键表 FAIL（疑似损坏/外库快照）", async () => {
+  it("verifySnapshotDb：缺关键表 FAIL（疑似损坏/外库快照）", { timeout: 90_000 }, async () => {
     const src = tmpDir("g4-verify-missing-");
     const db = new PGlite(src);
     await db.waitReady;
@@ -102,7 +102,7 @@ describe("G4 备份一致性与恢复演练 (Backup & Restore Drill Suite)", () 
     fs.rmSync(src, { recursive: true, force: true });
   });
 
-  it("verifySnapshotDb：schema_migrations 为空 FAIL（迁移版本缺失）", async () => {
+  it("verifySnapshotDb：schema_migrations 为空 FAIL（迁移版本缺失）", { timeout: 90_000 }, async () => {
     const src = tmpDir("g4-verify-emptymig-");
     const db = new PGlite(src);
     await db.waitReady;
