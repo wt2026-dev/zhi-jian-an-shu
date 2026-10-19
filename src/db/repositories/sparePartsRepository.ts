@@ -10,8 +10,11 @@ export const SparePartsRepository = {
       model: r.model || "",
       category: r.category || "通用机械",
       stock: Number(r.stock ?? 0),
-      safe_stock: Number(r.safe_stock ?? 5),
-      safeStock: Number(r.safe_stock ?? 5),
+      // safe_stock 在库里是 `NOT NULL DEFAULT 5`，查询总能取到；回退写 5 会在
+      // 「漏列」时伪造出一条看起来合理的阈值，让 `stock <= safe_stock` 凭空成立或失效。
+      // 按 0 回退，与 stock/price 同口径 —— 真漏了就露出 0，而不是伪装成阈值。
+      safe_stock: Number(r.safe_stock ?? 0),
+      safeStock: Number(r.safe_stock ?? 0),
       unit: r.unit || "件",
       location: r.location || "",
       price: Number(r.price ?? 0),
@@ -103,7 +106,9 @@ export const SparePartsRepository = {
         item.model || "",
         item.category || "通用机械",
         Number(item.stock ?? 0),
-        Number(item.safe_stock ?? 5),
+        // 未填安全库存时传 null，让库里 `DEFAULT 5` 统一生效：显式传 5 会覆盖它，
+        // 等于把同一个"默认值"在应用层和库层各存一份，改库时这里不会跟着变。
+        item.safe_stock ?? null,
         item.unit || "件",
         item.location,
         Number(item.price ?? 0),

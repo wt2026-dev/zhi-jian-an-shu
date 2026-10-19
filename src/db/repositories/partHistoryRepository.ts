@@ -227,7 +227,10 @@ export const PartHistoryRepository = {
       model: String(r.model ?? ''),
       category: String(r.category ?? ''),
       stock: Number(r.stock ?? 0),
-      safeStock: Number(r.safe_stock ?? 5),
+      // `spare_parts.safe_stock` 是 `NOT NULL DEFAULT 5`，正常查询永远有值，这里的回退是死分支。
+      // 写 5 等于「漏列时凭空多出一条安全线」，会让低库存告警凭空出现或消失；
+      // 统一按 0 回退，与 stock/price 同口径。
+      safeStock: Number(r.safe_stock ?? 0),
       unit: String(r.unit ?? ''),
       location: String(r.location ?? ''),
       price: Number(r.price ?? 0),
