@@ -126,11 +126,11 @@ describe("AI 能力数单一来源", () => {
     }
   });
 
-  it("清单没有重复登记，能力数为 18（改动时同步对外口径）", () => {
+  it("清单没有重复登记，对外核心能力数为 3（改动时同步对外口径）", () => {
     const ids = AI_CAPABILITIES.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     const paths = AI_CAPABILITIES.map((c) => `${c.method} ${c.path}`);
     expect(new Set(paths).size).toBe(paths.length);
-    expect(AI_CORE_CAPABILITY_COUNT).toBe(18);
+    expect(AI_CORE_CAPABILITY_COUNT).toBe(3);
   });
 });

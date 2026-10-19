@@ -77,7 +77,7 @@ export function buildOpenApiSpec(): Record<string, any> {
     paths: {
       "/api/v1/auth/login": {
         post: { tags: ["auth"], summary: "账号密码登录，签发 JWT",
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["username", "password"], properties: { username: { type: "string", example: "admin" }, password: { type: "string", example: "Admin@2026#Demo" } } } } } },
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["username", "password"], properties: { username: { type: "string" }, password: { type: "string", format: "password" } } } } } },
           responses: { "200": okJson("token 与用户信息"), "401": okJson("账号或密码错误"), "429": okJson("触发限流/IP 锁定") } } },
       "/api/v1/auth/me": { get: { tags: ["auth"], security: bearer, summary: "获取当前登录用户", responses: { "200": okJson("用户信息") } } },
       "/api/v1/auth/users": {

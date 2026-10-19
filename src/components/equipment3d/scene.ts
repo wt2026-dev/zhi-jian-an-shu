@@ -71,6 +71,7 @@ import {
   type FocusDecorData,
   type FocusDecorBox,
 } from './focusSceneDecor';
+import { drawSceneMinimap } from './sceneMinimap';
 
 /** 设备详情层暗调氛围：雾色 / 清屏色（深蓝灰，禁止纯黑背景）。 */
 const FOG_COLOUR = 0x111b29;
@@ -3349,116 +3350,17 @@ export class EquipmentScene {
 
   /** 重绘小地图。由 build / 选中变化 / 帧循环（节流）调用。 */
   drawMinimap(): void {
-    const canvas = this.miniCanvas;
-    const ctx = this.miniCtx;
-    if (!canvas || !ctx) return;
-    const hall = this.hall;
-    const w = canvas.clientWidth || 176;
-    const h = canvas.clientHeight || 132;
-    if (w <= 0 || h <= 0) return;
-
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-      canvas.width = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
-    }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-
-    // 背板
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.55)';
-    ctx.fillRect(0, 0, w, h);
-
-    if (!hall) return;
-
-    // 世界(x,z) → 画布(px,py)；俯视时 +x 向右、+z 向下
-    const pad = 7;
-    const halfX = Math.max(1, hall.bounds.halfX);
-    const halfZ = Math.max(1, hall.bounds.halfZ);
-    const scale = Math.min((w - pad * 2) / (halfX * 2), (h - pad * 2) / (halfZ * 2));
-    const cx = w / 2;
-    const cy = h / 2;
-    const px = (x: number) => cx + x * scale;
-    const py = (z: number) => cy + z * scale;
-
-    // 厂房地面 / 墙体轮廓
-    const x0 = px(-halfX);
-    const y0 = py(-halfZ);
-    const rw = halfX * 2 * scale;
-    const rh = halfZ * 2 * scale;
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.14)';
-    ctx.fillRect(x0, y0, rw, rh);
-    ctx.strokeStyle = 'rgba(203, 213, 225, 0.45)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x0 + 0.5, y0 + 0.5, rw - 1, rh - 1);
-
-    // 设备：颜色直接取真实健康状态
-    for (let i = 0; i < this.slots.length; i++) {
-      const s = this.slots[i];
-      const key = this.slotStatus[i] || 'nodata';
-      const meta = STATUS_META[key] || STATUS_META.nodata;
-      const r = Math.max(2.4, s.radius * scale * 0.85);
-      ctx.beginPath();
-      ctx.arc(px(s.x), py(s.z), r, 0, Math.PI * 2);
-      ctx.fillStyle = `#${meta.colour.toString(16).padStart(6, '0')}`;
-      ctx.fill();
-      // 告警设备加一圈描边，小图上也能看出异常
-      if (meta.alert) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-      }
-    }
-
-    // 选中设备：白色外环
-    if (this.selectedId && this.equipment) {
-      const idx = this.equipment.indexById.get(this.selectedId);
-      const s = typeof idx === 'number' ? this.slots[idx] : undefined;
-      if (s) {
-        ctx.beginPath();
-        ctx.arc(px(s.x), py(s.z), Math.max(4.5, s.radius * scale * 1.5), 0, Math.PI * 2);
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.6;
-        ctx.stroke();
-      }
-    }
-
-    // 相机：位置点 + 朝向指示（帮助理解当前视角在厂房中的位置）
-    const cam = this.camera.position;
-    const dir = this.miniDir;
-    this.camera.getWorldDirection(dir);
-    const cxp = px(cam.x);
-    const cyp = py(cam.z);
-    const len = Math.hypot(dir.x, dir.z) || 1;
-    const ux = dir.x / len;
-    const uz = dir.z / len;
-    // 视锥示意（两条边线）
-    const fovHalf = ((this.camera.fov * Math.PI) / 180) * 0.5;
-    const coneLen = Math.min(w, h) * 0.42;
-    ctx.strokeStyle = 'rgba(96, 165, 250, 0.5)';
-    ctx.lineWidth = 1;
-    for (const sign of [-1, 1]) {
-      const a = Math.atan2(uz, ux) + sign * fovHalf;
-      ctx.beginPath();
-      ctx.moveTo(cxp, cyp);
-      ctx.lineTo(cxp + Math.cos(a) * coneLen, cyp + Math.sin(a) * coneLen);
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.arc(cxp, cyp, 3, 0, Math.PI * 2);
-    ctx.fillStyle = '#60a5fa';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cxp, cyp);
-    ctx.lineTo(cxp + ux * coneLen * 0.55, cyp + uz * coneLen * 0.55);
-    ctx.stroke();
-
-    // 角标
-    ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
-    ctx.font = '9px system-ui, sans-serif';
-    ctx.fillText('俯视 · 真实状态', 7, h - 5);
+    drawSceneMinimap({
+      canvas: this.miniCanvas,
+      context: this.miniCtx,
+      hall: this.hall,
+      slots: this.slots,
+      slotStatus: this.slotStatus,
+      equipment: this.equipment,
+      selectedId: this.selectedId,
+      camera: this.camera,
+      direction: this.miniDir,
+    });
   }
 
   /* ========================= 统计 / 释放 ========================= */

@@ -23,20 +23,9 @@ interface LoginViewProps {
   onLoginSuccess: (user: UserProfile, token: string) => void;
 }
 
-// 演示环境各角色独立强密码配置 (参照等保三级设计的独立密码)
-const DEMO_CREDENTIALS: Record<string, string> = {
-  admin: 'Admin@2026#Demo',
-  manager: 'Manager@2026#Safe',
-  tech1: 'Tech1@2026#Work',
-  inspector: 'Inspect@2026#Check',
-  operator: 'Operator@2026#Line',
-  archivist: 'Archive@2026#Doc',
-  operator2: 'Operator2@2026#Lift',
-};
-
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('Admin@2026#Demo');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -116,7 +105,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
   const handleSelectPreset = (uname: string) => {
     setUsername(uname);
-    setPassword(DEMO_CREDENTIALS[uname] || 'Admin@2026#Demo');
+    setPassword('');
     setErrorMessage(null);
   };
 
@@ -166,11 +155,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <div className="p-1 rounded-md bg-amber-50 border border-amber-200 text-amber-700">
                 <ShieldCheck className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-slate-800 tracking-tight">企业级数字工业安全网关认证</span>
+              <span className="text-xs font-bold text-slate-800 tracking-tight">工业检修与安全作业平台</span>
             </div>
             <div className="flex items-center space-x-1.5 text-[11px] text-emerald-800 bg-emerald-50/90 px-2 py-0.5 rounded-full border border-emerald-200 font-mono shadow-2xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-semibold">等保三级基线</span>
+              <span className="font-semibold">JWT · RBAC · 审计</span>
             </div>
           </div>
 
@@ -298,7 +287,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         {/* 底部合规与技术栈标注 */}
         <div className="text-center space-y-1 text-[11px] text-slate-600 font-medium">
-          <p>工业互联网安全防护体系（参照等保三级规范设计） · 生产制造安全作业许可标准 GB 30871</p>
+          <p>JWT 身份认证 · RBAC 权限控制 · 操作审计 · 单实例限流（未完成等级保护测评）</p>
           <p className="text-[10px] text-slate-500 font-mono">PGlite Embedded DB · Qwen-Plus Industrial LLM · WebGL 3D Twin</p>
         </div>
       </div>
@@ -313,7 +302,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
               <div>
                 <h3 className="font-bold text-sm text-slate-900">首次登录安全改密提醒</h3>
-                <p className="text-xs text-slate-500">参照等保三级规范设计的安全基线 (DEMO_FORCE_PASSWORD_CHANGE=true)</p>
+                <p className="text-xs text-slate-500">请设置个人强密码；生产环境应启用强制改密策略。</p>
               </div>
             </div>
 

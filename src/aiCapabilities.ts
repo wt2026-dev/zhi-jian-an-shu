@@ -7,7 +7,7 @@
  * 会拿这张表去核对**真实注册的路由**与 openapi 文档，任何一边漂了就红。
  *
  * status 口径：
- * - core      真正可交付的能力，计入 AI_CORE_CAPABILITY_COUNT
+ * - core      对外主张的三项核心能力，计入 AI_CORE_CAPABILITY_COUNT
  * - transport 同一能力的另一种传输形态（SSE 流式），不重复计数
  * - stub      接口在、但不宣称 AI 效果的占位实现（返回 degraded，不建模），不计数
  * - internal  统计/预算/管理面，不是对外的"能力"，不计数
@@ -28,7 +28,7 @@ export type AiCapabilityEntry = {
 export const AI_API_PREFIX = "/api/v1/ai/";
 
 export const AI_CAPABILITIES: AiCapabilityEntry[] = [
-  { id: "chat", name: "数字人对话问答", method: "POST", path: "/api/v1/ai/chat", status: "core" },
+  { id: "chat", name: "数字人对话问答", method: "POST", path: "/api/v1/ai/chat", status: "internal" },
   { id: "chat-stream", name: "数字人对话问答（SSE 流式）", method: "POST", path: "/api/v1/ai/chat/stream", status: "transport" },
   { id: "diagnose", name: "多维故障诊断", method: "POST", path: "/api/v1/ai/diagnose", status: "core" },
   {
@@ -36,29 +36,29 @@ export const AI_CAPABILITIES: AiCapabilityEntry[] = [
     name: "设备劣化趋势预警",
     method: "POST",
     path: "/api/v1/ai/health-forecast",
-    status: "core",
+    status: "internal",
     note: "统计口径由 services/degradationTrend.ts 确定性算出，模型只做解读",
   },
-  { id: "root-cause-analysis", name: "根因分析（5Why/故障树）", method: "POST", path: "/api/v1/ai/root-cause-analysis", status: "core" },
+  { id: "root-cause-analysis", name: "根因分析（5Why/故障树）", method: "POST", path: "/api/v1/ai/root-cause-analysis", status: "internal" },
   { id: "generate-maintenance-plan", name: "检修方案生成", method: "POST", path: "/api/v1/ai/generate-maintenance-plan", status: "core" },
-  { id: "generate-work-order", name: "智能工单生成", method: "POST", path: "/api/v1/ai/generate-work-order", status: "core" },
-  { id: "generate-report", name: "智能报告生成", method: "POST", path: "/api/v1/ai/generate-report", status: "core" },
-  { id: "safety-risk-assessment", name: "作业票风险评估（JSA）", method: "POST", path: "/api/v1/ai/safety-risk-assessment", status: "core" },
-  { id: "equipment-summary", name: "设备健康画像", method: "POST", path: "/api/v1/ai/equipment-summary", status: "core" },
-  { id: "recommend-assignee", name: "AI 辅助派单", method: "POST", path: "/api/v1/ai/recommend-assignee", status: "core" },
-  { id: "alarm-correlation", name: "报警关联分析", method: "POST", path: "/api/v1/ai/alarm-correlation", status: "core" },
+  { id: "generate-work-order", name: "智能工单生成", method: "POST", path: "/api/v1/ai/generate-work-order", status: "internal" },
+  { id: "generate-report", name: "智能报告生成", method: "POST", path: "/api/v1/ai/generate-report", status: "internal" },
+  { id: "safety-risk-assessment", name: "作业票风险评估（JSA）", method: "POST", path: "/api/v1/ai/safety-risk-assessment", status: "internal" },
+  { id: "equipment-summary", name: "设备健康画像", method: "POST", path: "/api/v1/ai/equipment-summary", status: "internal" },
+  { id: "recommend-assignee", name: "AI 辅助派单", method: "POST", path: "/api/v1/ai/recommend-assignee", status: "internal" },
+  { id: "alarm-correlation", name: "报警关联分析", method: "POST", path: "/api/v1/ai/alarm-correlation", status: "internal" },
   { id: "rag-search", name: "知识库 RAG 语义检索", method: "POST", path: "/api/v1/ai/rag-search", status: "core" },
-  { id: "multimodal-search", name: "多模态检索（看图找案例）", method: "POST", path: "/api/v1/ai/multimodal-search", status: "core" },
-  { id: "vision-defect-detect", name: "视觉缺陷识别", method: "POST", path: "/api/v1/ai/vision-defect-detect", status: "core" },
-  { id: "suggest-contribution", name: "知识贡献识别", method: "POST", path: "/api/v1/ai/suggest-contribution", status: "core" },
-  { id: "suggest-followups", name: "智能追问建议", method: "POST", path: "/api/v1/ai/suggest-followups", status: "core" },
-  { id: "pipeline", name: "AI 协同任务链路", method: "POST", path: "/api/v1/ai/pipeline", status: "core" },
+  { id: "multimodal-search", name: "多模态检索（看图找案例）", method: "POST", path: "/api/v1/ai/multimodal-search", status: "internal" },
+  { id: "vision-defect-detect", name: "视觉缺陷识别", method: "POST", path: "/api/v1/ai/vision-defect-detect", status: "internal" },
+  { id: "suggest-contribution", name: "知识贡献识别", method: "POST", path: "/api/v1/ai/suggest-contribution", status: "internal" },
+  { id: "suggest-followups", name: "智能追问建议", method: "POST", path: "/api/v1/ai/suggest-followups", status: "internal" },
+  { id: "pipeline", name: "AI 协同任务链路", method: "POST", path: "/api/v1/ai/pipeline", status: "internal" },
   {
     id: "video-analyze",
     name: "检修视频时序分析（真抽帧）",
     method: "POST",
     path: "/api/v1/ai/video-analyze",
-    status: "core",
+    status: "internal",
     note: "网页端上传视频后由服务端抽帧送 Qwen-VL；与下面的 video-analysis 占位接口不是一回事",
   },
 

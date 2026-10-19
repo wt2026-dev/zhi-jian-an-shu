@@ -18,7 +18,6 @@ import {
   Search,
   Share2,
   UserCheck,
-  // Gamepad2, // 检修闯关模块已下线：图标随菜单项一并注释，恢复时取消注释即可
   Compass,
   Bot,
   // Swords, // 智检修士模块已下线：图标随菜单项一并注释，恢复时取消注释即可
@@ -67,7 +66,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     label: '智能 AI',
     items: [
       { id: 'ai_business_butler', label: '业务管家', icon: Bot, highlight: true }, // 全员可见，闭环业务管家
-      { id: 'ai_assistant', label: 'AI数字人助手', icon: Sparkles, highlight: true }, // 全员可见
+      { id: 'ai_assistant', label: 'AI 助手（数字人演示附件）', icon: Sparkles, highlight: true }, // 全员可见
       { id: 'ai_pipeline', label: 'AI 协同', icon: Workflow, highlight: true, roles: [...MGMT] },
     ],
   },
@@ -77,7 +76,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     items: [
       { id: 'equipments', label: '设备档案', icon: Layers, roles: [...ASSET_ARCHIVE] },
       { id: 'health', label: '健康监测', icon: Zap, roles: [...ASSET_TECH] },
-      { id: 'equipment_3d', label: '3D 场景', icon: Boxes, roles: [...FIELD] },
       { id: 'spare_parts', label: '备件库存', icon: Box, roles: [...FIELD] },
     ],
   },
@@ -89,7 +87,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { id: 'dispatch', label: '调度大屏', icon: Route, roles: [...FIELD] },
       { id: 'procedures', label: '作业指引', icon: BookOpen }, // 全员可见
       // { id: 'maintenance_game', label: '检修闯关', icon: Gamepad2 }, // 全员可见 —— 模块已下线，恢复时取消本行注释
-      { id: 'maintenance_maze', label: '故障侦探', icon: Compass }, // 全员可见：俯视角工业迷宫
       // { id: 'campaign', label: '智检修士', icon: Swords }, // 全员可见：七幕主线＝一遍完整业务流程 —— 模块已下线，恢复时取消本行注释
       { id: 'inspections', label: '巡检作业', icon: CheckCircle2, roles: [...SAFETY_AUDIT] },
       { id: 'hazards', label: '隐患闭环', icon: AlertTriangle, roles: [...SAFETY_AUDIT] },
@@ -117,6 +114,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { id: 'users', label: '用户与权限', icon: UserCheck, roles: [...ADMIN_ONLY] },
       { id: 'ai_reviews', label: 'AI 内容审核', icon: ScanSearch, roles: [...ADMIN_ONLY] },
       { id: 'ai_models', label: 'AI 模型路由', icon: Route, roles: [...ADMIN_ONLY] },
+    ],
+  },
+  {
+    id: 'demo_attachments',
+    label: '演示附件',
+    items: [
+      { id: 'equipment_3d', label: '3D 设备场景（演示）', icon: Boxes, roles: [...FIELD] },
+      { id: 'maintenance_maze', label: '故障侦探（演示）', icon: Compass },
     ],
   },
 ];
