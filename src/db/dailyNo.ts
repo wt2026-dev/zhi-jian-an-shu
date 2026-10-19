@@ -95,7 +95,7 @@ export async function withDailyNoRetry<T>(run: () => Promise<T>, attempts = 5): 
       if (!isUniqueViolation(err) || i === attempts - 1) throw err;
       lastErr = err;
       // 短退避 + 随机抖动，错开与另一副本的取号竞争；总耗时上限 ~ 数百毫秒，不拖垮请求
-      await new Promise((resolve) => setTimeout(resolve, 20 * (i + 1) + Math.floor(Math.random() * 30)));
+      await new Promise((resolve) => setTimeout(resolve, 20 * (i + 1) + Math.floor(Math.random() * 30))); // honesty-guard-allow: 退避抖动只影响等待时长，不参与任何业务数值与编号
     }
   }
   throw lastErr;
