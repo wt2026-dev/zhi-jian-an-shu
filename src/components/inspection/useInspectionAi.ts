@@ -38,7 +38,9 @@ export function useInspectionAi() {
         location: '巡检现场',
         description: `日常巡检中发现测点异常：标准要求「${pt.standard}」，实测值「${pt.recordedValue || '超标'} ${pt.unit || ''}」，已超出安全控制阈值。`,
         reported_by: currentUser.name,
-        deadline: '2026-03-15',
+        // 不写死处置期限：让派单人来定。空 deadline 会在隐患清单里显示"未设期限"，
+      // 由派发步骤补上；写死一个过去日期会让所有隐患一入库就显示"逾期"，那才是编数据。
+      deadline: null,
       });
       setHazardNotice(`✅ 测点 [${pt.equipmentName} - ${pt.checkPoint || pt.checkItem}] 已成功转入现场安全隐患闭环治理中枢！`);
       setTimeout(() => setHazardNotice(null), 3500);

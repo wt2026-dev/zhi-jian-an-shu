@@ -165,7 +165,7 @@ export function useHazards(
     setSelectedHazard(hazard);
     setAssignForm({
       assignee_id: allUsers.find((u) => u.role === 'technician')?.id || '',
-      deadline: hazard.deadline || '2026-03-12',
+      deadline: hazard.deadline || '',
       dispatch_note: `【安全隐患消缺工单】针对 ${hazard.title} 进行紧急整改检修`,
     });
     setAssignModalOpen(true);

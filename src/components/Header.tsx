@@ -224,7 +224,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-mono hidden md:block">
-                {timeStr || '2026-09-02 06:10:00'} | 数字孪生驱动的检修与安全管控一体化平台 · 全生命周期运维
+                {timeStr} | 数字孪生驱动的检修与安全管控一体化平台 · 全生命周期运维
               </p>
             </div>
           </div>

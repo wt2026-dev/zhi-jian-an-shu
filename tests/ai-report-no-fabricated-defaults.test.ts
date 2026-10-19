@@ -94,4 +94,35 @@ describe("健康分/工时不得用编造默认值兜底", () => {
       expect(code, `${name} 空字段应显示「未登记/未指派」`).toMatch(/\|\|\s*['"]未(登记|指派)/);
     }
   });
+
+  it("代码里不得出现形如 '2026-03-15' 的硬编码业务日期", () => {
+    // 已踩过两次：
+    // - useInspectionAi 把巡检转隐患的 deadline 写死 '2026-03-15' —— 一入库就"逾期"。
+    // - Header 时间显示 `timeStr || '2026-09-02 06:10:00'` —— 挂载首秒内短暂显示一个
+    //   过去的时间戳，看起来像"系统以为现在是九月"。
+    // 源码扫描范围：src/ 下所有 ts/tsx，排除迁移与种子（那些是历史快照，该写死）。
+    // 用纯 Node 列出文件，不依赖 git/grep（vitest 在 Windows 上 execSync 默认走 cmd）。
+    const walk = (d: string, out: string[] = []): string[] => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) {
+          if (e.name === "migrations" || e.name === "seed-data" || e.name === "node_modules") continue;
+          walk(p, out);
+        } else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\./.test(e.name)) {
+          out.push(p);
+        }
+      }
+      return out;
+    };
+    const files = walk(path.join(ROOT, "src"));
+    const violations: string[] = [];
+    for (const f of files) {
+      // walk 已返回绝对路径，不要再拼 ROOT
+      const code = fs.readFileSync(f, "utf8");
+      // 形如 '2025-…' 或 "2026-…" 的字符串字面量
+      const hits = code.match(/['"]20(2[0-9]|3[0-9])-[01]\d-[0-3]\d(\s|T)/g);
+      if (hits) violations.push(`${f}: ${hits.join(", ")}`);
+    }
+    expect(violations, "代码里残留的硬编码日期：").toEqual([]);
+  });
 });
