@@ -85,15 +85,24 @@ cp .env.example .env
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000, http://127.0.0.1:3000, http://localhost:5173, http://127.0.0.1:5173` | 跨域白名单（逗号分隔） |
 | `DATABASE_URL` | `pglite://./data/industrial_ops_pg` | 嵌入式 PGlite 数据库连接串；填 `postgres://...` 时切换独立 PostgreSQL |
 | `DB_TYPE` | `pglite` | 数据库引擎（`pglite` / `postgres`）；生产建议 `postgres` |
-| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `localhost` / `5432` / `industrial_maintenance` / `postgres` / 空 | 仅 `DB_TYPE=postgres` 时生效；连接失败自动平滑降级回 PGlite |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `localhost` / `5432` / `industrial_maintenance` / `postgres` / 空 | 仅 `DB_TYPE=postgres` 时生效；连接失败 **fail-fast 拒绝启动**（生产或显式指定 `DB_TYPE=postgres` 时绝不静默降级回 PGlite，防止数据分叉；仅开发联调且未显式指定时才允许告警回退） |
 | `DB_POOL_MAX` | `10` | PostgreSQL 连接池上限 |
+| `SEED_MODE` | `demo` | 种子策略（`demo` 演示 / `minimal` 试点·生产推荐 / `off` 不灌），非法值拒绝启动，详见下方说明 |
 | `LOG_LEVEL` | `info` | pino 日志级别（trace~fatal），日志文件自动轮转 |
 | `DASHSCOPE_API_KEY` | 空 | 阿里云百炼密钥，缺失时 AI 功能按规则引擎友好降级 |
 | `XINGYUN_APP_ID` / `XINGYUN_APP_SECRET` | 空 | 魔珐星云 3D 数字人（可选，见第七章） |
 | `WECHAT_APP_ID` / `WECHAT_APP_SECRET` | 空 | 微信小程序太阳码（可选，见第七章） |
 | `AGNES_BASE_URL` / `AGNES_API_KEY` | 内置默认值 / 空 | Agnes AI 检修视频生成（可选，见第七章） |
 
-> 说明：数据库为 **27 个幂等迁移、共 34 张业务表**（编号 001–027，详见 README.md「数据库表」；表数与迁移区间由 `scripts/project-facts.mjs` 从迁移 SQL 派生，勿手改数字）。首次启动自动执行全部迁移；`users` 表为空时自动导入种子数据（含默认账号 admin）。
+> 说明：数据库为 **27 个幂等迁移、共 34 张业务表**（编号 001–027，详见 README.md「数据库表」；表数与迁移区间由 `scripts/project-facts.mjs` 从迁移 SQL 派生，勿手改数字）。
+>
+> **迁移版本追踪**：迁移状态记录在 `schema_migrations` 表（文件名 + 应用时间）。每个迁移文件只执行一次，已应用的启动时直接跳过；存量库（无版本表）首次启动会把历史迁移补记进版本表后再跳过。迁移执行失败（非幂等预期内的报错）会 **fail-fast 拒绝启动**，绝不带病启动；此时应修复问题后重启，已应用的迁移不会重复执行。
+>
+> **种子数据策略（SEED_MODE）**：首次启动 `users` 表为空时的行为由 `SEED_MODE` 决定（2026-10-19 起）：
+> - `demo`（默认）：灌入 9 个演示口令账号 + 全量演示业务数据。**仅限本地演示/测试**，账号口令硬编码于 `src/db/seed.ts`，公开仓库可见，生产禁用。
+> - `minimal`（**试点/生产推荐**）：仅创建 1 个管理员（用户名 `SEED_ADMIN_USERNAME`，默认 `admin`）。口令取 `SEED_ADMIN_PASSWORD`（不足 12 位拒绝启动）；未配置则生成 16 位随机口令，仅在启动日志打印**一次**。**必须配套 `DEMO_FORCE_PASSWORD_CHANGE=true`** 强制首次登录改密。
+> - `off`：完全不灌种子，users 保持为空，由现场用 SQL/管理端建号。
+> - 非法取值一律拒绝启动（fail-fast），不会静默回落到 demo。
 
 ---
 
@@ -137,7 +146,7 @@ npm start
 ```
 [Industrial Ops System v2.0.0] Server running at http://0.0.0.0:3000
 ```
-在浏览器中访问 `http://<服务器IP>:3000` 即可登入系统。首次启动自动执行数据库迁移并导入种子数据。
+在浏览器中访问 `http://<服务器IP>:3000` 即可登入系统。首次启动自动执行数据库迁移（版本追踪见上节）；种子数据按 `SEED_MODE` 策略导入——**试点/生产部署务必设置 `SEED_MODE=minimal`（或 `off`）并配套 `DEMO_FORCE_PASSWORD_CHANGE=true`**，默认的 `demo` 模式会灌入公开仓库可见口令的演示账号，禁止用于生产。
 
 ### 4.2 方式二：PM2 生产守护进程部署
 ```bash

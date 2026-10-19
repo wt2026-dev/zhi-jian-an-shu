@@ -352,6 +352,23 @@ export async function runMigrations(): Promise<void> {
     throw new Error(`Migrations directory not found: ${migrationsDir}`);
   }
 
+  // ==================== 迁移版本追踪（schema_migrations） ====================
+  // 背景：此前每次启动全量重跑全部 .sql，靠吞掉 "already exists"/"duplicate" 报错实现幂等。
+  // 问题：真 PG 上非幂等语句的**意外**报错若文案恰好含这两个词会被静默吞掉；且无法得知
+  // 当前 schema 处于哪个版本、回滚无依据。现引入版本表：已应用的迁移文件直接跳过，
+  // 每个文件的全部语句成功后记录版本；执行期仍保留 "already exists" 吞错作为存量库
+  // （无版本表首次引导）的兼容兜底 —— 存量库首启会把历史文件补记进版本表。
+  await db.exec(
+    `CREATE TABLE IF NOT EXISTS schema_migrations (
+       filename VARCHAR(255) PRIMARY KEY,
+       applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     );`
+  );
+  const { rows: appliedRows } = await db.query<{ filename: string }>(
+    "SELECT filename FROM schema_migrations;"
+  );
+  const applied = new Set(appliedRows.map((r) => r.filename));
+
   // 按文件名顺序执行全部 .sql 迁移文件 (001_init.sql → 002_... → ...)
   const migrationFiles = fs
     .readdirSync(migrationsDir)
@@ -362,7 +379,14 @@ export async function runMigrations(): Promise<void> {
     throw new Error(`No migration .sql files found in: ${migrationsDir}`);
   }
 
+  let executed = 0;
+  let skipped = 0;
   for (const file of migrationFiles) {
+    // 已应用：直接跳过，不再重复执行（版本追踪的核心收益：启动快 + 不再碰已应用 DDL）
+    if (applied.has(file)) {
+      skipped++;
+      continue;
+    }
     const sqlContent = fs.readFileSync(path.join(migrationsDir, file), "utf-8").replace(/^\uFEFF/, "");
     logger.info(`[Migration] 开始执行 ${file} 建表迁移...`);
     // 按分号切分语句逐条执行，确保 DDL 模式变更立即在后续语句生效 (解决 PGlite 单批次编译报错)
@@ -376,31 +400,68 @@ export async function runMigrations(): Promise<void> {
           await db.exec(stmt + ";");
         } catch (err: any) {
           if (!err.message?.includes("already exists") && !err.message?.includes("duplicate")) {
+            // fail-fast：非幂等预期内的报错一律上抛，由启动入口拒绝服务（绝不带病启动）
             throw err;
           }
         }
       }
     }
+    await db.query("INSERT INTO schema_migrations (filename) VALUES ($1);", [file]);
+    executed++;
   }
 
-  logger.info(`[Migration] 数据库建表迁移成功完成 (${migrationFiles.length} 个迁移文件)！`);
+  logger.info(
+    `[Migration] 数据库建表迁移完成：本次执行 ${executed} 个、跳过已应用 ${skipped} 个（共 ${migrationFiles.length} 个迁移文件）！`
+  );
 }
 
 /**
- * 初始化数据库：自动建表并判断是否需要执行种子数据
+ * 解析种子模式（SEED_MODE 环境变量，单一决策点）：
+ *   demo    —— 默认。灌入 9 个演示口令账号 + 全量演示业务数据（现状行为，本地演示/测试用）。
+ *   minimal —— 仅建 1 个管理员账号（试点/生产用）：口令优先取 SEED_ADMIN_PASSWORD，
+ *              未配置则生成随机一次性口令并仅打印一次；配套要求部署时设
+ *              DEMO_FORCE_PASSWORD_CHANGE=true 强制首启改密。
+ *   off     —— 完全不灌种子（users 保持为空，由现场用 SQL/管理端建号）。
+ * 非法取值一律 fail-fast 拒绝启动，绝不静默回落到 demo（生产误配 demo 会灌入演示口令账号）。
+ */
+export type SeedMode = "demo" | "minimal" | "off";
+export function resolveSeedMode(): SeedMode {
+  // 宽容归一化：空串/空白视为"未配置"（回落 demo）；大小写不敏感、trim 首尾空白。
+  // 这只放宽书写形式，不放宽取值集合 —— 归一化后仍不在三档内的值一律 fail-fast。
+  const raw = (process.env.SEED_MODE || "demo").toLowerCase().trim();
+  if (raw === "demo" || raw === "minimal" || raw === "off") return raw;
+  throw new Error(
+    `[配置错误] SEED_MODE 取值非法: "${process.env.SEED_MODE}"（合法值: demo | minimal | off）。拒绝启动。`
+  );
+}
+
+/**
+ * 初始化数据库：自动建表并按 SEED_MODE 决定种子策略
  */
 export async function initDatabase(): Promise<DatabaseAdapter> {
   const db = await getDb();
+  // 先校验配置再动数据库：配置错误在迁移前就 fail-fast
+  const seedMode = resolveSeedMode();
   await runMigrations();
 
-  // 检查 users 表是否为空，若为空自动执行 seed
+  // 检查 users 表是否为空，按 SEED_MODE 决定种子策略
   const { rows } = await db.query<{ count: string }>("SELECT COUNT(*) as count FROM users;");
   const count = Number(rows[0]?.count || 0);
 
   if (count === 0) {
-    logger.info("[Seed] 检测到 users 表为空，正在自动导入初始管理员、安全员与演示业务数据...");
-    const { seedDatabase } = await import("./seed.ts");
-    await seedDatabase();
+    if (seedMode === "off") {
+      logger.warn(
+        "[Seed] SEED_MODE=off 且 users 表为空：跳过种子导入。系统当前无任何可用账号，请通过管理端或 SQL 建号后再使用。"
+      );
+    } else if (seedMode === "minimal") {
+      logger.info("[Seed] SEED_MODE=minimal：仅创建初始管理员账号（不灌演示数据）...");
+      const { seedMinimalAdmin } = await import("./seed.ts");
+      await seedMinimalAdmin();
+    } else {
+      logger.info("[Seed] 检测到 users 表为空，正在自动导入初始管理员、安全员与演示业务数据...");
+      const { seedDatabase } = await import("./seed.ts");
+      await seedDatabase();
+    }
   }
 
   // 确保 certifications 列存在并为 admin 用户补充证书数据

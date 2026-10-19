@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { getDb } from './db.ts';
 import { TelemetryRepository } from './repository.ts';
@@ -28,6 +29,69 @@ const seedAuditLogsData = loadJson<any[]>('audit-logs.json');
 const seedKnowledgeArticlesData = loadJson<any[]>('knowledge-articles.json');
 const seedInspectionsData = loadJson<any[]>('inspections.json');
 const seedProceduresData = loadJson<any[]>('maintenance-procedures.json');
+
+// ==================== minimal 种子：试点/生产环境的唯一合法初始账号 ====================
+//
+// 与演示种子（seedDatabase，9 个源码固定口令账号 + 全量演示业务数据）严格区分：
+// minimal 只建 1 个管理员，口令来源二选一——
+//   1. SEED_ADMIN_PASSWORD 环境变量注入（推荐，部署系统注入，不落仓库/日志）；
+//   2. 未配置时生成 16 字符随机口令，**仅启动日志打印一次**，之后无处可查（只能改密）。
+// 配套硬要求：部署时设 DEMO_FORCE_PASSWORD_CHANGE=true（登录后强制改密，见 authController），
+// 该要求写入 README-DEPLOY.md；本函数无法替部署者设置环境变量，只负责不产生弱口令。
+// 演示账号、演示设备/工单/遥测等一律不写——试点库里的第一台设备、第一张工单必须是现场真实的。
+
+export interface MinimalSeedResult {
+  username: string;
+  /** 仅当口令为随机生成时返回（明文只此一次，随启动日志输出后即丢弃） */
+  generatedPassword?: string;
+  /** 口令来源：env 注入 / 随机生成 */
+  passwordSource: "env" | "generated";
+}
+
+export async function seedMinimalAdmin(): Promise<MinimalSeedResult> {
+  const db = await getDb();
+  const username = (process.env.SEED_ADMIN_USERNAME || 'admin').trim();
+  if (!/^[a-zA-Z0-9_.-]{3,64}$/.test(username)) {
+    throw new Error(`[配置错误] SEED_ADMIN_USERNAME 取值非法: "${username}"（仅允许字母数字_.-，3-64 位）。`);
+  }
+
+  const injected = process.env.SEED_ADMIN_PASSWORD;
+  let password: string;
+  let generatedPassword: string | undefined;
+  let passwordSource: 'env' | 'generated';
+  if (injected) {
+    if (injected.length < 12) {
+      throw new Error('[配置错误] SEED_ADMIN_PASSWORD 长度不足 12 位，拒绝创建弱口令管理员。');
+    }
+    password = injected;
+    passwordSource = 'env';
+  } else {
+    generatedPassword = crypto.randomBytes(12).toString('base64url'); // 16 字符，URL 安全
+    password = generatedPassword;
+    passwordSource = 'generated';
+  }
+
+  const hash = bcrypt.hashSync(password, 10);
+  await db.query(
+    `INSERT INTO users (id, username, password, name, role, role_title, department, phone, email, permissions, certifications)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '[]'::jsonb)
+     ON CONFLICT (id) DO NOTHING;`,
+    ['u-admin', username, hash, '系统管理员', 'admin', '系统管理员', '信息部', '', '', JSON.stringify(['all'])]
+  );
+
+  if (generatedPassword) {
+    // 一次性口令：仅此一处输出。绝不写入审计/请求日志；提示部署者立即登录改密。
+    console.log(
+      `[Seed][minimal] 未配置 SEED_ADMIN_PASSWORD，已生成随机初始口令（仅此一次显示，请立即登录并修改）：${generatedPassword}`
+    );
+  } else {
+    console.log(`[Seed][minimal] 初始管理员已创建（口令来自 SEED_ADMIN_PASSWORD 环境变量，不回显）。`);
+  }
+  console.log(
+    `[Seed][minimal] 请确认部署已设置 DEMO_FORCE_PASSWORD_CHANGE=true（首次登录强制改密）。`
+  );
+  return { username, generatedPassword, passwordSource };
+}
 
 function toIsoOrNull(value?: string | null): string | null {
   if (!value) return null;
