@@ -3288,6 +3288,7 @@ export class EquipmentScene {
       this.equipment?.animate(this.animTime);
       this.animateWorkOrderRings(this.animTime);
       this.animateFaultPropagation(this.animTime);
+      this.animateSafetyBoundaries(this.animTime);
       this.animateWorkers(this.animTime, dt);
       this.hall?.update(dt);
       this.fluidFlow?.update(dt, this.animTime);
