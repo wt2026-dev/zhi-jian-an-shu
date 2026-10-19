@@ -48,6 +48,7 @@ import { registerExplodedViewRoutes } from "./routes/explodedView.ts";
 import { registerFieldOpsRoutes } from "./routes/fieldOps.ts";
 import { registerAcceptanceRoutes } from "./routes/acceptance.ts";
 import { registerBusinessLoopRoutes } from "./routes/businessLoops.ts";
+import { registerTelemetryRoutes } from "./routes/telemetry.ts";
 
 // 重构说明：本文件为应用装配与启动入口，自 server.ts（原 7329 行单文件）拆出。
 // 各业务域路由/控制器/服务见同目录 routes/、controllers/、services/、middleware/、schemas/、utils/。
@@ -364,6 +365,7 @@ export async function createApp() {
   // AI 分析类接口不提供 /stream 双胞胎——只有对话流式（/api/v1/ai/chat/stream）有真实调用方，
   // 其余 6 个 stream 变体因零调用方连同 aiStreamController 一并移除。
   registerEquipmentRoutes(app); // 设备台账
+  registerTelemetryRoutes(app); // 遥测数据摄入（POST /api/v1/telemetry/ingest）
   registerWorkOrderRoutes(app); // 检修工单全生命周期
   registerAuthRoutes(app); // 认证
   registerUserRoutes(app); // 用户与头像
