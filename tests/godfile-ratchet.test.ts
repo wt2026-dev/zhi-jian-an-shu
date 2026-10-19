@@ -39,7 +39,7 @@ const BUDGET = { gt300: 116, gt800: 26, gt1000: 17 };
  */
 const TOP_FILES: Record<string, number> = {
   "src/components/equipment3d/scene.ts": 2908,
-  "src/components/equipment3d/EquipmentScene.tsx": 2671,
+  "src/components/equipment3d/EquipmentScene.tsx": 2608,
   "src/api/index.ts": 1498,
 };
 

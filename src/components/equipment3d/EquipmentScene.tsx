@@ -85,6 +85,7 @@ import {
 } from './ExplodedView';
 import { LAYOUT_OPTIONS, VIEW_OPTIONS, QUALITY_OPTIONS, SHELL_OPTIONS, ZONE_NOTES, hex, telemetryFeed, Chip, Section, Slider, Toggle } from './uiPrimitives';
 import { useExplodedDiagnostics } from './useExplodedDiagnostics';
+import { useTelemetryPlayback } from './useTelemetryPlayback';
 
 /* ========================= 组件 ========================= */
 
@@ -172,11 +173,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
   /** 右侧面板标签：场景参数 / 设备分析 / 拆解视图 */
   const [rightTab, setRightTab] = useState<'params' | 'analysis'>('analysis');
 
-  // ---- 遥测回放 ----
-  const [playbackPlaying, setPlaybackPlaying] = useState(false);
-  const [playbackIndex, setPlaybackIndex] = useState(-1);
-  const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const playbackIndexRef = useRef(-1);
+  // ---- 遥测回放：状态/定时器见 useTelemetryPlayback ----
 
   // ---- 拆解视图 ----
   /** 3D 场景内的拆解动画（零件分离，`ExplodedView.ts`）——与下面的 HTML 拆解页是两件事 */
@@ -867,11 +864,21 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     setStats((s) => (s ? { ...s, devices: live.devices, triangles: live.triangles, drawCalls: live.drawCalls } : s));
   }, []);
 
+  /* ---------- 7. 遥测回放控制（状态 / 定时器 / 同步 effect 自持在 useTelemetryPlayback） ----------
+   * 调用点刻意放在「台账遥测回灌」effect 之后：回放同步 effect 必须晚于它执行，
+   * 否则同一轮 commit 里回放状态色会被台账色覆盖掉（effect 按声明顺序跑）。
+   * 也刻意放在 resetSelectionVisuals 之前，好让后者能把 stop 规规矩矩写进依赖表。 */
+  const {
+    playing: playbackPlaying,
+    index: playbackIndex,
+    toggle: togglePlayback,
+    seek: seekPlayback,
+    reset: resetPlayback,
+    stop: stopPlayback,
+  } = useTelemetryPlayback({ selectedId, telemetry, equipments, sceneRef });
+
   const resetSelectionVisuals = useCallback(() => {
-    setPlaybackPlaying(false);
-    setPlaybackIndex(-1);
-    playbackIndexRef.current = -1;
-    if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
+    stopPlayback();
     explodedCleanupRef.current?.();
     explodedCleanupRef.current = null;
     const scene = sceneRef.current;
@@ -892,7 +899,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     for (const eq of equipments) {
       scene?.setDeviceTelemetry(eq.id, telemetryFeed(eq.status, eq.telemetry));
     }
-  }, [explodedDeviceId, equipments, showSafetyBoundary, showWorkers]);
+  }, [explodedDeviceId, equipments, showSafetyBoundary, showWorkers, stopPlayback]);
 
   const handlePick = useCallback(
     (id: string) => {
@@ -1423,38 +1430,6 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     patch({ seed: Math.floor(Math.random() * 1_000_000) });
   }, [patch]);
 
-  /* ---------- 7. 遥测回放控制 ---------- */
-  const points = telemetry?.points ?? [];
-  const maxIndex = points.length - 1;
-
-  const togglePlayback = useCallback(() => {
-    setPlaybackPlaying((prev) => !prev);
-  }, []);
-
-  const seekPlayback = useCallback(
-    (idx: number) => {
-      const clamped = Math.max(0, Math.min(maxIndex, idx));
-      setPlaybackIndex(clamped);
-      playbackIndexRef.current = clamped;
-      // 拖动时如果未在播放，也同步一次 3D 状态色（即时反馈）
-      if (!playbackPlaying && selectedId && points.length > 0) {
-        const point = points[clamped];
-        const overStatus = telemetryToStatus(point);
-        sceneRef.current?.setStatusOverride(selectedId, overStatus);
-      }
-    },
-    [maxIndex, playbackPlaying, selectedId, points]
-  );
-
-  const resetPlayback = useCallback(() => {
-    setPlaybackPlaying(false);
-    setPlaybackIndex(-1);
-    playbackIndexRef.current = -1;
-    sceneRef.current?.clearStatusOverrides();
-    const eq = equipments.find((item) => item.id === selectedId);
-    if (eq) sceneRef.current?.setDeviceTelemetry(eq.id, telemetryFeed(eq.status, eq.telemetry));
-  }, [selectedId, equipments]);
-
   /* ---------- 7.1 拆解视图控制 ---------- */
 
   /**
@@ -1593,7 +1568,6 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     (window as any).__setParams = patch;
   }, [handlePick, clearSelection, enterExplodedView, exitExplodedView, patch]);
 
-  // 播放定时器：1 秒 = 1 小时，总长 points.length 秒可循环
   // 画布上浮着两块 DOM，两侧一起挤聚焦层的屏幕槽位：
   //   - 右侧详情面板 / HUD（左缘会变，实测 CSS 1261 → 1116）
   //   - 左侧「检修步骤卡片」弹窗（w-[380px]，几乎满高，实测把左列气泡整列盖住）
@@ -1673,54 +1647,17 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     };
   }, [panelOpen, hudOn, level, ready, selectedId]);
 
-  useEffect(() => {
-    if (playbackPlaying && points.length > 0) {
-      playbackTimerRef.current = setInterval(() => {
-        setPlaybackIndex((prev) => {
-          const next = prev + 1;
-          if (next > maxIndex) {
-            // 播放结束：回到真实状态
-            if (selectedId) sceneRef.current?.clearStatusOverrides();
-            setPlaybackPlaying(false);
-            playbackIndexRef.current = -1;
-            return -1;
-          }
-          playbackIndexRef.current = next;
-          return next;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (playbackTimerRef.current) {
-        clearInterval(playbackTimerRef.current);
-        playbackTimerRef.current = null;
-      }
-    };
-  }, [playbackPlaying, points.length, maxIndex, selectedId]);
-
-  // 回放时刻变化时：同步 3D 状态色覆盖与介质流速
-  useEffect(() => {
-    if (playbackIndex < 0 || playbackIndex >= points.length || !selectedId) return;
-    const point = points[playbackIndex];
-    const overStatus = telemetryToStatus(point);
-    sceneRef.current?.setStatusOverride(selectedId, overStatus);
-    const ledgerStatus = equipments.find((eq) => eq.id === selectedId)?.status ?? 'nodata';
-    sceneRef.current?.setDeviceTelemetry(selectedId, telemetryFeed(overStatus ?? ledgerStatus, point));
-  }, [playbackIndex, points, selectedId, equipments]);
-
   // 换设备 / 清选中时停止回放并清除覆盖
   useEffect(() => {
     if (!selectedId) {
-      setPlaybackPlaying(false);
-      setPlaybackIndex(-1);
-      playbackIndexRef.current = -1;
+      stopPlayback();
       sceneRef.current?.clearStatusOverrides();
       // 退出拆解视图
       if (explodedDeviceId) {
         exitExplodedView();
       }
     }
-  }, [selectedId, explodedDeviceId, exitExplodedView]);
+  }, [selectedId, explodedDeviceId, exitExplodedView, stopPlayback]);
 
   /**
    * 页内拆解视图是"某台设备的"视图：换设备 / 清选中时必须收起。
