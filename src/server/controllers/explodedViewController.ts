@@ -53,7 +53,7 @@ export async function handleGetPartMaintenanceHistory(req: Request, res: Respons
   }
 }
 
-/** GET /api/v1/equipments/:deviceId/fault-diagnostics —— 真实遥测故障定位（拆解页红色脉冲高亮用） */
+/** GET /api/v1/equipments/:deviceId/fault-diagnostics —— 设备遥测故障定位（拆解页红色脉冲高亮用） */
 export async function handleGetDeviceFaultDiagnostics(req: Request, res: Response) {
   try {
     const deviceId = String(req.params.deviceId ?? "");

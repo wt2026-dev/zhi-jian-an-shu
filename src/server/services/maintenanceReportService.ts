@@ -6,7 +6,7 @@
  *   · BOM 零件清单：拆解页源码里页面自带的 PARTS 数据数组（位号/名称/规格/材质/
  *     数量/重量 —— 与拆解页 3D tooltip 完全同源），服务端从 public/exploded/*.html
  *     中原样解析，不重排不补默认值；
- *   · 故障标注：equipment_telemetry 真实读数 × 报警阈值（equipmentFaultLocatorService）；
+ *   · 故障标注：equipment_telemetry 遥测读数 × 报警阈值（equipmentFaultLocatorService）；
  *   · 寿命标注：真实更换记录 × 真实运行时钟（partLifeService）；
  *   · 库存标注：spare_parts 真实台账（partInventoryService）；
  *   · 维修历史：已完工单 repair_log（getCompletedOrdersSummary，含根本原因/作业
@@ -37,7 +37,7 @@ export interface ReportBomRow {
   desc: string | null;
   /** 真实标注：遥测故障观察部位 / 临近或需更换寿命 / 台账低库存 */
   flags: { fault: boolean; lifeNearing: boolean; lifeReplace: boolean; lowStock: boolean };
-  /** 故障详情一句话（真实读数 vs 阈值）；无故障 = null */
+  /** 故障详情一句话（遥测读数 vs 阈值）；无故障 = null */
   faultDetail: string | null;
   /** 寿命状态（life service 真实判定）；无口径 = null */
   lifeStatus: 'healthy' | 'nearing' | 'replace' | 'unknown' | null;
@@ -87,7 +87,7 @@ export interface MaintenanceReportData {
   /** BOM 行（拆解页 PARTS 全量；页面缺失 = 回退服务端目录并注明） */
   bom: ReportBomRow[];
   bomSource: 'page-parts' | 'server-catalog' | 'none';
-  /** 遥测故障概要（最新采样窗口真实读数 × 阈值） */
+  /** 遥测故障概要（最新采样窗口遥测读数 × 阈值） */
   faults: Array<{
     metricLabel: string;
     value: number;
@@ -367,7 +367,7 @@ export async function getMaintenanceReport(deviceId: string): Promise<Maintenanc
   const notes: string[] = [
     'BOM 位号与规格/材质取自拆解页自带数据数组（与 3D 拆解页同源原样解析）；',
     '数量与重量为拆解页出厂标注，字段缺失时如实显示"—"；',
-    '故障标注来自 equipment_telemetry 真实读数与报警阈值比对；',
+    '故障标注来自 equipment_telemetry 遥测读数与报警阈值比对；',
     '寿命标注来自真实完工单更换记录 × 真实运行时钟（config 运行系数、阈值口径见 F5 配置）；',
     '库存标注与低库存判定线取自 spare_parts 真实台账（stock ≤ safe_stock）；',
     '维修历史取自已完工单 repair_log；3D 截图为导出时拆解页实时画面。',
