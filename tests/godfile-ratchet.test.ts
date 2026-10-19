@@ -29,11 +29,18 @@ const BUDGET = { gt300: 116, gt800: 26, gt1000: 17 };
 // 从 scene.ts 机械切出的独立模块，scene.ts 同 commit 减重 ~430 行（3743 → 3073）。
 // gt1000 桶不升：scene.ts 仍在桶内。三个 >1000 的头部文件合计净减。
 
-/** 单独记账的最大头：文件 → 允许的最大行数。 */
+/**
+ * 单独记账的最大头：文件 → 允许的最大行数。
+ *
+ * 基线一律取**实测值，不留余量**：2026-10-19 复查发现这里仍登记 scene.ts 3743，
+ * 而它经 CameraRig 等切分实际已降到 2908 —— 等于悄悄放宽了 835 行预算，
+ * 「只降不升」在代码里并不成立。体积真的需要上涨时，在同一个 commit 里改这张表
+ * 并在提交说明写清为什么；并行会话被这条拦红也是同一句话：要么拆，要么记账。
+ */
 const TOP_FILES: Record<string, number> = {
-  "src/components/equipment3d/scene.ts": 3743,
-  "src/components/equipment3d/EquipmentScene.tsx": 2919,
-  "src/api/index.ts": 1785,
+  "src/components/equipment3d/scene.ts": 2908,
+  "src/components/equipment3d/EquipmentScene.tsx": 2671,
+  "src/api/index.ts": 1498,
 };
 
 function lineCount(file: string): number {
