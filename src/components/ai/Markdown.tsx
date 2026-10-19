@@ -71,7 +71,7 @@ export interface MarkdownProps {
   tone?: 'dark' | 'light';
 }
 
-export const Markdown: React.FC<MarkdownProps> = ({ content, className = '', tone = 'dark' }) => {
+const MarkdownRenderer: React.FC<MarkdownProps> = ({ content, className = '', tone = 'dark' }) => {
   const lines = (content || '').split('\n');
   const blocks: React.ReactNode[] = [];
   let i = 0;
@@ -294,3 +294,6 @@ export const Markdown: React.FC<MarkdownProps> = ({ content, className = '', ton
 
   return <div className={`markdown-body ${className}`}>{blocks}</div>;
 };
+
+// memo：流式每 100ms 重渲，文本未变即跳过整份重解析（含结束那帧全量 == 最后一帧快照）。
+export const Markdown = React.memo(MarkdownRenderer);

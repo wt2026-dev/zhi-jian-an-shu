@@ -192,10 +192,12 @@ export const AiChatMessagesList: React.FC<AiChatMessagesListProps> = ({
               ) : (
                 /* 常规文本气泡 */
                 <>
-                  {isUser || m.streaming ? (
-                    // 流式中的消息渲染纯文本 (避免每帧全量 Markdown 重解析导致内存/CPU 膨胀)，完成后一次性渲染 Markdown
+                  {isUser ? (
                     <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{m.text}</pre>
                   ) : (
+                    // AI 回复即使流式中也直接渲染 Markdown：早先为省 CPU 用 <pre> 显示原文，
+                    // 副作用是整段带 # / ** 的裸文本先糊在气泡里、结束才"啪"地排版，观感像没流式。
+                    // 渲染已 100ms 节流 + Markdown 组件 memo，重解析成本可忽略。
                     <Markdown content={m.text || ' '} tone="light" />
                   )}
                   {m.streaming && (

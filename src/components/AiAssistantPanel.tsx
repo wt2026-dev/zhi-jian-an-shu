@@ -374,9 +374,10 @@ export const AiAssistantPanel: React.FC = () => {
                         : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-none'
                     }`}
                   >
-                    {isUser || m.streaming ? (
+                    {isUser ? (
                       <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{m.text}</pre>
                     ) : (
+                      // AI 回复流式中也直接渲染 Markdown，避免裸 # / ** 文本先糊一屏、结束才排版
                       <Markdown content={m.text || ' '} tone="light" />
                     )}
                     {m.streaming && (
