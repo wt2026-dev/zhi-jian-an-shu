@@ -63,8 +63,7 @@ import { telemetryToStatus } from './statusMapping';
 import { ProductionHUD } from './ProductionHUD';
 import { DrillTrail, type DrillCrumbNode } from './DrillTrail';
 import { SceneLegend } from './SceneLegend';
-import type { SceneLevel } from './scene';
-import type { FactoryBuildingSpec, FactoryZoneSpec, FactoryZoneView, FactoryRankMetric } from './factoryOverview';
+import type { FactoryBuildingSpec, FactoryZoneSpec } from './factoryOverview';
 import { PART_OBSERVATION_ZONES } from './partEvidence';
 import { matchZoneForCauses, type AiDiagnosis } from './aiDiagnosis';
 import { toFocusDecorStatus, type FocusDecorTelemetrySample, type FocusDecorData } from './focusSceneDecor';
@@ -87,6 +86,7 @@ import { LAYOUT_OPTIONS, VIEW_OPTIONS, QUALITY_OPTIONS, SHELL_OPTIONS, ZONE_NOTE
 import { useExplodedDiagnostics } from './useExplodedDiagnostics';
 import { useTelemetryPlayback } from './useTelemetryPlayback';
 import { useWorkOrderActions } from './useWorkOrderActions';
+import { useFacilityNavigation } from './useFacilityNavigation';
 
 /* ========================= 组件 ========================= */
 
@@ -224,15 +224,8 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
   /** 坐标映射是否已建立 */
   const coordMapReadyRef = useRef(false);
 
-  // ---- 三级层级（厂区 / 车间 / 单设备）与生产线开关 ----
-  const [level, setLevel] = useState<SceneLevel>('factory');
-  /** 当前层级的镜像。`selectZone` / `handlePick` 这类 useCallback 需要读"此刻"的层级，
-   *  但又不能把 level 放进依赖（会把回调整体换新、连带重建下游 effect），故用 ref 镜像。 */
-  const levelRef = useRef<SceneLevel>(level);
-  useEffect(() => {
-    levelRef.current = level;
-  }, [level]);
-  const [activeBuilding, setActiveBuilding] = useState<{ id: string; name: string } | null>(null);
+  // ---- 三级层级（厂区 / 车间 / 单设备）与分区读数自持在 useFacilityNavigation（调用点见 1.8） ----
+  // ---- 生产线开关 ----
   const [beltAnimation, setBeltAnimation] = useState(true);
   const [lineEnabled, setLineEnabled] = useState(true);
   const [animPaused, setAnimPaused] = useState(false);
@@ -619,67 +612,34 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     }
   }, [deviceOrderMap, ready]);
 
-  // 厂区总览层：厂房清单由台账真实 workshop 字段去重得出，初始进入厂区层
-  const hasInitializedLevelRef = useRef(false);
+  /* ---------- 1.8 三级层级导航（厂区 / 车间 / 单设备）：level / 当前厂房 / 分区读数自持在 useFacilityNavigation ----------
+   * 调用点刻意留在原 buildFactory effect 的位置：它内部的两条同步 effect（先按台账清单建
+   * 厂区层、建完回读分区排名）必须继续排在这里、第 2 节引擎挂载之前的相对顺序不能变 ——
+   * effect 按声明顺序跑，挪位等于改 commit 期顺序。
+   * clearSelection 声明在一千行之后，所以传进去的是转发箭头而不是它本身（见 hook 头注）。 */
+  const {
+    level,
+    setLevel,
+    activeBuilding,
+    setActiveBuilding,
+    factoryZones,
+    activeZoneId,
+    setActiveZoneId,
+    syncFactoryZones,
+    selectZone,
+    changeRankMetric,
+    drillIntoBuilding,
+    changeLevel,
+  } = useFacilityNavigation({
+    ready,
+    buildingSpecs,
+    zoneSpecs,
+    sceneRef,
+    runClearSelection: () => clearSelection(),
+  });
+
   // 厂房屋顶标签装饰清理句柄（factoryOverviewDecor，纯加法）
   const roofLabelsCleanupRef = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    const scene = sceneRef.current;
-    if (!ready || !scene) return;
-    if (buildingSpecs) {
-      scene.buildFactory?.(buildingSpecs, zoneSpecs);
-    }
-    if (!hasInitializedLevelRef.current) {
-      hasInitializedLevelRef.current = true;
-      if (level === 'factory') {
-        scene.enterFactoryLevel?.();
-      }
-    }
-  }, [ready, buildingSpecs, zoneSpecs, level]);
-
-  /* ---------- 厂区总览：分区视图同步（3D → HUD） ---------- */
-  const [factoryZones, setFactoryZones] = useState<FactoryZoneView[]>([]);
-  const [activeZoneId, setActiveZoneId] = useState<string | null>(null);
-  const [rankMetric, setRankMetricState] = useState<FactoryRankMetric>('failureRate');
-
-  const syncFactoryZones = useCallback(() => {
-    const zs = sceneRef.current?.factoryZones?.() ?? [];
-    setFactoryZones(zs);
-    const m = zs[0]?.rankMetric;
-    if (m) setRankMetricState(m);
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    // buildFactory 之后同步一次（分区/排名在引擎内结算）
-    syncFactoryZones();
-  }, [ready, buildingSpecs, zoneSpecs, syncFactoryZones]);
-
-  /**
-   * 选中分区。**只有厂区总览层**才把选中动作转给 3D 引擎 —— 那一层才有「分区地块」可高亮/取景。
-   *
-   * 车间现场层现在也用同一个状态做「分区 → 车间 → 设备」导航（`WorkshopZoneNav`）。
-   * 那一层里工厂组是隐藏的（`applyLevelVisibility`），再调 `scene.selectZone` 会把镜头
-   * 按一块**看不见的地块**取景 —— 用户看到的是"镜头突然飞到空中乱转"。
-   * 所以按层分流：厂区层交给引擎，其余层只做面板筛选。
-   */
-  const selectZone = useCallback(
-    (zoneId: string | null) => {
-      setActiveZoneId(zoneId);
-      if (levelRef.current === 'factory') sceneRef.current?.selectZone?.(zoneId);
-      syncFactoryZones();
-    },
-    [syncFactoryZones]
-  );
-
-  const changeRankMetric = useCallback(
-    (metric: FactoryRankMetric) => {
-      sceneRef.current?.setFactoryRankMetric?.(metric);
-      setRankMetricState(metric);
-      syncFactoryZones();
-    },
-    [syncFactoryZones]
-  );
 
   // 生产线 / 传送带动画 / 动画暂停 三个开关。
   // 方法级可选调用：测试替身只实现了部分方法，硬调用会在 effect 里抛错并拖挂整个视图。
@@ -1064,15 +1024,8 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     setIsolationId(null);
     refreshLiveStats();
   }, [refreshLiveStats, resetSelectionVisuals]);
-
-  const drillIntoBuilding = useCallback((buildingId: string, buildingName?: string) => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-    clearSelection();
-    scene.drillIntoBuilding(buildingId);
-    setActiveBuilding({ id: buildingId, name: buildingName ?? buildingId });
-    setLevel('workshop');
-  }, [clearSelection]);
+  // 切层 / 下钻这两个导航动作已搬到 useFacilityNavigation（1.8），
+  // 它通过那里注入的转发箭头回到这里清选中 —— 两条链的职责边界就在这一步。
 
   useEffect(() => () => { ++selectionRequestRef.current; }, []);
 
@@ -1192,7 +1145,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
           logger.warn('[equipment3d] 工单深度链接匹配失败，静默回退到普通 3D 场景:', err);
         });
     }
-  }, [ready, equipments, allOrders, initialWorkOrderId, handlePick]);
+  }, [ready, equipments, allOrders, initialWorkOrderId, handlePick, setActiveBuilding, setLevel]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     downRef.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
@@ -1254,7 +1207,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
       }
       handlePick(hit.id);
     },
-    [handlePick, clearSelection, syncFactoryZones]
+    [handlePick, clearSelection, syncFactoryZones, setActiveZoneId, setActiveBuilding]
   );
 
   /* ---------- 6. 参数更新 ---------- */
@@ -1273,23 +1226,6 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
       scene.setView(view, index);
     },
     [selectedId, deviceInputs]
-  );
-
-  /** HUD 面包屑切层：厂区 ↔ 车间（相机走既有阻尼插值，平滑不跳变）。 */
-  const changeLevel = useCallback(
-    (target: SceneLevel) => {
-      const scene = sceneRef.current;
-      if (!scene) return;
-      if (target === 'factory') {
-        clearSelection();
-        scene.enterFactoryLevel();
-        setLevel('factory');
-      } else {
-        scene.enterWorkshopLevel();
-        setLevel('workshop');
-      }
-    },
-    [clearSelection]
   );
 
   const randomizeSeed = useCallback(() => {
