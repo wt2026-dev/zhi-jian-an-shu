@@ -86,6 +86,7 @@ export function globalErrorHandler(err: any, req: any, res: any, next: any) {
       status: 500,
       durationMs,
       userId,
+      traceId: res.locals?.traceId,
     },
     `Uncaught Exception in ${req.method} ${req.originalUrl || req.url}: ${err.message}`
   );

@@ -17,10 +17,11 @@ import { initAuthCache, verifyJwtToken } from "./services/authService.ts";
 import { installAuditHook } from "./services/auditService.ts";
 import { loadSafetyPermitsIntoMemory } from "./controllers/safetyController.ts";
 import { requestLogger } from "./middleware/requestLogger.ts";
+import { traceIdMiddleware } from "./middleware/traceId.ts";
 import { globalLimiter, aiLimiter } from "./middleware/rateLimit.ts";
 import { globalAuthGuard } from "./middleware/auth.ts";
 import { globalErrorHandler } from "./middleware/errorHandler.ts";
-import { logger } from "../utils/logger.ts";
+import { logger, ensureServerModules } from "../utils/logger.ts";
 import { UPLOADS_DIR } from "./utils/config.ts";
 import { ProcedureVideoRepository } from "../db/repositories/index.ts";
 import { sweepStaleVideoTasks } from "./services/videoGenerationService.ts";
@@ -56,6 +57,9 @@ import { registerBusinessLoopRoutes } from "./routes/businessLoops.ts";
 // ==================== 主服务启动与 App 工厂函数 ====================
 
 export async function createApp() {
+  // 0. 确保 Node 结构化日志模块（AsyncLocalStorage / fs）就绪，使启动期日志即结构化落盘
+  await ensureServerModules();
+
   // 1. 初始化真实 PostgreSQL 数据库 (自动执行建表迁移与初始化种子)
   await initDatabase();
 
@@ -212,6 +216,9 @@ export async function createApp() {
     }
     return express.urlencoded({ extended: true, limit: "2mb" })(req, res, next);
   });
+
+  // 请求级 traceId 中间件（链路追踪基线，必须位于请求日志之前）
+  app.use(traceIdMiddleware);
 
   // 结构化 HTTP 请求日志中间件
   app.use(requestLogger);

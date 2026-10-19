@@ -29,6 +29,7 @@ export function requestLogger(req: any, res: any, next: any) {
         status: res.statusCode,
         durationMs,
         userId,
+        traceId: res.locals?.traceId,
       },
       `${req.method} ${req.originalUrl || req.url} ${res.statusCode} - ${durationMs}ms`
     );
