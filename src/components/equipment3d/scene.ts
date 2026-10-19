@@ -23,10 +23,9 @@
  *   ✅ faultLocator.ts    故障定位标（红线框 + 减淡/恢复动画）
  *   ✅ sceneMinimap.ts    小地图绘制（drawSceneMinimap 纯函数）
  *   ✅ safetyBoundaries.ts 安全边界层（安全圈 + LOTO 罩 + 标签贴片；锚点由场景侧解析后传入）
+ *   ✅ faultChain.ts      故障传播链层（超阈读数观测标注；labelFactory 注入保测试替身）
  *   ⬜ CameraRig          orbit 状态 + 滚轮/双指 + userZoomRange + update() 相机段
  *                         （最大一块：this.orbit 在本文件被引用 ~40 处，需一次性机械替换）
- *   ⬜ FaultChainLayer    buildFaultChain/createFaultLabel/animateFaultPropagation
- *                         （测试替身 stub 了 createFaultLabel，需 labelFactory 注入）
  *   ⬜ WorkerFlowLayer    buildWorkers/animateWorkers（依赖 coordMap/trajectory）
  *   ⬜ FocusEnvironment   applyDeviceMood + DeviceDetailEnv 生命周期
  *                         （该区当前由另一会话活跃调参，等收敛后移动）
@@ -53,7 +52,6 @@ import { buildProps } from './props';
 import { setGeoLod } from './parts';
 import { clamp } from './rand';
 import { FluidFlowSystem } from './fluidFlow';
-import { telemetryToStatus } from './statusMapping';
 import type { PartTelemetry } from './partEvidence';
 import { ProductionLine, type DeviceAnchor, type ProductionLineOptions } from './productionLine';
 import { WorkshopDetails, type DetailDeviceAnchor } from './workshopDetails';
@@ -66,6 +64,7 @@ import {
   type FactoryRankMetric,
 } from './factoryOverview';
 import { FaultLocator, type FaultAnchor } from './faultLocator';
+import { FaultChain } from './faultChain';
 import { SafetyBoundaries, type SafetyAnchor } from './safetyBoundaries';
 import { DeviceDetailEnv, type DeviceDetailEnvBox } from './deviceDetailEnv';
 import { computeIsolatedFraming } from './cameraFraming';
@@ -189,7 +188,7 @@ export class EquipmentScene {
   private helperGroup = new THREE.Group();
   private workOrderGroup = new THREE.Group();
   private safety = new SafetyBoundaries();
-  private faultChainGroup = new THREE.Group();
+  private faultChain = new FaultChain();
   private workerGroup = new THREE.Group();
   /**
    * 派工指引虚线层（技师 → 故障设备）。
@@ -453,7 +452,7 @@ export class EquipmentScene {
       this.helperGroup,
       this.workOrderGroup,
       this.safety.group,
-      this.faultChainGroup,
+      this.faultChain.group,
       this.workerGroup,
       this.guideGroup,
       this.factoryGroup,
@@ -880,84 +879,39 @@ export class EquipmentScene {
 
   /* ========================= 故障传播链 ========================= */
 
-  /** 故障链节点定义 */
-  private faultChainNodes: THREE.Object3D[] = [];
-  /** 故障链连线 + 动画 */
-  private faultChainLines: Array<{
-    mesh: THREE.Line;
-    mat: THREE.LineBasicMaterial;
-    flowMat: THREE.MeshBasicMaterial;
-  }> = [];
-  /** 故障链文字贴片 */
-  private faultChainLabels: THREE.Object3D[] = [];
-
-
   /**
    * 构建故障传播链3D。
    * React 层在 API 数据就绪后调用（非阻塞，不防抖）。
+   * 场景侧解析设备锚点与包围盒，标注生成在 faultChain 模块；
+   * 标签工厂用箭头闭包晚绑定，测试替身 stub createFaultLabel 仍然生效。
    * @param eqId 选中设备 id
    * @param telemetryPoints 最近48h 遥测点
-   * @param orders 该设备工单列表
+   * @param orders 该设备工单列表（保留对外签名，当前不参与构建）
    */
   buildFaultChain(
     eqId: string,
     telemetryPoints: Array<{ temperature?: number; vibration?: number; pressure?: number; current?: number; loadRate?: number }> | null,
     orders: Array<{ priority?: string; status?: string }> | null,
   ): void {
-    this.disposeGroup(this.faultChainGroup);
-    this.faultChainNodes = [];
-    this.faultChainLines = [];
-    this.faultChainLabels = [];
-    if (!this.equipment || !this.hall) return;
-
+    const boxById = this.equipment?.boxById;
+    if (!this.equipment || !this.hall || !boxById) {
+      this.faultChain.clear();
+      return;
+    }
     const idx = this.equipment.indexById.get(eqId);
-    if (typeof idx !== 'number' || !this.slots[idx]) return;
+    const box = boxById.get(eqId);
+    if (typeof idx !== 'number' || !this.slots[idx] || !box) {
+      this.faultChain.clear();
+      return;
+    }
     const slot = this.slots[idx];
-    const y = this.hall.reliefAt(slot.x, slot.z);
-    const box = this.equipment.boxById.get(eqId);
-    if (!box) return;
-
-    // 取最近一个遥测点判断超限项
-    const tp = telemetryPoints && telemetryPoints.length > 0 ? telemetryPoints[telemetryPoints.length - 1] : null;
-    if (!tp) return;
-    const nodeData: Array<{ text: string; color: number }> = [];
-    const metrics = [
-      ['temperature', '温度', '°C'],
-      ['vibration', '振动', 'mm/s'],
-      ['loadRate', '负载', '%'],
-    ] as const;
-    for (const [key, label, unit] of metrics) {
-      const value = tp[key];
-      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
-      const severity = telemetryToStatus({ [key]: value });
-      if (severity) nodeData.push({ text: `观测：${label} ${value}${unit}`, color: severity === 'warning' ? 0xf59e0b : 0xef4444 });
-    }
-    if (nodeData.length === 0) return;
-    // 观测声明：这些是真实读数的标注，不是已证实的部件级故障结论，也不互相连线。
-    nodeData.push({ text: '超阈读数观测 · 非部件故障结论', color: 0x94a3b8 });
-
-    const boxH = box.h;
-    const baseX = box.centerX ?? slot.x;
-    const baseY = (box.centerY ?? y + boxH + 0.8) + boxH / 2;
-    const baseZ = box.centerZ ?? slot.z;
-    const spacing = 1.6;
-    const offsetX = 2.2; // 设备侧向偏移
-    const angleStep = nodeData.length > 1 ? Math.PI / (nodeData.length * 2 + 2) : 0;
-
-    for (let i = 0; i < nodeData.length; i++) {
-      const nd = nodeData[i];
-      const angle = -Math.PI / 4 + angleStep * (i + 1);
-      const nx = baseX + offsetX + i * spacing * Math.cos(angle);
-      const ny = baseY + i * 0.6;
-      const nz = baseZ + Math.sin(angle) * 0.4;
-
-      // 文字标签（深色底板 + 彩色边线 + canvas 贴图，复用安全标签方案）
-      const label = this.createFaultLabel(nd.text, nd.color, 0.88, 0.24);
-      label.position.set(nx, ny, nz);
-      label.name = `fault-observation:${eqId}:${i}`;
-      this.faultChainGroup.add(label);
-      this.faultChainLabels.push(label);
-    }
+    this.faultChain.build(
+      eqId,
+      { x: slot.x, y: this.hall.reliefAt(slot.x, slot.z), z: slot.z },
+      box,
+      telemetryPoints,
+      (text, color, w, h) => this.createFaultLabel(text, color, w, h),
+    );
   }
 
   /** 创建故障链标签（深色底板 + 彩色边线 + canvas 文字） */
@@ -1018,41 +972,17 @@ export class EquipmentScene {
 
   /** 故障传播链动画（合并进现有 RAF 循环） */
   animateFaultPropagation(time: number): void {
-    if (this.faultChainLines.length === 0) return;
-
-    for (let i = 0; i < this.faultChainLines.length; i++) {
-      const { mat, flowMat } = this.faultChainLines[i];
-
-      // 连线脉冲：透明度随正弦波波动
-      mat.opacity = 0.45 + 0.35 * Math.sin(time * 3.0 + i * 1.2);
-
-      // 流动粒子：在连线段内循环前进
-      const t = (time * 0.5 + i * 0.35) % 1.0;
-      flowMat.opacity = 0.5 + 0.4 * Math.sin(time * 4.0 + i * 2.0);
-      // flow 位置由 nodePositions 插值驱动——因为节点位置不变，这里用脉冲透明度模拟流动
-    }
-
-    // 节点脉冲（呼吸灯效果）
-    for (let i = 0; i < this.faultChainNodes.length; i++) {
-      const node = this.faultChainNodes[i] as THREE.Mesh;
-      const mat = node.material as THREE.MeshBasicMaterial;
-      mat.opacity = 0.65 + 0.3 * Math.sin(time * 2.5 + i * 0.8);
-      const s = 1.0 + 0.12 * Math.sin(time * 2.5 + i * 0.8);
-      node.scale.setScalar(s);
-    }
+    this.faultChain.animate(time);
   }
 
   /** 故障链显隐（拆解/独占联动） */
   setFaultChainVisible(visible: boolean): void {
-    this.faultChainGroup.visible = visible;
+    this.faultChain.group.visible = visible;
   }
 
   /** 清空故障链（选中设备切换或退出时调用） */
   clearFaultChain(): void {
-    this.disposeGroup(this.faultChainGroup);
-    this.faultChainNodes = [];
-    this.faultChainLines = [];
-    this.faultChainLabels = [];
+    this.faultChain.clear();
   }
 
   /* ========================= 人员与工位动线 ========================= */
@@ -2414,7 +2344,7 @@ export class EquipmentScene {
     // 总览层不需要车间内的工单环 / 安全边界 / 故障链 / 人员
     this.workOrderGroup.visible = !isFactory;
     this.safety.group.visible = !isFactory;
-    this.faultChainGroup.visible = !isFactory;
+    this.faultChain.group.visible = !isFactory;
     this.workerGroup.visible = !isFactory;
     // 派工指引虚线：厂区层没有"车间内的人/设备链路"，一律不显示；
     // 车间/聚焦层由 setWorkerVisible 按总开关 + 是否选中设备决定。
@@ -3114,7 +3044,7 @@ export class EquipmentScene {
   enterExplodedView(deviceId: string): void {
     this.equipment?.hideDeviceInstances(deviceId);
     this.safety.group.visible = false;
-    this.faultChainGroup.visible = false;
+    this.faultChain.group.visible = false;
     this.workerGroup.visible = false;
     const explodedGroup = this.scene.getObjectByName('explodedView') as THREE.Group | null;
     this.fluidFlow?.setExploded(deviceId, true, explodedGroup);
@@ -3130,7 +3060,7 @@ export class EquipmentScene {
   exitExplodedView(deviceId: string): void {
     this.equipment?.showDeviceInstances(deviceId);
     this.fluidFlow?.setExploded(deviceId, false, null);
-    // faultChainGroup 可见性由 React 层 restoreFaultChain 恢复
+    // faultChain.group 可见性由 React 层 restoreFaultChain 恢复
   }
 
   /** 获取指定设备的零件信息（用于创建拆解视图） */

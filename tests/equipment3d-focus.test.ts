@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { buildEquipment } from '../src/components/equipment3d/equipment';
 import { EquipmentScene, DEFAULT_PARAMS } from '../src/components/equipment3d/scene';
+import { FaultChain } from '../src/components/equipment3d/faultChain';
 import { SCENE_PRESETS } from '../src/components/equipment3d/styles';
 import { Hall } from '../src/components/equipment3d/hall';
 import { setGeoLod } from '../src/components/equipment3d/parts';
@@ -26,7 +27,7 @@ function harness() {
       theta: 0, sTheta: 0, phi: 1, sPhi: 1, minPhi: 0.06, maxPhi: 1.52, minRadius: 3, maxRadius: 620 },
     hallGroup: new THREE.Group(), propsGroup: new THREE.Group(), workerGroup: new THREE.Group(),
     workOrderGroup: new THREE.Group(), safety: { group: new THREE.Group() }, helperGroup: new THREE.Group(),
-    faultChainGroup: new THREE.Group(), grid: new THREE.Group(), selectionRing: new THREE.Group(),
+    faultChain: new FaultChain(), grid: new THREE.Group(), selectionRing: new THREE.Group(),
     fluidFlow: { setIsolation: vi.fn() }, fitRadius: 100,
     renderer: { setSize: vi.fn(), setPixelRatio: vi.fn() }, container: { clientWidth: 960, clientHeight: 600 },
   });
@@ -126,9 +127,9 @@ describe('actual geometry focus bounds', () => {
     expect(texts.length).toBeGreaterThan(1);
     expect(texts.every(text => text.includes('观测'))).toBe(true);
     expect(texts.some(text => text.includes('非部件故障结论'))).toBe(true);
-    expect(s.faultChainGroup.children.some((obj: THREE.Object3D) => /fault-(line|flow|node)/.test(obj.name) || obj.type === 'Line')).toBe(false);
+    expect(s.faultChain.group.children.some((obj: THREE.Object3D) => /fault-(line|flow|node)/.test(obj.name) || obj.type === 'Line')).toBe(false);
     texts.length = 0;
     s.buildFaultChain('eq-105', [{ temperature: NaN }], [{ priority: 'urgent' }]);
-    expect(s.faultChainGroup.children).toHaveLength(0);
+    expect(s.faultChain.group.children).toHaveLength(0);
   });
 });
