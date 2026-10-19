@@ -111,6 +111,19 @@ describe("健康分/工时不得用编造默认值兜底", () => {
     expect(code, "提示词必须声明缺失不得编造").toMatch(/严禁\*\*在缺失时编造/);
   });
 
+  it("设备卡片/工单草稿不得把未知车间编成具体车间名（与生产A线同类编造）", () => {
+    // 工单/设备"所属车间"为空时，曾兜底成"生产主车间"/"默认车间"并当作真实车间展示，
+    // 与二维码物料里 `location || '生产A线'` 是同一类位置编造。车间未知就显示「未登记」。
+    for (const f of [
+      "src/components/equipment3d/RepairStepCard.tsx",
+      "src/components/equipment-health/useEquipmentHealth.ts",
+    ]) {
+      const code = read(f);
+      expect(code, `${f} 不得把未知车间编成具体车间`).not.toMatch(/workshop\s*\|\|\s*['"]生产/);
+      expect(code, `${f} 未知车间应显示未登记`).toMatch(/workshop\s*\|\|\s*['"]未登记['"]/);
+    }
+  });
+
   it("代码里不得出现形如 '2026-03-15' 的硬编码业务日期", () => {
     // 已踩过两次：
     // - useInspectionAi 把巡检转隐患的 deadline 写死 '2026-03-15' —— 一入库就"逾期"。

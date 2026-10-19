@@ -278,7 +278,7 @@ export const RepairStepCard: React.FC<RepairStepCardProps> = ({
           </div>
           <div>
             <span className="text-slate-400 block text-[10px]">所属车间</span>
-            <span className="font-medium text-slate-200 truncate block">{workOrder.workshop || '生产主车间'}</span>
+            <span className="font-medium text-slate-200 truncate block">{workOrder.workshop || '未登记'}</span>
             <span className="text-[10px] text-slate-400">{workOrder.faultType}</span>
           </div>
           <div className="pt-1.5 border-t border-white/5">

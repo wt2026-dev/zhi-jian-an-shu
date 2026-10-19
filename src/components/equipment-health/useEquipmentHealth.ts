@@ -277,7 +277,7 @@ export function useEquipmentHealth({
         id: eq.id,
         name: eq.name,
         code: eq.code,
-        workshop: eq.workshop || '默认车间',
+        workshop: eq.workshop || '未登记',
       },
     });
     try {
