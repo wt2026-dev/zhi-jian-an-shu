@@ -82,9 +82,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const runningEquipments = equipments.filter((e) => e.status === 'running').length;
   const warningEquipments = equipments.filter((e) => e.status === 'warning').length;
   const faultEquipments = equipments.filter((e) => e.status === 'fault' || e.status === 'overhauling').length;
-  const avgHealthScore = Math.round(
-    equipments.reduce((sum, e) => sum + e.healthScore, 0) / (totalEquipments || 1)
-  );
+  // 平均健康分只统计**有评分**的设备：未评估（null）不是 0 分，把它算进分母会把
+  // 全厂均值拖低，而它其实只是"还没测"。全部未评估时为 null，界面显示「—」。
+  const scoredEquipments = equipments.filter((e) => typeof e.healthScore === 'number');
+  const avgHealthScore = scoredEquipments.length > 0
+    ? Math.round(scoredEquipments.reduce((sum, e) => sum + (e.healthScore as number), 0) / scoredEquipments.length)
+    : null;
 
   // 合规与失误率统计状态
   const [complianceStats, setComplianceStats] = useState<ComplianceStats | null>(null);

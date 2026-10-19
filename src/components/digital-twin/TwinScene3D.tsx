@@ -198,7 +198,7 @@ function makeSignTexture(name: string, deviceCount: number | null, healthScore: 
   ctx.font = '600 22px "Microsoft YaHei", sans-serif';
   ctx.fillText(`设备 ${deviceCount ?? '—'} 台`, W / 2, 76);
   ctx.fillStyle = '#475569';
-  ctx.fillText(`健康分 ${healthScore ?? '—'}`, W / 2, 106);
+  ctx.fillText(`健康分 ${healthScore ?? '未评估'}`, W / 2, 106);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;

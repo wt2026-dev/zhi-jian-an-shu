@@ -189,7 +189,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
 
   // 4 类可下钻指标卡的实时异常计数
   const healthAbnormalCount = equipments.filter(
-    (e) => ['warning', 'fault', 'overhauling'].includes(e.status) || (e.healthScore ?? 100) < 70
+    (e) => ['warning', 'fault', 'overhauling'].includes(e.status) || (e.healthScore != null && e.healthScore < 70)
   ).length;
   const orderBacklogCount = workOrders.filter((w) => !['completed', 'cancelled'].includes(w.status)).length;
   const inspectionAbnormalCount = inspections.filter((i) => (i.abnormalCount || 0) > 0).length;
@@ -494,7 +494,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
     nodes.push({
       label: '今日智能态',
       date: '当前',
-      detail: `健康度 ${sandboxEq.healthScore} 分 · ${sandboxStatus(sandboxEq.status).label} · 下次巡检 ${sandboxEq.nextInspectionDate || '—'}`,
+      detail: `健康度 ${sandboxEq.healthScore ?? '未评估'} 分 · ${sandboxStatus(sandboxEq.status).label} · 下次巡检 ${sandboxEq.nextInspectionDate || '—'}`,
     });
     return nodes;
   }, [sandboxEq]);

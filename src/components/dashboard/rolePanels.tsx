@@ -317,16 +317,16 @@ export const ManagerPanels: React.FC<ManagerPanelsProps> = ({
                     <span className="text-xs font-bold text-slate-800">车间预警设备雷达</span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">
-                    {equipments.filter(e => e.healthScore < 80 || e.status === 'warning').length} 台重点关注
+                    {equipments.filter(e => (e.healthScore != null && e.healthScore < 80) || e.status === 'warning').length} 台重点关注
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mb-2">健康分&lt;80或遥测异常机组监控</p>
                 <div className="space-y-1.5 text-xs">
-                  {equipments.filter(e => e.healthScore < 80 || e.status === 'warning').slice(0, 2).map((eq) => (
+                  {equipments.filter(e => (e.healthScore != null && e.healthScore < 80) || e.status === 'warning').slice(0, 2).map((eq) => (
                     <div key={eq.id} className="p-2 rounded bg-amber-50/50 border border-amber-200 text-[11px]">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-slate-900 truncate">{eq.name}</span>
-                        <span className="text-[10px] font-mono font-bold text-rose-600">{eq.healthScore}分</span>
+                        <span className="text-[10px] font-mono font-bold text-rose-600">{eq.healthScore ?? '—'}分</span>
                       </div>
                       <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
                         <span>振动: {eq.telemetry?.vibration ?? "—"}mm/s</span>
@@ -426,11 +426,11 @@ export const TechnicianPanels: React.FC<TechnicianPanelsProps> = ({
                 </div>
                 <p className="text-xs text-slate-500 mb-2">需要现场紧固对中或润滑补油的机组</p>
                 <div className="space-y-1.5 text-xs">
-                  {equipments.filter(e => e.healthScore < 85).slice(0, 2).map((eq) => (
+                  {equipments.filter(e => e.healthScore != null && e.healthScore < 85).slice(0, 2).map((eq) => (
                     <div key={eq.id} className="p-2 rounded bg-amber-50/50 border border-amber-200 text-[11px]">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-slate-900 truncate">{eq.name}</span>
-                        <span className="text-[10px] font-mono font-bold text-rose-600">{eq.healthScore}分</span>
+                        <span className="text-[10px] font-mono font-bold text-rose-600">{eq.healthScore ?? '—'}分</span>
                       </div>
                       <div className="text-[10px] text-slate-600 mt-1 flex justify-between">
                         <span>振动: {eq.telemetry?.vibration ?? "—"}mm/s</span>

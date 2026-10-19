@@ -7,7 +7,11 @@ import { UserProfile, WorkOrder } from '../../types';
 
 export interface DashboardHeroProps {
   currentUser: UserProfile;
-  avgHealthScore: number;
+  /**
+   * 全厂平均健康分。null = 没有任何设备做过健康评估 —— 这时显示「—」，
+   * 不能显示 0，也不能显示 100（那会被读成"全厂满分"）。
+   */
+  avgHealthScore: number | null;
   pendingWorkOrdersCount: number;
   urgentOrdersCount: number;
   urgentOrder?: WorkOrder;
@@ -42,11 +46,13 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
           <div className="flex items-center gap-6 md:gap-8 shrink-0">
             <div>
               <div className="text-4xl font-bold font-mono leading-none text-blue-600">
-                {avgHealthScore}
-                <span className="text-base font-normal text-slate-500 ml-1">/100</span>
+                {avgHealthScore ?? '—'}
+                {avgHealthScore != null && <span className="text-base font-normal text-slate-500 ml-1">/100</span>}
               </div>
               <div className="text-[11px] text-slate-500 mt-1.5">
-                设备综合健康度 · {avgHealthScore >= 85 ? '优良状态' : '需重点关注'}
+                {avgHealthScore == null
+                  ? '设备综合健康度 · 暂无评估数据'
+                  : `设备综合健康度 · ${avgHealthScore >= 85 ? '优良状态' : '需重点关注'}`}
               </div>
             </div>
             <div className="h-12 w-px bg-slate-200 hidden sm:block" />

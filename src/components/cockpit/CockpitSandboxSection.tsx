@@ -185,14 +185,16 @@ export const CockpitSandboxSection: React.FC<CockpitSandboxSectionProps> = ({
                   <span className="text-[9px] text-slate-500 block">健康度</span>
                   <span
                     className={`font-mono font-bold text-lg ${
-                      sandboxEq.healthScore >= 85
+                      sandboxEq.healthScore == null
+                        ? 'text-slate-400'
+                        : sandboxEq.healthScore >= 85
                         ? 'text-emerald-600'
                         : sandboxEq.healthScore >= 70
                         ? 'text-amber-600'
                         : 'text-rose-600'
                     }`}
                   >
-                    {sandboxEq.healthScore}
+                    {sandboxEq.healthScore ?? '—'}
                   </span>
                 </div>
                 <div className="p-2 rounded-xl bg-white/70 border border-slate-100">
@@ -208,13 +210,14 @@ export const CockpitSandboxSection: React.FC<CockpitSandboxSectionProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-slate-500">
                   <span>健康度能量条</span>
-                  <span className="font-mono">{sandboxEq.healthScore} / 100</span>
+                  <span className="font-mono">{sandboxEq.healthScore == null ? '未评估' : `${sandboxEq.healthScore} / 100`}</span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-100 border border-slate-200/70 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
-                      width: `${Math.max(4, Math.min(100, sandboxEq.healthScore))}%`,
+                      // 未评估时长度给 0 且用中性灰，不要 Math.max(4, ...) 把它抬成"极差"的 4%
+                      width: `${sandboxEq.healthScore == null ? 0 : Math.max(4, Math.min(100, sandboxEq.healthScore))}%`,
                       background: 'linear-gradient(90deg, #F6D08A 0%, #E8A33D 45%, #0EA5E9 100%)',
                     }}
                   />

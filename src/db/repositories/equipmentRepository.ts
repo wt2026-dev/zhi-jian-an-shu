@@ -60,9 +60,11 @@ export const EquipmentRepository = {
     installDate?: string;
     manufacturer?: string;
     status?: string;
-    healthScore?: number;
+    /** 健康分；null = 尚未评估（库默认值是 100，显式传 null 才会覆盖掉那个默认） */
+    healthScore?: number | null;
     criticality?: string;
-    telemetry?: any;
+    /** 遥测快照；null = 未接入（库默认值是 '{}'::jsonb） */
+    telemetry?: Equipment["telemetry"];
     specs?: any;
     maintenanceHistory?: any[];
     nextInspectionDate?: string;
@@ -86,9 +88,10 @@ export const EquipmentRepository = {
         eq.installDate || null,
         eq.manufacturer || null,
         eq.status || "running",
-        eq.healthScore ?? 100,
+        // 不传 healthScore 时传 null（未评估），**不要**沿用库默认的 100
+        eq.healthScore ?? null,
         eq.criticality || "主要生产",
-        JSON.stringify(eq.telemetry || {}),
+        eq.telemetry ? JSON.stringify(eq.telemetry) : null,
         JSON.stringify(eq.specs || {}),
         JSON.stringify(eq.maintenanceHistory || []),
         eq.nextInspectionDate || null,

@@ -40,8 +40,11 @@ export const TelemetryAndInspectionSection: React.FC<TelemetryAndInspectionSecti
 
         <div className="space-y-2.5">
           {equipments.slice(0, 4).map((eq) => {
-            const isAlarm = eq.healthScore < 60 || eq.status === 'fault';
-            const isWarn = eq.healthScore >= 60 && eq.healthScore < 80;
+            // healthScore 为 null = 尚未评估。`null < 60` 与 `null >= 60` 都是 false，
+            // 所以未评估设备会悄悄落进「既不算告警也不算预警」的中间地带 —— 必须显式判空。
+            const scored = eq.healthScore != null;
+            const isAlarm = (scored && eq.healthScore! < 60) || eq.status === 'fault';
+            const isWarn = scored && eq.healthScore! >= 60 && eq.healthScore! < 80;
             // 缺测（telemetry 为 null）时：不参与阈值判定、不显示数字。
             // 注意 `undefined > 75` 求值为 false —— 直接写 eq.telemetry?.temperature > 75
             // 会把「没有读数」静默渲染成「正常」，比显示 undefined 更危险。
@@ -64,10 +67,12 @@ export const TelemetryAndInspectionSection: React.FC<TelemetryAndInspectionSecti
                         ? 'bg-rose-50 text-rose-700 border border-rose-200'
                         : isWarn
                         ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : scored
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-slate-50 text-slate-500 border border-slate-200'
                     }`}
                   >
-                    {eq.healthScore}分
+                    {scored ? `${eq.healthScore}分` : '未评估'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5 font-medium">
