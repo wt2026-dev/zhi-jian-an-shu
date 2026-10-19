@@ -329,8 +329,8 @@ export const ManagerPanels: React.FC<ManagerPanelsProps> = ({
                         <span className="text-[10px] font-mono font-bold text-rose-600">{eq.healthScore}分</span>
                       </div>
                       <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
-                        <span>振动: {eq.telemetry.vibration}mm/s</span>
-                        <span>温度: {eq.telemetry.temperature}°C</span>
+                        <span>振动: {eq.telemetry?.vibration ?? "—"}mm/s</span>
+                        <span>温度: {eq.telemetry?.temperature ?? "—"}°C</span>
                       </div>
                     </div>
                   ))}
@@ -433,8 +433,8 @@ export const TechnicianPanels: React.FC<TechnicianPanelsProps> = ({
                         <span className="text-[10px] font-mono font-bold text-rose-600">{eq.healthScore}分</span>
                       </div>
                       <div className="text-[10px] text-slate-600 mt-1 flex justify-between">
-                        <span>振动: {eq.telemetry.vibration}mm/s</span>
-                        <span>温升: {eq.telemetry.temperature}°C</span>
+                        <span>振动: {eq.telemetry?.vibration ?? "—"}mm/s</span>
+                        <span>温升: {eq.telemetry?.temperature ?? "—"}°C</span>
                       </div>
                     </div>
                   ))}

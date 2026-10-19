@@ -106,7 +106,7 @@ export function useEquipmentHealth({
       setLoadingTelemetry(false);
     }
 
-    // 无真实遥测数据且未开启模拟时置空，展示标准空态，坚决不得用伪造数据填充
+    // 无设备遥测数据且未开启模拟时置空，展示标准空态，坚决不得用伪造数据填充
     setHistoryData([]);
   }, []);
 
@@ -220,8 +220,15 @@ export function useEquipmentHealth({
     const alarms = alarmEquipments.map((e) => ({
       equipmentId: e.id,
       alarmType: e.status === 'fault' ? '设备故障停机' : '运行参数预警',
-      value: { healthScore: e.healthScore, temperature: e.telemetry.temperature, vibration: e.telemetry.vibration, loadRate: e.telemetry.loadRate },
-      timestamp: e.telemetry.lastUpdated || new Date().toLocaleString('zh-CN'),
+      // 缺测字段写 null（而不是省略或补 0）：JSON.stringify 会把 undefined 整个丢掉，
+      // AI 侧看到"没有这个字段"与"字段为 null"的语义不同 —— 后者明确表示"未接入读数"。
+      value: {
+        healthScore: e.healthScore,
+        temperature: e.telemetry?.temperature ?? null,
+        vibration: e.telemetry?.vibration ?? null,
+        loadRate: e.telemetry?.loadRate ?? null,
+      },
+      timestamp: e.telemetry?.lastUpdated || new Date().toLocaleString('zh-CN'),
     }));
     setCorrState({ open: true, loading: true, error: null });
     try {
@@ -255,7 +262,12 @@ export function useEquipmentHealth({
   const handleAiDraftWorkOrder = async () => {
     const eq = equipments.find((e) => e.id === activeEqId);
     if (!eq) return;
-    const desc = `健康监测发现「${eq.name} (${eq.code})」异常: 当前健康分 ${eq.healthScore}/100, 状态 ${eq.status}, 轴承温度 ${eq.telemetry.temperature}°C, 振动 ${eq.telemetry.vibration}mm/s, 负载率 ${eq.telemetry.loadRate}%，请生成检修工单草稿。`;
+    // 缺测不写"0°C"也不写"undefined°C"：整段读数换成「遥测未接入」，让 AI 知道证据不足。
+    const tel = eq.telemetry;
+    const readingPart = tel
+      ? `轴承温度 ${tel.temperature}°C, 振动 ${tel.vibration}mm/s, 负载率 ${tel.loadRate}%`
+      : '遥测未接入（无有效读数），请基于健康分与设备状态判断';
+    const desc = `健康监测发现「${eq.name} (${eq.code})」异常: 当前健康分 ${eq.healthScore}/100, 状态 ${eq.status}, ${readingPart}，请生成检修工单草稿。`;
     setDraftState({
       open: true,
       loading: true,

@@ -172,7 +172,12 @@ function AppShell() {
   const handleOpenWorkOrderForEquipment = () => { setActiveTab('work_orders'); };
   const handleOpenAiDiagnoseForEquipment = (eq: Equipment) => {
     setAiTargetEquipment(eq);
-    setAiPrefilledQuery(`请对 ${eq.name} (${eq.code}) 当前轴温 ${eq.telemetry.temperature}°C 与振动 ${eq.telemetry.vibration}mm/s 进行故障树分析与处置建议`);
+    // 缺测时不在提问里塞 "undefined°C"：把"有何异常、请排查"交给模型，而不是编一个读数当证据。
+    const tel = eq.telemetry;
+    const symptom = tel
+      ? `当前轴温 ${tel.temperature}°C 与振动 ${tel.vibration}mm/s`
+      : '台账状态异常，但遥测未接入有效读数';
+    setAiPrefilledQuery(`请对 ${eq.name} (${eq.code}) ${symptom} 进行故障树分析与处置建议`);
     setActiveTab('ai_assistant');
   };
   const handleAskAiWithContext = (query: string) => { setAiPrefilledQuery(query); setActiveTab('ai_assistant'); };
