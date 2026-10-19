@@ -1,14 +1,8 @@
 #!/bin/sh
-# PGlite 数据备份脚本：打包数据目录为 tar.gz（文件名带时间戳），保留最近 7 天
+# 数据库备份入口（cron 兼容）——实际逻辑在 scripts/backup-db.mjs（一致性快照 + 自校验 + 保留策略）。
+# 环境变量说明见 backup-db.mjs 头注释。退出码非 0 = 失败（定时任务可据此告警）。
+#
+# ⚠️ PGlite 模式须先停止应用（数据目录被持有会 fail-fast，绝不静默产出不一致备份）。
 set -e
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-BACKUP_DIR="${BACKUP_DIR:-/backups}"
-DATA_DIR="${DATA_DIR:-/data}"
-mkdir -p "$BACKUP_DIR"
-tar -czf "$BACKUP_DIR/pglite-backup-$TIMESTAMP.tar.gz" -C "$DATA_DIR" .
-echo "[backup] 已生成 $BACKUP_DIR/pglite-backup-$TIMESTAMP.tar.gz"
-# 只保留最近 7 天（按文件名时间倒序取前 7 个）
-ls -1t "$BACKUP_DIR"/pglite-backup-*.tar.gz 2>/dev/null | tail -n +8 | while read f; do
-  rm -f "$f"
-  echo "[backup] 已删除过期备份: $f"
-done
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+exec node "$SCRIPT_DIR/backup-db.mjs" "$@"
