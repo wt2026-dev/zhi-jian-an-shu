@@ -1,5 +1,5 @@
 import { getDb } from "../db.ts";
-import { nextDailyNo, withNumberLock } from "../dailyNo.ts";
+import { nextDailyNo, withDailyNoRetry, withNumberLock } from "../dailyNo.ts";
 import { parseJson, VersionConflictError } from "./shared.ts";
 
 export const WorkOrderRepository = {
@@ -163,11 +163,12 @@ export const WorkOrderRepository = {
    * `work_orders.order_no` 是 UNIQUE 的：旧实现拿 `Date.now()` 尾 4 位再拼 4 位随机数，
    * 同毫秒并发或尾号每 100 秒轮回一次都会撞号，而撞号的后果不是覆盖旧单，是
    * 整条创建请求 500（扫码报修、隐患整改、业务闭环三处入口共用这条链）。
-   * 缺号时把「取号 + 插入」放进同一次进程内互斥里，显式传号的调用方不必排队。
+   * 缺号时把「取号 + 插入」放进同一次进程内互斥里，显式传号的调用方不必排队；
+   * 锁外再兜撞号重试，多副本部署时另一进程插了同一个号也能自动重新取号。
    */
   async create(order: any) {
     if (order.orderNo) return this.insert(order);
-    return withNumberLock("work_orders", () => this.insert(order));
+    return withDailyNoRetry(() => withNumberLock("work_orders", () => this.insert(order)));
   },
 
   async update(id: string, updates: Partial<any>, expectedVersion?: number) {

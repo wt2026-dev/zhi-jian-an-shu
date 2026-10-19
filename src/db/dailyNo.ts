@@ -7,8 +7,9 @@
  * 改成「问数据库要当天最大号 +1」把号位从概率变成确定，但读 MAX 与 INSERT 之间夹着一个
  * `await`，两个并发请求会读到同一个最大值 —— 所以这两步必须用进程内互斥串起来。
  *
- * 单进程够用：PGlite 嵌入式库与 Express 同进程，互斥范围就是全部写入方。
- * 真上多副本时这里要换成 DB 序列或 `INSERT ... SELECT` 一条语句完成，不要留这个内存锁。
+ * 单进程内：PGlite 嵌入式库与 Express 同进程，互斥范围就是全部写入方，锁内取号+插入
+ * 零冲突、零重试。跨副本/多连接时进程锁管不到另一个进程 —— 所以调用方还要在外面套一层
+ * `withDailyNoRetry`：撞了唯一约束就重新取号再插（见下方说明），多副本下也安全。
  */
 import { getDb } from "./db.ts";
 
@@ -62,4 +63,40 @@ export async function nextDailyNo(p: {
   const { rows } = await db.query(sql, [p.prefix]);
   const seq = Number(rows[0]?.seq ?? 1);
   return `${p.prefix}${String(seq).padStart(p.pad, "0")}`;
+}
+
+/**
+ * 判定错误是否为唯一约束冲突（UNIQUE violation）。
+ * 真 PostgreSQL（含 PGlite）的 SQLSTATE 是 23505；再加消息兜底以覆盖驱动包装后的变体。
+ */
+export function isUniqueViolation(err: unknown): boolean {
+  if (!err) return false;
+  const e = err as { code?: unknown; message?: unknown };
+  if (e.code === "23505") return true;
+  return /duplicate key|unique constraint/i.test(String(e.message ?? ""));
+}
+
+/**
+ * 「取号 + 插入」的跨副本安全包装。
+ *
+ * 进程内锁（withNumberLock）保证单进程内的并发写方串行、零冲突；但多副本/多连接部署时，
+ * 另一个进程可能在我们读 MAX 之后插入了同一个号，INSERT 撞 UNIQUE 直接 500。这里在锁外
+ * 再兜一层重试：撞号 → 指数退避一小段 → 重新进锁、重新取号、重新插入，直到成功或重试耗尽。
+ *
+ * 约束：`run` 必须只包含「取号 + 纯落库」，不得夹审计/通知等副作用（重试会重复执行）——
+ * 现有三处调用点（工单/作业票/巡检创建）的副作用全部在锁外，符合约束。
+ */
+export async function withDailyNoRetry<T>(run: () => Promise<T>, attempts = 5): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await run();
+    } catch (err) {
+      if (!isUniqueViolation(err) || i === attempts - 1) throw err;
+      lastErr = err;
+      // 短退避 + 随机抖动，错开与另一副本的取号竞争；总耗时上限 ~ 数百毫秒，不拖垮请求
+      await new Promise((resolve) => setTimeout(resolve, 20 * (i + 1) + Math.floor(Math.random() * 30)));
+    }
+  }
+  throw lastErr;
 }

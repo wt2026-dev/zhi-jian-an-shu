@@ -9,7 +9,7 @@ import {
 } from "../../db/repositories/index.ts";
 import { authenticateBearer } from "../services/authService.ts";
 import { addAuditLog, pushNotification } from "../services/auditService.ts";
-import { nextDailyNo, withNumberLock } from "../../db/dailyNo.ts";
+import { nextDailyNo, withDailyNoRetry, withNumberLock } from "../../db/dailyNo.ts";
 
 // 原 createApp 闭包内的内存作业票列表（对应 server.ts:3576-3676）。
 // 生产级一致性：列表以数据库真实落库为准（含种子扩写的全部作业票，原硬编码数组仅作启动兜底）。
@@ -72,16 +72,19 @@ export const handleCreateSafetyPermit = async (req: any, res: any) => {
   // 真实落库：同时写入 safety_permits 表，保证重启不丢失。
   // 取号与落库必须在同一把进程内锁里：permit_no 是 UNIQUE 列，两个并发请求读到同一个
   // 当天最大号就会让其中一条整请求 500；旧实现是在 4 位随机数里摇，摇重同理。
-  const resultPermit = await withNumberLock("safety_permits", async () => {
-    newPermit.permitNo = await nextDailyNo({
-      table: "safety_permits",
-      column: "permit_no",
-      prefix: permitPrefix,
-      pad: 4,
-    });
-    const created = await SafetyPermitRepository.create(newPermit);
-    return created || newPermit;
-  });
+  // 锁外再兜撞号重试：多副本部署时另一进程可能插了同一个号，重新取号再插。
+  const resultPermit = await withDailyNoRetry(() =>
+    withNumberLock("safety_permits", async () => {
+      newPermit.permitNo = await nextDailyNo({
+        table: "safety_permits",
+        column: "permit_no",
+        prefix: permitPrefix,
+        pad: 4,
+      });
+      const created = await SafetyPermitRepository.create(newPermit);
+      return created || newPermit;
+    })
+  );
   dbSafetyPermits.unshift(resultPermit);
   addAuditLog(req, {
     actionType: "PERMIT_CREATE",

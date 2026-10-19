@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { InspectionRepository } from "../../db/repositories/index.ts";
 import { addAuditLog } from "../services/auditService.ts";
-import { nextDailyNo, withNumberLock } from "../../db/dailyNo.ts";
+import { nextDailyNo, withDailyNoRetry, withNumberLock } from "../../db/dailyNo.ts";
 
 // ==================== 16.5 巡检任务真实落库 (Inspections CRUD) ====================
 
@@ -40,32 +40,35 @@ export const handleCreateInspection = async (req: any, res: any) => {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const items = payload.items || [];
     // task_no 列是 UNIQUE 的：旧实现用 3 位随机数摇号（每天只有 900 个号位），摇重就整条请求 500。
-    // 现在改成「当天最大号 +1」，并把取号与落库放进同一把进程内锁，避免并发读到同一个最大值。
-    const { taskNo, task } = await withNumberLock("inspections", async () => {
-      const taskNo =
-        payload.taskNo ||
-        (await nextDailyNo({ table: "inspections", column: "task_no", prefix: `INSP-${dateStr}-`, pad: 3 }));
-      const task = await InspectionRepository.create({
-        id,
-        taskNo,
-        title: payload.title,
-        type: payload.type || "daily",
-        inspectorId: payload.inspectorId || (req.currentUser ? req.currentUser.id : null),
-        inspectorName: payload.inspectorName || (req.currentUser ? `${req.currentUser.name} (${req.currentUser.roleTitle})` : "现场巡检员"),
-        workshop: payload.workshop || "动力一车间",
-        route: payload.route || "",
-        scheduledDate: payload.scheduledDate || new Date().toLocaleDateString("zh-CN"),
-        status: payload.status || "pending",
-        totalPoints: payload.totalPoints ?? items.length,
-        completedPoints: payload.completedPoints ?? 0,
-        abnormalCount: payload.abnormalCount ?? 0,
-        items,
-        startedAt: payload.startedAt,
-        finishedAt: payload.finishedAt,
-        summary: payload.summary,
-      });
-      return { taskNo, task };
-    });
+    // 现在改成「当天最大号 +1」，并把取号与落库放进同一把进程内锁，避免并发读到同一个最大值；
+    // 锁外再兜撞号重试，多副本部署时另一进程可能插了同一个号，重新取号再插。
+    const { taskNo, task } = await withDailyNoRetry(() =>
+      withNumberLock("inspections", async () => {
+        const taskNo =
+          payload.taskNo ||
+          (await nextDailyNo({ table: "inspections", column: "task_no", prefix: `INSP-${dateStr}-`, pad: 3 }));
+        const task = await InspectionRepository.create({
+          id,
+          taskNo,
+          title: payload.title,
+          type: payload.type || "daily",
+          inspectorId: payload.inspectorId || (req.currentUser ? req.currentUser.id : null),
+          inspectorName: payload.inspectorName || (req.currentUser ? `${req.currentUser.name} (${req.currentUser.roleTitle})` : "现场巡检员"),
+          workshop: payload.workshop || "动力一车间",
+          route: payload.route || "",
+          scheduledDate: payload.scheduledDate || new Date().toLocaleDateString("zh-CN"),
+          status: payload.status || "pending",
+          totalPoints: payload.totalPoints ?? items.length,
+          completedPoints: payload.completedPoints ?? 0,
+          abnormalCount: payload.abnormalCount ?? 0,
+          items,
+          startedAt: payload.startedAt,
+          finishedAt: payload.finishedAt,
+          summary: payload.summary,
+        });
+        return { taskNo, task };
+      })
+    );
     addAuditLog(req, {
       actionType: "INSPECTION_CREATE",
       module: "巡检作业",
