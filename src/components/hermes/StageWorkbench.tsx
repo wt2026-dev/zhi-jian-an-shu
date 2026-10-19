@@ -11,7 +11,6 @@ import {
   Loader2,
   Wrench,
   Eye,
-  X,
   PencilLine,
   Plus
 } from 'lucide-react';
@@ -41,6 +40,7 @@ import {
 import { PrefillBanner, RevisionLedger, RevisionRecordBanner, StageStatusBadge } from './StagePrefillParts';
 import { EditForm, LabeledInput } from './StageEditForm';
 import { LotoRowEditor } from './LotoRowEditor';
+import { ModalShell } from './ModalShell';
 import {
   EmptyBlock,
   EmptyLine,
@@ -621,50 +621,39 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
 
       {/* 弹窗：AI 依据原文（服务端 ai_prefill_json 真实内容） */}
       {showAiReasonModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200/80">
-                  <Sparkles className="w-4 h-4 text-[#E8A33D]" />
-                </div>
-                <h3 className="text-sm font-bold text-slate-900">环节 {currentStage.order} AI 依据原文</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAiReasonModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        <ModalShell
+          title={`环节 ${currentStage.order} AI 依据原文`}
+          icon={
+            <span className="p-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200/80 shrink-0">
+              <Sparkles className="w-4 h-4 text-[#E8A33D]" />
+            </span>
+          }
+          onClose={() => setShowAiReasonModal(false)}
+          footer={
+            <button
+              type="button"
+              onClick={() => setShowAiReasonModal(false)}
+              className="ml-auto px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+            >
+              已知晓关闭
+            </button>
+          }
+        >
+          <div className="space-y-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <MetaChip label="AI 能力" value={prefill.engine || '未回写'} />
+              <MetaChip label="结果状态" value={prefill.status === 'degraded' ? 'degraded（降级兜底）' : prefill.status === 'ok' ? 'ok' : '—'} />
+              <MetaChip label="回写时间" value={fmtClock(prefill.generatedAt) || '—'} />
             </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <MetaChip label="AI 能力" value={prefill.engine || '未回写'} />
-                <MetaChip label="结果状态" value={prefill.status === 'degraded' ? 'degraded（降级兜底）' : prefill.status === 'ok' ? 'ok' : '—'} />
-                <MetaChip label="回写时间" value={fmtClock(prefill.generatedAt) || '—'} />
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                以下原文来自 business_loop_stages.ai_prefill_json，为服务端真实调用结果；degraded 表示 AI 未产出可信结构化结果，
-                需人工核校后方可确认。人工修订后 aiOriginal 保留 AI 原值，humanRevised 记录修订人与字段。
-              </p>
-              <pre className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px] font-mono text-slate-700 max-h-[50vh] overflow-auto whitespace-pre-wrap break-all">
-                {JSON.stringify(prefill.raw ?? { message: '该环节暂无 AI 预填内容' }, null, 2)}
-              </pre>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowAiReasonModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
-              >
-                已知晓关闭
-              </button>
-            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              以下原文来自 business_loop_stages.ai_prefill_json，为服务端真实调用结果；degraded 表示 AI 未产出可信结构化结果，
+              需人工核校后方可确认。人工修订后 aiOriginal 保留 AI 原值，humanRevised 记录修订人与字段。
+            </p>
+            <pre className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px] font-mono text-slate-700 whitespace-pre-wrap break-all">
+              {JSON.stringify(prefill.raw ?? { message: '该环节暂无 AI 预填内容' }, null, 2)}
+            </pre>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

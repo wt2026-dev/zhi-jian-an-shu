@@ -3,6 +3,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HermesWorkbenchView } from '../../src/components/hermes/HermesWorkbenchView';
+import { parsePreviewFields } from '../../src/components/hermes/ArtifactArchive';
 import { businessLoopApi } from '../../src/api/businessLoopApi';
 import { ToastProvider } from '../../src/context/ToastContext';
 import type {
@@ -498,5 +499,139 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     const submit = await screen.findByRole('button', { name: /生成业务路线图/ });
     fireEvent.click(submit);
     await waitFor(() => expect(api.create).toHaveBeenCalledWith({ goal: loop.businessGoal }));
+  });
+
+  /**
+   * 弹窗用例：卡片根节点带 backdrop-blur（CSS filter），filter 会为 position:fixed 后代
+   * 创建包含块——就地渲染时遮罩只盖住卡片自己、弹窗底部被裁到视口外。
+   * 三处弹窗（产出物预览 / AI 依据原文 / 归档复盘）都必须 portal 到 document.body。
+   */
+  const loopWithDocPreview: BusinessClosedLoopData = {
+    ...loop,
+    artifacts: [
+      {
+        ...loop.artifacts[0],
+        // 续行（作业步骤）与「。；」都是服务端 preview_text 的真实形态，版式拆解要一起接住
+        previewContent:
+          '【工单号】WO-20261018-001\n【故障描述】主机振动 14.6 mm/s，超 7.1 mm/s 限值\n1. 拆护罩\n2. 复测主轴\n【安全措施】断电挂牌；泄压至零。；',
+      },
+      ...loop.artifacts.slice(1),
+    ],
+  };
+
+  /** 闭环号/产出物编号在环节区也出现，入口一律按「产出物档案卡片内」取 */
+  const artifactCard = () => {
+    const card = screen.getByText('业务闭环产出物档案').closest('[class*="backdrop-blur-md"]');
+    if (!card) throw new Error('未找到产出物档案卡片');
+    return card as HTMLElement;
+  };
+
+  const openArtifactModal = async (doc: BusinessClosedLoopData = loopWithDocPreview) => {
+    api.getById.mockResolvedValue(doc);
+    renderView();
+    await screen.findByText('业务闭环产出物档案');
+    const tile = within(artifactCard()).getByRole('button', { name: new RegExp(doc.artifacts[0].code) });
+    fireEvent.click(tile);
+    return screen.findByRole('dialog');
+  };
+
+  /** 遮罩层是 dialog 的父节点，它必须直接挂在 body 上，而不是留在带 filter 的卡片里 */
+  const overlayOf = (dialog: HTMLElement) => {
+    const overlay = dialog.parentElement as HTMLElement;
+    expect(overlay.parentElement).toBe(document.body);
+    expect(overlay.className).toMatch(/fixed inset-0/);
+    expect(dialog.closest('[class*="backdrop-blur-md"]')).toBeNull();
+    return overlay;
+  };
+
+  it('产出物预览弹窗 portal 到 body，遮罩盖住整屏而不是只有卡片', async () => {
+    const dialog = await openArtifactModal();
+    expect(overlayOf(dialog).className).toMatch(/z-50/);
+  });
+
+  it('弹窗正文按「【字段】值」拆成对照表：续行并入上一字段、重复标点收口', async () => {
+    const dialog = await openArtifactModal();
+    const labels = Array.from(dialog.querySelectorAll('dt')).map((dt) => dt.textContent);
+    const values = Array.from(dialog.querySelectorAll('dd')).map((dd) => dd.textContent);
+    expect(labels).toEqual(['工单号', '故障描述', '安全措施']);
+    expect(values[0]).toBe('WO-20261018-001');
+    expect(values[1]).toBe('主机振动 14.6 mm/s，超 7.1 mm/s 限值\n1. 拆护罩\n2. 复测主轴');
+    expect(values[2]).toBe('断电挂牌；泄压至零');
+    expect(dialog.textContent).not.toContain('。；');
+  });
+
+  it('点面板不关、点遮罩关、Esc 关，且关闭后复位 body 滚动锁', async () => {
+    const dialog = await openArtifactModal();
+    overlayOf(dialog);
+    expect(document.body.style.overflow).toBe('hidden');
+
+    // 点弹窗自身（含正文区域）必须被忽略，否则选中文字就把弹窗关了
+    fireEvent.click(dialog);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(document.body.style.overflow).toBe('');
+
+    // 重新打开后改点遮罩空白处
+    fireEvent.click(within(artifactCard()).getByRole('button', { name: /PL-20261018-001-WO/ }));
+    const reopened = overlayOf(await screen.findByRole('dialog'));
+    fireEvent.click(reopened);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('正文为空的入库记录如实说明，不给空白弹窗', async () => {
+    const dialog = await openArtifactModal({
+      ...loop,
+      artifacts: [{ ...loop.artifacts[0], previewContent: '' }, ...loop.artifacts.slice(1)],
+    });
+    expect(dialog).toHaveTextContent('该记录正文为空，请核对服务端 preview_text。');
+  });
+
+  it('AI 依据原文弹窗同样不在卡片内就地渲染，原文取自接口 aiPrefill.raw', async () => {
+    renderView();
+    fireEvent.click(await screen.findByRole('button', { name: /查看 AI 依据原文/ }));
+    const dialog = await screen.findByRole('dialog', { name: /环节 3 AI 依据原文/ });
+    overlayOf(dialog);
+    expect(dialog).toHaveTextContent('safety-interlock');
+    expect(dialog).toHaveTextContent('QF-02 主电源进线断路器');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '已知晓关闭' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('归档复盘弹窗 portal 到 body，关闭后不留滚动锁', async () => {
+    renderView();
+    const row = (await screen.findByText('PL-20261010-002')).closest('[role="button"]');
+    if (!row) throw new Error('未找到归档闭环入口');
+    fireEvent.click(row as HTMLElement);
+    const dialog = await screen.findByRole('dialog', { name: /3# 轧机主传动行星减速箱异响排查/ });
+    overlayOf(dialog);
+    expect(dialog).toHaveTextContent('闭环知识沉淀判定');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '关闭' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(document.body.style.overflow).toBe('');
+  });
+});
+
+describe('parsePreviewFields 版式拆解', () => {
+  it('空文本与纯空白返回空数组', () => {
+    expect(parsePreviewFields('')).toEqual([]);
+    expect(parsePreviewFields('\n\n  \n')).toEqual([]);
+  });
+
+  it('首行没有【字段】标签时归入「正文」，不丢内容', () => {
+    expect(parsePreviewFields('质检报告 AI 生成失败（degraded），请人工出具质量结论后再归档。')).toEqual([
+      { label: '正文', value: '质检报告 AI 生成失败（degraded），请人工出具质量结论后再归档。' },
+    ]);
+  });
+
+  it('字段值为空只留空串，不把下一行的标签当成值', () => {
+    expect(parsePreviewFields('【工单号】\n【标题】主机振动偏高检修')).toEqual([
+      { label: '工单号', value: '' },
+      { label: '标题', value: '主机振动偏高检修' },
+    ]);
   });
 });

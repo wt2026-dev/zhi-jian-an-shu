@@ -1,21 +1,53 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   FolderArchive,
   FileText,
   CheckCircle2,
-  Clock,
-  X
+  Clock
 } from 'lucide-react';
 import type { ArtifactItem } from './types';
 import { useToast } from '../../context/ToastContext';
+import { ModalShell } from './ModalShell';
 
 interface ArtifactArchiveProps {
   artifacts: ArtifactItem[];
 }
 
+interface PreviewField {
+  label: string;
+  value: string;
+}
+
+/**
+ * 单据正文是服务端拼的「【字段】值」逐行文本（作业步骤等长值以续行给出，不带标签）。
+ * 这里只做版式拆解，不增删任何内容；`。；` 与结尾悬空的分号是历史数据里句子 join 留下的重复标点。
+ */
+export function parsePreviewFields(text: string): PreviewField[] {
+  const fields: PreviewField[] = [];
+  for (const rawLine of text.replace(/。；/g, '；').split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const matched = /^【([^】]{1,24})】([\s\S]*)$/.exec(line);
+    if (matched) {
+      fields.push({ label: matched[1], value: matched[2].trim() });
+    } else if (fields.length > 0) {
+      const last = fields[fields.length - 1];
+      last.value = last.value ? `${last.value}\n${line}` : line;
+    } else {
+      fields.push({ label: '正文', value: line });
+    }
+  }
+  return fields.map((field) => ({ ...field, value: field.value.replace(/[；;]+$/, '') }));
+}
+
 export const ArtifactArchive: React.FC<ArtifactArchiveProps> = ({ artifacts }) => {
   const { show: showToast } = useToast();
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactItem | null>(null);
+
+  const previewFields = useMemo(
+    () => parsePreviewFields(selectedArtifact?.previewContent ?? ''),
+    [selectedArtifact]
+  );
 
   const readyCount = artifacts.filter((a) => a.status === 'ready').length;
 
@@ -114,37 +146,21 @@ export const ArtifactArchive: React.FC<ArtifactArchiveProps> = ({ artifacts }) =
 
       {/* 档案详情预览弹窗 */}
       {selectedArtifact && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-700">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">{selectedArtifact.name}</h3>
-                  <p className="text-[11px] font-mono text-slate-500">{selectedArtifact.code}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedArtifact(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs font-mono text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[50vh] overflow-y-auto">
-              {selectedArtifact.previewContent}
-            </div>
-
-            <div className="pt-2 flex items-center justify-between gap-3">
+        <ModalShell
+          title={selectedArtifact.name}
+          subtitle={selectedArtifact.code}
+          icon={
+            <span className="p-1.5 rounded-lg bg-blue-50 text-blue-700 shrink-0">
+              <FileText className="w-4 h-4" />
+            </span>
+          }
+          onClose={() => setSelectedArtifact(null)}
+          footer={
+            <>
               <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
                 <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600">
                   {selectedArtifact.category}
                 </span>
-                <span className="font-mono">{selectedArtifact.code}</span>
                 <span className="text-emerald-600 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   已入库 business_loop_artifacts
@@ -153,13 +169,30 @@ export const ArtifactArchive: React.FC<ArtifactArchiveProps> = ({ artifacts }) =
               <button
                 type="button"
                 onClick={() => setSelectedArtifact(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
               >
                 关闭预览
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <dl className="space-y-2">
+            {previewFields.map((field) => (
+              <div
+                key={field.label}
+                className="grid grid-cols-[68px_1fr] sm:grid-cols-[92px_1fr] gap-x-3 items-baseline"
+              >
+                <dt className="text-[11px] font-bold text-slate-500 leading-5">{field.label}</dt>
+                <dd className="text-[13px] text-slate-800 leading-6 whitespace-pre-wrap break-words">
+                  {field.value}
+                </dd>
+              </div>
+            ))}
+            {previewFields.length === 0 && (
+              <p className="text-xs text-slate-400">该记录正文为空，请核对服务端 preview_text。</p>
+            )}
+          </dl>
+        </ModalShell>
       )}
     </div>
   );
