@@ -59,20 +59,31 @@ describe("健康分/工时不得用编造默认值兜底", () => {
     expect(code).toMatch(/禁止\*\*当成\s*0/);
   });
 
-  it("健康分插进提示词时不得裸拼 `${...healthScore}`（null 会变成字面量 null）", () => {
-    // 模板里直接写 ${eq.healthScore}，值为 null 时拼出来就是字符串 "null"，
-    // 模型会当成 0 分或自行猜一个数 —— 而这段文字用户看不到，只在结论里体现。
-    const promptFiles = [
+  it("健康分插进提示词/播报时不得裸拼 `${...healthScore}`（null 会变成字面量 null）", () => {
+    // 模板里直接写 ${x.healthScore}，值为 null 时拼出来就是字符串 "null"：
+    // 进提示词模型当 0 分或自行猜数，进语音播报则念出"健康度 null 分"。
+    // 必须走 scoreOrUnscored()（服务端控制器）或 `== null ? '未评估'`（组件/ hook）守卫。
+    const allFiles = [
       "src/server/controllers/aiForecastController.ts",
       "src/server/controllers/aiReportController.ts",
       "src/server/controllers/aiAssistantController.ts",
       "src/server/controllers/aiGenerationController.ts",
+      "src/components/equipment-health/useEquipmentHealth.ts",
+      "src/components/cockpit/CockpitSandboxSection.tsx",
     ];
-    for (const f of promptFiles) {
+    for (const f of allFiles) {
       const code = read(f);
-      const bare = code.match(/\$\{[a-zA-Z_]\w*\.healthScore\}/g) ?? [];
-      expect(bare, `${f} 里有裸拼的健康分：${bare.join(", ")}`).toEqual([]);
-      expect(code, `${f} 应走 scoreOrUnscored()`).toMatch(/scoreOrUnscored\(/);
+      const bare = code.match(/\$\{[a-zA-Z_$][\w$]*\.healthScore\s*\}/g) ?? [];
+      expect(bare, `${f} 里有裸拼的健康分（null 会变字面量 null）：${bare.join(", ")}`).toEqual([]);
+    }
+    // 4 个服务端控制器统一走 scoreOrUnscored()
+    for (const f of [
+      "src/server/controllers/aiForecastController.ts",
+      "src/server/controllers/aiReportController.ts",
+      "src/server/controllers/aiAssistantController.ts",
+      "src/server/controllers/aiGenerationController.ts",
+    ]) {
+      expect(read(f), `${f} 应走 scoreOrUnscored()`).toMatch(/scoreOrUnscored\(/);
     }
   });
 

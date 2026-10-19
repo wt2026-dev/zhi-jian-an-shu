@@ -210,7 +210,7 @@ export const CockpitSandboxSection: React.FC<CockpitSandboxSectionProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-slate-500">
                   <span>健康度能量条</span>
-                  <span className="font-mono">{sandboxEq.healthScore == null ? '未评估' : `${sandboxEq.healthScore} / 100`}</span>
+                  <span className="font-mono">{sandboxEq.healthScore == null ? '未评估' : sandboxEq.healthScore + ' / 100'}</span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-100 border border-slate-200/70 overflow-hidden">
                   <div
@@ -261,7 +261,7 @@ export const CockpitSandboxSection: React.FC<CockpitSandboxSectionProps> = ({
                   type="button"
                   onClick={() =>
                     speakSandbox(
-                      `${sandboxEq.name}，编号 ${sandboxEq.code}，位于${sandboxEq.workshop}${sandboxEq.location}。当前状态${sandboxStatus(sandboxEq.status).label}，健康度 ${sandboxEq.healthScore} 分，重要度${sandboxEq.criticality}，下次巡检日期 ${sandboxEq.nextInspectionDate || '未安排'}。`
+                      `${sandboxEq.name}，编号 ${sandboxEq.code}，位于${sandboxEq.workshop || '未登记'}${sandboxEq.location || ''}。当前状态${sandboxStatus(sandboxEq.status).label}，健康度 ${sandboxEq.healthScore == null ? '未评估' : sandboxEq.healthScore + ' 分'}，重要度${sandboxEq.criticality}，下次巡检日期 ${sandboxEq.nextInspectionDate || '未安排'}。`
                     )
                   }
                   className="chip-cyan flex-1 justify-center"
@@ -286,7 +286,7 @@ export const CockpitSandboxSection: React.FC<CockpitSandboxSectionProps> = ({
                   type="button"
                   onClick={() =>
                     onAskAi(
-                      `请针对设备「${sandboxEq.name}」（编号 ${sandboxEq.code}，${sandboxEq.workshop}/${sandboxEq.location}）做一次全面诊断：当前状态${sandboxStatus(sandboxEq.status).label}，健康度 ${sandboxEq.healthScore} 分，重要度${sandboxEq.criticality}，型号 ${sandboxEq.model}，厂家 ${sandboxEq.manufacturer}，下次巡检 ${sandboxEq.nextInspectionDate || '未安排'}。请给出故障/劣化趋势研判、3 条优先处置建议，以及需要重点监测的遥测指标。`
+                      `请针对设备「${sandboxEq.name}」（编号 ${sandboxEq.code}，${sandboxEq.workshop || '未登记'}/${sandboxEq.location || '未登记'}）做一次全面诊断：当前状态${sandboxStatus(sandboxEq.status).label}，健康度 ${sandboxEq.healthScore == null ? '未评估' : sandboxEq.healthScore + ' 分'}，重要度${sandboxEq.criticality}，型号 ${sandboxEq.model}，厂家 ${sandboxEq.manufacturer}，下次巡检 ${sandboxEq.nextInspectionDate || '未安排'}。请给出故障/劣化趋势研判、3 条优先处置建议，以及需要重点监测的遥测指标。`
                     )
                   }
                   className="w-full py-2 rounded-full btn-gradient text-[11px] font-medium flex items-center justify-center gap-1.5 cursor-pointer"

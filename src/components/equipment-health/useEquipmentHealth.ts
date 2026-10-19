@@ -267,7 +267,7 @@ export function useEquipmentHealth({
     const readingPart = tel
       ? `轴承温度 ${tel.temperature}°C, 振动 ${tel.vibration}mm/s, 负载率 ${tel.loadRate}%`
       : '遥测未接入（无有效读数），请基于健康分与设备状态判断';
-    const desc = `健康监测发现「${eq.name} (${eq.code})」异常: 当前健康分 ${eq.healthScore}/100, 状态 ${eq.status}, ${readingPart}，请生成检修工单草稿。`;
+    const desc = `健康监测发现「${eq.name} (${eq.code})」异常: 当前健康分 ${eq.healthScore == null ? "未评估" : eq.healthScore + "/100"}, 状态 ${eq.status}, ${readingPart}，请生成检修工单草稿。`;
     setDraftState({
       open: true,
       loading: true,
