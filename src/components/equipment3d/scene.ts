@@ -25,8 +25,8 @@
  *   ✅ safetyBoundaries.ts 安全边界层（安全圈 + LOTO 罩 + 标签贴片；锚点由场景侧解析后传入）
  *   ✅ faultChain.ts      故障传播链层（超阈读数观测标注；labelFactory 注入保测试替身）
  *   ✅ workerFlow.ts      人员与工位动线（技师人形/轨迹 + 指引虚线 + 巡检数字人）
- *   ⬜ CameraRig          orbit 状态 + 滚轮/双指 + userZoomRange + update() 相机段
- *                         （最大一块：this.orbit 在本文件被引用 ~40 处，需一次性机械替换）
+ *   ✅ cameraRig.ts       相机轨道（orbit 状态 + 滚轮/双指 + userZoomRange + 每帧落位）；
+ *                         cameraFraming.ts 同步收编 fitDistance 为纯函数 computeFitDistance
  *   ⬜ FocusEnvironment   applyDeviceMood + DeviceDetailEnv 生命周期
  *                         （该区当前由另一会话活跃调参，等收敛后移动）
  */
@@ -68,7 +68,8 @@ import { FaultChain } from './faultChain';
 import { WorkerFlow } from './workerFlow';
 import { SafetyBoundaries, type SafetyAnchor } from './safetyBoundaries';
 import { DeviceDetailEnv, type DeviceDetailEnvBox } from './deviceDetailEnv';
-import { computeIsolatedFraming } from './cameraFraming';
+import { computeIsolatedFraming, computeFitDistance } from './cameraFraming';
+import { CameraRig } from './cameraRig';
 import {
   FocusSceneDecor,
   type FocusDecorData,
@@ -85,12 +86,6 @@ const FOG_COLOUR = 0x111b29;
  */
 const FOG_NEAR = 12;
 const FOG_FAR = 52;
-/**
- * 设备详情层的滚轮/双指拉远上限（米）：雾内仍能看清整个作业区，
- * 再远就会掉进雾外"一片黑"。只约束用户缩放，不约束自动取景
- * （窄窗口自适应取景必须能拉到 need，否则角点溢出画面）。
- */
-const FOG_ZOOM_CAP = 17;
 /**
  * 设备详情层「数据标注层」（测点气泡 / 五步闭环卡片 / 警示牌）开关。
  * ⚠️ 用户规格（场景密度优先）明确：3D 画面里不允许任何飘字，数据走右侧 DOM 面板，
@@ -340,31 +335,9 @@ export class EquipmentScene {
   /** 每个安装位对应的健康状态，用于小地图着色（来自真实台账） */
   private slotStatus: StatusKey[] = [];
 
-  // ---- 相机轨道（自研，带阻尼） ----
-  private orbit = {
-    target: new THREE.Vector3(0, 6, 0),
-    sTarget: new THREE.Vector3(0, 80, 0),
-    theta: Math.PI * 0.72,
-    sTheta: Math.PI * 0.72,
-    phi: 0.95,
-    sPhi: 0.36,
-    radius: 130,
-    sRadius: 280,
-    minPhi: 0.06,
-    maxPhi: 1.52,
-    // 下限放到 4 米：单台特写需要贴近观察（原来 10 米对 3 米高的设备太远）
-    minRadius: 3,
-    maxRadius: 620,
-  };
-
-  private pointers = new Map<number, { x: number; y: number }>();
-  private dragMode: 'none' | 'rotate' | 'pan' = 'none';
-  private lastPointer = { x: 0, y: 0 };
-  private pinchStart = 0;
-  private pinchRadius = 0;
-
-  /** 完工恢复的相机缓推：{t, r0} 计时还原轨道半径；null = 无进行中的推镜。 */
-  private recoveryPush: { t: number; r0: number } | null = null;
+  // ---- 相机轨道（cameraRig.ts：轨道状态 + 指针/滚轮交互 + 每帧阻尼落位） ----
+  // 取景编排（framePreset/setView/frameIsolated…）留在本类，只写 rig.state 目标值。
+  private rig: CameraRig;
 
   private resizeObserver: ResizeObserver | null = null;
   private onWindowResize = () => this.resize();
@@ -424,6 +397,13 @@ export class EquipmentScene {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.6, 2600);
+    this.rig = new CameraRig(this.camera, () => {
+      if (this.isolationId && this.scene.fog) {
+        const box = this.equipment?.boxById.get(this.isolationId);
+        return box ? Math.max(box.w, box.h, box.d) : 0;
+      }
+      return null;
+    });
     this.scene.add(this.root);
     this.fluidFlow = new FluidFlowSystem();
     this.faultLocator = new FaultLocator();
@@ -1093,107 +1073,7 @@ export class EquipmentScene {
   /* ========================= 交互 ========================= */
 
   private bindControls(): void {
-    const el = this.renderer.domElement;
-    el.addEventListener('contextmenu', this.onContextMenu);
-    el.addEventListener('pointerdown', this.onPointerDown, { passive: true });
-    el.addEventListener('pointermove', this.onPointerMove, { passive: true });
-    el.addEventListener('pointerup', this.onPointerUp, { passive: true });
-    el.addEventListener('pointercancel', this.onPointerUp, { passive: true });
-    el.addEventListener('pointerleave', this.onPointerUp, { passive: true });
-    // wheel 必须非 passive，否则无法 preventDefault（参考实现同样处理）
-    el.addEventListener('wheel', this.onWheel, { passive: false });
-  }
-
-  private onContextMenu = (e: Event): void => {
-    // 右键用于平移，必须屏蔽系统菜单
-    e.preventDefault();
-  };
-
-  private onPointerDown = (e: PointerEvent): void => {
-    // setPointerCapture 在合成事件（自动化/远程调试注入）下可能抛 NotFoundError，
-    // 捕获失败不影响旋转/平移，因此这里必须容错，否则整个交互会中断。
-    try {
-      this.renderer.domElement.setPointerCapture?.(e.pointerId);
-    } catch {
-      /* 忽略：无活动指针时无法捕获 */
-    }
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.pointers.size === 1) {
-      // 左键旋转 / 右键或中键平移（与生成器一致）
-      this.dragMode = e.button === 2 || e.button === 1 || e.shiftKey ? 'pan' : 'rotate';
-      this.lastPointer = { x: e.clientX, y: e.clientY };
-    } else if (this.pointers.size === 2) {
-      this.dragMode = 'none';
-      const [a, b] = Array.from(this.pointers.values());
-      this.pinchStart = Math.hypot(a.x - b.x, a.y - b.y);
-      this.pinchRadius = this.orbit.radius;
-    }
-  };
-
-  private onPointerMove = (e: PointerEvent): void => {
-    if (!this.pointers.has(e.pointerId)) return;
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-    if (this.pointers.size === 2) {
-      const [a, b] = Array.from(this.pointers.values());
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (this.pinchStart > 0) {
-        const k = this.pinchStart / Math.max(1, d);
-        const pzr = this.userZoomRange();
-        this.orbit.radius = clamp(this.pinchRadius * k, pzr.min, pzr.max);
-      }
-      return;
-    }
-    if (this.dragMode === 'none') return;
-
-    const dx = e.clientX - this.lastPointer.x;
-    const dy = e.clientY - this.lastPointer.y;
-    this.lastPointer = { x: e.clientX, y: e.clientY };
-
-    if (this.dragMode === 'rotate') {
-      this.orbit.theta -= dx * 0.0042;
-      this.orbit.phi = clamp(this.orbit.phi - dy * 0.0034, this.orbit.minPhi, this.orbit.maxPhi);
-    } else {
-      // 平移：沿相机右向量 / 前向量在水平面移动
-      const scale = this.orbit.radius * 0.0016;
-      const sin = Math.sin(this.orbit.sTheta);
-      const cos = Math.cos(this.orbit.sTheta);
-      this.orbit.target.x -= (cos * dx - sin * dy * 0.6) * scale;
-      this.orbit.target.z += (sin * dx + cos * dy * 0.6) * scale;
-    }
-  };
-
-  private onPointerUp = (e: PointerEvent): void => {
-    this.pointers.delete(e.pointerId);
-    if (this.pointers.size === 0) {
-      this.dragMode = 'none';
-      this.pinchStart = 0;
-    }
-  };
-
-  private onWheel = (e: WheelEvent): void => {
-    e.preventDefault();
-    const k = Math.exp(clamp(e.deltaY, -220, 220) * 0.0012);
-    const zr = this.userZoomRange();
-    this.orbit.radius = clamp(this.orbit.radius * k, zr.min, zr.max);
-  };
-
-  /**
-   * 用户缩放（滚轮/双指）的有效区间（仅设备详情层）：
-   *   - 下限 ≥ 包围盒最长边 × 1.2 —— 防止缩过头把镜头怼回设备脸上；
-   *   - 上限封顶在雾可见范围内 —— 拉远可看整个作业区，但不掉进雾外黑屏。
-   * 自动取景（frameIsolated）不受此区间约束，保证任意纵横比都能正确框住设备。
-   */
-  private userZoomRange(): { min: number; max: number } {
-    if (this.isolationId && this.scene.fog) {
-      const box = this.equipment?.boxById.get(this.isolationId);
-      const longest = box ? Math.max(box.w, box.h, box.d) : 0;
-      return {
-        min: Math.max(this.orbit.minRadius, longest * 1.2),
-        max: Math.min(this.orbit.maxRadius, FOG_ZOOM_CAP),
-      };
-    }
-    return { min: this.orbit.minRadius, max: this.orbit.maxRadius };
+    this.rig.bind(this.renderer.domElement);
   }
 
   /* ========================= 尺寸 ========================= */
@@ -1618,32 +1498,20 @@ export class EquipmentScene {
     this.resize();
   }
 
-  /**
-   * 依据厂房实际包围盒与当前相机 FOV/aspect 计算取景距离。
-   *
-   * 为什么不用「包围球 / sin(fov/2)」：本场景是扁而宽的厂房，包围球半径会被
-   * 水平跨度撑大，导致垂直方向严重留白（实测原预设距离 118 时厂房只占画面 15%）。
-   * 这里分别求水平、垂直两个方向所需距离取较大者。
-   */
-  private fitDistance(hall: Hall, preset: ScenePreset): number {
-    const vHalf = (this.camera.fov * Math.PI) / 360;
-    const hHalf = Math.atan(Math.tan(vHalf) * Math.max(0.4, this.camera.aspect));
-    const halfW = Math.hypot(hall.bounds.halfX, hall.bounds.halfZ) * 0.86;
-    const halfH = Math.max(6, hall.structureHeight) * 0.5;
-    const dH = halfW / Math.tan(hHalf);
-    const dV = halfH / Math.tan(vHalf);
-    // 预设 distance 退化为取景倍率（120 ≈ 1.0），保留各预设"想更近/更远"的意图
-    const k = clamp(preset.camera.distance / 120, 0.8, 1.4);
-    return Math.max(dH, dV) * 1.3 * k;
-  }
-
   private framePreset(preset: ScenePreset, hall: Hall): void {
     const c = preset.camera;
-    const o = this.orbit;
+    const o = this.rig.state;
     this.focusedId = null;
     o.minRadius = 3;
     o.maxRadius = 620;
-    this.fitRadius = this.fitDistance(hall, preset);
+    this.fitRadius = computeFitDistance({
+      fov: this.camera.fov,
+      aspect: this.camera.aspect,
+      halfX: hall.bounds.halfX,
+      halfZ: hall.bounds.halfZ,
+      structureHeight: hall.structureHeight,
+      presetDistance: c.distance,
+    });
     o.target.set(0, Math.max(3, hall.structureHeight * 0.3), 0);
     o.sTarget.copy(o.target);
     o.radius = clamp(this.fitRadius, o.minRadius, o.maxRadius);
@@ -1657,7 +1525,7 @@ export class EquipmentScene {
   /* ========================= 视角预设 ========================= */
 
   setView(view: ViewKey, focusIndex?: number): void {
-    const o = this.orbit;
+    const o = this.rig.state;
     const hall = this.hall;
     if (!hall) return;
     const focusId = this.isolationId ?? (view === 'closeup' && typeof focusIndex === 'number' ? this.devices[focusIndex]?.id : null);
@@ -1871,19 +1739,19 @@ export class EquipmentScene {
         slotAngle: this.slots?.[box.index]?.angle ?? 0,
         targetY,
         preserveAngles,
-        currentPhi: this.orbit.phi,
-        currentTheta: this.orbit.theta,
-        minPhi: this.orbit.minPhi,
-        maxPhi: this.orbit.maxPhi,
+        currentPhi: this.rig.state.phi,
+        currentTheta: this.rig.state.theta,
+        minPhi: this.rig.state.minPhi,
+        maxPhi: this.rig.state.maxPhi,
         fill: 0.9, // 设备约占视锥高度 55%，周围检修物件随取景可见
       },
     );
-    this.orbit.target.copy(f.target);
-    this.orbit.minRadius = f.minRadius;
-    this.orbit.maxRadius = f.maxRadius;
-    this.orbit.radius = f.radius;
-    this.orbit.phi = f.phi;
-    this.orbit.theta = f.theta;
+    this.rig.state.target.copy(f.target);
+    this.rig.state.minRadius = f.minRadius;
+    this.rig.state.maxRadius = f.maxRadius;
+    this.rig.state.radius = f.radius;
+    this.rig.state.phi = f.phi;
+    this.rig.state.theta = f.theta;
     this.dirty = true;
   }
 
@@ -1946,7 +1814,7 @@ export class EquipmentScene {
 
   /** 按分区包围盒取景（复用厂区取景的同一套反解思路）。 */
   private frameZone(box: { x: number; z: number; w: number; d: number; h: number }): void {
-    const o = this.orbit;
+    const o = this.rig.state;
     const vFov = (this.camera.fov * Math.PI) / 180;
     const needZ = (box.d / 2) / Math.tan(vFov / 2);
     const needX = (box.w / 2) / (Math.tan(vFov / 2) * Math.max(0.35, this.camera.aspect));
@@ -1971,9 +1839,9 @@ export class EquipmentScene {
     if (box) this.frameZone(box);
     else this.frameFactory();
     if (diveFromSky) {
-      this.orbit.sRadius = 280;
-      this.orbit.sPhi = 0.36;
-      this.orbit.sTarget.set(0, 80, 0);
+      this.rig.state.sRadius = 280;
+      this.rig.state.sPhi = 0.36;
+      this.rig.state.sTarget.set(0, 80, 0);
     }
     this.onLevelChange?.('factory', this.activeBuildingId);
     return true;
@@ -2030,7 +1898,7 @@ export class EquipmentScene {
     const f = this.factory;
     if (!f) return;
     const { halfX, halfZ, height } = f.extent;
-    const o = this.orbit;
+    const o = this.rig.state;
     const vFov = (this.camera.fov * Math.PI) / 180;
     const needZ = halfZ / Math.tan(vFov / 2);
     const needX = halfX / (Math.tan(vFov / 2) * Math.max(0.35, this.camera.aspect));
@@ -2551,13 +2419,7 @@ export class EquipmentScene {
   playRepairRecovery(deviceId: string): boolean {
     const hitMarker = this.faultLocator.startRecovery(deviceId);
     this.setStatusOverride(deviceId, 'running');
-    const o = this.orbit;
-    const r0 = Math.max(o.radius, o.sRadius);
-    if (r0 > o.minRadius * 1.5) {
-      // 先把目标半径收 12%，1.6s 后由帧循环还原；阻尼让两段都平滑不跳变
-      o.radius = Math.max(o.minRadius + 0.5, r0 * 0.88);
-      this.recoveryPush = { t: 0, r0 };
-    }
+    this.rig.startRecoveryPush();
     return hitMarker;
   }
 
@@ -2952,28 +2814,7 @@ export class EquipmentScene {
 
   /** 阻尼相机 + 行车往复 —— 与参考实现 update() 一致。 */
   update(dt: number): void {
-    // 完工恢复推镜：1.6s 后把轨道半径还原（收→放的阻尼过渡由下方插值完成）
-    if (this.recoveryPush) {
-      this.recoveryPush.t += dt;
-      if (this.recoveryPush.t >= 1.6) {
-        this.orbit.radius = this.recoveryPush.r0;
-        this.recoveryPush = null;
-      }
-    }
-    const o = this.orbit;
-    const k = 1 - Math.exp(-dt * 9);
-    o.sTheta += (o.theta - o.sTheta) * k;
-    o.sPhi += (o.phi - o.sPhi) * k;
-    o.sRadius += (o.radius - o.sRadius) * k;
-    o.sTarget.lerp(o.target, k);
-
-    const sinPhi = Math.sin(o.sPhi);
-    this.camera.position.set(
-      o.sTarget.x + o.sRadius * sinPhi * Math.sin(o.sTheta),
-      o.sTarget.y + o.sRadius * Math.cos(o.sPhi),
-      o.sTarget.z + o.sRadius * sinPhi * Math.cos(o.sTheta)
-    );
-    this.camera.lookAt(o.sTarget);
+    this.rig.update(dt);
 
     if (this.crane && this.craneRange > 0) {
       this.craneT += dt * 0.12;
@@ -2992,14 +2833,7 @@ export class EquipmentScene {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     window.removeEventListener('resize', this.onWindowResize);
-    const el = this.renderer.domElement;
-    el.removeEventListener('contextmenu', this.onContextMenu);
-    el.removeEventListener('pointerdown', this.onPointerDown);
-    el.removeEventListener('pointermove', this.onPointerMove);
-    el.removeEventListener('pointerup', this.onPointerUp);
-    el.removeEventListener('pointercancel', this.onPointerUp);
-    el.removeEventListener('pointerleave', this.onPointerUp);
-    el.removeEventListener('wheel', this.onWheel);
+    this.rig.unbind();
 
     this.disposeGroup(this.hallGroup);
     this.disposeGroup(this.equipGroup);
@@ -3056,6 +2890,7 @@ export class EquipmentScene {
     this.particleSpeeds = null;
 
     this.renderer.dispose();
+    const el = this.renderer.domElement;
     if (el.parentNode) el.parentNode.removeChild(el);
     this.picks = [];
     this.slots = [];

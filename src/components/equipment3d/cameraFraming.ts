@@ -149,3 +149,32 @@ export function computeIsolatedFraming(
     boundingRadius,
   };
 }
+
+/**
+ * 厂房/预设整体取景距离（自 scene.ts 的 fitDistance 抽出，同为纯几何）。
+ *
+ * 为什么不用「包围球 / sin(fov/2)」：本场景是扁而宽的厂房，包围球半径会被
+ * 水平跨度撑大，导致垂直方向严重留白（实测原预设距离 118 时厂房只占画面 15%）。
+ * 这里分别求水平、垂直两个方向所需距离取较大者。
+ */
+export function computeFitDistance(params: {
+  /** 相机垂直视场角（度） */
+  fov: number;
+  aspect: number;
+  /** 厂房水平半跨（halfX/halfZ 的合成对角） */
+  halfX: number;
+  halfZ: number;
+  /** 厂房结构高度 */
+  structureHeight: number;
+  /** 预设的取景意图距离（退化为倍率：120 ≈ 1.0，保留各预设"想更近/更远"的意图） */
+  presetDistance: number;
+}): number {
+  const vHalf = (params.fov * Math.PI) / 360;
+  const hHalf = Math.atan(Math.tan(vHalf) * Math.max(0.4, params.aspect));
+  const halfW = Math.hypot(params.halfX, params.halfZ) * 0.86;
+  const halfH = Math.max(6, params.structureHeight) * 0.5;
+  const dH = halfW / Math.tan(hHalf);
+  const dV = halfH / Math.tan(vHalf);
+  const k = clamp(params.presetDistance / 120, 0.8, 1.4);
+  return Math.max(dH, dV) * 1.3 * k;
+}

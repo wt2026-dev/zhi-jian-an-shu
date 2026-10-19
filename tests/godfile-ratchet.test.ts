@@ -84,6 +84,8 @@ describe("God-file 棘轮（只降不升）", () => {
 
   it("扫描本身有效（防空跑：真的数到了 src 源文件）", () => {
     expect(files.length, "src 下没扫到 .ts/.tsx，本文件的断言全是空跑").toBeGreaterThan(400);
-    expect(top[0].lines).toBeGreaterThan(3000);
+    // 2026-10-19 起最大头是 EquipmentScene.tsx 2919（scene.ts 经 CameraRig 切分降至 2908）。
+    // 阈值跟着最重文件下调，防止棘轮继续收紧后这条防空跑断言自己误红。
+    expect(top[0].lines).toBeGreaterThan(2800);
   });
 });
