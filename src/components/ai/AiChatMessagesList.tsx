@@ -200,9 +200,17 @@ export const AiChatMessagesList: React.FC<AiChatMessagesListProps> = ({
                     // 渲染已 100ms 节流 + Markdown 组件 memo，重解析成本可忽略。
                     <Markdown content={m.text || ' '} tone="light" />
                   )}
-                  {m.streaming && (
-                    <span className="inline-block w-1.5 h-3.5 bg-blue-600 animate-pulse rounded-xs ml-0.5 align-text-bottom" />
-                  )}
+                  {m.streaming &&
+                    (m.text ? (
+                      <span className="inline-block w-1.5 h-3.5 bg-blue-600 animate-pulse rounded-xs ml-0.5 align-text-bottom" />
+                    ) : (
+                      // 首字到达前（模型 TTFT 空窗）：三个跳动小点，明确"正在响应"，非伪装内容
+                      <span className="inline-flex items-center gap-1 ml-0.5 align-middle py-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.3s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.15s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" />
+                      </span>
+                    ))}
                   <div className={`flex items-center ${isUser ? 'justify-end' : 'justify-between'} gap-2`}>
                     {!isUser && !m.streaming && m.text && (
                       <div className="flex items-center space-x-1.5 mt-1">
