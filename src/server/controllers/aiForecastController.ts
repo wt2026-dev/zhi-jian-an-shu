@@ -5,6 +5,7 @@ import { addAuditLog } from "../services/auditService.ts";
 import { AI_EXPERT_SYSTEM } from "../services/aiExpert.ts";
 import { findRelevantKnowledge } from "../services/knowledgeRetrieval.ts";
 import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
+import { scoreOrUnscored } from "../utils/promptValue.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import { validateBody } from "../middleware/validate.ts";
 import { healthForecastSchema, generateReportSchema, safetyRiskAssessmentSchema } from "../schemas/ai.ts";
@@ -36,7 +37,7 @@ export const handleHealthForecast = async (req: any, res: any) => {
 数字已经算好，你**不需要也不允许重新计算或修改任何数值**；你的任务只是在这些事实之上做工业场景解读：判断可能的劣化机理、给出可执行的处置建议。
 凡是统计结果标为"不可信"的指标，不得在输出里描述为上升或下降；凡是没有给出"预计 X 小时后触及警戒线"的指标，不得自行编造时间。
 
-【设备档案】${eq.name} (${eq.code}) | 类别: ${eq.category} | 当前健康分: ${eq.healthScore} | 当前状态: ${eq.status}
+【设备档案】${eq.name} (${eq.code}) | 类别: ${eq.category} | 当前健康分: ${scoreOrUnscored(eq.healthScore)} | 当前状态: ${eq.status}
 【最近 ${history.length} 小时遥测劣化趋势分析（振动警戒带取 ISO 10816-3 C/D 区界 4.5 mm/s）】
 ${trendDigest(report)}
 【规则引擎评级】${ruleRating}（口径：温度与振动同时越限=危险，任一越限=警告，仅可信上升=关注，其余=正常）
@@ -157,7 +158,7 @@ export const handleGenerateReport = async (req: any, res: any) => {
       worst: [...scoredEquipments]
         .sort((a: any, b: any) => a.healthScore - b.healthScore)
         .slice(0, 3)
-        .map((e: any) => `${e.name}(${e.healthScore}分)`),
+        .map((e: any) => `${e.name}(${scoreOrUnscored(e.healthScore, { withUnit: false })}分)`),
     };
 
     const permits = (await SafetyPermitRepository.getAll(workshop ? { workshop } : undefined)).filter((p: any) => inRange(p.appliedAt));

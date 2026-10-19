@@ -3,6 +3,7 @@ import { getAiClient, AiUnavailableError, callDashScopeJson, handleAiRouteError,
 import { addAuditLog } from "../services/auditService.ts";
 import { AI_EXPERT_SYSTEM, generateFallbackExpertReply } from "../services/aiExpert.ts";
 import { DASHSCOPE_CHAT_MODEL, DASHSCOPE_VISION_MODEL } from "../utils/config.ts";
+import { scoreOrUnscored } from "../utils/promptValue.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import { validateBody } from "../middleware/validate.ts";
 import { aiChatSchema, suggestFollowupsSchema, equipmentSummarySchema, recommendAssigneeSchema, alarmCorrelationSchema } from "../schemas/ai.ts";
@@ -232,7 +233,7 @@ export const handleEquipmentSummary = async (req: any, res: any) => {
     const abnormalCtx = abnormalPoints.slice(0, 3).join("\n") || "近期无巡检异常";
 
     const userPrompt = `请为以下设备生成一份简洁的 AI 健康画像摘要。
-【设备档案】${eq.name} (${eq.code}) | 类别: ${eq.category} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop} | 当前健康分: ${eq.healthScore} | 状态: ${eq.status}
+【设备档案】${eq.name} (${eq.code}) | 类别: ${eq.category} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop} | 当前健康分: ${scoreOrUnscored(eq.healthScore)} | 状态: ${eq.status}
 【遥测统计 (最近${telemetryStats.dataPoints}小时)】${JSON.stringify(telemetryStats)}
 【近期工单】
 ${ordersCtx}
@@ -360,7 +361,7 @@ export const handleAlarmCorrelation = async (req: any, res: any) => {
           value: a.value,
           timestamp: a.timestamp,
           equipment: eq
-            ? `${eq.name} (${eq.code}) | 类别: ${eq.category} | 车间: ${eq.workshop} | 位置: ${eq.location} | 健康分: ${eq.healthScore} | 状态: ${eq.status}`
+            ? `${eq.name} (${eq.code}) | 类别: ${eq.category} | 车间: ${eq.workshop} | 位置: ${eq.location} | 健康分: ${scoreOrUnscored(eq.healthScore)} | 状态: ${eq.status}`
             : `未知设备 (${a.equipmentId})`,
         };
       })

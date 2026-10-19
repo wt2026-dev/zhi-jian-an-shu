@@ -4,6 +4,7 @@ import { addAuditLog } from "../services/auditService.ts";
 import { AI_EXPERT_SYSTEM } from "../services/aiExpert.ts";
 import { findRelevantKnowledge } from "../services/knowledgeRetrieval.ts";
 import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
+import { scoreOrUnscored } from "../utils/promptValue.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import { validateBody } from "../middleware/validate.ts";
 import { generateWorkOrderAiSchema, rootCauseAnalysisSchema, generateMaintenancePlanSchema } from "../schemas/ai.ts";
@@ -28,7 +29,7 @@ export const handleGenerateWorkOrder = async (req: any, res: any) => {
       .join("\n") || "无";
 
     const userPrompt = `请依据以下现场信息，为设备生成一张可直接执行的检修工单草稿。
-【设备档案】名称: ${eq.name} | 编码: ${eq.code} | 类别: ${eq.category} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop} | 健康分: ${eq.healthScore}
+【设备档案】名称: ${eq.name} | 编码: ${eq.code} | 类别: ${eq.category} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop} | 健康分: ${scoreOrUnscored(eq.healthScore)}
 【异常描述】${abnormalDescription}
 【遥测快照】${JSON.stringify(telemetrySnapshot || eq.telemetry)}
 【该设备历史工单】
@@ -103,7 +104,7 @@ export const handleRootCauseAnalysis = async (req: any, res: any) => {
     const kbCtx = kbArticles.map((k: any) => `- 《${k.title}》(${k.category}): ${k.summary}`).join("\n") || "无";
 
     const userPrompt = `请对以下工业设备故障进行深度根因分析 (RCA)。
-【设备档案】${eq ? `${eq.name} (${eq.code}) | 类别: ${eq.category} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop} | 健康分: ${eq.healthScore}` : "设备档案缺失"}
+【设备档案】${eq ? `${eq.name} (${eq.code}) | 类别: ${eq.category} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop} | 健康分: ${scoreOrUnscored(eq.healthScore)}` : "设备档案缺失"}
 【关联工单】${orderCtx}
 【故障现象描述】${description}
 【同设备历史故障】

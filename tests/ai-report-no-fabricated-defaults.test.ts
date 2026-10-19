@@ -58,4 +58,28 @@ describe("健康分/工时不得用编造默认值兜底", () => {
     expect(code).toMatch(/字段值为\s*null\s*表示\*\*该项未采集\*\*/);
     expect(code).toMatch(/禁止\*\*当成\s*0/);
   });
+
+  it("健康分插进提示词时不得裸拼 `${...healthScore}`（null 会变成字面量 null）", () => {
+    // 模板里直接写 ${eq.healthScore}，值为 null 时拼出来就是字符串 "null"，
+    // 模型会当成 0 分或自行猜一个数 —— 而这段文字用户看不到，只在结论里体现。
+    const promptFiles = [
+      "src/server/controllers/aiForecastController.ts",
+      "src/server/controllers/aiAssistantController.ts",
+      "src/server/controllers/aiGenerationController.ts",
+    ];
+    for (const f of promptFiles) {
+      const code = read(f);
+      const bare = code.match(/\$\{[a-zA-Z_]\w*\.healthScore\}/g) ?? [];
+      expect(bare, `${f} 里有裸拼的健康分：${bare.join(", ")}`).toEqual([]);
+      expect(code, `${f} 应走 scoreOrUnscored()`).toMatch(/scoreOrUnscored\(/);
+    }
+  });
+
+  it("scoreOrUnscored 本身：有值给值，无值给「未评估」而不是 null/0", () => {
+    // 直接跑函数，避免守卫只验调用形态而不知道它真做了什么
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const src = fs.readFileSync(path.join(ROOT, "src/server/utils/promptValue.ts"), "utf8");
+    expect(src).toMatch(/typeof score === "number" && Number\.isFinite\(score\)/);
+    expect(src).toMatch(/未评估/);
+  });
 });
