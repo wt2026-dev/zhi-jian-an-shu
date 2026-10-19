@@ -33,6 +33,7 @@ import {
   AiMaintenancePlan,
 } from '../../api';
 import { AiResultModal } from '../ai/AiResultModal';
+import { useAiEngineShortLabel } from '../ai/useAiEngineLabel';
 import {
   WorkOrderStatusBadge,
   WorkOrderPriorityBadge,
@@ -76,6 +77,7 @@ export const WorkOrderDetailDrawer: React.FC<WorkOrderDetailDrawerProps> = ({
   onOpenConvertHazard,
   onOpenSpareModal,
 }) => {
+  const engine = useAiEngineShortLabel();
   const canClaim = can('workOrder:claim', currentUser.role);
   const canComplete = can('workOrder:complete', currentUser.role);
   const canApprove = can('workOrder:approve', currentUser.role);
@@ -402,7 +404,7 @@ export const WorkOrderDetailDrawer: React.FC<WorkOrderDetailDrawerProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span className="font-semibold text-slate-100">通义千问 AI 作业合规审计报告</span>
+                  <span className="font-semibold text-slate-100">{engine || 'AI'} 作业合规审计报告</span>
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium ${
                       complianceRecord.isCompliant

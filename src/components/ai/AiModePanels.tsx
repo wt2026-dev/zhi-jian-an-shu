@@ -141,7 +141,7 @@ export const DiagnosisPanel: React.FC<DiagnosisPanelProps> = ({
                   <div className="flex items-center space-x-2">
                     <span className="font-semibold text-slate-700">来源模型:</span>
                     <span className="font-mono text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                      {diagTraceability?.model || 'DashScope qwen-plus'}
+                      {diagTraceability?.model || '未回传模型标识'}
                     </span>
                     <span className="font-semibold text-slate-700">Prompt:</span>
                     <span className="font-mono text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
@@ -437,7 +437,7 @@ export const VisionPanel: React.FC<VisionPanelProps> = ({
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer disabled:opacity-50"
               >
                 <Camera className="w-4 h-4" />
-                <span>{isVisionAnalyzing ? '多模态图像视觉识别中 (DashScope)...' : '发起 DashScope 工业缺陷识别'}</span>
+                <span>{isVisionAnalyzing ? '多模态图像视觉识别中...' : '发起 AI 工业缺陷识别'}</span>
               </button>
             </div>
           </div>
@@ -463,7 +463,7 @@ export const VisionPanel: React.FC<VisionPanelProps> = ({
                     <div className="flex items-center space-x-2 mt-1">
                       <span className="text-[11px] text-blue-600 flex items-center font-medium">
                         <Cpu className="w-3.5 h-3.5 mr-1" />
-                        {visionResult.modelEngine || 'DashScope Qwen-VL-Plus 工业视觉引擎'}
+                        {visionResult.modelEngine || '未回传视觉引擎名'}
                       </span>
                       {visionResult.confidence && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-mono font-medium">
@@ -649,7 +649,7 @@ export const VisionPanel: React.FC<VisionPanelProps> = ({
               <div className="card-industrial bg-white border border-slate-200 rounded-lg p-12 text-center text-slate-500 shadow-xs relative">
                 <ImageIcon className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                 <h4 className="text-sm font-semibold text-slate-700">暂无视觉识别结果</h4>
-                <p className="text-xs text-slate-500 mt-1">请上传现场照片或选择典型样本后点击“发起 DashScope 工业缺陷识别”</p>
+                <p className="text-xs text-slate-500 mt-1">请上传现场照片或选择典型样本后点击“发起 AI 工业缺陷识别”</p>
               </div>
             )}
           </div>

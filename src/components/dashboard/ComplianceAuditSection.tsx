@@ -4,6 +4,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { ComplianceStats } from '../../types';
+import { useAiEngineShortLabel } from '../ai/useAiEngineLabel';
 import {
   Area,
   CartesianGrid,
@@ -42,6 +43,7 @@ export const ComplianceAuditSection: React.FC<ComplianceAuditSectionProps> = ({
   recentAuditLogs,
   onNavigate,
 }) => {
+  const engine = useAiEngineShortLabel();
   const trend =
     complianceStats?.recentTrend && complianceStats.recentTrend.length > 0
       ? complianceStats.recentTrend
@@ -68,7 +70,7 @@ export const ComplianceAuditSection: React.FC<ComplianceAuditSectionProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              基于通义千问大模型对已闭环工单执行标准化步骤对比与安全违规检测
+              基于 {engine || 'AI 大模型'} 对已闭环工单执行标准化步骤对比与安全违规检测
             </p>
           </div>
         </div>

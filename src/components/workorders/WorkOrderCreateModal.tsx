@@ -710,7 +710,7 @@ export const WorkOrderCreateModal: React.FC<WorkOrderCreateModalProps> = ({
                     {
                       time: formData.priority === 'urgent' ? 'T + 3h00m' : 'T + 6h00m',
                       title: '质检动态验收',
-                      desc: '满载运行测试、通义千问作业合规审计与验收归档',
+                      desc: '满载运行测试、AI 作业合规审计与验收归档',
                       state: 'future',
                     },
                   ].map((item, i) => (

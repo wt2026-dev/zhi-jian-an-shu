@@ -1,7 +1,7 @@
 /**
- * 第 3 幕 · AI 诊断 —— 把真实遥测交给通义千问，拿回结构化诊断报告。
+ * 第 3 幕 · AI 诊断 —— 把真实遥测交给当前应答引擎，拿回结构化诊断报告。
  *
- * 对应项目功能：AI 千问（多维故障诊断）、故障树诊断、知识图谱。
+ * 对应项目功能：AI 多维故障诊断、故障树诊断、知识图谱。
  *
  * 数据红线：
  * - 入参只有台账里真实存在的字段与已落库遥测；缺测写"—"，不估算（与
@@ -160,7 +160,7 @@ export function ActDiagnose(props: ActProps) {
           电流 {readingOr(telemetry?.current, 'A')}、负载率 {readingOr(telemetry?.loadRate, '%')}；{NOT_APPLICABLE} 表示缺测，不估算。
         </div>
 
-        {busy && <div className="py-4 text-center text-[11px] text-cyan-300/80">通义千问正在研判…</div>}
+        {busy && <div className="py-4 text-center text-[11px] text-cyan-300/80">诊断引擎正在研判…</div>}
         {!busy && !report && !error && (
           <div className="py-4 text-center text-[11px] text-slate-500">点下方"启动 AI 诊断"，把这台设备的真实读数交给模型。</div>
         )}

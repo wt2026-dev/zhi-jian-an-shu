@@ -12,6 +12,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { SparePart, Hazard } from '../../types';
+import { useAiEngineShortLabel } from '../ai/useAiEngineLabel';
 import { KpiCard } from './KpiCard';
 
 export interface DashboardKpiHeaderProps {
@@ -61,6 +62,7 @@ export const DashboardKpiHeader: React.FC<DashboardKpiHeaderProps> = ({
   pendingHazardsList,
   onNavigate,
 }) => {
+  const engine = useAiEngineShortLabel();
   return (
     <>
       {/* L2 KPI 核心态势网格：5 列对称工业玻璃态卡片 */}
@@ -186,7 +188,7 @@ export const DashboardKpiHeader: React.FC<DashboardKpiHeaderProps> = ({
             <p className="text-[10px] text-slate-500 mt-0.5">串行方案 · 风险与派单并行协同</p>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-            <span className="text-slate-500">通义千问</span>
+            <span className="text-slate-500">{engine || 'AI 引擎'}</span>
             <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono font-semibold">
               DAG Pipeline
             </span>

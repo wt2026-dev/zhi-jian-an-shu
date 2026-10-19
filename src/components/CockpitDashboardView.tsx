@@ -403,7 +403,7 @@ export const CockpitDashboardView: React.FC<CockpitDashboardViewProps> = ({
       time: '11:15',
       tag: 'AI诊断',
       level: 'info',
-      text: '通义千问模型完成 108号离心机 振动谐波频谱分析，研判偏心磨损率 89%',
+      text: 'AI 诊断模型完成 108号离心机 振动谐波频谱分析，研判偏心磨损率 89%',
     },
     {
       id: 't-3',

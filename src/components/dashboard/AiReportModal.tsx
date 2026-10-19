@@ -43,7 +43,7 @@ export const AiReportModal: React.FC<AiReportModalProps> = ({
       configForm={
         <div className="space-y-4 text-xs">
           <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-700">
-            系统将实时聚合所选范围内巡检/工单/设备健康/作业票真实落库数据，交由 qwen-plus 生成结构化报告。
+            系统将实时聚合所选范围内巡检/工单/设备健康/作业票真实落库数据，交由 AI 诊断引擎生成结构化报告。
           </div>
           <div>
             <label className="block text-slate-700 font-medium mb-1">报告类型</label>

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 export const STEP_META: Record<string, { icon: React.ComponentType<{ className?: string }>; desc: string }> = {
-  '故障诊断': { icon: Activity, desc: 'qwen-plus 工程机理分析，输出严重度与可能原因' },
+  '故障诊断': { icon: Activity, desc: 'AI 工程机理分析，输出严重度与可能原因' },
   '检修方案生成': { icon: ClipboardList, desc: '结合知识库 SOP 与历史检修记录生成作业指导书' },
   '风险审核': { icon: ShieldCheck, desc: 'JSA 作业安全分析，评定风险等级与 LOTO 建议' },
   '派单推荐': { icon: UserCheck, desc: '按负载与历史经验推荐主修技师' },
@@ -29,7 +29,7 @@ export const CAPABILITY_CARDS: CapabilityItem[] = [
     name: '故障诊断推演',
     stageBadge: '阶段 1 · 串行机理分析',
     icon: Activity,
-    desc: '基于 Qwen-Plus 工业工程机理深度分析，推演严重等级与多因概率',
+    desc: '基于 AI 引擎的工业工程机理深度分析，推演严重等级与多因概率',
     input: '时序遥测 + 故障现象',
     output: '诊断结论 + 概率成因',
     badgeStyle: 'bg-blue-50 text-blue-700 border-blue-200/80',

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, Sparkles } from 'lucide-react';
+import { useAiEngineShortLabel } from '../ai/useAiEngineLabel';
 import { AiSafetyNoticeData, AiDiagTraceabilityData } from './healthTypes';
 
 interface AiLiveInsightBannerProps {
@@ -13,6 +14,9 @@ export const AiLiveInsightBanner: React.FC<AiLiveInsightBannerProps> = ({
   aiSafetyNotice,
   aiDiagTraceability,
 }) => {
+  // 引擎真名来自 /api/v1/ai/engine：这里曾经硬兜底成一个具体的百炼模型名，
+  // 换后端（额度耗尽切 Agnes）后那行就成了假溯源——读不到就如实说读不到。
+  const engine = useAiEngineShortLabel();
   if (!aiAnalysisResult) return null;
 
   return (
@@ -22,7 +26,7 @@ export const AiLiveInsightBanner: React.FC<AiLiveInsightBannerProps> = ({
         <div className="flex items-center space-x-2">
           <span className="font-semibold text-slate-700">来源模型:</span>
           <span className="font-mono text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-            {aiDiagTraceability?.model || 'DashScope qwen-plus'}
+            {aiDiagTraceability?.model || engine || '未获取到模型标识'}
           </span>
           <span className="font-semibold text-slate-700">Prompt:</span>
           <span className="font-mono text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
@@ -56,7 +60,7 @@ export const AiLiveInsightBanner: React.FC<AiLiveInsightBannerProps> = ({
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-900 space-y-1 shadow-xs">
         <div className="flex items-center space-x-1.5 font-bold text-blue-700">
           <Sparkles className="w-4 h-4 text-blue-600" />
-          <span>DashScope 通义千问工业诊断引擎即时分析报告</span>
+          <span>{engine ? `${engine} 工业诊断引擎` : 'AI 工业诊断引擎'}即时分析报告</span>
         </div>
         <pre className="whitespace-pre-wrap font-sans text-xs text-slate-700 leading-relaxed mt-1">
           {aiAnalysisResult}

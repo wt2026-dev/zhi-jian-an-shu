@@ -138,7 +138,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </span>
           </h1>
           <p className="text-xs text-slate-600 font-medium max-w-md mx-auto">
-            检修与安全管控一体化平台 · 设备劣化趋势提前预警 · 检修方案一键成单 · 高危作业票双人会签 · 通义千问多模态诊断 · 全厂数字孪生
+            检修与安全管控一体化平台 · 设备劣化趋势提前预警 · 检修方案一键成单 · 高危作业票双人会签 · AI 多模态缺陷诊断 · 全厂数字孪生
           </p>
         </div>
 
@@ -289,7 +289,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         {/* 底部合规与技术栈标注 */}
         <div className="text-center space-y-1 text-[11px] text-slate-600 font-medium">
           <p>JWT 身份认证 · RBAC 权限控制 · 操作审计 · 单实例限流（未完成等级保护测评）</p>
-          <p className="text-[10px] text-slate-500 font-mono">PGlite Embedded DB · Qwen-Plus Industrial LLM · WebGL 3D Twin</p>
+          <p className="text-[10px] text-slate-500 font-mono">PGlite Embedded DB · AI Industrial LLM · WebGL 3D Twin</p>
         </div>
       </div>
 

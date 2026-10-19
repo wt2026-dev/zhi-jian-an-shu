@@ -223,7 +223,7 @@ export const CockpitKpiGrid: React.FC<CockpitKpiGridProps> = ({
       {/* KPI 5: AI 智能调用次数 */}
       <div className="glass-card data-card p-3.5 shadow-sm relative overflow-hidden group hover:border-blue-300 transition-all">
         <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-          <span>千问推理中枢调用</span>
+          <span>AI 推理中枢调用</span>
           <div className="icon-tile icon-tile-sm icon-tile-cyan">
             <Sparkles className="w-4 h-4 text-cyan-600" />
           </div>

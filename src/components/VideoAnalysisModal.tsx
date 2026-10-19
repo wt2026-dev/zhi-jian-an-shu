@@ -189,7 +189,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 视频上传与多模态智能故障分析
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                  Qwen-VL-Max
+                  AI 视觉模型
                 </span>
               </h3>
               <p className="text-[11px] text-slate-500">
@@ -303,7 +303,7 @@ export const VideoAnalysisModal: React.FC<VideoAnalysisModalProps> = ({
                   className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-500/20 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>{isAnalyzing ? 'Qwen-VL 多模态分析中...' : '开始多模态智能故障分析'}</span>
+                  <span>{isAnalyzing ? 'AI 多模态分析中...' : '开始多模态智能故障分析'}</span>
                 </button>
               </div>
 

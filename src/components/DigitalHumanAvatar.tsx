@@ -77,7 +77,7 @@ export const DIGITAL_PERSONAS: DigitalHumanPersona[] = [
     id: 'zhi',
     name: '小智',
     roleTitle: 'AI智能巡检专家',
-    description: '连接工厂遥测中枢与千问大模型，秒级响应故障研判',
+    description: '连接工厂遥测中枢与 AI 诊断引擎，秒级响应故障研判',
     gender: 'male',
     themeColor: '#06b6d4', // 青色安全帽
     avatarSvgType: 'zhi',

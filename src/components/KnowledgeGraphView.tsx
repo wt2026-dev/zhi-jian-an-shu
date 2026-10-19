@@ -65,7 +65,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   // 执行 AI 图谱抽取
   const handleExtract = async () => {
     setExtracting(true);
-    setExtractMessage('Qwen-Plus 正在阅读已审核知识文章并抽取实体与关系...');
+    setExtractMessage('AI 引擎正在阅读已审核知识文章并抽取实体与关系...');
     try {
       const res = await knowledgeApi.extractGraph();
       setExtractMessage(`抽取完成！已成功为 ${res.extractedArticles || 0} 篇新知识提炼知识图谱。`);
@@ -125,7 +125,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                基于 DashScope Qwen-Plus 自动抽取设备、故障、方法、备件与部件之间的多维关联网络
+                由 AI 引擎自动抽取设备、故障、方法、备件与部件之间的多维关联网络
               </p>
             </div>
           </div>
@@ -217,7 +217,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
                 onClick={handleExtract}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold cursor-pointer shadow-xs"
               >
-                立即调用 Qwen-Plus 执行图谱抽取
+                立即调用 AI 引擎执行图谱抽取
               </button>
             )}
           </div>
