@@ -36,16 +36,16 @@
     "pages/spares/spares"
   ],
   "window": {
-    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarBackgroundColor": "#F8FBFF",
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "智检安枢",
-    "backgroundColor": "#F5F7FA",
+    "backgroundColor": "#F2F7FD",
     "backgroundTextStyle": "dark"
   },
   "tabBar": {
-    "color": "#64748b",
-    "selectedColor": "#3b82f6",
-    "backgroundColor": "#ffffff",
+    "color": "#64748B",
+    "selectedColor": "#B8761F",
+    "backgroundColor": "#F8FBFF",
     "borderStyle": "white",
     "list": [
       {
@@ -68,7 +68,7 @@
       },
       {
         "pagePath": "pages/ai/chat",
-        "text": "AI 助手",
+        "text": "AI数字人助手",
         "iconPath": "images/tabbar/ai.png",
         "selectedIconPath": "images/tabbar/ai-active.png"
       },

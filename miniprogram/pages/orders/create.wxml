@@ -1,43 +1,95 @@
-<view wx:if="{{dup}}" class="card" style="border-color:#FB7185;background:rgba(251,113,133,0.08)">
-  <view style="color:#FB7185;font-weight:700">防重复报单拦截</view>
-  <view class="muted" style="margin:12rpx 0">{{dup.message}}</view>
-  <button class="btn btn-rose" bindtap="forceSubmit">现场应急，强制穿透提交</button>
+<!-- 创建报修工单 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
 </view>
-<view class="card">
-  <view class="label">报修设备</view>
-  <picker range="{{eqNames}}" bindchange="onEq">
-    <view class="input">{{eqNames[eqIdx] || "点击选择设备"}}</view>
-  </picker>
-  <view class="label">故障类型</view>
-  <picker range="{{faultTypes}}" bindchange="onFault">
-    <view class="input">{{faultTypes[faultIdx]}}</view>
-  </picker>
-  <view class="label">优先级</view>
-  <picker range="{{priorities}}" bindchange="onPri">
-    <view class="input">{{priorities[priIdx]}}</view>
-  </picker>
-  <view class="label">故障描述 *</view>
-  <textarea class="textarea" value="{{desc}}" bindinput="onDesc" maxlength="300" placeholder="现象、发生时间、影响范围..."></textarea>
-  <button class="btn btn-ghost" bindtap="aiDiagnose" disabled="{{aiLoading}}">
-    {{aiLoading ? "AI 诊断中..." : "✨ AI 智能诊断（自动填充）"}}
-  </button>
-  <view wx:if="{{aiDraft}}" class="card" style="border-color:#22D3EE">
-    <view style="color:#22D3EE;font-weight:700">✨ AI 诊断结论</view>
-    <view class="muted" style="margin-top:12rpx">推荐优先级：<text style="color:#FBBF24">{{aiPriorityText}}</text>{{aiPriorityReason ? '（' + aiPriorityReason + '）' : ''}}</view>
-    <view class="muted" style="margin-top:8rpx">预估工时：{{aiHours}} 小时</view>
-    <view wx:if="{{aiSteps.length > 0}}" style="margin-top:16rpx">
-      <view class="label">建议处置步骤</view>
-      <view class="muted" wx:for="{{aiSteps}}" wx:key="*this">{{index + 1}}. {{item}}</view>
+
+<view class="page-body create-body">
+  <!-- 防重复报单拦截（危险红渐变） -->
+  <view wx:if="{{dup}}" class="danger-banner">
+    <view class="danger-icon">!</view>
+    <view class="danger-body">
+      <view class="danger-title">防重复报单拦截</view>
+      <view class="danger-sub">{{dup.message}}</view>
     </view>
-    <view wx:if="{{aiParts.length > 0}}" style="margin-top:16rpx">
-      <view class="label">建议备件</view>
-      <view class="muted" wx:for="{{aiParts}}" wx:key="name">{{item.name}} {{item.spec}} × {{item.qty}}</view>
-    </view>
+    <button class="btn btn-rose force-btn" bindtap="forceSubmit">现场应急<br/>强制穿透</button>
   </view>
 
-  <view class="label">安全要求（每行一条）</view>
-  <textarea class="textarea" value="{{safety}}" bindinput="onSafety"></textarea>
-  <button class="btn btn-primary" bindtap="submit" disabled="{{submitting}}">
-    {{submitting ? "提交中..." : "提交报修工单"}}
-  </button>
+  <!-- 主表单 HUD 卡 -->
+  <view class="hud-card form-card">
+    <view class="hud-accent-top"></view>
+    <view class="section-title-row">
+      <view class="section-title-dot"></view>
+      <view class="section-title-text">报修信息填报</view>
+      <view class="section-title-sub">设备故障 · 一键派单</view>
+    </view>
+
+    <view class="label">报修设备</view>
+    <picker range="{{eqNames}}" bindchange="onEq">
+      <view class="input picker-box">
+        <text class="{{eqNames[eqIdx] ? 'picker-value' : 'picker-placeholder'}}">{{eqNames[eqIdx] || '点击选择设备'}}</text>
+        <text class="picker-arrow">▾</text>
+      </view>
+    </picker>
+
+    <view class="label">故障类型</view>
+    <picker range="{{faultTypes}}" bindchange="onFault">
+      <view class="input picker-box">
+        <text class="picker-value">{{faultTypes[faultIdx]}}</text>
+        <text class="picker-arrow">▾</text>
+      </view>
+    </picker>
+
+    <view class="label">优先级</view>
+    <picker range="{{priTexts}}" bindchange="onPri">
+      <view class="input picker-box">
+        <view class="chip-cyan pri-chip">{{priTexts[priIdx]}}</view>
+        <text class="picker-arrow">▾</text>
+      </view>
+    </picker>
+
+    <view class="label">故障描述 *</view>
+    <textarea class="textarea" value="{{desc}}" bindinput="onDesc" maxlength="300" placeholder="现象、发生时间、影响范围..."></textarea>
+
+    <button class="btn btn-ghost ai-btn" bindtap="aiDiagnose" disabled="{{aiLoading}}">
+      ✨ {{aiLoading ? 'AI 诊断中...' : 'AI 智能诊断（自动填充）'}}
+    </button>
+
+    <!-- AI 诊断结论（天青玻璃卡） -->
+    <view wx:if="{{aiDraft}}" class="ai-draft">
+      <view class="ai-draft-head">
+        <text class="ai-draft-icon">✨</text>
+        <text>AI 诊断结论</text>
+      </view>
+      <view class="ai-row">
+        <text class="ai-key">推荐优先级</text>
+        <text class="ai-pri">{{aiPriorityText}}<text class="ai-reason">{{aiPriorityReason ? '（' + aiPriorityReason + '）' : ''}}</text></text>
+      </view>
+      <view class="ai-row">
+        <text class="ai-key">预估工时</text>
+        <text class="ai-val mono">{{aiHours}} 小时</text>
+      </view>
+      <view wx:if="{{aiSteps.length > 0}}" class="ai-sub-label">建议处置步骤</view>
+      <view class="ai-step" wx:for="{{aiSteps}}" wx:key="*this">
+        <text class="ai-step-no">{{index + 1}}</text>
+        <text>{{item}}</text>
+      </view>
+      <view wx:if="{{aiParts.length > 0}}" class="ai-sub-label">建议备件</view>
+      <view class="ai-part" wx:for="{{aiParts}}" wx:key="name">
+        <text class="part-name">{{item.name}}</text>
+        <text class="part-spec">{{item.spec}}</text>
+        <text class="part-qty mono">× {{item.qty}}</text>
+      </view>
+    </view>
+
+    <view class="label">安全要求（每行一条）</view>
+    <textarea class="textarea" value="{{safety}}" bindinput="onSafety"></textarea>
+
+    <button class="btn btn-gold submit-btn" bindtap="submit" disabled="{{submitting}}">
+      {{submitting ? '提交中...' : '提交报修工单'}}
+    </button>
+  </view>
+
+  <view class="safe-bottom"></view>
 </view>

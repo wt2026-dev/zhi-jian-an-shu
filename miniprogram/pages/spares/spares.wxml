@@ -1,15 +1,38 @@
-<view wx:if="{{loading}}" class="empty">加载中...</view>
-<view wx:elif="{{loadError}}" class="empty">
-  <view>{{loadError}}</view>
-  <button class="btn btn-ghost" style="margin:30rpx auto;width:300rpx" bindtap="loadParts">重试</button>
+<!-- 备件库存 · Solar-Punk（与 Web 端备件库存视图同步） -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
 </view>
-<block wx:else>
-  <view class="spares-page">
-    <view class="page-title">备件库存</view>
 
-    <!-- 搜索与筛选 -->
-    <view class="filter-bar">
-      <input class="search-input" placeholder="搜索备件名称/编码" value="{{searchTerm}}" bindinput="onSearch" />
+<view class="page-body">
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="loading-state">
+    <view class="loading-ring"></view>
+    <text class="loading-text">同步备件库存中...</text>
+  </view>
+
+  <!-- 加载失败 -->
+  <view wx:elif="{{loadError}}" class="error-state">
+    <text class="error-icon">⚠️</text>
+    <text class="error-text">{{loadError}}</text>
+    <view class="retry-btn" bindtap="loadParts">重试</view>
+  </view>
+
+  <block wx:else>
+    <!-- 页面标题 -->
+    <view class="section-title-row">
+      <view class="section-title-dot"></view>
+      <view class="section-title-text">备件库存</view>
+      <view class="section-title-sub">出入库在控</view>
+    </view>
+
+    <!-- 搜索与分类筛选（玻璃条） -->
+    <view class="filter-shell">
+      <view class="search-box">
+        <text class="search-icon">🔍</text>
+        <input class="search-input" placeholder="搜索备件名称 / 编码" value="{{searchTerm}}" bindinput="onSearch" />
+      </view>
       <picker class="cat-picker" mode="selector" range="{{categories}}" value="{{categoryIndex}}" bindchange="onCategoryChange">
         <view class="cat-btn">{{categories[categoryIndex]}} ▾</view>
       </picker>
@@ -19,27 +42,37 @@
         <view class="toggle-dot"></view>
         <text>仅低库存</text>
       </view>
-      <view class="muted">共 {{filteredParts.length}} 项</view>
+      <view class="filter-count">共 <text class="filter-count-num">{{filteredParts.length}}</text> 项</view>
     </view>
 
-    <!-- 备件列表 -->
-    <view wx:if="{{filteredParts.length === 0}}" class="empty">暂无匹配备件</view>
-    <view class="part-card" wx:for="{{filteredParts}}" wx:key="id">
+    <!-- 空态 -->
+    <view wx:if="{{filteredParts.length === 0}}" class="empty-state">
+      <text class="empty-icon">📦</text>
+      <text class="empty-text">暂无匹配备件</text>
+    </view>
+
+    <!-- 备件卡片列表 -->
+    <view class="glass-card part-card" wx:for="{{filteredParts}}" wx:key="id">
       <view class="part-header">
         <view class="part-name">{{item.name}}</view>
-        <view class="badge {{item.stock <= item.safe_stock ? 'badge-danger' : 'badge-success'}}">
+        <view class="{{item.stock <= item.safe_stock ? 'badge-danger-pill' : 'badge-ok-pill'}}">
           {{item.stock <= item.safe_stock ? '低库存' : '正常'}}
         </view>
       </view>
-      <view class="part-code muted">{{item.code}} · {{item.specification || ""}}</view>
+      <view class="part-code-row">
+        <text class="part-code">{{item.code}}</text>
+        <text class="part-code-dot">·</text>
+        <text class="part-spec">{{item.specification || ""}}</text>
+      </view>
+      <view class="part-divider"></view>
       <view class="part-meta">
         <view class="meta-item">
           <text class="meta-label">库存</text>
-          <text class="meta-value {{item.stock <= item.safe_stock ? 'text-danger' : ''}}">{{item.stock}} {{item.unit || "件"}}</text>
+          <text class="meta-value {{item.stock <= item.safe_stock ? 'text-danger' : ''}}">{{item.stock}}<text class="meta-unit"> {{item.unit || "件"}}</text></text>
         </view>
         <view class="meta-item">
           <text class="meta-label">安全库存</text>
-          <text class="meta-value">{{item.safe_stock}} {{item.unit || "件"}}</text>
+          <text class="meta-value">{{item.safe_stock}}<text class="meta-unit"> {{item.unit || "件"}}</text></text>
         </view>
         <view class="meta-item">
           <text class="meta-label">单价</text>
@@ -51,6 +84,6 @@
         </view>
       </view>
     </view>
-  </view>
-  <view class="safe-bottom"></view>
-</block>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

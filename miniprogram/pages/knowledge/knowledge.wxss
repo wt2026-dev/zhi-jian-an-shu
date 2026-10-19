@@ -1,2 +1,105 @@
-.searchbar { padding: 24rpx; }
-.content { color: #334155; font-size: 24rpx; line-height: 1.7; padding: 20rpx; background: #F8FAFC; border: 1rpx solid #E2E8F0; border-radius: 16rpx; white-space: pre-wrap; }
+/* knowledge.wxss - 知识库 RAG · Solar-Punk */
+
+.searchbar {
+  margin: 20rpx 24rpx 0;
+  padding: 12rpx 16rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.search-icon {
+  font-size: 28rpx;
+  color: #94A3B8;
+  flex-shrink: 0;
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: #1E293B;
+  height: 64rpx;
+}
+.search-ph { color: #94A3B8; }
+.search-btn {
+  flex-shrink: 0;
+  padding: 0 30rpx;
+  height: 60rpx;
+  font-size: 24rpx;
+}
+
+/* 空态 / 加载 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 100rpx 48rpx;
+}
+.loading-ring {
+  width: 48rpx;
+  height: 48rpx;
+  border: 6rpx solid rgba(232, 163, 61, 0.2);
+  border-top-color: #E8A33D;
+  border-radius: 50%;
+  margin-bottom: 20rpx;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.empty-icon {
+  font-size: 56rpx;
+  margin-bottom: 16rpx;
+}
+
+/* 结果卡片 */
+.result-card {
+  margin: 16rpx 24rpx 0;
+  padding: 24rpx;
+}
+.result-card:active {
+  opacity: 0.94;
+}
+.result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.result-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.35;
+}
+.result-cat {
+  flex-shrink: 0;
+  padding: 3rpx 14rpx;
+  font-size: 18rpx;
+}
+.result-summary {
+  font-size: 23rpx;
+  color: #64748B;
+  line-height: 1.5;
+  margin: 12rpx 0 4rpx;
+}
+.result-content {
+  display: block;
+  font-size: 24rpx;
+  color: #334155;
+  line-height: 1.7;
+  padding: 20rpx;
+  margin-top: 12rpx;
+  background: rgba(242, 247, 253, 0.8);
+  border: 1rpx solid rgba(220, 230, 242, 0.7);
+  border-radius: 16rpx;
+}
+.result-toggle {
+  margin-top: 12rpx;
+  text-align: right;
+  font-size: 22rpx;
+  color: #0EA5E9;
+  font-weight: 600;
+}

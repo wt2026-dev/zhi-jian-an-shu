@@ -519,6 +519,7 @@
 
   <!-- ==================== THREE.JS 3D BOILER FEEDWATER PUMP TEARDOWN ENGINE ==================== -->
   <script>
+    let decorRingsOn = false;
     // =========================================================================
     // 1. 36 HIGH-PRECISION PARTS OF THE MULTISTAGE HIGH-PRESSURE BOILER FEED PUMP
     //    (DG85-80×4 型卧式多级节段式高压锅炉给水泵 — 36 独立零件全拆解)
@@ -1170,7 +1171,7 @@
       return new THREE.CanvasTexture(canvas);
     }
 
-    function createCircularWorkbenchTexture() {
+    function createCircularWorkbenchTexture(withDial = decorRingsOn) {
       const canvas = document.createElement('canvas');
       canvas.width = 2048;
       canvas.height = 2048;
@@ -1203,25 +1204,27 @@
         ctx.stroke();
       }
 
-      // Concentric Precision Calibration Rings & Degree Ticks
-      [340, 640, 890, 965, 998].forEach((r, idx) => {
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = idx === 4 ? 'rgba(0, 229, 255, 0.7)' : 'rgba(226, 232, 240, 0.25)';
-        ctx.lineWidth = idx === 4 ? 4 : 2;
-        ctx.stroke();
-      });
+      if (withDial) {
+        // Concentric Precision Calibration Rings & Degree Ticks
+        [340, 640, 890, 965, 998].forEach((r, idx) => {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = idx === 4 ? 'rgba(0, 229, 255, 0.7)' : 'rgba(226, 232, 240, 0.25)';
+          ctx.lineWidth = idx === 4 ? 4 : 2;
+          ctx.stroke();
+        });
 
-      for (let deg = 0; deg < 360; deg += 5) {
-        const rad = (deg * Math.PI) / 180;
-        const rIn = deg % 30 === 0 ? 940 : 954;
-        const rOut = 965;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(rad) * rIn, cy + Math.sin(rad) * rIn);
-        ctx.lineTo(cx + Math.cos(rad) * rOut, cy + Math.sin(rad) * rOut);
-        ctx.strokeStyle = deg % 30 === 0 ? 'rgba(0, 229, 255, 0.75)' : 'rgba(226, 232, 240, 0.32)';
-        ctx.lineWidth = deg % 30 === 0 ? 2.5 : 1.2;
-        ctx.stroke();
+        for (let deg = 0; deg < 360; deg += 5) {
+          const rad = (deg * Math.PI) / 180;
+          const rIn = deg % 30 === 0 ? 940 : 954;
+          const rOut = 965;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(rad) * rIn, cy + Math.sin(rad) * rIn);
+          ctx.lineTo(cx + Math.cos(rad) * rOut, cy + Math.sin(rad) * rOut);
+          ctx.strokeStyle = deg % 30 === 0 ? 'rgba(0, 229, 255, 0.75)' : 'rgba(226, 232, 240, 0.32)';
+          ctx.lineWidth = deg % 30 === 0 ? 2.5 : 1.2;
+          ctx.stroke();
+        }
       }
 
       // Center Axial Teardown Axis Line
@@ -1303,7 +1306,7 @@
     const workbenchGroup = new THREE.Group();
     scene.add(workbenchGroup);
 
-    const workbenchTex = createCircularWorkbenchTexture();
+    const workbenchTex = createCircularWorkbenchTexture(decorRingsOn);
     const tableRadius = 19.5;
     const tableTopGeo = new THREE.CylinderGeometry(tableRadius, tableRadius, 0.32, 96);
     const tableSideMat = new THREE.MeshStandardMaterial({
@@ -1321,6 +1324,16 @@
     tableCylinder.position.y = -3.35;
     tableCylinder.receiveShadow = true;
     workbenchGroup.add(tableCylinder);
+
+    function setDecorRings(on) {
+      decorRingsOn = Boolean(on);
+      if (tableTopMat) {
+        tableTopMat.map = createCircularWorkbenchTexture(decorRingsOn);
+        tableTopMat.needsUpdate = true;
+      }
+      return decorRingsOn;
+    }
+    window.setDecorRings = setDecorRings;
 
     // Glowing Cyan Bezel Ring around the Circular Workbench
     const rimTorusGeo = new THREE.TorusGeometry(tableRadius + 0.06, 0.07, 16, 128);

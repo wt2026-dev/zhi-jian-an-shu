@@ -1,26 +1,32 @@
-/* orders/list.wxss - 检修工单列*/
+/* orders/list.wxss - 检修工单列表 · Solar-Punk */
 @import '../../common.wxss';
 
 page {
-  background: #F5F7FA;
+  background: linear-gradient(180deg, #F8FBFF 0%, #F1F7FE 55%, #F7F4FF 100%);
+  background-color: #F2F7FD;
   min-height: 100vh;
 }
 
 .page-container {
   min-height: 100vh;
-  background: #F5F7FA;
   display: flex;
   flex-direction: column;
 }
 
-/* 标签*/
+/* 标签栏（玻璃条） */
+.tabs-shell {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16rpx);
+  -webkit-backdrop-filter: blur(16rpx);
+  border-bottom: 1rpx solid rgba(220, 230, 242, 0.8);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
 .tabs-bar {
-  background: #F5F7FA;
-  border-bottom: 1rpx solid #E2E8F0;
   white-space: nowrap;
   padding: 0 16rpx;
 }
-
 .tab-item {
   display: inline-flex;
   flex-direction: column;
@@ -30,187 +36,192 @@ page {
   color: #94A3B8;
   position: relative;
 }
-
 .tab-active {
-  color: #3b82f6;
-  font-weight: 600;
+  color: #B8761F;
+  font-weight: 700;
 }
-
 .tab-indicator {
   position: absolute;
-  bottom: 0;
+  bottom: 8rpx;
   left: 50%;
   transform: translateX(-50%);
   width: 40rpx;
-  height: 4rpx;
-  background: #3b82f6;
-  border-radius: 2rpx;
+  height: 6rpx;
+  border-radius: 3rpx;
+  background: linear-gradient(90deg, #E8A33D 0%, #F6D08A 100%);
+  box-shadow: 0 2rpx 8rpx rgba(232, 163, 61, 0.5);
 }
 
-/* 工单列表 */
-.order-list {
-  flex: 1;
-  padding: 16rpx 24rpx;
-}
-
-.order-card {
-  background: #FFFFFF;
-  border: 1rpx solid #E2E8F0;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
-}
-
-.order-card:active {
-  background: #E2E8F0;
-  border-color: #3b82f6;
-}
-
-/* 工单*/
-.order-header {
+/* 加载中 */
+.loading-state, .error-state {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 12rpx;
+  justify-content: center;
+  padding: 120rpx 48rpx;
 }
-
-.order-no-box {
-  background: rgba(34, 211, 238, 0.1);
-  border: 1rpx solid rgba(34, 211, 238, 0.3);
-  padding: 6rpx 12rpx;
-  border-radius: 6rpx;
+.loading-ring {
+  width: 56rpx;
+  height: 56rpx;
+  border: 6rpx solid rgba(232, 163, 61, 0.2);
+  border-top-color: #E8A33D;
+  border-radius: 50%;
+  margin-bottom: 24rpx;
+  animation: spin 0.9s linear infinite;
 }
-
-.order-no {
-  font-size: 20rpx;
-  color: #3b82f6;
-  font-family: "DIN Alternate", monospace;
-  font-weight: 600;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
-
-.order-badges {
-  display: flex;
-  gap: 8rpx;
+.loading-icon, .error-icon {
+  font-size: 64rpx;
+  margin-bottom: 24rpx;
 }
-
-.priority-badge,
-.status-badge {
-  font-size: 18rpx;
-  font-weight: 700;
-  padding: 4rpx 12rpx;
-  border-radius: 6rpx;
+.loading-text, .error-text {
+  font-size: 28rpx;
+  color: #737373;
+  text-align: center;
+  margin-bottom: 24rpx;
 }
-
-/* 工单标题 */
-.order-title {
+.error-text {
+  color: #FB7185;
+}
+.retry-btn {
+  padding: 16rpx 48rpx;
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  color: #ffffff;
+  border-radius: 999rpx;
   font-size: 28rpx;
   font-weight: 600;
-  color: #1E293B;
-  margin-bottom: 12rpx;
-  line-height: 1.4;
+  box-shadow: 0 6rpx 16rpx -6rpx rgba(37, 99, 235, 0.5);
+}
+.retry-btn:active {
+  opacity: 0.8;
 }
 
-/* 设备信息 */
+/* 工单卡片列表 */
+.order-list {
+  flex: 1;
+  padding: 8rpx 0;
+}
+.order-card {
+  margin: 20rpx 24rpx;
+  padding: 24rpx 28rpx;
+}
+.order-card:active {
+  transform: translateY(2rpx);
+  opacity: 0.92;
+}
+.order-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14rpx;
+}
+.order-no-box {
+  flex-shrink: 0;
+}
+.order-no {
+  font-size: 22rpx;
+  color: #B8761F;
+  font-family: "DIN Alternate", monospace;
+  font-weight: 700;
+  background: rgba(232, 163, 61, 0.1);
+  border: 1rpx solid rgba(232, 163, 61, 0.32);
+  border-radius: 8rpx;
+  padding: 4rpx 12rpx;
+  letter-spacing: 0.02em;
+}
+.order-badges {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+.priority-badge, .status-badge {
+  font-size: 20rpx;
+  font-weight: 600;
+  border-radius: 999rpx;
+  padding: 4rpx 16rpx;
+}
+.order-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.4;
+  margin-bottom: 12rpx;
+}
 .order-info {
   display: flex;
   align-items: center;
   gap: 8rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #64748B;
-  margin-bottom: 12rpx;
 }
-
 .order-info-icon {
-  font-size: 20rpx;
+  font-size: 22rpx;
 }
-
-/* 底部信息 */
+.order-divider {
+  height: 1rpx;
+  background: rgba(220, 230, 242, 0.8);
+  margin: 16rpx 0;
+}
 .order-footer {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding-top: 12rpx;
-  border-top: 1rpx solid rgba(43, 50, 61, 0.5);
+  justify-content: space-between;
 }
-
 .order-footer-left {
   display: flex;
   align-items: center;
   gap: 6rpx;
 }
-
-.order-time-icon,
-.order-assignee-icon {
-  font-size: 18rpx;
-}
-
-.order-time {
+.order-time-icon, .order-assignee-icon {
   font-size: 20rpx;
+}
+.order-time {
+  font-size: 22rpx;
   color: #94A3B8;
   font-family: "DIN Alternate", monospace;
 }
-
 .order-assignee {
   display: flex;
   align-items: center;
   gap: 6rpx;
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: #64748B;
 }
 
-/* 空状*/
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 120rpx 40rpx;
+.bottom-spacer {
+  height: 160rpx;
 }
 
-.empty-icon {
-  font-size: 80rpx;
-  margin-bottom: 24rpx;
-  opacity: 0.5;
-}
-
-.empty-text {
-  font-size: 28rpx;
-  color: #94A3B8;
-}
-
-/* 浮动按钮 */
+/* 浮动按钮（晨曦金） */
 .fab-btn {
   position: fixed;
   right: 40rpx;
-  bottom: 200rpx;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  border-radius: 50%;
-  width: 120rpx;
-  height: 120rpx;
+  bottom: 180rpx;
+  z-index: 50;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 8rpx 32rpx rgba(59, 130, 246, 0.4);
+  gap: 8rpx;
+  padding: 20rpx 36rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #F6D08A 0%, #E8A33D 48%, #D98F2B 100%);
+  box-shadow:
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.6),
+    0 10rpx 26rpx -8rpx rgba(232, 163, 61, 0.55);
+  color: #FFFFFF;
 }
-
 .fab-btn:active {
-  transform: scale(0.95);
+  transform: translateY(2rpx);
+  opacity: 0.9;
 }
-
 .fab-icon {
-  font-size: 40rpx;
-  color: #F1F5F9;
-  font-weight: 700;
+  font-size: 34rpx;
   line-height: 1;
-}
-
-.fab-text {
-  font-size: 18rpx;
-  color: #F1F5F9;
   font-weight: 600;
 }
-
-.bottom-spacer {
-  height: 120rpx;
+.fab-text {
+  font-size: 28rpx;
+  font-weight: 700;
 }

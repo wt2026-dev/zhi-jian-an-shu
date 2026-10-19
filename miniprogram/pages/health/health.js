@@ -19,10 +19,17 @@ Page({
     that.setData({ loading: true, loadError: "" });
     request("/api/v1/equipments").then(function(list) {
       var equips = (list || []).map(function(e) {
-        var score = e.healthScore || 0;
-        var statusColor = score >= 80 ? "#10b981" : score >= 60 ? "#F59E0B" : "#EF4444";
-        var statusText = score >= 80 ? "良好" : score >= 60 ? "注意" : "异常";
-        return Object.assign({}, e, { scoreText: score + "分", statusColor: statusColor, statusText: statusText });
+        var isScored = typeof e.healthScore === "number";
+        var score = isScored ? e.healthScore : null;
+        var statusColor = !isScored ? "#94A3B8" : score >= 80 ? "#10B981" : score >= 60 ? "#F59E0B" : "#EF4444";
+        var statusText = !isScored ? "未评估" : score >= 80 ? "良好" : score >= 60 ? "注意" : "异常";
+        var scoreText = isScored ? score + "分" : "未评估";
+        return Object.assign({}, e, {
+          isScored: isScored,
+          scoreText: scoreText,
+          statusColor: statusColor,
+          statusText: statusText
+        });
       });
       that.setData({ loading: false, equipments: equips });
       if (equips.length > 0) that.selectEquipment({ currentTarget: { dataset: { id: equips[0].id } } });

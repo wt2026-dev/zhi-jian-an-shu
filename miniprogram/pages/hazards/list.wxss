@@ -1,175 +1,112 @@
-.container {
-  padding: 24rpx;
-  background-color: #F5F7FA;
+/* pages/hazards/list.wxss · Solar-Punk Bright Game-HUD */
+page {
+  background: linear-gradient(180deg, #F8FBFF 0%, #F1F7FE 55%, #F7F4FF 100%);
+  background-color: #F2F7FD;
   min-height: 100vh;
-  box-sizing: border-box;
 }
 
-.row {
-  display: flex;
-  align-items: center;
-}
+.page-body { padding-bottom: 40rpx; }
+.sp { flex: 1; }
 
-.sp {
-  flex: 1;
-}
-
-.top-bar {
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 16rpx;
-  padding: 20rpx;
-  margin-bottom: 20rpx;
-}
-
-.stat-box {
-  flex: 1;
-  text-align: center;
-}
-
-.stat-num {
-  font-size: 32rpx;
-  font-weight: bold;
-  display: block;
-}
-
-.stat-label {
-  font-size: 20rpx;
-  color: #94A3B8;
-  margin-top: 4rpx;
-  display: block;
-}
-
-.text-rose { color: #f43f5e; }
-.text-amber { color: #fbbf24; }
-.text-cyan { color: #22d3ee; }
-
+/* 统计卡 */
+.stat-card { margin: 20rpx 24rpx; padding: 26rpx 24rpx; }
+.stat-row { display: flex; margin-bottom: 20rpx; }
+.stat-box { flex: 1; text-align: center; }
+.stat-num { font-size: 48rpx; font-weight: 800; font-family: "DIN Alternate", monospace; display: block; line-height: 1; }
+.stat-num-red { color: #EF4444; }
+.stat-num-amber { color: #E8A33D; }
+.stat-num-blue { color: #2563EB; }
+.stat-label { font-size: 20rpx; color: #94A3B8; margin-top: 8rpx; display: block; }
 .report-btn {
-  background: #f43f5e;
-  color: #1E293B;
-  font-size: 24rpx;
-  font-weight: bold;
-  padding: 16rpx 24rpx;
-  border-radius: 12rpx;
+  height: 84rpx; border-radius: 16rpx;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 27rpx; font-weight: 700;
+  box-shadow: 0 6rpx 16rpx -6rpx rgba(232, 163, 61, 0.6);
 }
 
-.tab-bar {
-  white-space: nowrap;
-  margin-bottom: 20rpx;
-}
-
+/* 筛选 tab */
+.tab-bar { white-space: nowrap; padding: 0 24rpx; margin-bottom: 8rpx; }
 .tab-item {
   display: inline-block;
   padding: 12rpx 28rpx;
-  font-size: 24rpx;
-  color: #a1a1aa;
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 20rpx;
+  font-size: 23rpx;
+  color: #64748B;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1rpx solid #DCE6F2;
+  border-radius: 999rpx;
   margin-right: 14rpx;
 }
-
 .tab-active {
-  background: #22d3ee;
-  color: #F8FAFC;
-  font-weight: bold;
-  border-color: #22d3ee;
+  background: linear-gradient(135deg, #F6D08A, #E8A33D);
+  color: #FFFFFF;
+  font-weight: 700;
+  border-color: transparent;
+  box-shadow: 0 4rpx 12rpx -4rpx rgba(232, 163, 61, 0.5);
 }
 
-.card {
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 20rpx;
+/* 加载 / 空态 */
+.loading-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
+.loading-ring {
+  width: 56rpx; height: 56rpx;
+  border: 6rpx solid rgba(232, 163, 61, 0.2);
+  border-top-color: #E8A33D;
+  border-radius: 50%; margin-bottom: 24rpx;
+  animation: spin 0.9s linear infinite;
 }
+.loading-text { font-size: 26rpx; color: #737373; }
+.empty-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 40rpx; }
+.empty-icon { font-size: 72rpx; margin-bottom: 20rpx; }
+.empty-text { font-size: 24rpx; color: #94A3B8; }
 
+/* 隐患卡 */
+.hazard-card { margin: 20rpx 24rpx; padding: 26rpx 28rpx; }
 .card-major {
-  border-color: rgba(244, 63, 94, 0.5);
-  background: linear-gradient(180deg, rgba(244, 63, 94, 0.1) 0%, #FFFFFF 100%);
+  border: 1rpx solid rgba(239, 68, 68, 0.5);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.06) 0%, rgba(255,255,255,0.9) 100%);
 }
-
-.badge {
-  padding: 4rpx 12rpx;
-  border-radius: 8rpx;
-  font-size: 20rpx;
-  font-weight: bold;
-}
-
+.card-header { display: flex; align-items: center; }
 .badge-major {
-  background: #f43f5e;
-  color: #1E293B;
+  font-size: 19rpx; font-weight: 700;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #F87171, #EF4444);
+  padding: 5rpx 16rpx;
+  border-radius: 999rpx;
+  box-shadow: 0 4rpx 10rpx -4rpx rgba(239, 68, 68, 0.6);
 }
+.chip-sm { font-size: 19rpx; padding: 4rpx 14rpx; }
 
-.badge-general {
-  background: #E2E8F0;
-  color: #a1a1aa;
+/* 状态徽章（基于 chip 基类 + JS 传入的 badge-* 变体） */
+.chip {
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 19rpx;
+  font-weight: 600;
 }
+.badge-pending { background: rgba(245, 158, 11, 0.14); color: #B45309; border: 1rpx solid rgba(245, 158, 11, 0.4); }
+.badge-rectifying { background: rgba(6, 182, 212, 0.12); color: #0E7490; border: 1rpx solid rgba(6, 182, 212, 0.4); }
+.badge-verifying { background: rgba(139, 92, 246, 0.12); color: #6D28D9; border: 1rpx solid rgba(139, 92, 246, 0.35); }
+.badge-closed { background: rgba(16, 185, 129, 0.12); color: #047857; border: 1rpx solid rgba(16, 185, 129, 0.35); }
 
-.badge-pending {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
-}
-
-.badge-rectifying {
-  background: rgba(6, 182, 212, 0.2);
-  color: #22d3ee;
-}
-
-.badge-verifying {
-  background: rgba(168, 85, 247, 0.2);
-  color: #c084fc;
-}
-
-.badge-closed {
-  background: rgba(16, 185, 129, 0.2);
-  color: #34d399;
-}
-
-.hazard-title {
-  font-size: 28rpx;
-  font-weight: bold;
-  color: #1E293B;
-  margin: 14rpx 0 8rpx;
-}
-
-.hazard-desc {
-  font-size: 22rpx;
-  line-height: 1.4;
-  margin-bottom: 14rpx;
-}
-
+.hazard-title { font-size: 28rpx; font-weight: 800; color: #0F172A; margin: 16rpx 0 8rpx; line-height: 1.35; }
+.hazard-desc { font-size: 22rpx; line-height: 1.5; color: #475569; margin-bottom: 14rpx; }
 .hazard-meta {
-  font-size: 20rpx;
-  line-height: 1.5;
-  border-top: 1px solid #E2E8F0;
+  font-size: 20rpx; line-height: 1.7;
+  border-top: 1rpx solid #DCE6F2;
   padding-top: 12rpx;
 }
+.meta-line { color: #64748B; }
+.deadline { color: #B45309; font-weight: 700; }
 
-.card-actions {
-  margin-top: 16rpx;
-}
-
-.btn-sm {
-  font-size: 22rpx;
-  padding: 8rpx 20rpx;
-  border-radius: 8rpx;
+.card-actions { display: flex; align-items: center; margin-top: 18rpx; }
+.action-btn {
+  font-size: 22rpx; font-weight: 700;
+  padding: 10rpx 24rpx;
+  border-radius: 999rpx;
   line-height: 1.5;
+  margin: 0;
 }
+.action-btn::after { border: none; }
+.action-cyan { background: linear-gradient(135deg, #67E8F9, #06B6D4); color: #FFFFFF; }
+.action-green { background: linear-gradient(135deg, #34D399, #10B981); color: #FFFFFF; }
 
-.btn-primary {
-  background: #2563eb;
-  color: #1E293B;
-}
-
-.btn-success {
-  background: #059669;
-  color: #1E293B;
-}
-
-.empty {
-  text-align: center;
-  padding: 80rpx;
-  color: #94A3B8;
-  font-size: 24rpx;
-}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

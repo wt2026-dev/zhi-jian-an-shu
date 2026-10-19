@@ -1,16 +1,45 @@
-<view class="bar">
-  <view class="muted">共 {{list.length}} 条 · 未读 {{unread}} 条</view>
-  <view class="markall" bindtap="markAll">全部已读</view>
+<!-- 通知中心 · Solar-Punk 明亮游戏化 HUD（与 Web 端同步） -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
 </view>
-<view wx:if="{{loading}}" class="empty">加载中...</view>
-<view wx:elif="{{list.length === 0}}" class="empty">暂无通知</view>
-<view class="card {{item.read ? 'read' : ''}}" wx:for="{{list}}" wx:key="id" bindtap="tapItem" data-idx="{{index}}">
-  <view class="row">
-    <view class="badge-dot" style="background:{{item.dotColor}}" wx:if="{{!item.read}}"></view>
-    <view class="title">{{item.title}}</view>
-    <view class="sp"></view>
-    <view class="muted">{{item.time}}</view>
+
+<view class="page-body">
+  <!-- 汇总条 -->
+  <view class="hud-card notif-summary">
+    <view class="notif-summary-left">
+      <view class="notif-unread-dot" wx:if="{{unread > 0}}"></view>
+      <text class="notif-summary-title">通知中心</text>
+    </view>
+    <view class="notif-summary-right">
+      <text class="notif-count">共 {{list.length}} 条 · <text class="text-gold-deep notif-unread-num">{{unread}} 条未读</text></text>
+      <view class="chip-cyan markall" bindtap="markAll">全部已读</view>
+    </view>
   </view>
-  <view class="muted" style="margin-top:10rpx;line-height:1.6">{{item.content}}</view>
+
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="empty-state">
+    <view class="loading-ring"></view>
+    <text class="empty-text">加载中...</text>
+  </view>
+
+  <!-- 空态 -->
+  <view wx:elif="{{list.length === 0}}" class="empty-state">
+    <text class="empty-icon">🔔</text>
+    <text class="empty-text">暂无通知</text>
+  </view>
+
+  <!-- 通知列表 -->
+  <view class="hud-card notif-item {{item.read ? 'notif-read' : ''}}" wx:for="{{list}}" wx:key="id" bindtap="tapItem" data-idx="{{index}}">
+    <view class="notif-item-row">
+      <view class="notif-dot" style="background: {{item.read ? '#CBD5E1' : '#E8A33D'}}"></view>
+      <text class="notif-item-title">{{item.title}}</text>
+      <text class="notif-item-time">{{item.time}}</text>
+    </view>
+    <text class="notif-item-content">{{item.content}}</text>
+    <view class="notif-item-badge" wx:if="{{!item.read}}">未读</view>
+  </view>
+
+  <view class="safe-bottom"></view>
 </view>
-<view class="safe-bottom"></view>

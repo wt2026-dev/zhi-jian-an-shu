@@ -1,21 +1,153 @@
-.login { padding: 120rpx 48rpx; }
-.brand { text-align: center; margin-bottom: 80rpx; }
+/* login.wxss - 登录 · Solar-Punk 金/天青渐变主视觉 */
+
+.login {
+  padding: 100rpx 48rpx 60rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* 品牌主视觉 */
+.brand {
+  text-align: center;
+  margin-bottom: 64rpx;
+}
+.logo-ring {
+  width: 160rpx;
+  height: 160rpx;
+  margin: 0 auto 32rpx;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(246, 208, 138, 0.5) 0%, rgba(14, 165, 233, 0.18) 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 60rpx -8rpx rgba(232, 163, 61, 0.55), 0 0 80rpx -10rpx rgba(14, 165, 233, 0.35);
+}
 .logo {
-  width: 140rpx; height: 140rpx; margin: 0 auto 32rpx;
-  background: linear-gradient(135deg, #0891B2, #2563EB);
-  border-radius: 36rpx; color: #fff; font-size: 72rpx; font-weight: 800;
-  line-height: 140rpx;
+  width: 120rpx;
+  height: 120rpx;
+  background: linear-gradient(135deg, #F6D08A 0%, #E8A33D 45%, #0EA5E9 130%);
+  border-radius: 32rpx;
+  color: #FFFFFF;
+  font-size: 64rpx;
+  font-weight: 800;
+  line-height: 120rpx;
+  text-align: center;
+  box-shadow: 0 8rpx 24rpx -8rpx rgba(232, 163, 61, 0.6);
 }
-.bt { font-size: 36rpx; font-weight: 700; color: #1E293B; }
-.bs { font-size: 24rpx; color: #94A3B8; margin-top: 12rpx; }
-.rt { color: #94A3B8; font-size: 22rpx; margin: 48rpx 0 8rpx; }
-.chips { display: flex; flex-wrap: wrap; }
-.foot { text-align: center; color: #94A3B8; font-size: 20rpx; margin-top: 100rpx; }
-.ph { color: #94A3B8; }
-.error-msg { color: #EF4444; font-size: 24rpx; text-align: center; padding: 8rpx 0 16rpx; }
-.chip {
-  padding: 8rpx 20rpx; margin: 0 12rpx 12rpx 0;
-  background: rgba(59, 130, 246, 0.1); border: 1rpx solid rgba(59, 130, 246, 0.3);
-  border-radius: 8rpx; font-size: 22rpx; color: #3b82f6;
+.bt {
+  font-size: 44rpx;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: 4rpx;
 }
-.chip:active { opacity: 0.7; }
+.bs {
+  font-size: 24rpx;
+  color: #64748B;
+  margin-top: 14rpx;
+}
+
+/* 登录 HUD 卡 */
+.login-card {
+  padding: 36rpx 32rpx;
+}
+.field-box {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 22rpx 24rpx;
+  margin-bottom: 20rpx;
+  background: rgba(242, 247, 253, 0.85);
+  border: 1rpx solid rgba(220, 230, 242, 0.9);
+  border-radius: 18rpx;
+}
+.field-box:focus-within {
+  border-color: rgba(232, 163, 61, 0.6);
+  box-shadow: 0 0 0 4rpx rgba(232, 163, 61, 0.12);
+}
+.field-icon {
+  font-size: 28rpx;
+  opacity: 0.7;
+}
+.field-input {
+  flex: 1;
+  font-size: 28rpx;
+  color: #0F172A;
+}
+.ph {
+  color: #94A3B8;
+  font-size: 26rpx;
+}
+.error-msg {
+  color: #EF4444;
+  font-size: 24rpx;
+  text-align: center;
+  padding: 4rpx 0 16rpx;
+}
+.login-btn {
+  margin-top: 8rpx;
+  padding: 24rpx;
+  text-align: center;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+.btn-disabled {
+  opacity: 0.6;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin: 28rpx 0 20rpx;
+  color: #94A3B8;
+  font-size: 22rpx;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1rpx;
+  background: rgba(220, 230, 242, 0.9);
+}
+.wx-btn {
+  padding: 22rpx;
+  text-align: center;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #38BDF8 0%, #06B6D4 100%);
+  border-radius: 999rpx;
+  box-shadow: 0 6rpx 16rpx -6rpx rgba(14, 165, 233, 0.55);
+}
+.wx-btn:active {
+  opacity: 0.88;
+}
+
+/* 预设体验账号 */
+.rt {
+  color: #64748B;
+  font-size: 22rpx;
+  text-align: center;
+  margin: 48rpx 0 16rpx;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16rpx;
+}
+.role-chip {
+  padding: 10rpx 28rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+  font-family: "DIN Alternate", monospace;
+}
+.role-chip:active {
+  opacity: 0.75;
+}
+
+.foot {
+  text-align: center;
+  color: #94A3B8;
+  font-size: 20rpx;
+  margin-top: 80rpx;
+}

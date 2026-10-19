@@ -678,6 +678,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
+        let decorRingsOn = false;
         // ==========================================
         // 1. 9# 龙门加工中心 BOM 数据定义（严格对应上传截图结构）
         // ==========================================
@@ -911,28 +912,55 @@
             stageGroup.add(innerDisk);
 
             // 精致科技感蓝色发光外圈环（紧贴台面，非护栏）
-            const ringGeo = new THREE.RingGeometry(5.32, 5.38, 96);
-            const ringMat = new THREE.MeshBasicMaterial({
-                color: 0x0ea5e9,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.65
-            });
-            const ring = new THREE.Mesh(ringGeo, ringMat);
-            ring.rotation.x = -Math.PI / 2;
-            ring.position.y = 0.018;
-            stageGroup.add(ring);
+            const decorRingsGroup = new THREE.Group();
+            stageGroup.add(decorRingsGroup);
 
-            const innerRingGeo = new THREE.RingGeometry(3.8, 3.83, 96);
-            const innerRing = new THREE.Mesh(innerRingGeo, new THREE.MeshBasicMaterial({
-                color: 0x38bdf8,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.22
-            }));
-            innerRing.rotation.x = -Math.PI / 2;
-            innerRing.position.y = 0.018;
-            stageGroup.add(innerRing);
+            function buildDecorRings() {
+                clearDecorRings();
+                const ringGeo = new THREE.RingGeometry(5.32, 5.38, 96);
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: 0x0ea5e9,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.65
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = -Math.PI / 2;
+                ring.position.y = 0.018;
+                decorRingsGroup.add(ring);
+
+                const innerRingGeo = new THREE.RingGeometry(3.8, 3.83, 96);
+                const innerRing = new THREE.Mesh(innerRingGeo, new THREE.MeshBasicMaterial({
+                    color: 0x38bdf8,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.22
+                }));
+                innerRing.rotation.x = -Math.PI / 2;
+                innerRing.position.y = 0.018;
+                decorRingsGroup.add(innerRing);
+            }
+
+            function clearDecorRings() {
+                while (decorRingsGroup.children.length > 0) {
+                    decorRingsGroup.remove(decorRingsGroup.children[0]);
+                }
+            }
+
+            if (decorRingsOn) {
+                buildDecorRings();
+            }
+
+            function setDecorRings(on) {
+                decorRingsOn = Boolean(on);
+                if (decorRingsOn) {
+                    buildDecorRings();
+                } else {
+                    clearDecorRings();
+                }
+                return decorRingsOn;
+            }
+            window.setDecorRings = setDecorRings;
 
             scene.add(stageGroup);
         }

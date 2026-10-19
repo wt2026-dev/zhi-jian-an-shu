@@ -466,6 +466,13 @@
     </div>
 
     <script>
+        let decorRingsOn = false;
+        function setDecorRings(on) {
+            decorRingsOn = Boolean(on);
+            return decorRingsOn;
+        }
+        window.setDecorRings = setDecorRings;
+
         /*************************************************************************
          * 1. 工业六轴机械臂 005 — 14个核心精密硬件组件的工程数据库 (BOM & 拆解向量)
          *************************************************************************/

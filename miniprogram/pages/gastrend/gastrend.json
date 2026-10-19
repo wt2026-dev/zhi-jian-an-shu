@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "气体历史采样复测趋势",
-  "navigationStyle": "custom"
+  "navigationStyle": "custom",
+  "navigationBarBackgroundColor": "#F8FBFF",
+  "backgroundColor": "#F2F7FD"
 }

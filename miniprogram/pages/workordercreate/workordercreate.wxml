@@ -1,302 +1,215 @@
-<!--pages/workordercreate/workordercreate.wxml-->
-<page-meta root-font-size="16" page-style="{{pageStyle}}" />
-<view class="page-container">
-  <!-- 顶部导航栏 -->
-  <view class="nav-header safe-top">
-    <view class="nav-bar">
-      <view class="nav-left">
-        <view class="nav-logo"></view>
-        <text class="nav-title">现场作业安全管控中心</text>
+<!-- 作业票创建（作业流程版）· Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <!-- 顶部操作栏 -->
+  <view class="top-bar safe-top">
+    <view class="back-chip" bindtap="goBack">
+      <text class="back-arrow">←</text>
+      <text>返回</text>
+    </view>
+    <view class="chip-gold compliance-chip">⚖️ GB 30871-2021 合规</view>
+  </view>
+
+  <!-- 步骤指示器 -->
+  <view class="hud-card stepper-card">
+    <view class="stepper-row">
+      <view class="step-item step-done">
+        <view class="step-circle">1</view>
+        <text class="step-label step-label-active">基础信息</text>
       </view>
-      <view class="nav-avatar">
-        <text class="icon-text text-on-primary text-18px">👤</text>
+      <view class="step-line"></view>
+      <view class="step-item step-todo">
+        <view class="step-circle">2</view>
+        <text class="step-label">安全隔离</text>
+      </view>
+      <view class="step-line"></view>
+      <view class="step-item step-todo">
+        <view class="step-circle">3</view>
+        <text class="step-label">气体联锁</text>
+      </view>
+      <view class="step-line"></view>
+      <view class="step-item step-todo">
+        <view class="step-circle">4</view>
+        <text class="step-label">审批流</text>
+      </view>
+    </view>
+    <view class="progress-track">
+      <view class="progress-bar" style="width: {{progress}}%;"></view>
+    </view>
+  </view>
+
+  <!-- 模块1：关联检修任务工单 -->
+  <view class="hud-card module-card">
+    <view class="hud-accent-top"></view>
+    <view class="module-head">
+      <view class="module-title">
+        <text class="module-icon">🔗</text>
+        <text>关联检修任务工单</text>
+      </view>
+      <view class="chip-cyan">状态 · 已核发</view>
+    </view>
+
+    <view class="info-strip">
+      <view class="info-strip-left">
+        <text class="info-strip-label">关联检修工单号</text>
+        <text class="order-no">{{workOrder.id}}</text>
+      </view>
+      <text class="info-strip-title">{{workOrder.title}}</text>
+    </view>
+
+    <view class="perm-sub-label">作业类型双重许可 · 已自动匹配安全规程</view>
+    <view class="perm-grid">
+      <view class="perm-card perm-orange">
+        <view class="perm-card-top">
+          <text class="perm-icon">🚪</text>
+          <text class="perm-check">✓</text>
+        </view>
+        <text class="perm-name">有限空间作业</text>
+        <text class="perm-tag">特级高危许可</text>
+      </view>
+      <view class="perm-card perm-amber">
+        <view class="perm-card-top">
+          <text class="perm-icon">🔥</text>
+          <text class="perm-check">✓</text>
+        </view>
+        <text class="perm-name">动火作业</text>
+        <text class="perm-tag">一级动火许可</text>
+      </view>
+    </view>
+
+    <view class="warn-banner">
+      <text class="warn-icon">⚠️</text>
+      <text>已激活【有限空间 + 动火】联合管控，作业必须配置防爆双向对讲与连续气体监测联动。</text>
+    </view>
+  </view>
+
+  <!-- 模块2：现场作业核心参数 -->
+  <view class="glass-card module-card">
+    <view class="module-head">
+      <view class="module-title">
+        <text class="module-icon">📍</text>
+        <text>现场作业核心参数</text>
+      </view>
+    </view>
+
+    <view class="info-row">
+      <text class="info-row-label">作业位置与容器编号</text>
+      <view class="info-row-value">
+        <text class="info-row-main">{{workArea.location}}</text>
+        <view class="chip-cyan chip-sm">{{workArea.partition}}</view>
+      </view>
+    </view>
+
+    <view class="info-row">
+      <view class="info-row-value">
+        <text class="info-row-label">作业窗口计划时段</text>
+        <text class="info-row-main">📅 {{workArea.startTime}} 至 {{workArea.endTime}}</text>
+      </view>
+      <text class="duration-tag">额定 {{workArea.duration}}h</text>
+    </view>
+
+    <view class="personnel-grid">
+      <view class="info-row person-cell">
+        <text class="info-row-label">作业负责人（特种持证）</text>
+        <text class="person-name">{{personnel.leader.name}}</text>
+        <text class="person-sub">{{personnel.leader.title}} · 工号 {{personnel.leader.id}}</text>
+      </view>
+      <view class="info-row person-cell">
+        <text class="info-row-label">专职监护人（全程旁站）</text>
+        <text class="person-name">{{personnel.guardian.name}} <text class="chip-cyan chip-inline">已授权</text></text>
+        <text class="person-sub">监护证 {{personnel.guardian.license}}</text>
+      </view>
+    </view>
+
+    <view class="info-row headcount-row">
+      <view class="info-row-value">
+        <text class="info-row-main">👥 受限空间入内作业人数</text>
+        <text class="info-row-sub">标配：正压式呼吸器 + 防爆对讲</text>
+      </view>
+      <text class="headcount-num">{{workArea.headcount}}<text class="headcount-unit">人</text></text>
+    </view>
+  </view>
+
+  <!-- 模块3：安全防护措施确认预审 -->
+  <view class="glass-card module-card">
+    <view class="module-head">
+      <view class="module-title">
+        <text class="module-icon">✅</text>
+        <text>安全防护措施确认预审</text>
+      </view>
+      <view class="chip-gold chip-sm">{{completedChecks}}/4 项就绪</view>
+    </view>
+
+    <view class="check-item" wx:for="{{safetyChecks}}" wx:key="id">
+      <text class="check-box">☑️</text>
+      <view class="check-body">
+        <text class="check-name">{{item.name}}</text>
+        <text class="check-code">{{item.code}}</text>
+      </view>
+      <view class="chip-titanium chip-sm">{{item.status}}</view>
+    </view>
+  </view>
+
+  <!-- 模块4：审批与流转预案 -->
+  <view class="glass-card module-card">
+    <view class="module-head">
+      <view class="module-title">
+        <text class="module-icon">🌳</text>
+        <text>审批与流转预案</text>
+      </view>
+      <text class="module-sub">4 级联合审批链</text>
+    </view>
+
+    <view class="approval-flow">
+      <view class="flow-node-row flow-current">
+        <view class="flow-circle flow-circle-active">1</view>
+        <view class="flow-body">
+          <text class="flow-title">发起申请（作业票填写）</text>
+          <text class="flow-person">{{approvalFlow.node1.person}} · {{approvalFlow.node1.role}}</text>
+        </view>
+        <view class="chip-gold chip-sm">当前环节</view>
+      </view>
+      <view class="flow-connector"></view>
+      <view class="flow-node-row">
+        <view class="flow-circle">2</view>
+        <view class="flow-body">
+          <text class="flow-title flow-title-dim">现场安全条件双人确认</text>
+          <text class="flow-person">{{approvalFlow.node2.person}} · {{approvalFlow.node2.role}}</text>
+        </view>
+        <text class="flow-todo">待前置完成</text>
+      </view>
+      <view class="flow-connector"></view>
+      <view class="flow-node-row">
+        <view class="flow-circle">3</view>
+        <view class="flow-body">
+          <text class="flow-title flow-title-dim">工艺及设备初审</text>
+          <text class="flow-person">{{approvalFlow.node3.person}} · {{approvalFlow.node3.role}}</text>
+        </view>
+        <text class="flow-todo">待前置完成</text>
+      </view>
+      <view class="flow-connector"></view>
+      <view class="flow-node-row">
+        <view class="flow-circle">4</view>
+        <view class="flow-body">
+          <text class="flow-title flow-title-dim">高危动火与受限空间终审签发</text>
+          <text class="flow-person">{{approvalFlow.node4.person}} · {{approvalFlow.node4.role}}</text>
+        </view>
+        <text class="flow-todo">终审许可</text>
       </view>
     </view>
   </view>
 
-  <!-- 主内容区 -->
-  <view class="main-content">
-    <!-- 顶部操作栏与步骤指示器 -->
-    <view class="top-bar px-3 pt-2 pb-3">
-      <view class="flex items-center justify-between py-2">
-        <view class="flex items-center gap-1" bindtap="goBack">
-          <text class="icon-text text-tech-muted text-20px">←</text>
-          <text class="text-on-surface text-title-md">返回</text>
-        </view>
-        <view class="compliance-badge flex items-center gap-1 px-2 py-1">
-          <text class="icon-text text-safety-orange text-14px">⚖️</text>
-          <text class="text-nano-label text-on-surface-variant">GB 30871-2021 合规</text>
-        </view>
-      </view>
-
-      <!-- 步骤指示器 -->
-      <view class="stepper-card mt-3 p-3">
-        <view class="flex items-center justify-between">
-          <view class="flex items-center gap-1">
-            <view class="step-circle step-active">1</view>
-            <text class="text-title-md text-primary font-bold">基础信息</text>
-          </view>
-          <view class="step-line"></view>
-          <view class="flex items-center gap-1 opacity-60">
-            <view class="step-circle step-inactive">2</view>
-            <text class="text-body-sm text-tech-muted">安全隔离</text>
-          </view>
-          <view class="step-line"></view>
-          <view class="flex items-center gap-1 opacity-60">
-            <view class="step-circle step-inactive">3</view>
-            <text class="text-body-sm text-tech-muted">气体联锁</text>
-          </view>
-          <view class="step-line"></view>
-          <view class="flex items-center gap-1 opacity-60">
-            <view class="step-circle step-inactive">4</view>
-            <text class="text-body-sm text-tech-muted">审批流</text>
-          </view>
-        </view>
-        <view class="progress-track mt-3">
-          <view class="progress-bar" style="width: {{progress}}%"></view>
-        </view>
-      </view>
-    </view>
-
-    <!-- 模块内容区 -->
-    <view class="module-list px-3 mt-2">
-      <!-- 模块1：关联检修任务工单 -->
-      <view class="module-card rounded-xl p-3">
-        <view class="flex items-center justify-between pb-2">
-          <view class="flex items-center gap-1">
-            <text class="icon-text text-accent-blue text-18px">🔗</text>
-            <text class="text-title-md text-on-surface font-semibold">关联检修任务工单</text>
-          </view>
-          <view class="badge-green px-2 py-1">
-            <text class="text-code-badge text-status-green">状态: 已核发</text>
-          </view>
-        </view>
-
-        <!-- 工单信息 -->
-        <view class="info-strip p-2 rounded-lg">
-          <view class="flex flex-col">
-            <text class="text-micro-label text-tech-muted">关联检修工单号</text>
-            <text class="text-code-badge text-primary">{{workOrder.id}}</text>
-          </view>
-          <view class="text-right">
-            <text class="text-body-sm text-on-surface">{{workOrder.title}}</text>
-          </view>
-        </view>
-
-        <!-- 高危双重许可选择 -->
-        <view class="mt-2 flex flex-col gap-1">
-          <text class="text-micro-label text-tech-muted uppercase">作业类型双重许可 (已自动匹配安全规程)</text>
-          <view class="grid grid-cols-2 grid-gap-2">
-            <!-- 许可1：有限空间 -->
-            <view class="permit-card p-2 rounded-lg">
-              <view class="flex items-center justify-between">
-                <text class="icon-text text-safety-orange text-18px">🚪</text>
-                <text class="icon-text text-safety-orange text-16px">✓</text>
-              </view>
-              <view class="mt-2">
-                <text class="text-title-md text-on-surface font-bold">有限空间作业</text>
-                <text class="text-nano-label text-safety-orange uppercase tracking-wider">特级高危许可</text>
-              </view>
-            </view>
-
-            <!-- 许可2：动火作业 -->
-            <view class="permit-card p-2 rounded-lg">
-              <view class="flex items-center justify-between">
-                <text class="icon-text text-hazard-amber text-18px">🔥</text>
-                <text class="icon-text text-hazard-amber text-16px">✓</text>
-              </view>
-              <view class="mt-2">
-                <text class="text-title-md text-on-surface font-bold">动火作业</text>
-                <text class="text-nano-label text-hazard-amber uppercase tracking-wider">一级动火许可</text>
-              </view>
-            </view>
-          </view>
-
-          <!-- 联锁提示 -->
-          <view class="warning-banner mt-2 p-2 rounded-lg flex items-center gap-2">
-            <text class="icon-text text-hazard-amber text-18px shrink-0">⚠️</text>
-            <text class="text-body-sm text-on-surface-variant">
-              已激活【有限空间 + 动火】联合管控，作业必须配置防爆双向对讲与连续气体监测联动。
-            </text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 模块2：现场作业核心参数 -->
-      <view class="module-card rounded-xl p-3">
-        <view class="flex items-center gap-1 pb-2">
-          <text class="icon-text text-accent-blue text-18px">作业分区</text>
-          <text class="text-title-md text-on-surface font-semibold">现场作业核心参数</text>
-        </view>
-
-        <view class="flex flex-col gap-2">
-          <!-- 作业位置 -->
-          <view class="info-row p-2 rounded-lg flex flex-col gap-1">
-            <text class="text-micro-label text-tech-muted">作业位置与容器编号</text>
-            <view class="flex items-center justify-between">
-              <text class="text-body-md text-on-surface font-semibold">{{workArea.location}}</text>
-              <view class="badge-blue px-2 py-1">
-                <text class="text-code-badge text-accent-blue">{{workArea.partition}}</text>
-              </view>
-            </view>
-          </view>
-
-          <!-- 作业时段 -->
-          <view class="info-row p-2 rounded-lg flex flex-col gap-1">
-            <view class="flex items-center justify-between">
-              <text class="text-micro-label text-tech-muted">作业窗口计划时段</text>
-              <text class="text-code-badge text-hazard-amber">额定有效时长: {{workArea.duration}}h</text>
-            </view>
-            <view class="flex items-center gap-2 text-on-surface">
-              <text class="icon-text text-tech-muted text-16px">📅</text>
-              <text class="text-telemetry-md">{{workArea.startTime}}</text>
-              <text class="text-nano-label text-tech-muted">至</text>
-              <text class="text-telemetry-md">{{workArea.endTime}}</text>
-            </view>
-          </view>
-
-          <!-- 关键人员 -->
-          <view class="grid grid-cols-2 grid-gap-2">
-            <view class="info-row p-2 rounded-lg flex flex-col">
-              <text class="text-micro-label text-tech-muted">作业负责人 (特种持证)</text>
-              <view class="flex items-baseline gap-2 mt-1">
-                <text class="text-title-md text-on-surface font-bold">{{personnel.leader.name}}</text>
-                <text class="text-nano-label text-tech-muted">{{personnel.leader.title}}</text>
-              </view>
-              <text class="text-code-badge text-tech-muted mt-1">工号 {{personnel.leader.id}}</text>
-            </view>
-            <view class="info-row p-2 rounded-lg flex flex-col">
-              <text class="text-micro-label text-tech-muted">专职监护人 (全程旁站)</text>
-              <view class="flex items-baseline gap-2 mt-1">
-                <text class="text-title-md text-on-surface font-bold">{{personnel.guardian.name}}</text>
-                <text class="text-nano-label text-status-green">已授权</text>
-              </view>
-              <text class="text-code-badge text-tech-muted mt-1">监护证 {{personnel.guardian.license}}</text>
-            </view>
-          </view>
-
-          <!-- 作业人数 -->
-          <view class="info-row p-2 rounded-lg flex items-center justify-between">
-            <view class="flex items-center gap-2">
-              <text class="icon-text text-tech-muted text-20px">👥</text>
-              <view class="flex flex-col">
-                <text class="text-micro-label text-tech-muted">受限空间入内作业预估人数</text>
-                <text class="text-body-sm text-on-surface-variant">标配：正压式呼吸器 + 防爆对讲</text>
-              </view>
-            </view>
-            <view class="flex items-center gap-1">
-              <text class="text-telemetry-xl text-primary font-bold">{{workArea.headcount}}</text>
-              <text class="text-body-sm text-tech-muted">人</text>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <!-- 模块3：安全防护措施确认预审 -->
-      <view class="module-card rounded-xl p-3">
-        <view class="flex items-center justify-between pb-2">
-          <view class="flex items-center gap-1">
-            <text class="icon-text text-status-green text-18px">✅</text>
-            <text class="text-title-md text-on-surface font-semibold">安全防护措施确认预审</text>
-          </view>
-          <view class="badge-green px-2 py-1">
-            <text class="text-nano-label text-status-green">{{completedChecks}}/4 项就绪</text>
-          </view>
-        </view>
-
-        <view class="flex flex-col gap-2">
-          <view wx:for="{{safetyChecks}}" wx:key="id" class="check-item flex items-start justify-between p-2 rounded-lg">
-            <view class="flex items-start gap-2">
-              <text class="icon-text text-status-green text-18px mt-1">☑️</text>
-              <view class="flex flex-col">
-                <text class="text-body-md text-on-surface font-medium">{{item.name}}</text>
-                <text class="text-code-badge text-tech-muted">{{item.code}}</text>
-              </view>
-            </view>
-            <view class="badge-highest px-2 py-1">
-              <text class="text-nano-label text-status-green">{{item.status}}</text>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <!-- 模块4：审批与流转预案 -->
-      <view class="module-card rounded-xl p-3">
-        <view class="flex items-center justify-between pb-1">
-          <view class="flex items-center gap-1">
-            <text class="icon-text text-accent-blue text-18px">🌳</text>
-            <text class="text-title-md text-on-surface font-semibold">审批与流转预案</text>
-          </view>
-          <text class="text-nano-label text-tech-muted uppercase">4级联合审批链</text>
-        </view>
-
-        <view class="approval-flow p-2 rounded-lg">
-          <!-- 节点1 -->
-          <view class="flex items-center gap-2">
-            <view class="flow-node flow-node-active">1</view>
-            <view class="flex flex-col min-w-0 flex-1">
-              <text class="text-body-sm text-on-surface font-semibold truncate">发起申请 (作业票填写)</text>
-              <text class="text-nano-label text-tech-muted truncate">{{approvalFlow.node1.person}} · {{approvalFlow.node1.role}}</text>
-            </view>
-            <view class="badge-primary px-2 py-1">
-              <text class="text-nano-label text-primary">当前环节</text>
-            </view>
-          </view>
-
-          <!-- 连接线 -->
-          <view class="flow-connector"></view>
-
-          <!-- 节点2 -->
-          <view class="flex items-center gap-2">
-            <view class="flow-node flow-node-inactive">2</view>
-            <view class="flex flex-col min-w-0 flex-1">
-              <text class="text-body-sm text-on-surface-variant font-medium truncate">现场安全条件双人确认</text>
-              <text class="text-nano-label text-tech-muted truncate">{{approvalFlow.node2.person}} · {{approvalFlow.node2.role}}</text>
-            </view>
-            <text class="text-nano-label text-tech-muted">待前置完成</text>
-          </view>
-
-          <!-- 连接线 -->
-          <view class="flow-connector"></view>
-
-          <!-- 节点3 -->
-          <view class="flex items-center gap-2">
-            <view class="flow-node flow-node-inactive">3</view>
-            <view class="flex flex-col min-w-0 flex-1">
-              <text class="text-body-sm text-on-surface-variant font-medium truncate">工艺及设备初审</text>
-              <text class="text-nano-label text-tech-muted truncate">{{approvalFlow.node3.person}} · {{approvalFlow.node3.role}}</text>
-            </view>
-            <text class="text-nano-label text-tech-muted">待前置完成</text>
-          </view>
-
-          <!-- 连接线 -->
-          <view class="flow-connector"></view>
-
-          <!-- 节点4 -->
-          <view class="flex items-center gap-2">
-            <view class="flow-node flow-node-inactive">4</view>
-            <view class="flex flex-col min-w-0 flex-1">
-              <text class="text-body-sm text-on-surface-variant font-medium truncate">高危动火与受限空间终审签发</text>
-              <text class="text-nano-label text-tech-muted truncate">{{approvalFlow.node4.person}} · {{approvalFlow.node4.role}}</text>
-            </view>
-            <text class="text-nano-label text-tech-muted">终审许可</text>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <!-- 底部操作栏 -->
-    <view class="bottom-action-bar mt-4 px-3">
-      <view class="action-bar-inner p-2 rounded-xl flex items-center gap-2">
-        <button class="btn-ghost flex items-center justify-center gap-1 flex-shrink-0" bindtap="saveAsTemplate">
-          <text class="icon-text text-18px">🔖</text>
-          <text class="text-title-md whitespace-nowrap">存预案模板</text>
-        </button>
-        <button class="btn-primary flex-1 flex items-center justify-center gap-2 shadow-md" bindtap="goNextStep">
-          <text>下一步: 危险辨识与隔离配置</text>
-          <text class="icon-text text-20px">→</text>
-        </button>
-      </view>
+  <!-- 底部操作栏 -->
+  <view class="bottom-action-bar">
+    <view class="action-bar-inner">
+      <button class="btn-glass" bindtap="saveAsTemplate">🔖 存预案模板</button>
+      <button class="btn-gold btn-next" bindtap="goNextStep">下一步：危险辨识与隔离配置 →</button>
     </view>
   </view>
+  <view class="safe-bottom"></view>
 </view>

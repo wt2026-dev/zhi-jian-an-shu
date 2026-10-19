@@ -4,7 +4,14 @@ function statusOf(e) {
   var m = { running: ["运行中", "#34D399"], warning: ["预警关注", "#FBBF24"], fault: ["故障待修", "#FB7185"], overhauling: ["检修中", "#60A5FA"], standby: ["停机备用", "#525252"], scrapped: ["报废", "#475569"] };
   return m[e.status] || [e.status, "#737373"];
 }
-function hColor(s) { return s >= 80 ? "#34D399" : s >= 60 ? "#FBBF24" : "#FB7185"; }
+function hColor(s) {
+  if (typeof s !== "number") return "#94A3B8";
+  return s >= 80 ? "#34D399" : s >= 60 ? "#FBBF24" : "#FB7185";
+}
+function hText(s) {
+  if (typeof s !== "number") return "未评估";
+  return s + "分";
+}
 
 Page({
   data: { list: [], view: [], kw: "", loading: true },
@@ -14,7 +21,12 @@ Page({
     request("/api/v1/equipments").then(function (list) {
       var view = (list || []).map(function (e) {
         var st = statusOf(e);
-        return Object.assign({}, e, { sText: st[0], sStyle: ui_badge(st[1]), hColor: hColor(e.healthScore) });
+        return Object.assign({}, e, {
+          sText: st[0],
+          sStyle: ui_badge(st[1]),
+          hColor: hColor(e.healthScore),
+          hText: hText(e.healthScore)
+        });
       });
       that.setData({ list: view, view: view, loading: false });
     }).catch(function () { that.setData({ loading: false }); });

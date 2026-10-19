@@ -1,24 +1,46 @@
-<view class="login">
+<!-- 登录 · Solar-Punk 金/天青渐变主视觉 + 玻璃磨砂表单卡 -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body login">
+  <!-- 品牌主视觉 -->
   <view class="brand">
-    <view class="logo">枢</view>
+    <view class="logo-ring">
+      <view class="logo">枢</view>
+    </view>
     <view class="bt">智检安枢</view>
     <view class="bs">移动端 · 检修与安全管控一体化入口</view>
   </view>
-  <view class="card">
-    <input class="input" placeholder="账号" placeholder-class="ph" value="{{username}}" bindinput="onUser" />
-    <input class="input" password placeholder="密码" placeholder-class="ph" value="{{password}}" bindinput="onPwd" />
+
+  <!-- 玻璃表单卡 -->
+  <view class="hud-card login-card">
+    <view class="hud-accent-top"></view>
+    <view class="field-box">
+      <text class="field-icon">👤</text>
+      <input class="field-input" placeholder="账号" placeholder-class="ph" value="{{username}}" bindinput="onUser" />
+    </view>
+    <view class="field-box">
+      <text class="field-icon">🔒</text>
+      <input class="field-input" password placeholder="密码" placeholder-class="ph" value="{{password}}" bindinput="onPwd" />
+    </view>
     <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
-    <button class="btn btn-primary {{loading ? 'btn-disabled' : ''}}" bindtap="doLogin">{{loading ? '登录中...' : '登 录'}}</button>
-    <view class="divider"></view>
-    <button class="btn btn-primary" style="background:#07C160" bindtap="wxLogin" disabled="{{wxLoading}}">
-      {{wxLoading ? '微信登录中...' : '微信一键登录'}}
-    </button>
+    <view class="btn-gold login-btn {{loading ? 'btn-disabled' : ''}}" bindtap="doLogin">{{loading ? '登录中...' : '登 录'}}</view>
+    <view class="divider"><text>其他登录方式</text></view>
+    <view class="wx-btn" bindtap="wxLogin" disabled="{{wxLoading}}">
+      {{wxLoading ? '微信登录中...' : '💬 微信一键登录'}}
+    </view>
   </view>
+
+  <!-- 预设体验账号一键填充 -->
   <view class="rt">演示账号（各角色独立强密码）</view>
   <view class="chips">
-    <view class="chip" bindtap="fill" data-u="admin">admin</view>
-    <view class="chip" bindtap="fill" data-u="manager">manager</view>
-    <view class="chip" bindtap="fill" data-u="operator">operator</view>
+    <view class="chip-cyan role-chip" bindtap="fill" data-u="admin">admin</view>
+    <view class="chip-cyan role-chip" bindtap="fill" data-u="manager">manager</view>
+    <view class="chip-cyan role-chip" bindtap="fill" data-u="operator">operator</view>
   </view>
+
   <view class="foot">JWT 认证 · RBAC 权限 · 数据来自后端真实接口</view>
 </view>

@@ -520,6 +520,7 @@
   <!-- 10. JAVASCRIPT: THREE.JS 3D MOTOR ENGINE & INTERACTIVE LOGIC            -->
   <!-- ======================================================================= -->
   <script>
+    let decorRingsOn = false;
     const REF_IMAGES = {
       motor: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='128' viewBox='0 0 320 128'><rect width='320' height='128' fill='%23080e18'/><circle cx='160' cy='64' r='45' fill='none' stroke='%2338bdf8' stroke-width='4'/><path d='M160 19l0 90M115 64l90 0' stroke='%23f97316' stroke-width='3'/><text x='160' y='118' fill='%2394a3b8' font-size='11' font-family='monospace' text-anchor='middle'>14# Motor Fan & Grille Reference</text></svg>",
       blender: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='128' viewBox='0 0 320 128'><rect width='320' height='128' fill='%2305080d'/><circle cx='160' cy='64' r='48' fill='none' stroke='%23f97316' stroke-width='3'/><circle cx='160' cy='64' r='24' fill='none' stroke='%2338bdf8' stroke-width='2'/><text x='160' y='118' fill='%2338bdf8' font-size='11' font-family='monospace' text-anchor='middle'>Blender Workbench Dial Reference</text></svg>"
@@ -814,7 +815,7 @@
       }
     ];
 
-    function createWorkbenchDialTexture() {
+    function createWorkbenchTopTexture(withDial = decorRingsOn) {
       const canvas = document.createElement('canvas');
       canvas.width = 2048;
       canvas.height = 2048;
@@ -838,81 +839,87 @@
         ctx.stroke();
       }
 
-      const mainRadii = [140, 240, 380, 520, 680, 820, 920, 965];
-      mainRadii.forEach((r, idx) => {
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = idx >= 6 ? 'rgba(255, 255, 255, 0.72)' : 'rgba(226, 232, 240, 0.38)';
-        ctx.lineWidth = idx === 6 ? 6 : (idx === 1 || idx === 4 ? 3 : 1.8);
-        if (idx === 2 || idx === 5) ctx.setLineDash([18, 10]);
-        else ctx.setLineDash([]);
-        ctx.stroke();
-      });
-      ctx.setLineDash([]);
+      if (withDial) {
+        const mainRadii = [140, 240, 380, 520, 680, 820, 920, 965];
+        mainRadii.forEach((r, idx) => {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = idx >= 6 ? 'rgba(255, 255, 255, 0.72)' : 'rgba(226, 232, 240, 0.38)';
+          ctx.lineWidth = idx === 6 ? 6 : (idx === 1 || idx === 4 ? 3 : 1.8);
+          if (idx === 2 || idx === 5) ctx.setLineDash([18, 10]);
+          else ctx.setLineDash([]);
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
 
-      for (let deg = 0; deg < 360; deg += 2) {
-        const rad = (deg * Math.PI) / 180;
-        const isMajor = deg % 30 === 0;
-        const isMid = deg % 10 === 0;
-        const rInner = isMajor ? 832 : (isMid ? 854 : 872);
-        const rOuter = 896;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(rad) * rInner, cy + Math.sin(rad) * rInner);
-        ctx.lineTo(cx + Math.cos(rad) * rOuter, cy + Math.sin(rad) * rOuter);
-        ctx.strokeStyle = isMajor ? 'rgba(255, 255, 255, 0.92)' : (isMid ? 'rgba(226, 232, 240, 0.6)' : 'rgba(148, 163, 184, 0.3)');
-        ctx.lineWidth = isMajor ? 3.5 : (isMid ? 2 : 1.2);
-        ctx.stroke();
+        for (let deg = 0; deg < 360; deg += 2) {
+          const rad = (deg * Math.PI) / 180;
+          const isMajor = deg % 30 === 0;
+          const isMid = deg % 10 === 0;
+          const rInner = isMajor ? 832 : (isMid ? 854 : 872);
+          const rOuter = 896;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(rad) * rInner, cy + Math.sin(rad) * rInner);
+          ctx.lineTo(cx + Math.cos(rad) * rOuter, cy + Math.sin(rad) * rOuter);
+          ctx.strokeStyle = isMajor ? 'rgba(255, 255, 255, 0.92)' : (isMid ? 'rgba(226, 232, 240, 0.6)' : 'rgba(148, 163, 184, 0.3)');
+          ctx.lineWidth = isMajor ? 3.5 : (isMid ? 2 : 1.2);
+          ctx.stroke();
 
-        if (isMajor) {
-          ctx.save();
-          ctx.translate(cx + Math.cos(rad) * 802, cy + Math.sin(rad) * 802);
-          ctx.rotate(rad + Math.PI / 2);
-          ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
-          ctx.font = 'bold 20px "JetBrains Mono", monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText(`${deg}°`, 0, 0);
-          ctx.restore();
+          if (isMajor) {
+            ctx.save();
+            ctx.translate(cx + Math.cos(rad) * 802, cy + Math.sin(rad) * 802);
+            ctx.rotate(rad + Math.PI / 2);
+            ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
+            ctx.font = 'bold 20px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${deg}°`, 0, 0);
+            ctx.restore();
+          }
         }
-      }
 
-      for (let i = 0; i < 4; i++) {
-        const startAngle = (i * Math.PI) / 2 + 0.22;
-        const endAngle = ((i + 1) * Math.PI) / 2 - 0.22;
+        for (let i = 0; i < 4; i++) {
+          const startAngle = (i * Math.PI) / 2 + 0.22;
+          const endAngle = ((i + 1) * Math.PI) / 2 - 0.22;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 195, startAngle, endAngle);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+          ctx.lineWidth = 4;
+          ctx.stroke();
+        }
+
+        for (let deg = 0; deg < 360; deg += 45) {
+          const rad = (deg * Math.PI) / 180;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(rad) * 145, cy + Math.sin(rad) * 145);
+          ctx.lineTo(cx + Math.cos(rad) * 960, cy + Math.sin(rad) * 960);
+          ctx.strokeStyle = deg % 90 === 0 ? 'rgba(255, 255, 255, 0.45)' : 'rgba(226, 232, 240, 0.22)';
+          ctx.lineWidth = deg % 90 === 0 ? 2.4 : 1.4;
+          ctx.stroke();
+        }
+
+        ctx.strokeStyle = '#f97316';
+        ctx.lineWidth = 4.5;
         ctx.beginPath();
-        ctx.arc(cx, cy, 195, startAngle, endAngle);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.lineWidth = 4;
+        ctx.moveTo(cx - 28, cy - 28); ctx.lineTo(cx + 28, cy + 28);
+        ctx.moveTo(cx + 28, cy - 28); ctx.lineTo(cx - 28, cy + 28);
         ctx.stroke();
+
+        ctx.fillStyle = 'rgba(248, 250, 252, 0.55)';
+        ctx.font = 'bold 24px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('14# 备用电机 (成品线变频调速三相异步电机) · 精密拆解台', cx, cy + 748);
+        ctx.font = '18px "JetBrains Mono", monospace';
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
+        ctx.fillText('AXIAL EXPLODED DIRECTION: [LEFT: DRIVE END SHAFT] ──────▶ [RIGHT: 6-BLADE FAN & WIRE GUARD]', cx, cy - 728);
       }
-
-      for (let deg = 0; deg < 360; deg += 45) {
-        const rad = (deg * Math.PI) / 180;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(rad) * 145, cy + Math.sin(rad) * 145);
-        ctx.lineTo(cx + Math.cos(rad) * 960, cy + Math.sin(rad) * 960);
-        ctx.strokeStyle = deg % 90 === 0 ? 'rgba(255, 255, 255, 0.45)' : 'rgba(226, 232, 240, 0.22)';
-        ctx.lineWidth = deg % 90 === 0 ? 2.4 : 1.4;
-        ctx.stroke();
-      }
-
-      ctx.strokeStyle = '#f97316';
-      ctx.lineWidth = 4.5;
-      ctx.beginPath();
-      ctx.moveTo(cx - 28, cy - 28); ctx.lineTo(cx + 28, cy + 28);
-      ctx.moveTo(cx + 28, cy - 28); ctx.lineTo(cx - 28, cy + 28);
-      ctx.stroke();
-
-      ctx.fillStyle = 'rgba(248, 250, 252, 0.55)';
-      ctx.font = 'bold 24px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('14# 备用电机 (成品线变频调速三相异步电机) · 精密拆解台', cx, cy + 748);
-      ctx.font = '18px "JetBrains Mono", monospace';
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
-      ctx.fillText('AXIAL EXPLODED DIRECTION: [LEFT: DRIVE END SHAFT] ──────▶ [RIGHT: 6-BLADE FAN & WIRE GUARD]', cx, cy - 728);
 
       const tex = new THREE.CanvasTexture(canvas);
       tex.anisotropy = 8;
       return tex;
+    }
+
+    function createWorkbenchDialTexture() {
+      return createWorkbenchTopTexture(true);
     }
 
     function createMotorNameplateTexture() {
@@ -999,7 +1006,7 @@
     const environmentGroup = new THREE.Group();
     scene.add(environmentGroup);
 
-    const workbenchTexture = createWorkbenchDialTexture();
+    const workbenchTexture = createWorkbenchTopTexture(decorRingsOn);
     const tableTopMesh = new THREE.Mesh(
       new THREE.CylinderGeometry(11.6, 11.8, 0.36, 96),
       new THREE.MeshStandardMaterial({ map: workbenchTexture, roughness: 0.4, metalness: 0.35 })
@@ -1025,9 +1032,40 @@
     floorMesh.receiveShadow = true;
     environmentGroup.add(floorMesh);
 
-    const polarGrid = new THREE.PolarGridHelper(26, 24, 10, 96, 0x334155, 0x1e293b);
-    polarGrid.position.y = -2.45;
-    environmentGroup.add(polarGrid);
+    const decorRingsGroup = new THREE.Group();
+    environmentGroup.add(decorRingsGroup);
+
+    function buildDecorRings() {
+      clearDecorRings();
+      const polarGrid = new THREE.PolarGridHelper(26, 24, 10, 96, 0x334155, 0x1e293b);
+      polarGrid.position.y = -2.45;
+      decorRingsGroup.add(polarGrid);
+    }
+
+    function clearDecorRings() {
+      while (decorRingsGroup.children.length > 0) {
+        decorRingsGroup.remove(decorRingsGroup.children[0]);
+      }
+    }
+
+    if (decorRingsOn) {
+      buildDecorRings();
+    }
+
+    function setDecorRings(on) {
+      decorRingsOn = Boolean(on);
+      if (tableTopMesh && tableTopMesh.material) {
+        tableTopMesh.material.map = createWorkbenchTopTexture(decorRingsOn);
+        tableTopMesh.material.needsUpdate = true;
+      }
+      if (decorRingsOn) {
+        buildDecorRings();
+      } else {
+        clearDecorRings();
+      }
+      return decorRingsOn;
+    }
+    window.setDecorRings = setDecorRings;
 
     const slatMat = new THREE.MeshStandardMaterial({ color: 0x0d121c, metalness: 0.65, roughness: 0.35 });
     const amberGlowMat = new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.7 });

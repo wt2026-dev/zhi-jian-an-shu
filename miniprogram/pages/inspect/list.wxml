@@ -1,21 +1,27 @@
-<!-- 巡检作业列表 -->
+<!-- 巡检作业列表 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
 <view class="page-container">
   <!-- 加载中 -->
   <view class="loading-state" wx:if="{{loading}}">
-    <text class="loading-icon">⏳</text>
-    <text class="loading-text">加载中...</text>
+    <view class="loading-ring"></view>
+    <text class="loading-text">巡检任务加载中...</text>
   </view>
 
   <!-- 加载失败 -->
   <view class="error-state" wx:elif="{{loadError}}">
     <text class="error-icon">⚠️</text>
     <text class="error-text">{{loadError}}</text>
-    <view class="retry-btn" bindtap="loadData">重试</view>
+    <view class="retry-btn" bindtap="loadData">点击重试</view>
   </view>
 
   <!-- 正常列表 -->
   <scroll-view class="task-list" scroll-y wx:else>
-    <!-- 顶部操作栏：扫码直达巡检 (主) + AI 总结报告 -->
+    <!-- 顶部操作栏：扫码直达巡检 (金) + AI 总结报告 (青) -->
     <view class="top-action-bar">
       <view class="scan-inspect-btn" bindtap="scanInspect">
         <text class="scan-icon">📷</text>
@@ -27,7 +33,8 @@
       </view>
     </view>
 
-    <view class="task-card" wx:for="{{tasks}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+    <!-- 任务卡 -->
+    <view class="hud-card task-card" wx:for="{{tasks}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
       <view class="task-header">
         <view class="task-name">{{item.name}}</view>
         <view class="task-status" style="{{item.statusStyle}}">{{item.status}}</view>
@@ -48,7 +55,7 @@
       <view class="task-footer">
         <view class="task-time">
           <text class="task-time-icon">🕐</text>
-          <text>{{item.time}}</text>
+          <text class="mono">{{item.time}}</text>
         </view>
         <view class="task-inspector">
           <text class="task-inspector-icon">👤</text>
@@ -63,13 +70,17 @@
     </view>
 
     <view class="bottom-spacer"></view>
+    <view class="safe-bottom"></view>
   </scroll-view>
 
   <!-- AI 巡检报告弹层 -->
   <view wx:if="{{reportMeta}}" class="report-mask" bindtap="closeReport">
     <view class="report-panel" catchtap="noop">
       <view class="report-head">
-        <text class="report-title">AI 巡检总结报告</text>
+        <view class="report-title-row">
+          <text class="report-title">✨ AI 巡检总结报告</text>
+          <text class="report-close" bindtap="closeReport">✕</text>
+        </view>
         <text class="report-range">{{reportMeta.startDate}} ~ {{reportMeta.endDate}}</text>
       </view>
       <scroll-view class="report-body" scroll-y>

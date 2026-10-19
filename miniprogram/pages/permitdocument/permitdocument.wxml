@@ -1,27 +1,41 @@
-<view class="page">
-  <view class="header">
-    <view class="back-btn" bindtap="goBack"><text>←</text></view>
-    <view class="header-info">
-      <text class="header-label">电子票证 // 实时渲染</text>
-      <text class="header-title">电子作业票文档</text>
+<!-- 电子作业票文档 · Solar-Punk 明亮游戏化 HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <!-- 顶部导航条 -->
+  <view class="perm-topbar">
+    <view class="perm-back" bindtap="goBack">
+      <text class="perm-back-arrow">←</text>
     </view>
-    <view class="share-btn" bindtap="onShareAppMessage"><text>📤</text></view>
+    <view class="perm-topbar-info">
+      <text class="perm-topbar-label">电子票证 // 实时渲染</text>
+      <text class="perm-topbar-title">电子作业票文档</text>
+    </view>
+    <view class="chip-cyan perm-share" bindtap="onShareAppMessage">📤</view>
   </view>
 
-  <view wx:if="{{loading}}" class="loading-box">
-    <text class="loading-text">加载中...</text>
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="empty-state">
+    <view class="loading-ring"></view>
+    <text class="empty-text">加载中...</text>
   </view>
 
-  <view wx:elif="{{loadError}}" class="error-box">
-    <text class="error-text">{{loadError}}</text>
-    <view class="retry-btn" bindtap="retry"><text>重试</text></view>
+  <!-- 加载失败 -->
+  <view wx:elif="{{loadError}}" class="empty-state">
+    <text class="empty-icon">⚠️</text>
+    <text class="empty-text">{{loadError}}</text>
+    <view class="retry-btn" bindtap="retry">重试</view>
   </view>
 
   <block wx:else>
     <!-- 票据选择 -->
     <view class="select-section">
       <picker mode="selector" range="{{permits}}" range-key="permitNo" bindchange="onPermitChange">
-        <view class="select-box">
+        <view class="hud-card select-box">
           <text class="select-label">选择作业票</text>
           <text class="select-value">{{permit.permitNo || '请选择'}}</text>
           <text class="select-arrow">▾</text>
@@ -31,14 +45,15 @@
 
     <block wx:if="{{permit}}">
       <!-- 票头 -->
-      <view class="doc-card">
+      <view class="hud-card doc-card">
+        <view class="hud-accent-top"></view>
         <view class="doc-header">
           <text class="doc-title">安全作业票</text>
         </view>
         <view class="doc-body">
           <view class="doc-row">
             <text class="doc-mono">{{permit.permitNo}}</text>
-            <view class="badge {{permit.status === 'active' ? 'badge-green' : permit.status === 'closed' ? 'badge-gray' : 'badge-amber'}}">
+            <view class="{{permit.status === 'active' ? 'chip-gold' : permit.status === 'closed' ? 'chip-titanium' : 'chip-cyan'}} doc-status-chip">
               {{permit.status === 'active' ? '作业中' : permit.status === 'closed' ? '已闭环' : permit.status === 'approved' ? '已批准' : permit.status === 'rejected' ? '已驳回' : '待审批'}}
             </view>
           </view>
@@ -47,10 +62,10 @@
       </view>
 
       <!-- 作业信息 -->
-      <view class="doc-card">
-        <view class="section-title">
-          <view class="title-bar"></view>
-          <text>作业信息</text>
+      <view class="hud-card doc-card">
+        <view class="section-title-row">
+          <view class="section-title-dot"></view>
+          <view class="section-title-text">作业信息</view>
         </view>
         <view class="doc-row"><text class="doc-label">作业区域</text><text class="doc-val">{{permit.workshop}} {{permit.location}}</text></view>
         <view class="doc-row"><text class="doc-label">作业时间</text><text class="doc-val">{{permit.appliedAt}} ~ {{permit.validUntil}}</text></view>
@@ -61,23 +76,34 @@
       </view>
 
       <!-- 气体检测 -->
-      <view class="doc-card" wx:if="{{permit.gasTestResults}}">
-        <view class="section-title">
-          <view class="title-bar bar-amber"></view>
-          <text>气体检测</text>
+      <view class="hud-card doc-card" wx:if="{{permit.gasTestResults}}">
+        <view class="section-title-row">
+          <view class="section-title-dot"></view>
+          <view class="section-title-text">气体检测</view>
         </view>
-        <view class="doc-row"><text class="doc-label">氧气 (O₂)</text><text class="doc-val">{{permit.gasTestResults.oxygen}}%</text></view>
-        <view class="doc-row"><text class="doc-label">可燃气体</text><text class="doc-val">{{permit.gasTestResults.combustible_gas}}%</text></view>
-        <view class="doc-row"><text class="doc-label">有毒气体</text><text class="doc-val">{{permit.gasTestResults.toxic_gas}} ppm</text></view>
+        <view class="gas-mini-grid">
+          <view class="gas-mini-cell">
+            <text class="gas-mini-label">氧气 O₂</text>
+            <text class="gas-mini-value text-sky">{{permit.gasTestResults.oxygen}}<text class="gas-mini-unit">%</text></text>
+          </view>
+          <view class="gas-mini-cell">
+            <text class="gas-mini-label">可燃气</text>
+            <text class="gas-mini-value text-gold-deep">{{permit.gasTestResults.combustible_gas}}<text class="gas-mini-unit">%</text></text>
+          </view>
+          <view class="gas-mini-cell">
+            <text class="gas-mini-label">有毒气</text>
+            <text class="gas-mini-value text-danger">{{permit.gasTestResults.toxic_gas}}<text class="gas-mini-unit">ppm</text></text>
+          </view>
+        </view>
         <view class="doc-row"><text class="doc-label">检测人</text><text class="doc-val">{{permit.gasTestResults.tester}}</text></view>
         <view class="doc-row"><text class="doc-label">检测时间</text><text class="doc-val">{{permit.gasTestResults.test_time}}</text></view>
       </view>
 
       <!-- 安全措施 -->
-      <view class="doc-card" wx:if="{{precautions.length > 0}}">
-        <view class="section-title">
-          <view class="title-bar bar-green"></view>
-          <text>安全措施</text>
+      <view class="hud-card doc-card" wx:if="{{precautions.length > 0}}">
+        <view class="section-title-row">
+          <view class="section-title-dot"></view>
+          <view class="section-title-text">安全措施</view>
         </view>
         <view class="check-item" wx:for="{{precautions}}" wx:key="*this">
           <text class="check-icon">✓</text>
@@ -86,10 +112,10 @@
       </view>
 
       <!-- 安全检查清单 -->
-      <view class="doc-card" wx:if="{{checklist.length > 0}}">
-        <view class="section-title">
-          <view class="title-bar bar-blue"></view>
-          <text>安全检查清单</text>
+      <view class="hud-card doc-card" wx:if="{{checklist.length > 0}}">
+        <view class="section-title-row">
+          <view class="section-title-dot"></view>
+          <view class="section-title-text">安全检查清单</view>
         </view>
         <view class="check-item" wx:for="{{checklist}}" wx:key="id">
           <text class="check-icon {{item.checked ? 'icon-green' : 'icon-red'}}">{{item.checked ? '✓' : '✗'}}</text>
@@ -98,10 +124,10 @@
       </view>
 
       <!-- 审批与签章 -->
-      <view class="doc-card">
-        <view class="section-title">
-          <view class="title-bar"></view>
-          <text>审批与签章</text>
+      <view class="hud-card doc-card">
+        <view class="section-title-row">
+          <view class="section-title-dot"></view>
+          <view class="section-title-text">审批与签章</view>
         </view>
 
         <view class="sign-section">
@@ -142,10 +168,8 @@
       <canvas canvas-id="permitCanvas" class="hidden-canvas" style="width:750px;height:1200px;"></canvas>
 
       <!-- 底部操作 -->
-      <view class="action-bar">
-        <view class="action-btn-save" bindtap="saveToAlbum">
-          <text>💾 保存到相册</text>
-        </view>
+      <view class="action-bar safe-bottom">
+        <view class="btn-gold action-btn-save" bindtap="saveToAlbum">💾 保存到相册</view>
       </view>
     </block>
   </block>

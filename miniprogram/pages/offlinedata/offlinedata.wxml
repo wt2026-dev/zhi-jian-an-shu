@@ -1,16 +1,22 @@
-<!--pages/offlinedata/offlinedata.wxml - 离线数据与缓存管理-->
+<!-- 离线数据与缓存管理 · Solar-Punk 明亮游戏化 HUD -->
 <page-meta root-font-size="16" page-style="{{pageStyle}}" />
-<view class="od-page">
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body od-page">
   <!-- 顶部导航 -->
   <view class="od-nav">
-    <view class="od-nav-left" bindtap="goBack">
+    <view class="chip-cyan od-nav-left" bindtap="goBack">
       <text class="od-nav-arrow">‹</text>
       <text class="od-nav-node">控制节点 #TK-804</text>
       <text class="od-nav-back-text">返回</text>
     </view>
     <view class="od-nav-status">
       <view class="od-dot"></view>
-      <text class="od-nav-status-text">车间局域网专网直连 · 信号良好</text>
+      <text class="od-nav-status-text">车间专网直连 · 信号良好</text>
     </view>
   </view>
 
@@ -18,29 +24,35 @@
   <view class="od-title-block">
     <view class="od-title-row">
       <text class="od-title">离线数据与缓存管理</text>
-      <view class="od-node-tag">#TK-804</view>
+      <view class="chip-titanium od-node-tag">#TK-804</view>
     </view>
     <text class="od-subtitle">本地存储与离线数据加密同步控制器</text>
   </view>
 
+  <!-- 加载失败 -->
+  <view wx:if="{{loadError}}" class="empty-state">
+    <text class="empty-icon">⚠️</text>
+    <text class="empty-text">{{loadError}}</text>
+  </view>
+
   <!-- 安全协议条 -->
-  <view class="od-card od-security">
-    <text class="od-security-icon">🔐</text>
+  <view class="hud-card od-security">
+    <view class="od-security-icon">🔐</view>
     <view class="od-security-info">
       <text class="od-security-title">AES-256 本地持久化加密</text>
-      <text class="od-security-desc">硬件层硬件隔离加密芯片注入 · 终端断电断网零丢失保证</text>
+      <text class="od-security-desc">硬件隔离加密芯片注入 · 断电断网零丢失</text>
     </view>
-    <view class="od-badge od-badge-cyan">已启用</view>
+    <view class="chip-cyan">已启用</view>
   </view>
 
   <!-- 存储池监控 -->
-  <view class="od-card od-storage">
+  <view class="hud-card od-storage">
     <view class="od-storage-head">
       <view class="od-storage-title-row">
-        <text class="od-storage-icon">💾</text>
+        <view class="kpi-glass-icon od-storage-icon-box">💾</view>
         <text class="od-storage-label">本地存储池监控</text>
       </view>
-      <text class="od-storage-usage">已使用 {{storageUsage}}%</text>
+      <text class="od-storage-usage">{{storageUsage}}%</text>
     </view>
 
     <view class="od-storage-value-row">
@@ -81,28 +93,24 @@
   </view>
 
   <!-- 待同步清单头部 -->
-  <view class="od-queue-head">
-    <view class="od-queue-head-left">
-      <view class="od-queue-bar"></view>
-      <text class="od-queue-title">待同步作业数据清单</text>
-      <view class="od-queue-count">{{syncQueue.length}} 项待传</view>
-    </view>
-    <view class="od-select-all" bindtap="toggleSelectAll">
-      <text class="od-select-all-text">☑️ 全选/反选</text>
-    </view>
+  <view class="section-title-row od-queue-head">
+    <view class="section-title-dot"></view>
+    <view class="section-title-text">待同步作业数据清单</view>
+    <view class="chip-gold od-queue-count">{{syncQueue.length}} 项待传</view>
+    <view class="od-select-all" bindtap="toggleSelectAll">☑️ 全选</view>
   </view>
 
   <!-- 队列列表 -->
   <view class="od-queue-list">
-    <view class="od-item" wx:for="{{syncQueue}}" wx:key="id">
+    <view class="glass-card od-item" wx:for="{{syncQueue}}" wx:key="id">
       <view class="od-item-main">
         <view class="od-item-check">
-          <switch checked="{{item.selected}}" bindchange="toggleItemSelection" data-id="{{item.id}}" color="#22d3ee" />
+          <switch checked="{{item.selected}}" bindchange="toggleItemSelection" data-id="{{item.id}}" color="#E8A33D" />
         </view>
         <view class="od-item-content">
           <view class="od-item-top">
             <text class="od-item-id">{{item.type}}: {{item.id}}</text>
-            <view class="od-status-badge od-status-pending">{{item.status}}</view>
+            <view class="chip-gold od-status-pending">{{item.status}}</view>
           </view>
           <text class="od-item-title">{{item.title}}</text>
           <text class="od-item-desc">{{item.description}}</text>
@@ -123,41 +131,40 @@
       <!-- 操作行 -->
       <view class="od-item-actions">
         <text class="od-item-cachetime">已离线暂存 {{item.cacheTime}}</text>
-        <view class="od-pin-btn" bindtap="prioritizeItem" data-id="{{item.id}}">
-          <text class="od-pin-icon">❗</text>
-          <text class="od-pin-text">置顶</text>
+        <view class="chip-cyan od-pin-btn" bindtap="prioritizeItem" data-id="{{item.id}}">
+          <text>❗ 置顶</text>
         </view>
       </view>
     </view>
   </view>
 
   <!-- 传输与存储规则 -->
-  <view class="od-section-head">
-    <view class="od-section-bar"></view>
-    <text class="od-section-title">自动同步与离线传输策略</text>
+  <view class="section-title-row od-section-head">
+    <view class="section-title-dot"></view>
+    <view class="section-title-text">自动同步与离线传输策略</view>
   </view>
 
-  <view class="od-card od-toggle-row">
+  <view class="glass-card od-toggle-row">
     <view class="od-toggle-info">
       <text class="od-toggle-title">仅在稳定 Wi-Fi / 5G 专网下回传原图</text>
-      <text class="od-toggle-desc">弱信号时仅优先同步结构化指标，多媒体原图锁定于本地等待</text>
+      <text class="od-toggle-desc">弱信号时仅优先同步结构化指标，多媒体原图锁定本地</text>
     </view>
-    <switch checked="{{wifiOnlyMode}}" bindchange="toggleWifiOnly" color="#22d3ee" />
+    <switch checked="{{wifiOnlyMode}}" bindchange="toggleWifiOnly" color="#06B6D4" />
   </view>
 
-  <view class="od-card od-toggle-row">
+  <view class="glass-card od-toggle-row">
     <view class="od-toggle-info">
       <text class="od-toggle-title">现场离线作业数据即时哈希存证</text>
-      <text class="od-toggle-desc">生成防篡改 SHA-256 离线流水号，杜绝工单时间戳篡改隐患</text>
+      <text class="od-toggle-desc">生成防篡改 SHA-256 离线流水号，杜绝时间戳篡改</text>
     </view>
-    <switch checked="{{hashVerification}}" bindchange="toggleHashVerification" color="#22d3ee" />
+    <switch checked="{{hashVerification}}" bindchange="toggleHashVerification" color="#06B6D4" />
   </view>
 
   <!-- 归档清理 -->
-  <view class="od-card od-archive">
+  <view class="hud-card od-archive">
     <view class="od-archive-head">
       <text class="od-archive-title">已闭环历史归档清理周期</text>
-      <text class="od-archive-size">当前可释放: {{cleanableSize}} MB</text>
+      <text class="od-archive-size">可释放: {{cleanableSize}} MB</text>
     </view>
     <view class="od-archive-btns">
       <button class="od-btn od-btn-clean" bindtap="cleanArchive">清理归档</button>
@@ -167,7 +174,7 @@
 
   <!-- 底部操作 -->
   <view class="od-bottom-actions">
-    <view class="od-cache-clean" bindtap="cleanCache">
+    <view class="glass-card od-cache-clean" bindtap="cleanCache">
       <text class="od-cache-clean-title">清理归档缓存</text>
       <text class="od-cache-clean-sub">释放 {{cleanableSize}} MB</text>
     </view>
@@ -181,5 +188,5 @@
     </view>
   </view>
 
-  <view class="od-safe-bottom"></view>
+  <view class="safe-bottom"></view>
 </view>

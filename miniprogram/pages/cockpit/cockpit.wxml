@@ -1,85 +1,119 @@
-<view wx:if="{{loading}}" class="empty">加载中...</view>
-<view wx:elif="{{loadError}}" class="empty">
-  <view>{{loadError}}</view>
-  <button class="btn btn-ghost" style="margin:30rpx auto;width:300rpx" bindtap="loadData">重试</button>
+<!-- 数据驾驶舱 · Bright Game-HUD / Solar-Punk（与 Web CockpitDashboardView 同步） -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
 </view>
-<block wx:else>
-  <view class="cockpit-page">
-    <view class="page-title">数据驾驶舱</view>
 
-    <!-- KPI 卡片 -->
+<view class="page-body">
+  <view wx:if="{{loading}}" class="empty-state">
+    <view class="loading-ring"></view>
+    <text class="empty-text">实时同步全厂运维态势中...</text>
+  </view>
+  <view wx:elif="{{loadError}}" class="empty-state">
+    <text class="empty-icon">⚠️</text>
+    <text class="empty-text" style="color:#EF4444">{{loadError}}</text>
+    <view class="retry-btn" bindtap="loadData">点击重试</view>
+  </view>
+
+  <block wx:else>
+    <!-- 顶部标题 HUD 卡 -->
+    <view class="hud-card hero-card">
+      <view class="hud-accent-top"></view>
+      <view class="hero-left">
+        <view class="hero-dot"></view>
+        <text class="hero-title">数据驾驶舱</text>
+      </view>
+      <view class="chip-cyan hero-live">LIVE 实时</view>
+    </view>
+
+    <!-- KPI 2×2 网格 -->
     <view class="kpi-grid">
-      <view class="kpi-card">
-        <view class="kpi-icon" style="background:#EFF6FF;color:#3b82f6">📊</view>
-        <view class="kpi-value">{{equipmentCount}}</view>
-        <view class="kpi-label">设备总数</view>
+      <view class="hud-card kpi-card">
+        <view class="kpi-header">
+          <view class="kpi-glass-icon" style="background:rgba(232,163,61,0.14);color:#B8761F;">📊</view>
+          <text class="kpi-label">设备总数</text>
+        </view>
+        <view class="kpi-num">{{equipmentCount}}<text class="kpi-unit">台</text></view>
         <view class="kpi-sub">
-          <text style="color:#10b981">运行 {{runningEquipments}}</text>
-          <text style="color:#F59E0B">预警 {{warningEquipments}}</text>
-          <text style="color:#EF4444">故障 {{faultEquipments}}</text>
+          <text class="text-success">运行 {{runningEquipments}}</text>
+          <text class="text-warning">预警 {{warningEquipments}}</text>
+          <text class="text-danger">故障 {{faultEquipments}}</text>
         </view>
       </view>
 
-      <view class="kpi-card">
-        <view class="kpi-icon" style="background:#FEF3C7;color:#F59E0B">🔧</view>
-        <view class="kpi-value">{{workOrderCompleteRate}}%</view>
-        <view class="kpi-label">工单完成率</view>
+      <view class="hud-card kpi-card">
+        <view class="kpi-header">
+          <view class="kpi-glass-icon" style="background:rgba(14,165,233,0.13);color:#0EA5E9;">🔧</view>
+          <text class="kpi-label">工单完成率</text>
+        </view>
+        <view class="kpi-num">{{workOrderCompleteRate}}<text class="kpi-unit">%</text></view>
         <view class="kpi-sub">
           <text>活动 {{activeWorkOrders}}</text>
-          <text style="color:#EF4444">紧急 {{urgentOrders}}</text>
+          <text class="text-danger">紧急 {{urgentOrders}}</text>
         </view>
       </view>
 
-      <view class="kpi-card">
-        <view class="kpi-icon" style="background:#ECFDF5;color:#10b981">✅</view>
-        <view class="kpi-value">{{inspectionCompleteRate}}%</view>
-        <view class="kpi-label">巡检完成率</view>
+      <view class="hud-card kpi-card">
+        <view class="kpi-header">
+          <view class="kpi-glass-icon" style="background:rgba(16,185,129,0.13);color:#10B981;">✅</view>
+          <text class="kpi-label">巡检完成率</text>
+        </view>
+        <view class="kpi-num">{{inspectionCompleteRate}}<text class="kpi-unit">%</text></view>
         <view class="kpi-sub">
           <text>{{completedInspections}}/{{totalInspections}} 点</text>
-          <text style="color:#EF4444">异常 {{abnormalInspections}}</text>
+          <text class="text-danger">异常 {{abnormalInspections}}</text>
         </view>
       </view>
 
-      <view class="kpi-card">
-        <view class="kpi-icon" style="background:#FEF2F2;color:#EF4444">⚠️</view>
-        <view class="kpi-value">{{pendingHazards}}</view>
-        <view class="kpi-label">待处理隐患</view>
+      <view class="hud-card kpi-card">
+        <view class="kpi-header">
+          <view class="kpi-glass-icon" style="background:rgba(239,68,68,0.12);color:#EF4444;">⚠️</view>
+          <text class="kpi-label">待处理隐患</text>
+        </view>
+        <view class="kpi-num">{{pendingHazards}}<text class="kpi-unit">项</text></view>
         <view class="kpi-sub">
           <text>作业票 {{activePermits}}</text>
-          <text style="color:#F59E0B">低库存 {{lowStockParts}}</text>
+          <text class="text-warning">低库存 {{lowStockParts}}</text>
         </view>
       </view>
     </view>
 
     <!-- 设备状态分布 -->
-    <view class="section-card">
-      <view class="section-header">
-        <text class="section-title" style="margin:0">设备状态分布</text>
+    <view class="hud-card section-card">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">设备状态分布</view>
+        <view class="section-title-sub">全厂实时</view>
       </view>
       <view class="status-bar-visual">
-        <view class="status-segment" style="flex:{{runningEquipments}};background:#10b981" wx:if="{{runningEquipments > 0}}"></view>
+        <view class="status-segment" style="flex:{{runningEquipments}};background:#10B981" wx:if="{{runningEquipments > 0}}"></view>
         <view class="status-segment" style="flex:{{warningEquipments}};background:#F59E0B" wx:if="{{warningEquipments > 0}}"></view>
         <view class="status-segment" style="flex:{{faultEquipments}};background:#EF4444" wx:if="{{faultEquipments > 0}}"></view>
-        <view class="status-segment" style="flex:1;background:#E2E8F0" wx:if="{{equipmentCount - runningEquipments - warningEquipments - faultEquipments > 0}}"></view>
+        <view class="status-segment" style="flex:1;background:#DCE6F2" wx:if="{{equipmentCount - runningEquipments - warningEquipments - faultEquipments > 0}}"></view>
       </view>
       <view class="status-legend">
-        <view class="legend-item"><view class="legend-dot" style="background:#10b981"></view>运行 {{runningEquipments}}</view>
+        <view class="legend-item"><view class="legend-dot" style="background:#10B981"></view>运行 {{runningEquipments}}</view>
         <view class="legend-item"><view class="legend-dot" style="background:#F59E0B"></view>预警 {{warningEquipments}}</view>
         <view class="legend-item"><view class="legend-dot" style="background:#EF4444"></view>故障 {{faultEquipments}}</view>
       </view>
     </view>
 
     <!-- 最近工单 -->
-    <view class="section-card">
-      <view class="section-header">
-        <text class="section-title" style="margin:0">最近工单</text>
-        <text class="more-link" bindtap="goOrders">查看全部 ›</text>
+    <view class="hud-card section-card">
+      <view class="section-title-row section-card-head">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">最近工单</view>
+        <view class="section-title-more" bindtap="goOrders">查看全部 ›</view>
       </view>
-      <view wx:if="{{recentOrders.length === 0}}" class="empty" style="padding:40rpx">暂无工单数据</view>
+      <view wx:if="{{recentOrders.length === 0}}" class="empty-state">
+        <text class="empty-icon">📋</text>
+        <text class="empty-text">暂无工单数据</text>
+      </view>
       <view class="order-row" wx:for="{{recentOrders}}" wx:key="id" bindtap="goOrder" data-id="{{item.id}}">
         <view class="order-info">
           <view class="order-title">{{item.title}}</view>
-          <view class="muted">{{item.equipmentName || "未知设备"}} · {{item.workshop || ""}}</view>
+          <view class="order-muted">{{item.equipmentName || "未知设备"}} · {{item.workshop || ""}}</view>
         </view>
         <view class="order-status" style="color:{{item.statusColor}}">{{item.statusText}}</view>
       </view>
@@ -87,23 +121,23 @@
 
     <!-- 快捷入口 -->
     <view class="quick-grid">
-      <view class="quick-item" bindtap="goHealth">
-        <view class="quick-icon" style="background:#EFF6FF;color:#3b82f6">💓</view>
+      <view class="glass-card quick-item" bindtap="goHealth">
+        <view class="quick-icon" style="background:rgba(239,68,68,0.12);color:#EF4444;">💓</view>
         <text>健康监测</text>
       </view>
-      <view class="quick-item" bindtap="goEquip">
-        <view class="quick-icon" style="background:#ECFDF5;color:#10b981">🏭</view>
+      <view class="glass-card quick-item" bindtap="goEquip">
+        <view class="quick-icon" style="background:rgba(16,185,129,0.13);color:#10B981;">🏭</view>
         <text>设备台账</text>
       </view>
-      <view class="quick-item" bindtap="goHazards">
-        <view class="quick-icon" style="background:#FEF3C7;color:#F59E0B">🔺</view>
+      <view class="glass-card quick-item" bindtap="goHazards">
+        <view class="quick-icon" style="background:rgba(245,158,11,0.14);color:#F59E0B;">🔺</view>
         <text>隐患治理</text>
       </view>
-      <view class="quick-item" bindtap="goOrders">
-        <view class="quick-icon" style="background:#F5F3FF;color:#8B5CF6">🔧</view>
+      <view class="glass-card quick-item" bindtap="goOrders">
+        <view class="quick-icon" style="background:rgba(139,92,246,0.12);color:#8B5CF6;">🔧</view>
         <text>检修工单</text>
       </view>
     </view>
-  </view>
-  <view class="safe-bottom"></view>
-</block>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

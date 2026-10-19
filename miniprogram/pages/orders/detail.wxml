@@ -1,91 +1,177 @@
-<view wx:if="{{loading}}" class="empty">加载中...</view>
-<block wx:if="{{order}}">
-  <view class="card">
-    <view class="row">
-      <view class="mono muted">{{order.orderNo}}</view>
-      <view class="sp"></view>
-      <view class="badge" style="{{pStyle}}">{{pText}}</view>
-      <view class="badge" style="{{sStyle}};margin-left:8rpx">{{sText}}</view>
-    </view>
-    <view class="h1" style="margin:16rpx 0 8rpx">{{order.title}}</view>
-    <view class="muted">{{order.equipmentName}} ({{order.equipmentCode}}) · {{order.workshop}}</view>
+<!-- 检修工单详情 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="empty-state">
+    <view class="loading-ring"></view>
+    <text class="empty-text">工单加载中...</text>
   </view>
 
-  <view class="card" wx:if="{{stageIdx >= 0}}">
-    <view class="stages">
-      <block wx:for="{{stages}}" wx:key="i">
-        <view class="stage">
-          <view class="s-dot {{index <= stageIdx ? 's-on' : ''}}">{{index + 1}}</view>
-          <view class="s-t {{index <= stageIdx ? 's-on-t' : ''}}">{{item}}</view>
+  <block wx:if="{{order}}">
+    <!-- 已取消告警（危险红渐变） -->
+    <view wx:if="{{order.status === 'cancelled'}}" class="danger-banner">
+      <view class="danger-icon">✕</view>
+      <view class="danger-body">
+        <view class="danger-title">该工单已取消</view>
+        <view class="danger-sub">如需恢复请联系调度中心重新派单</view>
+      </view>
+    </view>
+
+    <!-- 一、主信息 HUD 卡：工单号 + 优先级/状态 + 标题 + 设备 -->
+    <view class="hud-card main-card">
+      <view class="hud-accent-top"></view>
+      <view class="main-header">
+        <view class="order-no-box">
+          <text class="order-no">{{order.orderNo}}</text>
         </view>
-        <view class="s-line {{index < stageIdx ? 's-l-on' : ''}}" wx:if="{{index < 4}}"></view>
-      </block>
+        <view class="order-badges">
+          <view class="chip-badge" style="{{pStyle}}">{{pText}}</view>
+          <view class="chip-badge" style="{{sStyle}}">{{sText}}</view>
+        </view>
+      </view>
+      <view class="main-title">{{order.title}}</view>
+      <view class="main-equip">
+        <text class="main-equip-icon">🔧</text>
+        <text>{{order.equipmentName}}（{{order.equipmentCode}}）· {{order.workshop}}</text>
+      </view>
     </view>
-  </view>
-  <view class="card" wx:if="{{order.status === 'cancelled'}}">
-    <text style="color:#FB7185">该工单已取消</text>
-  </view>
 
-  <view class="card">
-    <view class="kv"><text class="muted">提单人</text><text>{{order.creator}}</text></view>
-    <view class="kv"><text class="muted">派单人</text><text>{{order.dispatcher || "—"}}</text></view>
-    <view class="kv"><text class="muted">主修技师</text><text>{{order.assignee || "待分配"}}</text></view>
-    <view class="kv"><text class="muted">创建时间</text><text class="mono">{{order.createdAt}}</text></view>
-    <view class="kv" wx:if="{{order.completedAt}}"><text class="muted">完成时间</text><text class="mono">{{order.completedAt}}</text></view>
-  </view>
+    <!-- 二、工序流转条 -->
+    <view class="glass-card stage-card" wx:if="{{stageIdx >= 0}}">
+      <view class="stage-row">
+        <block wx:for="{{stages}}" wx:key="i">
+          <view class="stage-item">
+            <view class="s-dot {{index < stageIdx ? 's-done' : (index === stageIdx ? 's-current' : '')}}">{{index + 1}}</view>
+            <view class="s-label {{index <= stageIdx ? 's-label-on' : ''}}">{{item}}</view>
+          </view>
+          <view class="s-connector {{index < stageIdx ? 's-connector-on' : ''}}" wx:if="{{index < 4}}"></view>
+        </block>
+      </view>
+    </view>
 
-  <view class="card">
-    <view class="title">故障描述</view>
-    <view class="desc">{{order.description}}</view>
-    <view class="title" style="margin-top:20rpx">安全要求</view>
-    <view class="desc" wx:for="{{order.safetyRequirements}}" wx:key="*this">• {{item}}</view>
-  </view>
+    <!-- 三、人员与时间信息 -->
+    <view class="glass-card info-card">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">人员与时效</view>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">提单人</text>
+        <text class="kv-val">{{order.creator}}</text>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">派单人</text>
+        <text class="kv-val">{{order.dispatcher || '—'}}</text>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">主修技师</text>
+        <text class="kv-val">{{order.assignee || '待分配'}}</text>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">创建时间</text>
+        <text class="kv-val mono">{{order.createdAt}}</text>
+      </view>
+      <view class="kv-row" wx:if="{{order.completedAt}}">
+        <text class="kv-key">完成时间</text>
+        <text class="kv-val mono text-success">{{order.completedAt}}</text>
+      </view>
+    </view>
 
-  <view class="card" wx:if="{{order.repairLog}}">
-    <view class="title">维修上报</view>
-    <view class="kv"><text class="muted">原因分析</text><text>{{order.repairLog.causeAnalysis}}</text></view>
-    <view class="kv"><text class="muted">处理步骤</text><text>{{order.repairLog.resolutionSteps}}</text></view>
-    <view class="kv"><text class="muted">工时</text><text class="mono">{{order.repairLog.workHours}}h</text></view>
-  </view>
+    <!-- 四、故障描述与安全要求 -->
+    <view class="glass-card info-card">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">故障描述</view>
+      </view>
+      <view class="desc-text">{{order.description}}</view>
+      <view class="block-label">安全要求</view>
+      <view class="safety-line" wx:for="{{order.safetyRequirements}}" wx:key="*this">
+        <text class="safety-dot">🛡</text>
+        <text>{{item}}</text>
+      </view>
+    </view>
 
-  <view class="card" wx:if="{{order.acceptance}}">
-    <view class="title">验收结论</view>
-    <view class="kv"><text class="muted">质检人</text><text>{{order.acceptance.inspectorName}}</text></view>
-    <view class="kv"><text class="muted">评分</text><text class="mono">{{order.acceptance.score}} 星</text></view>
-    <view class="kv"><text class="muted">意见</text><text>{{order.acceptance.comment}}</text></view>
-  </view>
+    <!-- 五、维修上报 -->
+    <view class="glass-card info-card" wx:if="{{order.repairLog}}">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">维修上报</view>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">原因分析</text>
+        <text class="kv-val">{{order.repairLog.causeAnalysis}}</text>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">处理步骤</text>
+        <text class="kv-val">{{order.repairLog.resolutionSteps}}</text>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">工时</text>
+        <text class="kv-val mono text-cyan">{{order.repairLog.workHours}} h</text>
+      </view>
+    </view>
 
-  <block wx:if="{{showDispatch}}">
-    <view class="card">
-      <view class="title">主管派发工单</view>
-      <button class="btn btn-ghost" bindtap="aiRecommend" disabled="{{recLoading}}">
-        {{recLoading ? "AI 分析中..." : "AI 推荐派单（技能/负载/经验）"}}
+    <!-- 六、验收结论 -->
+    <view class="glass-card info-card" wx:if="{{order.acceptance}}">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">验收结论</view>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">质检人</text>
+        <text class="kv-val">{{order.acceptance.inspectorName}}</text>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">评分</text>
+        <text class="kv-val score-stars">★ {{order.acceptance.score}} 星</text>
+      </view>
+      <view class="kv-row">
+        <text class="kv-key">意见</text>
+        <text class="kv-val">{{order.acceptance.comment}}</text>
+      </view>
+    </view>
+
+    <!-- 七、主管派发 -->
+    <view class="hud-card action-card" wx:if="{{showDispatch}}">
+      <view class="hud-accent-top"></view>
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">主管派发工单</view>
+      </view>
+      <button class="btn btn-ghost ai-btn" bindtap="aiRecommend" disabled="{{recLoading}}">
+        ✨ {{recLoading ? 'AI 分析中...' : 'AI 推荐派单（技能 / 负载 / 经验）'}}
       </button>
       <view wx:if="{{rec}}" class="ai-rec">
-        <view style="color:#22D3EE;font-weight:700">AI 推荐：{{rec.recommended.name}} · 预估 {{rec.estimatedHours}}h</view>
-        <view class="muted" style="margin:8rpx 0">{{rec.recommended.reason}}</view>
-        <view class="muted">备选：{{altText}}</view>
+        <view class="ai-rec-head">AI 推荐：{{rec.recommended.name}} · 预估 {{rec.estimatedHours}} h</view>
+        <view class="ai-rec-reason">{{rec.recommended.reason}}</view>
+        <view class="ai-rec-alt">备选：{{altText}}</view>
         <button class="btn btn-primary" bindtap="applyRec">采纳推荐</button>
       </view>
       <view class="label">指派技师</view>
       <picker range="{{techNames}}" bindchange="onTechPick">
-        <view class="input">{{techNames[techIdx] || "点击选择"}}</view>
+        <view class="input picker-input">{{techNames[techIdx] || '点击选择'}}</view>
       </picker>
       <view class="label">预估工时（小时）</view>
       <input class="input" type="digit" value="{{estHours}}" bindinput="onHours" />
-      <button class="btn btn-amber" bindtap="doDispatch">确认派发</button>
+      <button class="btn btn-gold full-btn" bindtap="doDispatch">确认派发</button>
     </view>
-  </block>
 
-  <block wx:if="{{showClaim}}">
-    <view class="card">
-      <button class="btn btn-primary" bindtap="doClaim">确认接单（进入检修中）</button>
+    <!-- 八、技师接单 -->
+    <view class="glass-card action-card" wx:if="{{showClaim}}">
+      <button class="btn btn-gold full-btn" bindtap="doClaim">确认接单（进入检修中）</button>
     </view>
-  </block>
 
-  <block wx:if="{{showComplete}}">
-    <view class="card">
-      <view class="title">检修完工上报</view>
+    <!-- 九、完工上报 -->
+    <view class="glass-card action-card" wx:if="{{showComplete}}">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">检修完工上报</view>
+      </view>
       <view class="label">原因分析 *</view>
       <textarea class="textarea" value="{{cause}}" bindinput="onCause" maxlength="300"></textarea>
       <view class="label">处理步骤 *</view>
@@ -95,21 +181,24 @@
       <view class="label">备件（每行：名称 数量）</view>
       <textarea class="textarea" value="{{parts}}" bindinput="onParts"></textarea>
       <view class="label">完工照片（{{photos.length}} 张）</view>
-      <button class="btn btn-ghost" bindtap="addPhoto">＋ 拍照 / 从相册选择</button>
-      <button class="btn btn-primary" bindtap="doComplete">提交完工上报</button>
+      <button class="btn btn-ghost full-btn" bindtap="addPhoto">＋ 拍照 / 从相册选择</button>
+      <button class="btn btn-gold full-btn" bindtap="doComplete">提交完工上报</button>
     </view>
-  </block>
 
-  <block wx:if="{{showAccept}}">
-    <view class="card">
-      <view class="title">质检验收</view>
+    <!-- 十、质检验收 -->
+    <view class="glass-card action-card" wx:if="{{showAccept}}">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">质检验收</view>
+      </view>
       <view class="label">评分：{{score}} 星</view>
-      <slider min="1" max="5" step="1" value="{{score}}" activeColor="#22D3EE" bindchange="onScore" />
+      <slider min="1" max="5" step="1" value="{{score}}" activeColor="#E8A33D" block-size="22" bindchange="onScore" />
       <view class="label">验收意见</view>
       <textarea class="textarea" value="{{comment}}" bindinput="onComment"></textarea>
-      <button class="btn btn-green" bindtap="doAccept" data-pass="true">验收通过（归档闭环）</button>
-      <button class="btn btn-rose" bindtap="doAccept" data-pass="false">驳回返修</button>
+      <button class="btn btn-primary full-btn" bindtap="doAccept" data-pass="true">验收通过（归档闭环）</button>
+      <button class="btn btn-rose full-btn" bindtap="doAccept" data-pass="false">驳回返修</button>
     </view>
+
+    <view class="safe-bottom"></view>
   </block>
-  <view class="safe-bottom"></view>
-</block>
+</view>

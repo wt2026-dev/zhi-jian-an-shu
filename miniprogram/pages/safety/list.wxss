@@ -1,4 +1,71 @@
-.o-title { font-size: 28rpx; font-weight: 600; margin: 12rpx 0 8rpx; }
-.lockrow { display: flex; align-items: center; padding: 14rpx 0; border-bottom: 1rpx solid #262626; }
-.lock-badge { font-size: 36rpx; margin-right: 16rpx; }
-.lk-on { } .lk-off { opacity: 0.4; }
+/* pages/safety/list.wxss · Solar-Punk Bright Game-HUD */
+page {
+  background: linear-gradient(180deg, #F8FBFF 0%, #F1F7FE 55%, #F7F4FF 100%);
+  background-color: #F2F7FD;
+  min-height: 100vh;
+}
+
+.page-body { padding-bottom: 40rpx; }
+.sp { flex: 1; }
+
+/* LOTO 看板 */
+.loto-banner { margin: 20rpx 24rpx; padding: 24rpx; border: 1rpx solid rgba(139, 92, 246, 0.35); }
+.loto-title { font-size: 27rpx; font-weight: 800; color: #6D28D9; margin-bottom: 8rpx; }
+.loto-empty { font-size: 22rpx; color: #94A3B8; padding: 16rpx 0; }
+.lockrow {
+  display: flex; align-items: center; gap: 14rpx;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #E2E8F0;
+}
+.lockrow:last-child { border-bottom: none; }
+.lock-badge { font-size: 36rpx; }
+.lk-off { opacity: 0.4; }
+.lock-col { flex: 1; min-width: 0; }
+.lock-no { font-size: 23rpx; font-weight: 700; color: #6D28D9; font-family: "DIN Alternate", monospace; }
+.lock-sub { font-size: 19rpx; color: #64748B; margin-top: 2rpx; }
+.chip {
+  font-size: 19rpx; padding: 4rpx 14rpx; border-radius: 999rpx; font-weight: 600;
+}
+
+/* tabs */
+.tab-bar { white-space: nowrap; padding: 0 24rpx; margin-bottom: 8rpx; }
+.tab-item {
+  display: inline-block;
+  padding: 12rpx 28rpx;
+  font-size: 23rpx;
+  color: #64748B;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1rpx solid #DCE6F2;
+  border-radius: 999rpx;
+  margin-right: 14rpx;
+}
+.tab-active {
+  background: linear-gradient(135deg, #C4B5FD, #8B5CF6);
+  color: #FFFFFF;
+  font-weight: 700;
+  border-color: transparent;
+  box-shadow: 0 4rpx 12rpx -4rpx rgba(139, 92, 246, 0.5);
+}
+
+/* 加载 / 空态 */
+.loading-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
+.loading-ring {
+  width: 56rpx; height: 56rpx;
+  border: 6rpx solid rgba(139, 92, 246, 0.2);
+  border-top-color: #8B5CF6;
+  border-radius: 50%; margin-bottom: 24rpx;
+  animation: spin 0.9s linear infinite;
+}
+.loading-text { font-size: 26rpx; color: #737373; }
+.empty-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 40rpx; }
+.empty-icon { font-size: 72rpx; margin-bottom: 20rpx; }
+.empty-text { font-size: 24rpx; color: #94A3B8; }
+
+/* 作业票卡 */
+.permit-card { margin: 0 24rpx 20rpx; padding: 24rpx 26rpx; }
+.permit-head { display: flex; align-items: center; }
+.permit-no { font-size: 21rpx; color: #6D28D9; font-family: "DIN Alternate", monospace; font-weight: 700; }
+.permit-title { font-size: 28rpx; font-weight: 700; color: #0F172A; margin: 14rpx 0 8rpx; line-height: 1.4; }
+.permit-meta { font-size: 20rpx; color: #64748B; }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

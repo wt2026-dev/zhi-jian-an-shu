@@ -1,35 +1,61 @@
-<view wx:if="{{loading}}" class="empty">加载中...</view>
-<view wx:elif="{{loadError}}" class="empty">
-  <view>{{loadError}}</view>
-  <button class="btn btn-ghost" style="margin:30rpx auto;width:300rpx" bindtap="loadGraph">重试</button>
+<!-- 知识图谱 · Solar-Punk（分组节点列表套 hud-card，保留抽屉详情交互） -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
 </view>
-<block wx:else>
-  <view class="graph-page">
-    <view class="page-title">知识图谱</view>
+
+<view class="page-body">
+  <view wx:if="{{loading}}" class="empty-state">
+    <view class="loading-ring"></view>
+    <text class="empty-text">知识图谱加载中...</text>
+  </view>
+  <view wx:elif="{{loadError}}" class="empty-state">
+    <text class="empty-icon">⚠️</text>
+    <text class="empty-text" style="color:#EF4444">{{loadError}}</text>
+    <view class="retry-btn" bindtap="loadGraph">点击重试</view>
+  </view>
+
+  <block wx:else>
+    <!-- 顶部操作 HUD 卡 -->
+    <view class="hud-card graph-hero">
+      <view class="hud-accent-top"></view>
+      <view class="hero-left">
+        <view class="hero-dot"></view>
+        <text class="hero-title">知识图谱</text>
+      </view>
+      <view class="graph-count">
+        <text class="count-item">{{nodes.length}} 节点</text>
+        <text class="count-sep">·</text>
+        <text class="count-item">{{edges.length}} 关系</text>
+      </view>
+    </view>
 
     <!-- 操作栏 -->
     <view class="action-bar">
-      <view class="muted">共 {{nodes.length}} 个节点 · {{edges.length}} 条关系</view>
       <view class="extract-btn {{extracting ? 'disabled' : ''}}" bindtap="extractGraph">
         {{extracting ? '抽取中...' : '🤖 AI 抽取'}}
       </view>
     </view>
-    <view wx:if="{{extractMessage}}" class="extract-msg">{{extractMessage}}</view>
+    <view wx:if="{{extractMessage}}" class="extract-msg glass-card">{{extractMessage}}</view>
 
     <!-- 图谱内容 - 分组卡片列表 -->
-    <view wx:if="{{nodes.length === 0}}" class="empty">暂无知识图谱数据，请先执行 AI 抽取</view>
+    <view wx:if="{{nodes.length === 0}}" class="empty-state">
+      <text class="empty-icon">🕸️</text>
+      <text class="empty-text">暂无知识图谱数据，请先执行 AI 抽取</text>
+    </view>
 
     <block wx:else>
-      <view class="type-section" wx:for="{{groupedNodes}}" wx:for-index="typeName" wx:key="typeName">
+      <view class="hud-card type-section" wx:for="{{groupedNodes}}" wx:for-index="typeName" wx:key="typeName">
         <view class="type-header">
-          <view class="type-dot" style="background:{{typeName === '设备' ? '#3b82f6' : typeName === '故障' ? '#EF4444' : typeName === '方法' ? '#10b981' : typeName === '备件' ? '#F59E0B' : typeName === '部件' ? '#8B5CF6' : '#94A3B8'}}"></view>
+          <view class="type-dot" style="background:{{typeName === '设备' ? '#2563EB' : typeName === '故障' ? '#EF4444' : typeName === '方法' ? '#10B981' : typeName === '备件' ? '#F59E0B' : typeName === '部件' ? '#8B5CF6' : '#94A3B8'}}"></view>
           <text class="type-name">{{typeName}}</text>
           <text class="type-count">{{item.length}} 个</text>
         </view>
         <view class="node-list">
           <view class="node-card" wx:for="{{item}}" wx:for-item="node" wx:key="id" bindtap="selectNode" data-id="{{node.id}}">
             <view class="node-name">{{node.name || node.label || node.id}}</view>
-            <view class="node-desc muted" wx:if="{{node.description || node.summary}}">{{node.description || node.summary}}</view>
+            <view class="node-desc" wx:if="{{node.description || node.summary}}">{{node.description || node.summary}}</view>
             <view class="node-tags" wx:if="{{node.equipmentType || node.source}}">
               <text class="node-tag" wx:if="{{node.equipmentType}}">{{node.equipmentType}}</text>
               <text class="node-tag" wx:if="{{node.source}}">{{node.source}}</text>
@@ -70,12 +96,12 @@
             <view class="related-item" wx:for="{{edges}}" wx:for-item="edge" wx:key="id"
               wx:if="{{edge.source === selectedNode.id || edge.target === selectedNode.id}}">
               <text>{{edge.source === selectedNode.id ? edge.target : edge.source}}</text>
-              <text class="edge-label muted">{{edge.label || edge.relation || "关联"}}</text>
+              <text class="edge-label">{{edge.label || edge.relation || "关联"}}</text>
             </view>
           </view>
         </view>
       </view>
     </view>
-  </view>
-  <view class="safe-bottom"></view>
-</block>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

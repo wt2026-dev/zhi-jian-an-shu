@@ -1,6 +1,5 @@
-/* chat.wxss - AI 检修助手（深色工业风） */
+/* chat.wxss - AI 检修助手 · Solar-Punk（金 #E8A33D = AI / 天青 #0EA5E9 = 用户 / 玻璃磨砂） */
 page {
-  background: #F5F7FA;
   height: 100%;
   overflow: hidden;
 }
@@ -9,13 +8,11 @@ page {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #F5F7FA;
-  color: #1E293B;
   box-sizing: border-box;
   overflow: hidden;
 }
 
-/* ---------- 品牌区 ---------- */
+/* ---------- 品牌区（HUD 玻璃卡 + 金色机器人） ---------- */
 .brand-card {
   flex-shrink: 0;
   display: flex;
@@ -23,10 +20,6 @@ page {
   gap: 24rpx;
   margin: 16rpx 24rpx 8rpx;
   padding: 24rpx;
-  border-radius: 20rpx;
-  background: linear-gradient(135deg, #0e7490 0%, #0c4a6e 55%, #F5F7FA 100%);
-  border: 1rpx solid rgba(34, 211, 238, 0.35);
-  box-shadow: 0 8rpx 30rpx rgba(34, 211, 238, 0.12);
 }
 
 .brand-robot {
@@ -41,7 +34,7 @@ page {
 .robot-antenna {
   width: 4rpx;
   height: 16rpx;
-  background: #3b82f6;
+  background: #E8A33D;
   border-radius: 2rpx;
 }
 
@@ -49,21 +42,22 @@ page {
   position: relative;
   width: 84rpx;
   height: 64rpx;
-  background: #F1F5F9;
-  border: 3rpx solid #3b82f6;
+  background: linear-gradient(135deg, #FFFBEF 0%, #FEF3D8 100%);
+  border: 3rpx solid #E8A33D;
   border-radius: 20rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12rpx;
+  box-shadow: 0 0 12rpx rgba(232, 163, 61, 0.35);
 }
 
 .robot-eye {
   width: 14rpx;
   height: 14rpx;
-  background: #3b82f6;
+  background: #B8761F;
   border-radius: 50%;
-  box-shadow: 0 0 8rpx #3b82f6;
+  box-shadow: 0 0 8rpx #E8A33D;
 }
 
 .robot-mouth {
@@ -71,7 +65,7 @@ page {
   bottom: 10rpx;
   width: 32rpx;
   height: 6rpx;
-  background: #3b82f6;
+  background: #E8A33D;
   border-radius: 4rpx;
   opacity: 0.7;
 }
@@ -80,8 +74,8 @@ page {
   margin-top: 6rpx;
   width: 64rpx;
   height: 34rpx;
-  background: #F1F5F9;
-  border: 3rpx solid rgba(34, 211, 238, 0.6);
+  background: linear-gradient(135deg, #FFFBEF 0%, #FEF3D8 100%);
+  border: 3rpx solid rgba(232, 163, 61, 0.55);
   border-radius: 12rpx;
   display: flex;
   align-items: center;
@@ -98,15 +92,26 @@ page {
   min-width: 0;
 }
 
+.brand-name-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+
 .brand-name {
-  font-size: 32rpx;
+  font-size: 30rpx;
   font-weight: 800;
-  color: #EFF6FF;
+  color: #0F172A;
+}
+
+.brand-chip {
+  padding: 3rpx 14rpx;
+  font-size: 18rpx;
 }
 
 .brand-desc {
   font-size: 22rpx;
-  color: rgba(236, 254, 255, 0.7);
+  color: #64748B;
 }
 
 .brand-tags {
@@ -117,9 +122,9 @@ page {
 
 .brand-tag {
   font-size: 18rpx;
-  color: #3b82f6;
-  background: rgba(34, 211, 238, 0.15);
-  border: 1rpx solid rgba(34, 211, 238, 0.35);
+  color: #0B5E7A;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1rpx solid rgba(14, 165, 233, 0.32);
   padding: 2rpx 12rpx;
   border-radius: 999rpx;
   font-family: "DIN Alternate", monospace;
@@ -158,20 +163,22 @@ page {
 }
 
 .avatar-ai {
-  background: #F1F5F9;
-  border: 2rpx solid rgba(34, 211, 238, 0.6);
+  background: linear-gradient(135deg, #FFFBEF 0%, #FEF3D8 100%);
+  border: 2rpx solid #E8A33D;
+  box-shadow: 0 2rpx 8rpx -2rpx rgba(232, 163, 61, 0.5);
 }
 
 .avatar-user {
-  background: #E2E8F0;
-  border: 2rpx solid #E2E8F0;
+  background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+  border: 2rpx solid #0EA5E9;
+  box-shadow: 0 2rpx 8rpx -2rpx rgba(14, 165, 233, 0.5);
 }
 
 .msg-avatar-img { width: 100%; height: 100%; }
 
 .msg-avatar-text {
   font-size: 24rpx;
-  color: #1E293B;
+  color: #0B5E7A;
   font-weight: 700;
 }
 
@@ -185,7 +192,7 @@ page {
   width: 10rpx;
   height: 10rpx;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #B8761F;
 }
 
 .msg-main {
@@ -196,6 +203,7 @@ page {
 
 .message-user .msg-main { align-items: flex-end; }
 
+/* 玻璃磨砂气泡 */
 .bubble {
   padding: 20rpx 24rpx;
   border-radius: 20rpx;
@@ -205,17 +213,21 @@ page {
 }
 
 .bubble-ai {
-  background: #FFFFFF;
-  border: 1rpx solid #E2E8F0;
+  background: rgba(255, 251, 239, 0.82);
+  backdrop-filter: blur(12rpx);
+  -webkit-backdrop-filter: blur(12rpx);
+  border: 1rpx solid rgba(232, 163, 61, 0.38);
+  box-shadow: 0 4rpx 14rpx -6rpx rgba(232, 163, 61, 0.35), inset 0 1rpx 0 rgba(255, 255, 255, 0.9);
   border-top-left-radius: 6rpx;
   color: #1E293B;
 }
 
 .bubble-user {
-  background: linear-gradient(135deg, #0891b2, #0e7490);
-  border: 1rpx solid rgba(34, 211, 238, 0.4);
+  background: linear-gradient(135deg, #38BDF8 0%, #0EA5E9 55%, #06B6D4 100%);
+  border: 1rpx solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 6rpx 16rpx -6rpx rgba(14, 165, 233, 0.55), inset 0 1rpx 0 rgba(255, 255, 255, 0.4);
   border-top-right-radius: 6rpx;
-  color: #EFF6FF;
+  color: #FFFFFF;
 }
 
 .msg-image {
@@ -238,7 +250,7 @@ page {
   display: inline-block;
   width: 6rpx;
   height: 26rpx;
-  background: #3b82f6;
+  background: #E8A33D;
   vertical-align: text-bottom;
   margin-left: 6rpx;
   animation: blink 0.9s steps(2, start) infinite;
@@ -251,7 +263,7 @@ page {
 
 .msg-time {
   font-size: 18rpx;
-  color: #CBD5E1;
+  color: #94A3B8;
   margin-top: 8rpx;
   padding: 0 6rpx;
 }
@@ -277,7 +289,7 @@ page {
   width: 10rpx;
   height: 10rpx;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #E8A33D;
   animation: bounce 1.2s infinite ease-in-out;
 }
 
@@ -291,9 +303,6 @@ page {
 
 /* ---------- 推荐追问 ---------- */
 .followup-section {
-  background: #FFFFFF;
-  border: 1rpx solid #E2E8F0;
-  border-radius: 16rpx;
   padding: 20rpx;
   margin-bottom: 24rpx;
 }
@@ -309,11 +318,11 @@ page {
   align-items: flex-start;
   gap: 10rpx;
   padding: 12rpx 0;
-  border-top: 1rpx solid #FFFFFF;
+  border-top: 1rpx solid rgba(220, 230, 242, 0.6);
 }
 
 .followup-icon { font-size: 22rpx; }
-.followup-text { flex: 1; font-size: 25rpx; color: #3b82f6; }
+.followup-text { flex: 1; font-size: 25rpx; color: #0B5E7A; }
 
 /* ---------- 快捷指令 ---------- */
 .chip-bar {
@@ -323,19 +332,19 @@ page {
 
 .chip-item {
   display: inline-block;
-  padding: 14rpx 26rpx;
+  padding: 12rpx 24rpx;
   margin-right: 16rpx;
-  background: #FFFFFF;
-  border: 1rpx solid #E2E8F0;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1rpx solid rgba(14, 165, 233, 0.35);
   border-radius: 999rpx;
   font-size: 24rpx;
-  color: #64748B;
+  color: #0B5E7A;
 }
 
 .chip-item:active {
-  background: rgba(34, 211, 238, 0.12);
-  border-color: #3b82f6;
-  color: #3b82f6;
+  background: rgba(14, 165, 233, 0.14);
+  border-color: #0EA5E9;
+  color: #0EA5E9;
 }
 
 /* ---------- 待发送图片 ---------- */
@@ -350,6 +359,7 @@ page {
   width: 100rpx;
   height: 100rpx;
   border-radius: 12rpx;
+  border: 1rpx solid rgba(220, 230, 242, 0.9);
 }
 
 .pending-remove {
@@ -364,30 +374,33 @@ page {
   align-items: flex-end;
   gap: 16rpx;
   padding: 16rpx 24rpx;
-  background: #F5F7FA;
-  border-top: 1rpx solid #E2E8F0;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16rpx);
+  -webkit-backdrop-filter: blur(16rpx);
+  border-top: 1rpx solid rgba(220, 230, 242, 0.9);
 }
 
 .add-btn {
   width: 64rpx;
   height: 64rpx;
   border-radius: 50%;
-  background: #FFFFFF;
-  color: #3b82f6;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1rpx solid rgba(232, 163, 61, 0.4);
+  color: #B8761F;
   font-size: 40rpx;
   line-height: 60rpx;
   text-align: center;
   flex-shrink: 0;
 }
 
-.add-btn:active { background: #E2E8F0; }
+.add-btn:active { background: rgba(232, 163, 61, 0.15); }
 
 .chat-input {
   flex: 1;
   max-height: 180rpx;
   min-height: 64rpx;
-  background: #FFFFFF;
-  border: 1rpx solid #E2E8F0;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1rpx solid rgba(220, 230, 242, 0.95);
   border-radius: 32rpx;
   padding: 16rpx 24rpx;
   color: #1E293B;
@@ -404,9 +417,14 @@ page {
   flex-shrink: 0;
 }
 
-.send-active { background: #3b82f6; color: #F5F7FA; font-weight: 800; }
-.send-disabled { background: #E2E8F0; color: #CBD5E1; }
-.btn-stop { background: #EF4444; color: #F5F7FA; font-size: 26rpx; }
+.send-active {
+  background: linear-gradient(135deg, #F6D08A 0%, #E8A33D 48%, #D98F2B 100%);
+  color: #FFFFFF;
+  font-weight: 800;
+  box-shadow: 0 6rpx 16rpx -6rpx rgba(232, 163, 61, 0.6);
+}
+.send-disabled { background: #DCE6F2; color: #94A3B8; }
+.btn-stop { background: #EF4444; color: #FFFFFF; font-size: 26rpx; }
 
 .input-hint {
   flex-shrink: 0;
@@ -414,49 +432,43 @@ page {
   font-size: 19rpx;
   color: #94A3B8;
   padding: 8rpx 0 20rpx;
-  background: #F5F7FA;
+  background: rgba(242, 247, 253, 0.6);
 }
 
 .bottom-spacer { height: 24rpx; }
-
 
 /* 语音播报按钮 */
 .msg-tools {
   margin-top: 12rpx;
   padding-top: 8rpx;
-  border-top: 1rpx dashed rgba(226, 232, 240, 0.6);
+  border-top: 1rpx dashed rgba(220, 230, 242, 0.6);
   display: flex;
   align-items: center;
 }
 .voice-btn {
   display: inline-flex;
   align-items: center;
-  background: #F1F5F9;
-  border: 1rpx solid #E2E8F0;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1rpx solid rgba(220, 230, 242, 0.9);
   border-radius: 20rpx;
   padding: 4rpx 14rpx;
   font-size: 20rpx;
   color: #475569;
 }
 .voice-playing {
-  background: #EFF6FF;
-  border-color: #BFDBFE;
-  color: #2563EB;
+  background: rgba(232, 163, 61, 0.14);
+  border-color: rgba(232, 163, 61, 0.5);
+  color: #B8761F;
 }
 .voice-icon {
   font-size: 20rpx;
   margin-right: 6rpx;
 }
 
-/* AI 知识沉淀卡片 (明亮玻璃科技风) */
+/* AI 知识沉淀卡片（玻璃 + 金顶） */
 .contrib-card {
-  margin: 16rpx 24rpx !important;
+  margin: 16rpx 0 !important;
   padding: 24rpx !important;
-  background: #FFFFFF !important;
-  border: 1rpx solid #BFDBFE !important;
-  border-left: 8rpx solid #3B82F6 !important;
-  border-radius: 20rpx !important;
-  box-shadow: 0 4rpx 16rpx rgba(59, 130, 246, 0.08) !important;
 }
 .contrib-header {
   display: flex;
@@ -475,7 +487,7 @@ page {
 .contrib-badge {
   font-size: 22rpx;
   font-weight: 700;
-  color: #1D4ED8;
+  color: #8A5410;
 }
 .contrib-close {
   color: #94A3B8;
@@ -506,12 +518,12 @@ page {
   justify-content: flex-end;
   margin-top: 16rpx;
   padding-top: 14rpx;
-  border-top: 1rpx dashed #E2E8F0;
+  border-top: 1rpx dashed rgba(220, 230, 242, 0.8);
 }
 .contrib-btn-ignore {
-  background: #F1F5F9;
+  background: rgba(220, 230, 242, 0.4);
   color: #64748B;
-  border: 1rpx solid #E2E8F0;
+  border: 1rpx solid rgba(220, 230, 242, 0.9);
   border-radius: 12rpx;
   font-size: 22rpx;
   padding: 8rpx 20rpx;
@@ -519,7 +531,7 @@ page {
   margin-left: 0;
 }
 .contrib-btn-submit {
-  background: #3B82F6;
+  background: linear-gradient(135deg, #F6D08A 0%, #E8A33D 48%, #D98F2B 100%);
   color: #FFFFFF;
   border-radius: 12rpx;
   font-size: 22rpx;
@@ -530,5 +542,5 @@ page {
 .contrib-notice {
   font-size: 22rpx;
   font-weight: 600;
-  color: #059669;
+  color: #10B981;
 }

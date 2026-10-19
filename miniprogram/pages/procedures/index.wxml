@@ -1,44 +1,59 @@
-<view class="container">
-  <view class="header-card">
-    <view class="header-title">SOP 标准化作业指引</view>
+<!-- SOP 标准化作业指引 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <!-- 顶部标题卡 -->
+  <view class="hud-card header-card">
+    <view class="hud-accent-top"></view>
+    <view class="header-title">🎬 SOP 标准化作业指引</view>
     <view class="header-desc">按机组类型与检修等级个性化筛选，现场逐项勾选合规防呆防漏</view>
   </view>
 
   <!-- 筛选栏 -->
-  <view class="filter-bar row">
+  <view class="filter-bar">
     <picker class="filter-picker" mode="selector" range="{{equipTypes}}" value="{{equipTypeIndex}}" bindchange="onEquipTypeChange">
       <view class="picker-btn">
-        <text class="picker-label">机组：</text>
+        <text class="picker-label">机组</text>
         <text class="picker-val">{{equipTypes[equipTypeIndex]}}</text>
         <text class="picker-arrow">▾</text>
       </view>
     </picker>
     <picker class="filter-picker" mode="selector" range="{{levels}}" value="{{levelIndex}}" bindchange="onLevelChange">
       <view class="picker-btn">
-        <text class="picker-label">等级：</text>
+        <text class="picker-label">等级</text>
         <text class="picker-val">{{levels[levelIndex]}}</text>
         <text class="picker-arrow">▾</text>
       </view>
     </picker>
   </view>
 
-  <view wx:if="{{loading}}" class="empty">正在检索匹配标准化作业指引...</view>
-  <view wx:elif="{{filteredProcedures.length === 0}}" class="empty">暂无符合当前筛选条件的作业指引</view>
+  <view class="loading-state" wx:if="{{loading}}">
+    <view class="loading-ring"></view>
+    <text class="loading-text">正在检索匹配标准化作业指引...</text>
+  </view>
+  <view class="empty-state" wx:elif="{{filteredProcedures.length === 0}}">
+    <text class="empty-icon">🎬</text>
+    <text class="empty-text">暂无符合当前筛选条件的作业指引</text>
+  </view>
+
   <block wx:else>
-    <view class="proc-card card" wx:for="{{filteredProcedures}}" wx:key="id">
-      <view class="row">
-        <view class="badge badge-cyan">{{item.category || "检修规程"}}</view>
+    <view class="hud-card proc-card" wx:for="{{filteredProcedures}}" wx:key="id">
+      <view class="proc-badges">
+        <view class="chip-cyan chip-sm">{{item.category || "检修规程"}}</view>
         <view class="sp"></view>
-        <view class="badge badge-amber">{{item.level || item.maintenanceLevel || "二级作业"}}</view>
+        <view class="chip-gold chip-sm">{{item.level || item.maintenanceLevel || "二级作业"}}</view>
       </view>
       <view class="proc-title">{{item.title}}</view>
-      <view class="muted proc-desc">{{item.summary || item.description || "严格按规程执行停机挂牌与关键部位对中自检"}}</view>
+      <view class="proc-desc">{{item.summary || item.description || "严格按规程执行停机挂牌与关键部位对中自检"}}</view>
 
-      <!-- 步骤清单 (支持逐项交互式勾选合规) -->
+      <!-- 步骤清单 -->
       <view class="steps-section" wx:if="{{item.steps && item.steps.length > 0}}">
-        <view class="steps-header row">
+        <view class="steps-header">
           <text class="steps-title">标准作业工序与安全控制点</text>
-          <view class="sp"></view>
           <text class="steps-tip">点击圆圈逐项核验打卡</text>
         </view>
 
@@ -61,25 +76,22 @@
               {{st.title || st.stepName || st.name || st}}
             </view>
             <view class="step-note" wx:if="{{st.safetyNote || st.safety}}">
-              🛡️ 安全隔离: {{st.safetyNote || st.safety}}
+              🛡️ 安全隔离：{{st.safetyNote || st.safety}}
             </view>
-            <view class="step-tool muted" wx:if="{{st.tools}}">
-              🔧 推荐工器具: {{st.tools}}
+            <view class="step-tool" wx:if="{{st.tools}}">
+              🔧 推荐工器具：{{st.tools}}
             </view>
           </view>
         </view>
       </view>
 
-      <view class="proc-footer row">
-        <view class="muted">适配：{{item.equipment_type || item.equipmentType || "通用工业机组"}}</view>
+      <view class="proc-footer">
+        <view class="proc-adapt">适配：{{item.equipment_type || item.equipmentType || "通用工业机组"}}</view>
         <view class="sp"></view>
-        <view class="video-btn" bindtap="generateVideo" data-id="{{item.id}}">
-          🎬 生成视频讲解
-        </view>
-        <view class="finish-btn" bindtap="finishWork" data-id="{{item.id}}">
-          合规达标校验 ›
-        </view>
+        <view class="video-btn" bindtap="generateVideo" data-id="{{item.id}}">🎬 视频讲解</view>
+        <view class="finish-btn" bindtap="finishWork" data-id="{{item.id}}">合规校验 ›</view>
       </view>
     </view>
   </block>
+  <view class="safe-bottom"></view>
 </view>

@@ -1,39 +1,59 @@
-<view class="container">
-  <view class="form-card card">
+<!-- 隐患上报表单 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <view class="hud-card form-card">
+    <view class="hud-accent-top"></view>
+    <view class="form-title">🛡️ 现场隐患上报</view>
+    <view class="form-sub">拍照取证 + 分级定级，一键进入厂级督办闭环</view>
+
     <view class="form-item">
       <view class="label">隐患标题 <text class="required">*</text></view>
-      <input class="input" placeholder="简要概括隐患现象，例: 离心泵法兰严重漏液" value="{{title}}" bindinput="onInputTitle" />
+      <input class="glass-input" placeholder="简要概括隐患现象，例：离心泵法兰严重漏液" placeholder-class="input-placeholder" value="{{title}}" bindinput="onInputTitle" />
     </view>
 
     <view class="form-item">
       <view class="label">隐患危害评级 <text class="required">*</text></view>
       <picker range="{{levels}}" range-key="name" value="{{levelIndex}}" bindchange="onLevelChange">
-        <view class="picker-val">{{levels[levelIndex].name}}</view>
+        <view class="glass-input picker-line">
+          <text class="picker-val">{{levels[levelIndex].name}}</text>
+          <text class="picker-arrow">▾</text>
+        </view>
       </picker>
     </view>
 
     <view class="form-item">
       <view class="label">专业分类</view>
       <picker range="{{categories}}" value="{{categoryIndex}}" bindchange="onCategoryChange">
-        <view class="picker-val">{{categories[categoryIndex]}}</view>
+        <view class="glass-input picker-line">
+          <text class="picker-val">{{categories[categoryIndex]}}</text>
+          <text class="picker-arrow">▾</text>
+        </view>
       </picker>
     </view>
 
     <view class="form-item">
       <view class="label">关联在役机组</view>
       <picker range="{{equipments}}" range-key="name" value="{{eqIndex}}" bindchange="onEqChange">
-        <view class="picker-val">{{equipments[eqIndex].name || "选择机组设备"}}</view>
+        <view class="glass-input picker-line">
+          <text class="picker-val">{{equipments[eqIndex].name || "选择机组设备"}}</text>
+          <text class="picker-arrow">▾</text>
+        </view>
       </picker>
     </view>
 
     <view class="form-item">
       <view class="label">发现地点 / 车间</view>
-      <input class="input" placeholder="例: 循环水泵房南侧 2 号机位" value="{{location}}" bindinput="onInputLocation" />
+      <input class="glass-input" placeholder="例：循环水泵房南侧 2 号机位" placeholder-class="input-placeholder" value="{{location}}" bindinput="onInputLocation" />
     </view>
 
     <view class="form-item">
       <view class="label">现场隐患详细征兆描述 <text class="required">*</text></view>
-      <textarea class="textarea" placeholder="详细描述隐患部件、次生危害风险、发现时的设备运行异响或温度状态..." value="{{description}}" bindinput="onInputDesc" maxlength="500"></textarea>
+      <textarea class="glass-textarea" placeholder="详细描述隐患部件、次生危害风险、发现时的设备运行异响或温度状态..." placeholder-class="input-placeholder" value="{{description}}" bindinput="onInputDesc" maxlength="500"></textarea>
     </view>
 
     <view class="form-item">
@@ -47,8 +67,9 @@
       </view>
     </view>
 
-    <button class="btn btn-submit" bindtap="submitHazard" disabled="{{submitting}}">
+    <button class="btn-gold btn-submit" bindtap="submitHazard" disabled="{{submitting}}">
       {{submitting ? "正在上报..." : "立即提交督办"}}
     </button>
   </view>
+  <view class="safe-bottom"></view>
 </view>

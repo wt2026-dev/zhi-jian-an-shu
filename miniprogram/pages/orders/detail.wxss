@@ -1,18 +1,243 @@
-.kv { display: flex; justify-content: space-between; padding: 10rpx 0; font-size: 26rpx; }
-.desc { color: #94A3B8; font-size: 26rpx; line-height: 1.7; }
-.stages { display: flex; align-items: flex-start; }
-.stage { display: flex; flex-direction: column; align-items: center; width: 18%; }
+/* orders/detail.wxss - 检修工单详情 · Solar-Punk */
+@import '../../common.wxss';
+
+page {
+  background: linear-gradient(180deg, #F8FBFF 0%, #F1F7FE 55%, #F7F4FF 100%);
+  background-color: #F2F7FD;
+  min-height: 100vh;
+}
+
+.page-body {
+  padding: 20rpx 0 24rpx;
+}
+
+/* 加载态 */
+.loading-ring {
+  width: 56rpx; height: 56rpx;
+  border: 6rpx solid rgba(232, 163, 61, 0.2);
+  border-top-color: #E8A33D;
+  border-radius: 50%;
+  margin: 60rpx auto 20rpx;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 危险告警条（红渐变） */
+.danger-banner {
+  margin: 0 24rpx 20rpx;
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  display: flex;
+  align-items: center;
+  box-shadow:
+    0 0 0 1rpx rgba(239, 68, 68, 0.35),
+    0 8rpx 22rpx -8rpx rgba(239, 68, 68, 0.45),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.25);
+}
+.danger-icon {
+  width: 48rpx; height: 48rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+  font-size: 28rpx; font-weight: 700;
+  text-align: center; line-height: 48rpx;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+.danger-body { flex: 1; min-width: 0; }
+.danger-title { font-size: 26rpx; font-weight: 700; color: #FFFFFF; }
+.danger-sub { font-size: 20rpx; color: rgba(255, 255, 255, 0.85); margin-top: 4rpx; }
+
+/* 主信息卡 */
+.main-card {
+  margin: 0 24rpx 20rpx;
+  padding: 26rpx 28rpx;
+}
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+.order-no-box { flex-shrink: 0; }
+.order-no {
+  font-size: 24rpx;
+  color: #B8761F;
+  font-family: "DIN Alternate", monospace;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: rgba(232, 163, 61, 0.12);
+  border: 1rpx solid rgba(232, 163, 61, 0.38);
+  border-radius: 10rpx;
+  padding: 5rpx 14rpx;
+}
+.order-badges {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+.chip-badge {
+  font-size: 20rpx;
+  font-weight: 600;
+  border-radius: 999rpx;
+  padding: 4rpx 16rpx;
+}
+.main-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.4;
+  margin-bottom: 12rpx;
+}
+.main-equip {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: 24rpx;
+  color: #64748B;
+}
+.main-equip-icon { font-size: 22rpx; }
+
+/* 工序流转条 */
+.stage-card {
+  margin: 0 24rpx 20rpx;
+  padding: 28rpx 24rpx;
+}
+.stage-row {
+  display: flex;
+  align-items: flex-start;
+}
+.stage-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 96rpx;
+  flex-shrink: 0;
+}
 .s-dot {
-  width: 52rpx; height: 52rpx; border-radius: 50%;
-  background: #E2E8F0; color: #CBD5E1; text-align: center; line-height: 52rpx;
-  font-size: 24rpx; font-weight: 700;
+  width: 52rpx; height: 52rpx;
+  border-radius: 50%;
+  background: #EEF2F7;
+  border: 1rpx solid #DCE6F2;
+  color: #94A3B8;
+  text-align: center;
+  line-height: 50rpx;
+  font-size: 24rpx;
+  font-weight: 700;
+  font-family: "DIN Alternate", monospace;
 }
-.s-on { background: #3b82f6; color: #F5F7FA; }
-.s-t { font-size: 20rpx; color: #CBD5E1; margin-top: 8rpx; text-align: center; }
-.s-on-t { color: #3b82f6; }
-.s-line { flex: 1; height: 3rpx; background: #E2E8F0; margin-top: 26rpx; }
-.s-l-on { background: #3b82f6; }
+.s-done {
+  background: linear-gradient(135deg, #F6D08A 0%, #E8A33D 100%);
+  border-color: #E8A33D;
+  color: #FFFFFF;
+  box-shadow: 0 4rpx 12rpx -4rpx rgba(232, 163, 61, 0.5);
+}
+.s-current {
+  background: linear-gradient(135deg, #67E8F9 0%, #06B6D4 100%);
+  border-color: #06B6D4;
+  color: #FFFFFF;
+  box-shadow: 0 0 0 4rpx rgba(6, 182, 212, 0.18), 0 4rpx 12rpx -4rpx rgba(6, 182, 212, 0.5);
+}
+.s-label {
+  font-size: 20rpx;
+  color: #94A3B8;
+  margin-top: 10rpx;
+  text-align: center;
+}
+.s-label-on { color: #B8761F; font-weight: 600; }
+.s-connector {
+  flex: 1;
+  height: 3rpx;
+  background: #E2E8F0;
+  margin-top: 26rpx;
+  border-radius: 2rpx;
+}
+.s-connector-on {
+  background: linear-gradient(90deg, #E8A33D 0%, #06B6D4 100%);
+}
+
+/* 信息卡 */
+.info-card {
+  margin: 0 24rpx 20rpx;
+  padding: 24rpx 28rpx;
+}
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24rpx;
+  padding: 12rpx 0;
+  font-size: 26rpx;
+  border-bottom: 1rpx dashed rgba(220, 230, 242, 0.7);
+}
+.kv-row:last-child { border-bottom: none; }
+.kv-key { color: #94A3B8; flex-shrink: 0; }
+.kv-val { color: #1E293B; text-align: right; flex: 1; }
+.mono { font-family: "DIN Alternate", monospace; }
+.desc-text {
+  font-size: 26rpx;
+  color: #475569;
+  line-height: 1.7;
+  margin: 12rpx 0 20rpx;
+}
+.block-label {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #334155;
+  margin: 8rpx 0 10rpx;
+}
+.safety-line {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  font-size: 24rpx;
+  color: #475569;
+  padding: 6rpx 0;
+}
+.safety-dot { font-size: 20rpx; }
+.score-stars { color: #B8761F; font-weight: 700; font-family: "DIN Alternate", monospace; }
+
+/* AI 推荐盒（天青玻璃） */
+.ai-btn { margin-top: 16rpx; }
 .ai-rec {
-  background: rgba(34, 211, 238, 0.08); border: 1rpx solid rgba(34, 211, 238, 0.35);
-  border-radius: 16rpx; padding: 20rpx; margin-top: 16rpx;
+  background: rgba(6, 182, 212, 0.08);
+  border: 1rpx solid rgba(6, 182, 212, 0.35);
+  border-radius: 16rpx;
+  padding: 20rpx;
+  margin-top: 16rpx;
 }
+.ai-rec-head {
+  color: #0B5E7A;
+  font-weight: 700;
+  font-size: 26rpx;
+}
+.ai-rec-reason {
+  color: #64748B;
+  font-size: 23rpx;
+  line-height: 1.6;
+  margin: 10rpx 0;
+}
+.ai-rec-alt {
+  color: #94A3B8;
+  font-size: 22rpx;
+  margin-bottom: 16rpx;
+}
+
+/* 操作卡 */
+.action-card {
+  margin: 0 24rpx 20rpx;
+  padding: 24rpx 28rpx;
+}
+.picker-input {
+  display: block;
+}
+.full-btn {
+  width: 100%;
+  margin-top: 20rpx;
+}
+.action-card .label { margin-top: 20rpx; }
+.action-card .label:first-of-type { margin-top: 0; }

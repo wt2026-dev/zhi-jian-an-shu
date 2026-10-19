@@ -1,21 +1,29 @@
-<view class="container">
+<!-- 隐患闭环列表 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
   <!-- 顶部统计与上报入口 -->
-  <view class="top-bar row">
-    <view class="stat-box">
-      <text class="stat-num text-rose">{{majorCount}}</text>
-      <text class="stat-label">重大隐患</text>
+  <view class="hud-card stat-card">
+    <view class="hud-accent-top"></view>
+    <view class="stat-row">
+      <view class="stat-box">
+        <text class="stat-num stat-num-red">{{majorCount}}</text>
+        <text class="stat-label">重大隐患</text>
+      </view>
+      <view class="stat-box">
+        <text class="stat-num stat-num-amber">{{pendingCount}}</text>
+        <text class="stat-label">待消缺</text>
+      </view>
+      <view class="stat-box">
+        <text class="stat-num stat-num-blue">{{totalCount}}</text>
+        <text class="stat-label">累计隐患</text>
+      </view>
     </view>
-    <view class="stat-box">
-      <text class="stat-num text-amber">{{pendingCount}}</text>
-      <text class="stat-label">待消缺</text>
-    </view>
-    <view class="stat-box">
-      <text class="stat-num text-cyan">{{totalCount}}</text>
-      <text class="stat-label">累计隐患</text>
-    </view>
-    <view class="report-btn" bindtap="goCreate">
-      <text>+ 拍照上报</text>
-    </view>
+    <view class="report-btn btn-gold" bindtap="goCreate">+ 拍照上报隐患</view>
   </view>
 
   <!-- 状态筛选 -->
@@ -28,34 +36,41 @@
   </scroll-view>
 
   <!-- 隐患列表 -->
-  <view wx:if="{{loading}}" class="empty">加载隐患清单中...</view>
-  <view wx:elif="{{hazards.length === 0}}" class="empty">当前状态下暂无安全隐患</view>
-  <view wx:else class="list-wrap">
-    <view class="hazard-card card {{item.level === 'major' ? 'card-major' : ''}}" wx:for="{{hazards}}" wx:key="id">
-      <view class="row card-header">
-        <view wx:if="{{item.level === 'major'}}" class="badge badge-major">重大隐患 · 厂级督办</view>
-        <view wx:else class="badge badge-general">一般隐患</view>
+  <view class="loading-state" wx:if="{{loading}}">
+    <view class="loading-ring"></view>
+    <text class="loading-text">加载隐患清单中...</text>
+  </view>
+  <view class="empty-state" wx:elif="{{hazards.length === 0}}">
+    <text class="empty-icon">🛡️</text>
+    <text class="empty-text">当前状态下暂无安全隐患</text>
+  </view>
+
+  <view wx:else>
+    <view class="hud-card hazard-card {{item.level === 'major' ? 'card-major' : ''}}" wx:for="{{hazards}}" wx:key="id">
+      <view class="card-header">
+        <view wx:if="{{item.level === 'major'}}" class="badge-major">重大隐患 · 厂级督办</view>
+        <view wx:else class="chip-titanium chip-sm">一般隐患</view>
         <view class="sp"></view>
-        <view class="badge {{item.statusBadgeClass}}">{{item.statusText}}</view>
+        <view class="chip {{item.statusBadgeClass}} chip-sm">{{item.statusText}}</view>
       </view>
 
       <view class="hazard-title">{{item.title}}</view>
-      <view class="hazard-desc muted">{{item.description}}</view>
+      <view class="hazard-desc">{{item.description}}</view>
 
-      <view class="hazard-meta muted">
-        <view>机组：{{item.equipment_name || "公共机房"}} · {{item.location || "厂区"}}</view>
-        <view>上报：{{item.reported_by}} · 限期：<text class="text-amber">{{item.deadline || "即刻"}}</text></view>
+      <view class="hazard-meta">
+        <view class="meta-line">📍 机组：{{item.equipment_name || "公共机房"}} · {{item.location || "厂区"}}</view>
+        <view class="meta-line">👤 上报：{{item.reported_by}} · 限期：<text class="deadline">{{item.deadline || "即刻"}}</text></view>
       </view>
 
-      <!-- 快捷处置按钮 -->
-      <view class="card-actions row" wx:if="{{item.status === 'pending'}}">
+      <view class="card-actions" wx:if="{{item.status === 'pending'}}">
         <view class="sp"></view>
-        <button class="btn btn-sm btn-primary" bindtap="quickAssign" data-id="{{item.id}}" data-title="{{item.title}}">派发消缺工单</button>
+        <button class="action-btn action-cyan" bindtap="quickAssign" data-id="{{item.id}}" data-title="{{item.title}}">派发消缺工单</button>
       </view>
-      <view class="card-actions row" wx:if="{{item.status === 'verifying'}}">
+      <view class="card-actions" wx:if="{{item.status === 'verifying'}}">
         <view class="sp"></view>
-        <button class="btn btn-sm btn-success" bindtap="quickClose" data-id="{{item.id}}">复核闭环销号</button>
+        <button class="action-btn action-green" bindtap="quickClose" data-id="{{item.id}}">复核闭环销号</button>
       </view>
     </view>
   </view>
+  <view class="safe-bottom"></view>
 </view>

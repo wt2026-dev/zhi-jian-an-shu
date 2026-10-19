@@ -99,7 +99,8 @@ Page({
     roleActionUrl: "/pages/cockpit/cockpit",
     roleCards: [],
     equipmentCount: 0,
-    healthAvg: 92,
+    healthAvg: null,
+    healthAvgText: "—",
     pendingCount: 0,
     urgentCount: 0,
     urgent: null,
@@ -164,7 +165,12 @@ Page({
       var activeLoto = lotoLocks.filter(function (l) { return l.status === "locked"; });
       var unassignedOrders = active.filter(function (o) { return o.status === "created"; });
       var pendingAcceptanceOrders = active.filter(function (o) { return o.status === "pending_acceptance"; });
-      var healthScoreAvg = equips.length ? Math.round(equips.reduce(function (s, e) { return s + (e.healthScore || 0); }, 0) / equips.length) : 92;
+      var scoredEquips = equips.filter(function (e) { return typeof e.healthScore === "number"; });
+      var healthScoreAvg = scoredEquips.length > 0
+        ? Math.round(scoredEquips.reduce(function (s, e) { return s + e.healthScore; }, 0) / scoredEquips.length)
+        : null;
+      var healthAvgDesc = healthScoreAvg != null ? ("设备均分 " + healthScoreAvg + " 分") : "暂无评估数据";
+      var healthAvgText = healthScoreAvg != null ? (healthScoreAvg + "分") : "暂无评估数据";
 
       // 角色配置与三个功能模块（待审核 / 态势感知 / 安全合规）
       var roleConfig = {
@@ -190,7 +196,7 @@ Page({
             {
               title: "态势感知",
               count: equips.filter(function (e) { return e.status === "warning" || e.status === "fault"; }).length + " 台异常",
-              desc1: "设备均分 " + healthScoreAvg + " 分",
+              desc1: healthAvgDesc,
               desc2: "正常运行 " + equips.filter(function (e) { return e.status === "running"; }).length + " 台",
               url: "/pages/cockpit/cockpit",
               badge: "态势感知",
@@ -491,6 +497,7 @@ Page({
         roleCards: cfg.cards,
         equipmentCount: equips.length || 28,
         healthAvg: healthScoreAvg,
+        healthAvgText: healthAvgText,
         pendingCount: active.length || 15,
         urgentCount: urgentList.length || 3,
         urgent: urgentList.length ? mapOrder(urgentList[0]) : {

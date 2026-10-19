@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "电子作业票文档",
-  "navigationBarBackgroundColor": "#0a0a0a",
-  "navigationBarTextStyle": "white"
+  "navigationBarBackgroundColor": "#F8FBFF",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#F2F7FD"
 }

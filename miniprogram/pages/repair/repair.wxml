@@ -1,4 +1,11 @@
-<view class="repair-container">
+<!-- 扫码极速报修 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body repair-body">
   <!-- 顶部导航条 -->
   <view class="nav-bar">
     <view class="btn-back" bindtap="onTapBack">
@@ -11,84 +18,89 @@
   </view>
 
   <!-- 网络加载中 -->
-  <view wx:if="{{loading}}" class="state-loading card-industrial">
-    <view class="loading-spinner"></view>
+  <view wx:if="{{loading}}" class="state-loading glass-card">
+    <view class="loading-ring"></view>
     <text class="loading-text">正在查询设备台账与报修档案...</text>
   </view>
 
   <!-- 网络异常 / 失败重试状态 -->
-  <view wx:elif="{{networkError}}" class="state-error card-industrial">
+  <view wx:elif="{{networkError}}" class="state-error glass-card">
     <view class="error-icon">!</view>
     <view class="error-title">网络异常或连接超时</view>
     <view class="error-msg">{{networkErrorMsg || '无法连接到检修系统后端服务'}}</view>
-    <button class="btn-retry" bindtap="retryLoad">点击重新尝试加载</button>
+    <button class="btn-gold retry-btn" bindtap="retryLoad">点击重新尝试加载</button>
   </view>
 
   <!-- 成功结果页 -->
-  <view wx:elif="{{isSuccess}}" class="success-box card-industrial">
-    <view class="success-icon">✓</view>
-    <view class="success-title">故障报修工单申报成功</view>
-    <view class="success-desc">报修单已生成并提交至调度中心，已通知机电保全部待调度处理</view>
-    
-    <view class="order-no-box">
-      <text class="label">报修工单号</text>
-      <text class="order-no font-mono">{{createdOrderNo}}</text>
-      <button class="btn-copy" bindtap="copyOrderNo">复制单号</button>
-    </view>
+  <view wx:elif="{{isSuccess}}">
+    <view class="hud-card success-box">
+      <view class="hud-accent-top"></view>
+      <view class="success-icon">✓</view>
+      <view class="success-title">故障报修工单申报成功</view>
+      <view class="success-desc">报修单已生成并提交至调度中心，已通知机电保全部待调度处理</view>
 
-    <view class="summary-info">
-      <view class="row"><text class="lbl">报修设备：</text><text class="val">{{equipment.name}} ({{equipment.code}})</text></view>
-      <view class="row"><text class="lbl">安装位置：</text><text class="val">{{equipment.workshop}} · {{equipment.location}}</text></view>
-      <view class="row"><text class="lbl">故障类别：</text><text class="val">{{faultType}}</text></view>
-      <view class="row"><text class="lbl">响应级别：</text><text class="val text-danger">{{priority}}</text></view>
-      <view wx:if="{{photos.length > 0}}" class="row"><text class="lbl">现场照片：</text><text class="val">已附带 {{photos.length}} 张凭证照片</text></view>
-    </view>
+      <view class="order-no-box">
+        <text class="order-no-label">报修工单号</text>
+        <text class="order-no mono">{{createdOrderNo}}</text>
+        <button class="btn-copy" bindtap="copyOrderNo">复制单号</button>
+      </view>
 
-    <view class="success-actions">
-      <button class="btn-primary" bindtap="goBackOrHome">返回工作台</button>
+      <view class="summary-info">
+        <view class="sum-row"><text class="sum-lbl">报修设备</text><text class="sum-val">{{equipment.name}}（{{equipment.code}}）</text></view>
+        <view class="sum-row"><text class="sum-lbl">安装位置</text><text class="sum-val">{{equipment.workshop}} · {{equipment.location}}</text></view>
+        <view class="sum-row"><text class="sum-lbl">故障类别</text><text class="sum-val">{{faultType}}</text></view>
+        <view class="sum-row"><text class="sum-lbl">响应级别</text><text class="sum-val text-danger">{{priority}}</text></view>
+        <view class="sum-row" wx:if="{{photos.length > 0}}"><text class="sum-lbl">现场照片</text><text class="sum-val">已附带 {{photos.length}} 张凭证照片</text></view>
+      </view>
+
+      <button class="btn-gold go-home-btn" bindtap="goBackOrHome">返回工作台</button>
     </view>
   </view>
 
   <!-- 报修表单 -->
   <view wx:else>
-    <!-- 顶部设备信息横幅 -->
-    <view class="equip-banner card-industrial">
+    <!-- 顶部设备信息横幅（HUD 金卡） -->
+    <view class="hud-card equip-banner">
+      <view class="hud-accent-top"></view>
       <view class="banner-badge">扫码直达设备台账</view>
       <block wx:if="{{equipment}}">
         <view class="equip-name">{{equipment.name}}</view>
-        <view class="equip-code font-mono">设备编码: {{equipment.code}}</view>
-        <view class="equip-meta">所属车间: {{equipment.workshop || '未指定车间'}}</view>
-        <view class="equip-meta">安装机位: {{equipment.location || '现场机位'}}</view>
-        <view class="equip-meta">型号规格: {{equipment.model || '标准工业型号'}}</view>
+        <view class="equip-code mono">设备编码 · {{equipment.code}}</view>
+        <view class="equip-meta">所属车间：{{equipment.workshop || '未指定车间'}}</view>
+        <view class="equip-meta">安装机位：{{equipment.location || '现场机位'}}</view>
+        <view class="equip-meta">型号规格：{{equipment.model || '标准工业型号'}}</view>
         <view class="equip-status-tag {{equipment.status === 'fault' ? 'tag-fault' : (equipment.status === 'warning' ? 'tag-warn' : 'tag-run')}}">
-          当前状态: {{equipment.status === 'fault' ? '故障中' : (equipment.status === 'warning' ? '预警关注' : '在线运行')}}
+          {{equipment.status === 'fault' ? '● 故障中' : (equipment.status === 'warning' ? '● 预警关注' : '● 在线运行')}}
         </view>
       </block>
       <block wx:elif="{{showManualSelect}}">
-        <view class="equip-name text-muted">未匹配到指定设备</view>
+        <view class="equip-name equip-name-muted">未匹配到指定设备</view>
         <view class="equip-meta">支持手动选择当前车间及生产机组进行申报：</view>
         <picker bindchange="onSelectEquipment" range="{{equipmentList}}" range-key="name">
-          <view class="picker-btn">请点击在此选择设备 ▼</view>
+          <view class="picker-btn">请点击在此选择设备 ▾</view>
         </picker>
       </block>
     </view>
 
     <!-- 报修表单卡片 -->
-    <view class="form-card card-industrial">
-      <view class="section-title">故障现场信息申报</view>
+    <view class="glass-card form-card">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">故障现场信息申报</view>
+      </view>
 
       <!-- 故障类型分类 -->
       <view class="form-group">
         <text class="field-label">故障现象分类</text>
         <picker bindchange="onFaultTypeChange" range="{{faultTypes}}">
           <view class="form-picker">
-            <text>{{faultType}}</text>
-            <text class="arrow">▼</text>
+            <text class="picker-value">{{faultType}}</text>
+            <text class="arrow">▾</text>
           </view>
         </picker>
       </view>
 
-      <!-- 紧急程度选择 (Radio 样式切换) -->
+      <!-- 紧急程度选择 -->
       <view class="form-group">
         <text class="field-label">紧急程度选择</text>
         <view class="priority-radio-group">
@@ -109,7 +121,7 @@
         </view>
       </view>
 
-      <!-- 故障现场描述 (必填，≤500字，带字数统计) -->
+      <!-- 故障现场描述 -->
       <view class="form-group">
         <view class="field-header">
           <text class="field-label">故障现象详细描述 <text class="text-danger">*</text></text>
@@ -124,10 +136,10 @@
         />
       </view>
 
-      <!-- 现场照片凭证 (wx.chooseMedia 最多 3 张，支持预览与删除) -->
+      <!-- 现场照片凭证 -->
       <view class="form-group">
         <view class="field-header">
-          <text class="field-label">现场照片凭据 (最多3张)</text>
+          <text class="field-label">现场照片凭据（最多3张）</text>
           <text class="field-tip">{{photos.length}}/3</text>
         </view>
         <view class="photo-grid">
@@ -156,9 +168,9 @@
         </view>
       </view>
 
-      <!-- 提交按钮：防重与 Loading 态 -->
+      <!-- 提交按钮 -->
       <button
-        class="btn-submit {{submitting ? 'btn-disabled' : ''}}"
+        class="btn-gold btn-submit {{submitting ? 'btn-disabled' : ''}}"
         loading="{{submitting}}"
         disabled="{{submitting}}"
         bindtap="handleSubmit"
@@ -167,4 +179,6 @@
       </button>
     </view>
   </view>
+
+  <view class="safe-bottom"></view>
 </view>

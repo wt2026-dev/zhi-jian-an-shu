@@ -637,6 +637,7 @@
 
   <!-- MAIN APPLICATION SCRIPT -->
   <script>
+    let decorRingsOn = false;
     // =========================================================================
     // 1. COMPLETE 32-PART BOM ENGINEERING DATASET FOR 7# COILER PLANETARY GEARBOX
     // =========================================================================
@@ -1399,36 +1400,63 @@
       workbenchGroup.add(new THREE.LineSegments(gridGeo, gridMat));
 
       // 4. Crisp White Concentric Calibration Circles & Radial Sector Lines
-      const concentricRadii = [1.25, 2.5, 3.75, 5.0, 5.95];
-      concentricRadii.forEach((r, idx) => {
-        const segs = 96;
-        const pts = [];
-        for (let i = 0; i <= segs; i++) {
-          const theta = (i / segs) * Math.PI * 2;
-          pts.push(new THREE.Vector3(Math.cos(theta) * r, 0.006, Math.sin(theta) * r));
-        }
-        const cGeo = new THREE.BufferGeometry().setFromPoints(pts);
-        const cMat = new THREE.LineBasicMaterial({
-          color: idx === concentricRadii.length - 1 ? 0x7dd3fc : 0xffffff,
-          transparent: true,
-          opacity: idx % 2 === 0 ? 0.42 : 0.25
-        });
-        workbenchGroup.add(new THREE.Line(cGeo, cMat));
-      });
+      const decorRingsGroup = new THREE.Group();
+      workbenchGroup.add(decorRingsGroup);
 
-      const radialPts = [];
-      for (let i = 0; i < 12; i++) {
-        const theta = (i / 12) * Math.PI * 2;
-        radialPts.push(new THREE.Vector3(Math.cos(theta) * 0.6, 0.006, Math.sin(theta) * 0.6));
-        radialPts.push(new THREE.Vector3(Math.cos(theta) * 5.95, 0.006, Math.sin(theta) * 5.95));
+      function buildDecorRings() {
+        clearDecorRings();
+        const concentricRadii = [1.25, 2.5, 3.75, 5.0, 5.95];
+        concentricRadii.forEach((r, idx) => {
+          const segs = 96;
+          const pts = [];
+          for (let i = 0; i <= segs; i++) {
+            const theta = (i / segs) * Math.PI * 2;
+            pts.push(new THREE.Vector3(Math.cos(theta) * r, 0.006, Math.sin(theta) * r));
+          }
+          const cGeo = new THREE.BufferGeometry().setFromPoints(pts);
+          const cMat = new THREE.LineBasicMaterial({
+            color: idx === concentricRadii.length - 1 ? 0x7dd3fc : 0xffffff,
+            transparent: true,
+            opacity: idx % 2 === 0 ? 0.42 : 0.25
+          });
+          decorRingsGroup.add(new THREE.Line(cGeo, cMat));
+        });
+
+        const radialPts = [];
+        for (let i = 0; i < 12; i++) {
+          const theta = (i / 12) * Math.PI * 2;
+          radialPts.push(new THREE.Vector3(Math.cos(theta) * 0.6, 0.006, Math.sin(theta) * 0.6));
+          radialPts.push(new THREE.Vector3(Math.cos(theta) * 5.95, 0.006, Math.sin(theta) * 5.95));
+        }
+        const radialGeo = new THREE.BufferGeometry().setFromPoints(radialPts);
+        const radialMat = new THREE.LineBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.28
+        });
+        decorRingsGroup.add(new THREE.LineSegments(radialGeo, radialMat));
       }
-      const radialGeo = new THREE.BufferGeometry().setFromPoints(radialPts);
-      const radialMat = new THREE.LineBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.28
-      });
-      workbenchGroup.add(new THREE.LineSegments(radialGeo, radialMat));
+
+      function clearDecorRings() {
+        while (decorRingsGroup.children.length > 0) {
+          decorRingsGroup.remove(decorRingsGroup.children[0]);
+        }
+      }
+
+      if (decorRingsOn) {
+        buildDecorRings();
+      }
+
+      function setDecorRings(on) {
+        decorRingsOn = Boolean(on);
+        if (decorRingsOn) {
+          buildDecorRings();
+        } else {
+          clearDecorRings();
+        }
+        return decorRingsOn;
+      }
+      window.setDecorRings = setDecorRings;
     }
     buildCircularWorkbench();
 

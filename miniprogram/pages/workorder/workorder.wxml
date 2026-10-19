@@ -1,265 +1,226 @@
-<!-- pages/workorder/workorder.wxml -->
-<view class="page-workorder">
+<!-- 作业票审批与气体联锁 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body wo-body">
   <!-- Header -->
-  <view class="header safe-top">
-    <view class="header-row flex items-center justify-between px-4 h-14">
-      <view class="flex items-center gap-3">
-        <view class="w-9 h-9 rounded-lg flex items-center justify-center text-on-surface" bindtap="onBack">
-          <text class="back-arrow">←</text>
+  <view class="wo-header safe-top">
+    <view class="wo-header-row">
+      <view class="wo-header-left">
+        <view class="back-btn" bindtap="onBack">
+          <text class="back-arrow">‹</text>
         </view>
-        <view>
-          <view class="flex items-center gap-2">
-            <text class="font-bold text-14px text-on-surface">作业票审批与气体联锁</text>
-            <view class="badge-orange text-10px font-semibold">GB 30871 联锁</view>
+        <view class="wo-title-box">
+          <view class="wo-title-row">
+            <text class="wo-title">作业票审批与气体联锁</text>
+            <view class="chip-gold wo-badge">GB 30871 联锁</view>
           </view>
-          <text class="font-mono text-11px text-tech-muted mt-1 leading-none">安全票号: {{ticket.safetyNo}}</text>
+          <text class="wo-ticket-no mono">安全票号 · {{ticket.safetyNo}}</text>
         </view>
       </view>
-      <view class="flex items-center gap-2">
-        <view class="status-indicator status-online font-mono text-10px">
-          <view class="dot-green animate-pulse"></view>
-          <text>无线网格通信</text>
-        </view>
-        <view class="w-8 h-8 rounded-lg bg-surface-container-high border border-industrial-border flex items-center justify-center text-primary text-18px">
-          <text>✓</text>
-        </view>
+      <view class="online-chip">
+        <view class="online-dot"></view>
+        <text>无线网格通信</text>
       </view>
     </view>
   </view>
 
-  <!-- Main Content -->
-  <view class="main-body px-3-5 py-3-5 pb-36">
-    <view class="flex flex-col gap-3">
-
-      <!-- Section 1: 票据状态与核心元数据网格 -->
-      <view class="card">
-        <view class="grid grid-cols-2 gap-2 mb-3">
-          <view class="card-sm p-2-5">
-            <view class="text-10px text-tech-muted font-medium flex items-center gap-1 mb-1">
-              <text class="text-primary">⚙</text>
-              <text>作业类型</text>
-            </view>
-            <text class="font-semibold text-13px text-on-surface truncate">{{ticket.workType}}</text>
-            <text class="text-10px text-tech-muted font-mono mt-0-5">{{ticket.workTypeSub}}</text>
-          </view>
-          <view class="card-sm p-2-5">
-            <view class="text-10px text-tech-muted font-medium flex items-center gap-1 mb-1">
-              <text class="text-primary">◎</text>
-              <text>作业区域</text>
-            </view>
-            <text class="font-semibold text-13px text-on-surface truncate">{{ticket.area}}</text>
-            <text class="text-10px text-tech-muted font-mono mt-0-5">{{ticket.areaSub}}</text>
-          </view>
-          <view class="card-sm p-2-5">
-            <view class="text-10px text-tech-muted font-medium flex items-center gap-1 mb-1">
-              <text class="text-hazard-amber">⏳</text>
-              <text>当前节点</text>
-            </view>
-            <text class="font-semibold text-13px text-hazard-amber truncate">{{ticket.currentNode}}</text>
-            <text class="text-10px text-tech-muted font-mono mt-0-5">{{ticket.nodeSub}}</text>
-          </view>
-          <view class="card-sm p-2-5">
-            <view class="text-10px text-tech-muted font-medium flex items-center gap-1 mb-1">
-              <text class="text-primary">⏱</text>
-              <text>时效倒计时</text>
-            </view>
-            <text class="font-mono font-bold text-14px text-primary truncate">{{ticket.countdown}}</text>
-            <text class="text-10px text-tech-muted font-mono mt-0-5">{{ticket.countdownSub}}</text>
-          </view>
+  <view class="wo-content">
+    <!-- Section 1: 票据状态与核心元数据 -->
+    <view class="hud-card wo-card">
+      <view class="hud-accent-top"></view>
+      <view class="meta-grid">
+        <view class="meta-cell">
+          <view class="meta-label"><text class="meta-icon">⚙</text>作业类型</view>
+          <view class="meta-value">{{ticket.workType}}</view>
+          <view class="meta-sub mono">{{ticket.workTypeSub}}</view>
         </view>
-
-        <!-- 安全联锁总控条 -->
-        <view class="lock-bar bg-surface-container-lowest rounded-lg border border-industrial-border p-2-5 flex items-center justify-between">
-          <view class="flex items-center gap-2 min-w-0">
-            <view class="w-7 h-7 rounded bg-status-green-10 border border-status-green-30 flex items-center justify-center text-status-green shrink-0">
-              <text class="text-18px">🔒</text>
-            </view>
-            <view class="min-w-0">
-              <text class="text-12px font-semibold text-on-surface">安全隔离与气体联锁监测状态</text>
-              <text class="text-10px font-mono text-tech-muted truncate block">硬件阀门联锁回路已挂载 · 闭锁防开逻辑生效</text>
-            </view>
-          </view>
-          <view class="badge-green font-mono text-10px font-bold shrink-0 ml-2">安全联锁生效</view>
+        <view class="meta-cell">
+          <view class="meta-label"><text class="meta-icon">◎</text>作业区域</view>
+          <view class="meta-value">{{ticket.area}}</view>
+          <view class="meta-sub mono">{{ticket.areaSub}}</view>
+        </view>
+        <view class="meta-cell">
+          <view class="meta-label"><text class="meta-icon text-warning">⏳</text>当前节点</view>
+          <view class="meta-value text-warning">{{ticket.currentNode}}</view>
+          <view class="meta-sub mono">{{ticket.nodeSub}}</view>
+        </view>
+        <view class="meta-cell">
+          <view class="meta-label"><text class="meta-icon text-cyan">⏱</text>时效倒计时</view>
+          <view class="meta-value meta-countdown mono">{{ticket.countdown}}</view>
+          <view class="meta-sub mono">{{ticket.countdownSub}}</view>
         </view>
       </view>
 
-      <!-- Section 2: 四类关键气体实时联锁读数 -->
-      <view class="card">
-        <view class="flex items-center justify-between pb-2-5 border-b border-industrial-border-70 mb-3">
-          <view class="flex items-center gap-2">
-            <text class="text-primary text-18px">◉</text>
-            <text class="text-13px font-bold text-on-surface">四类关键气体实时联锁读数</text>
-            <view class="bg-surface-container-highest font-mono text-10px text-on-surface-variant font-medium px-1-5 py-0-5 rounded">四通道分析仪</view>
-          </view>
-          <view class="flex items-center gap-1 text-10px font-mono text-tech-muted">
-            <view class="dot-green-sm"></view>
-            <text>泵吸式检测仪在线</text>
+      <!-- 安全联锁总控条 -->
+      <view class="lock-bar">
+        <view class="lock-left">
+          <view class="lock-icon">🔒</view>
+          <view class="lock-text">
+            <view class="lock-title">安全隔离与气体联锁监测状态</view>
+            <view class="lock-sub mono">硬件阀门联锁回路已挂载 · 闭锁防开逻辑生效</view>
           </view>
         </view>
+        <view class="chip-cyan lock-chip">安全联锁生效</view>
+      </view>
+    </view>
 
-        <view class="grid grid-cols-2 gap-2-5">
-          <view class="gas-card flex flex-col justify-between" wx:for="{{gases}}" wx:key="name">
-            <view class="flex items-center justify-between mb-1-5">
-              <text class="font-mono font-bold text-12px text-on-surface">{{item.name}}</text>
-              <view class="badge-green font-mono text-10px font-bold">达标 合格</view>
-            </view>
-            <view class="flex items-baseline gap-1 my-1">
-              <text class="gas-value">{{item.value}}</text>
-              <text class="gas-unit">{{item.unit}}</text>
-            </view>
-            <view class="gas-progress"></view>
-            <view class="flex items-center justify-between text-9px font-mono text-tech-muted">
-              <text>{{item.range}}</text>
-              <text>{{item.refresh}}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 设备通讯说明条 -->
-        <view class="mt-2-5 px-2-5 py-2 rounded bg-surface-container-lowest border border-industrial-subtle flex items-center justify-between text-11px">
-          <view class="flex items-center gap-1-5 text-on-surface-variant">
-            <text class="text-primary text-15px">⬡</text>
-            <text>7041B型 便携泵吸式气体检测仪实时上传</text>
-          </view>
-          <text class="font-mono text-tech-muted text-10px">采样周期 10秒</text>
-        </view>
+    <!-- Section 2: 四类关键气体实时联锁读数 -->
+    <view class="glass-card wo-card">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">四类关键气体实时联锁读数</view>
+        <view class="online-chip gas-online"><view class="online-dot"></view><text>检测仪在线</text></view>
       </view>
 
-      <!-- Section 3: 审批与安全核验节点流 -->
-      <view class="card">
-        <view class="flex items-center justify-between mb-3">
-          <view class="flex items-center gap-2">
-            <text class="text-primary text-18px">⊞</text>
-            <text class="text-13px font-bold text-on-surface">审批与安全核验节点流</text>
+      <view class="gas-grid">
+        <view class="gas-card" wx:for="{{gases}}" wx:key="name">
+          <view class="gas-head">
+            <text class="gas-name mono">{{item.name}}</text>
+            <view class="gas-ok">达标</view>
           </view>
-          <text class="font-mono text-10px text-tech-muted">防篡改数字存证</text>
-        </view>
-
-        <view class="timeline">
-          <view class="timeline-item" wx:for="{{timeline}}" wx:key="title">
-            <view class="timeline-dot {{item.status === 'done' ? 'timeline-dot-done' : 'timeline-dot-active'}}">
-              <text wx:if="{{item.status === 'done'}}">✓</text>
-              <text wx:else>✎</text>
-            </view>
-
-            <!-- Done node -->
-            <view wx:if="{{item.status === 'done'}}" class="card-sm p-2-5">
-              <view class="flex items-center justify-between">
-                <text class="text-12px font-semibold text-on-surface">{{item.title}}</text>
-                <text class="font-mono text-11px text-tech-muted">{{item.time}}</text>
-              </view>
-              <text class="text-11px text-on-surface-variant mt-1 block">{{item.desc}}</text>
-              <view wx:if="{{item.detailType === 'green'}}" class="text-10px text-status-green font-mono mt-0-5 flex items-center gap-1">
-                <text class="text-12px">✓</text>
-                <text>{{item.detail}}</text>
-              </view>
-              <view wx:elif="{{item.detailType === 'primary'}}" class="text-10px text-primary font-mono mt-0-5 flex items-center gap-1">
-                <text class="text-12px">◉</text>
-                <text>{{item.detail}}</text>
-              </view>
-              <text wx:else class="text-10px text-tech-muted font-mono mt-0-5 block">{{item.detail}}</text>
-            </view>
-
-            <!-- Active node -->
-            <view wx:if="{{item.status === 'active'}}" class="card-highlight p-3">
-              <view class="flex items-center justify-between">
-                <text class="text-13px font-bold text-primary">{{item.title}}</text>
-                <view class="badge-primary font-mono text-10px font-bold">待审批</view>
-              </view>
-              <view class="flex items-center justify-between mt-2 pt-2 border-t border-industrial-border-60">
-                <view class="flex items-center gap-2">
-                  <view class="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-primary text-11px font-bold">{{item.initial}}</view>
-                  <text class="text-12px text-on-surface font-medium">{{item.approver}} <text class="text-11px text-tech-muted font-normal">{{item.approverRole}}</text></text>
-                </view>
-                <view class="bg-surface-container border border-industrial-border font-mono text-10px text-primary px-1-5 py-0-5 rounded">特级签发权限</view>
-              </view>
-              <text class="text-11px text-on-surface-variant mt-2 leading-relaxed block">{{item.desc}}</text>
-            </view>
+          <view class="gas-value-row">
+            <text class="gas-value">{{item.value}}</text>
+            <text class="gas-unit">{{item.unit}}</text>
+          </view>
+          <view class="gas-progress"><view class="gas-progress-fill"></view></view>
+          <view class="gas-foot">
+            <text class="mono">{{item.range}}</text>
+            <text class="mono">{{item.refresh}}</text>
           </view>
         </view>
       </view>
 
-      <!-- Section 4: 签名与批准操作区 -->
-      <view class="card">
-        <view class="flex items-center justify-between mb-2">
-          <view class="flex items-center gap-1-5">
-            <text class="text-primary text-18px">⬡</text>
-            <text class="text-13px font-bold text-on-surface">电子验签与合规签署</text>
-          </view>
-          <text class="font-mono text-10px text-tech-muted">GB 30871 规范合规</text>
+      <!-- 设备通讯说明条 -->
+      <view class="comm-bar">
+        <view class="comm-left">
+          <text class="comm-icon">⬡</text>
+          <text>7041B型 便携泵吸式气体检测仪实时上传</text>
         </view>
-        <view class="sign-area bg-surface-container rounded-lg border border-dashed border-industrial-border p-3 flex flex-col items-center justify-center text-center" bindtap="onTouchSign">
-          <view class="w-10 h-10 rounded-full bg-surface-container-high border border-industrial-border flex items-center justify-center text-primary mb-1-5">
-            <text class="text-24px">👆</text>
-          </view>
-          <text class="text-12px font-semibold text-on-surface">点击进行指纹/生物识别触控验签</text>
-          <text class="text-10px text-tech-muted font-mono mt-0-5">国密CA数字证书防伪加密 · 自动附加时间戳与审批哈希</text>
-        </view>
+        <text class="comm-period mono">采样周期 10 秒</text>
+      </view>
+    </view>
+
+    <!-- Section 3: 审批与安全核验节点流 -->
+    <view class="glass-card wo-card">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">审批与安全核验节点流</view>
+        <view class="section-title-sub">防篡改数字存证</view>
       </view>
 
+      <view class="timeline">
+        <view class="timeline-item" wx:for="{{timeline}}" wx:key="title">
+          <view class="timeline-dot {{item.status === 'done' ? 'timeline-dot-done' : 'timeline-dot-active'}}">
+            <text wx:if="{{item.status === 'done'}}">✓</text>
+            <text wx:else>✎</text>
+          </view>
+
+          <!-- Done node -->
+          <view wx:if="{{item.status === 'done'}}" class="tl-card">
+            <view class="tl-head">
+              <text class="tl-title">{{item.title}}</text>
+              <text class="tl-time mono">{{item.time}}</text>
+            </view>
+            <text class="tl-desc">{{item.desc}}</text>
+            <view wx:if="{{item.detailType === 'green'}}" class="tl-detail tl-detail-green">
+              <text>✓</text><text>{{item.detail}}</text>
+            </view>
+            <view wx:elif="{{item.detailType === 'primary'}}" class="tl-detail tl-detail-cyan">
+              <text>◉</text><text>{{item.detail}}</text>
+            </view>
+            <text wx:else class="tl-detail tl-detail-muted">{{item.detail}}</text>
+          </view>
+
+          <!-- Active node -->
+          <view wx:if="{{item.status === 'active'}}" class="tl-card tl-active-card">
+            <view class="tl-head">
+              <text class="tl-active-title">{{item.title}}</text>
+              <view class="chip-gold">待审批</view>
+            </view>
+            <view class="approver-row">
+              <view class="approver-avatar">{{item.initial}}</view>
+              <text class="approver-name">{{item.approver}} <text class="approver-role">{{item.approverRole}}</text></text>
+              <view class="permit-chip">特级签发权限</view>
+            </view>
+            <text class="tl-desc">{{item.desc}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- Section 4: 签名与批准操作区 -->
+    <view class="glass-card wo-card">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">电子验签与合规签署</view>
+        <view class="section-title-sub">GB 30871 规范合规</view>
+      </view>
+      <view class="sign-area" bindtap="onTouchSign">
+        <view class="sign-icon">👆</view>
+        <text class="sign-title">点击进行指纹 / 生物识别触控验签</text>
+        <text class="sign-sub mono">国密CA数字证书防伪加密 · 自动附加时间戳与审批哈希</text>
+      </view>
     </view>
   </view>
 
   <!-- Bottom Bar -->
   <view class="bottom-bar safe-bottom">
-    <view class="flex items-center gap-2-5">
-      <view class="btn-reject h-12 px-4 rounded-lg bg-surface-container-high border border-industrial-border flex items-center justify-center gap-1-5 shrink-0" bindtap="onReject">
-        <text class="text-18px text-error">↩</text>
-        <text class="font-semibold text-13px text-error">退回修正</text>
+    <view class="bottom-row">
+      <view class="btn-reject" bindtap="onReject">
+        <text>↩</text>
+        <text>退回修正</text>
       </view>
-      <view class="btn-approve flex-1 h-12 rounded-lg bg-primary-container flex items-center justify-center gap-1-5 shadow {{approveDisabled ? 'btn-disabled' : ''}}" bindtap="onApprove">
-        <text class="text-20px text-on-primary-container">{{approveDisabled ? '✓' : '✓'}}</text>
-        <text class="font-bold text-14px text-on-primary-container">{{approveText}}</text>
+      <view class="btn-approve {{approveDisabled ? 'btn-disabled' : ''}}" bindtap="onApprove">
+        <text>✓</text>
+        <text>{{approveText}}</text>
       </view>
     </view>
   </view>
 
   <!-- Sign Modal -->
   <view class="modal-mask {{showModal ? '' : 'hidden'}}" catchtouchmove="preventMove">
-    <view class="modal-content flex flex-col gap-3">
-      <view class="flex items-center justify-between">
-        <view class="flex items-center gap-2">
-          <view class="w-7 h-7 rounded bg-primary-15 border border-primary-30 flex items-center justify-center text-primary">
-            <text class="text-18px">🔐</text>
-          </view>
+    <view class="modal-content">
+      <view class="modal-head">
+        <view class="modal-head-left">
+          <view class="modal-lock">🔐</view>
           <view>
-            <text class="font-bold text-14px text-on-surface">数字证书与签名核验</text>
-            <text class="font-mono text-10px text-tech-muted block">GB 30871 危险化学品企业特殊作业规范</text>
+            <text class="modal-title">数字证书与签名核验</text>
+            <text class="modal-sub mono">GB 30871 危险化学品企业特殊作业规范</text>
           </view>
         </view>
-        <view class="p-1" bindtap="onCloseModal">
-          <text class="text-20px text-on-surface-variant">✕</text>
+        <view class="modal-close" bindtap="onCloseModal">✕</view>
+      </view>
+
+      <view class="modal-info">
+        <view class="modal-info-row">
+          <text class="mi-key mono">作业票号</text>
+          <text class="mi-val mono">{{ticket.ticketNo}}</text>
+        </view>
+        <view class="modal-info-row">
+          <text class="mi-key">审批权限</text>
+          <text class="mi-val text-cyan">安环部 安全总监（终审签发）</text>
+        </view>
+        <view class="modal-info-row">
+          <text class="mi-key">联锁状态</text>
+          <text class="mi-val text-success">4通道气体全部达标 · 联锁生效</text>
         </view>
       </view>
 
-      <view class="bg-surface-container-lowest p-2-5 rounded-lg border border-industrial-subtle text-11px text-on-surface-variant">
-        <view class="flex justify-between font-mono mb-1">
-          <text class="text-tech-muted">作业票号:</text>
-          <text class="text-on-surface">{{ticket.ticketNo}}</text>
-        </view>
-        <view class="flex justify-between font-mono mb-1">
-          <text class="text-tech-muted">审批权限:</text>
-          <text class="text-primary">安环部 安全总监 (终审签发)</text>
-        </view>
-        <view class="flex justify-between font-mono">
-          <text class="text-tech-muted">联锁状态:</text>
-          <text class="text-status-green font-bold">4通道气体全部达标 · 联锁生效</text>
-        </view>
+      <view class="sign-preview">
+        <text class="sign-preview-icon">⬡</text>
+        <text class="mono">{{signInfo.signUser}} · CA数字指纹已锁定</text>
+        <text class="sign-hash mono">{{signInfo.shaHash}}</text>
       </view>
 
-      <view class="w-full h-28 bg-surface-container-lowest rounded-lg border border-dashed border-industrial-border flex flex-col items-center justify-center text-tech-muted p-2">
-        <text class="text-primary text-32px mb-1">⬡</text>
-        <text class="font-mono text-11px text-on-surface">{{signInfo.signUser}} · CA数字指纹已锁定</text>
-        <text class="font-mono text-9px text-tech-muted mt-0-5">{{signInfo.shaHash}}</text>
-      </view>
-
-      <view class="flex items-center gap-2 pt-1">
-        <view class="h-11 flex-1 bg-surface-container border border-industrial-border rounded-lg flex items-center justify-center" bindtap="onCancelSign">
-          <text class="text-13px font-semibold text-on-surface">取消</text>
-        </view>
-        <view class="h-11 flex-1 bg-primary-container rounded-lg flex items-center justify-center gap-1-5 shadow" bindtap="onConfirmSign">
-          <text class="text-18px text-on-primary-container">✓</text>
-          <text class="text-13px font-bold text-on-primary-container">确认核发特级动火令</text>
+      <view class="modal-actions">
+        <view class="modal-cancel" bindtap="onCancelSign">取消</view>
+        <view class="modal-confirm" bindtap="onConfirmSign">
+          <text>✓</text>
+          <text>确认核发特级动火令</text>
         </view>
       </view>
     </view>

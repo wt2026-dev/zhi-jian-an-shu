@@ -482,6 +482,7 @@
 
   <!-- ==================== THREE.JS & APPLICATION LOGIC ==================== -->
   <script>
+    let decorRingsOn = false;
     // =========================================================================
     // 1. BOM & 3D PART DEFINITIONS (12 Core Assemblies faithful to screenshot)
     // =========================================================================
@@ -962,7 +963,11 @@
     const workshopContextGroup = new THREE.Group();
     scene.add(workshopContextGroup);
 
-    function buildWorkshopContext() {
+    const decorRingsGroup = new THREE.Group();
+    workshopContextGroup.add(decorRingsGroup);
+
+    function buildDecorRings() {
+      clearDecorRings();
       // 1. Green circular safety zone on floor around motor (matching screenshot!)
       const greenRingGeo = new THREE.RingGeometry(2.6, 3.65, 64);
       const greenRingMat = new THREE.MeshBasicMaterial({
@@ -974,7 +979,31 @@
       const greenRing = new THREE.Mesh(greenRingGeo, greenRingMat);
       greenRing.rotation.x = -Math.PI / 2;
       greenRing.position.y = -2.1;
-      workshopContextGroup.add(greenRing);
+      decorRingsGroup.add(greenRing);
+    }
+
+    function clearDecorRings() {
+      while (decorRingsGroup.children.length > 0) {
+        decorRingsGroup.remove(decorRingsGroup.children[0]);
+      }
+    }
+
+    if (decorRingsOn) {
+      buildDecorRings();
+    }
+
+    function setDecorRings(on) {
+      decorRingsOn = Boolean(on);
+      if (decorRingsOn) {
+        buildDecorRings();
+      } else {
+        clearDecorRings();
+      }
+      return decorRingsOn;
+    }
+    window.setDecorRings = setDecorRings;
+
+    function buildWorkshopContext() {
 
       // 2. Yellow-Black Hazard Stripe Square Frame on floor (matching screenshot!)
       const hazardCanvas = document.createElement('canvas');

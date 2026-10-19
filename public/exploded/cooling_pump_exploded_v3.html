@@ -531,6 +531,7 @@
   </div>
 
   <script>
+    let decorRingsOn = false;
     // =========================================================================
     // 1. 参考图数据与 35 组完整 BOM 零件库 (主轴沿 X 轴 左→右 排布！)
     // =========================================================================
@@ -944,7 +945,7 @@
     // =========================================================================
     // 2. 程序化高精度纹理：黑色圆形白色网格工作台、压力表盘、不锈钢铭牌
     // =========================================================================
-    function createWorkbenchDialTexture() {
+    function createWorkbenchTopTexture(withDial = decorRingsOn) {
       const canvas = document.createElement('canvas');
       canvas.width = 2048;
       canvas.height = 2048;
@@ -970,87 +971,93 @@
         ctx.stroke();
       }
 
-      // Crisp White & Ice-Blue Concentric Grid Rings (matching Blender reference!)
-      const mainRadii = [140, 240, 380, 520, 680, 820, 920, 965];
-      mainRadii.forEach((r, idx) => {
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = idx >= 6 ? 'rgba(255, 255, 255, 0.72)' : 'rgba(226, 232, 240, 0.38)';
-        ctx.lineWidth = idx === 6 ? 6 : (idx === 1 || idx === 4 ? 3 : 1.8);
-        if (idx === 2 || idx === 5) ctx.setLineDash([18, 10]);
-        else ctx.setLineDash([]);
-        ctx.stroke();
-      });
-      ctx.setLineDash([]);
+      if (withDial) {
+        // Crisp White & Ice-Blue Concentric Grid Rings (matching Blender reference!)
+        const mainRadii = [140, 240, 380, 520, 680, 820, 920, 965];
+        mainRadii.forEach((r, idx) => {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = idx >= 6 ? 'rgba(255, 255, 255, 0.72)' : 'rgba(226, 232, 240, 0.38)';
+          ctx.lineWidth = idx === 6 ? 6 : (idx === 1 || idx === 4 ? 3 : 1.8);
+          if (idx === 2 || idx === 5) ctx.setLineDash([18, 10]);
+          else ctx.setLineDash([]);
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
 
-      // White Degree Scale Ticks around Outer Ring (r = 820 ~ 920)
-      for (let deg = 0; deg < 360; deg += 2) {
-        const rad = (deg * Math.PI) / 180;
-        const isMajor = deg % 30 === 0;
-        const isMid = deg % 10 === 0;
-        const rInner = isMajor ? 832 : (isMid ? 854 : 872);
-        const rOuter = 896;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(rad) * rInner, cy + Math.sin(rad) * rInner);
-        ctx.lineTo(cx + Math.cos(rad) * rOuter, cy + Math.sin(rad) * rOuter);
-        ctx.strokeStyle = isMajor ? 'rgba(255, 255, 255, 0.92)' : (isMid ? 'rgba(226, 232, 240, 0.6)' : 'rgba(148, 163, 184, 0.3)');
-        ctx.lineWidth = isMajor ? 3.5 : (isMid ? 2 : 1.2);
-        ctx.stroke();
+        // White Degree Scale Ticks around Outer Ring (r = 820 ~ 920)
+        for (let deg = 0; deg < 360; deg += 2) {
+          const rad = (deg * Math.PI) / 180;
+          const isMajor = deg % 30 === 0;
+          const isMid = deg % 10 === 0;
+          const rInner = isMajor ? 832 : (isMid ? 854 : 872);
+          const rOuter = 896;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(rad) * rInner, cy + Math.sin(rad) * rInner);
+          ctx.lineTo(cx + Math.cos(rad) * rOuter, cy + Math.sin(rad) * rOuter);
+          ctx.strokeStyle = isMajor ? 'rgba(255, 255, 255, 0.92)' : (isMid ? 'rgba(226, 232, 240, 0.6)' : 'rgba(148, 163, 184, 0.3)');
+          ctx.lineWidth = isMajor ? 3.5 : (isMid ? 2 : 1.2);
+          ctx.stroke();
 
-        if (isMajor) {
-          ctx.save();
-          ctx.translate(cx + Math.cos(rad) * 802, cy + Math.sin(rad) * 802);
-          ctx.rotate(rad + Math.PI / 2);
-          ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
-          ctx.font = 'bold 20px "JetBrains Mono", monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText(`${deg}°`, 0, 0);
-          ctx.restore();
+          if (isMajor) {
+            ctx.save();
+            ctx.translate(cx + Math.cos(rad) * 802, cy + Math.sin(rad) * 802);
+            ctx.rotate(rad + Math.PI / 2);
+            ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
+            ctx.font = 'bold 20px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${deg}°`, 0, 0);
+            ctx.restore();
+          }
         }
-      }
 
-      // Inner White Segmented Reticle Brackets
-      for (let i = 0; i < 4; i++) {
-        const startAngle = (i * Math.PI) / 2 + 0.22;
-        const endAngle = ((i + 1) * Math.PI) / 2 - 0.22;
+        // Inner White Segmented Reticle Brackets
+        for (let i = 0; i < 4; i++) {
+          const startAngle = (i * Math.PI) / 2 + 0.22;
+          const endAngle = ((i + 1) * Math.PI) / 2 - 0.22;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 195, startAngle, endAngle);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+          ctx.lineWidth = 4;
+          ctx.stroke();
+        }
+
+        // Radial White Coordinate Lines
+        for (let deg = 0; deg < 360; deg += 45) {
+          const rad = (deg * Math.PI) / 180;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(rad) * 145, cy + Math.sin(rad) * 145);
+          ctx.lineTo(cx + Math.cos(rad) * 960, cy + Math.sin(rad) * 960);
+          ctx.strokeStyle = deg % 90 === 0 ? 'rgba(255, 255, 255, 0.45)' : 'rgba(226, 232, 240, 0.22)';
+          ctx.lineWidth = deg % 90 === 0 ? 2.4 : 1.4;
+          ctx.stroke();
+        }
+
+        // Center Orange Precision Crosshair "X" (matching image_439ea3.png!)
+        ctx.strokeStyle = '#f97316';
+        ctx.lineWidth = 4.5;
         ctx.beginPath();
-        ctx.arc(cx, cy, 195, startAngle, endAngle);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.lineWidth = 4;
+        ctx.moveTo(cx - 28, cy - 28); ctx.lineTo(cx + 28, cy + 28);
+        ctx.moveTo(cx + 28, cy - 28); ctx.lineTo(cx - 28, cy + 28);
         ctx.stroke();
+
+        // Technical Inscriptions
+        ctx.fillStyle = 'rgba(248, 250, 252, 0.55)';
+        ctx.font = 'bold 24px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('1# 离心主循环给水泵 / 12# 结晶器冷却循环泵 · 精密拆解台', cx, cy + 748);
+        ctx.font = '18px "JetBrains Mono", monospace';
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
+        ctx.fillText('AXIAL EXPLODED DIRECTION: [LEFT: SUCTION INLET] ──────▶ [RIGHT: DRIVE MOTOR]', cx, cy - 728);
       }
-
-      // Radial White Coordinate Lines
-      for (let deg = 0; deg < 360; deg += 45) {
-        const rad = (deg * Math.PI) / 180;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(rad) * 145, cy + Math.sin(rad) * 145);
-        ctx.lineTo(cx + Math.cos(rad) * 960, cy + Math.sin(rad) * 960);
-        ctx.strokeStyle = deg % 90 === 0 ? 'rgba(255, 255, 255, 0.45)' : 'rgba(226, 232, 240, 0.22)';
-        ctx.lineWidth = deg % 90 === 0 ? 2.4 : 1.4;
-        ctx.stroke();
-      }
-
-      // Center Orange Precision Crosshair "X" (matching image_439ea3.png!)
-      ctx.strokeStyle = '#f97316';
-      ctx.lineWidth = 4.5;
-      ctx.beginPath();
-      ctx.moveTo(cx - 28, cy - 28); ctx.lineTo(cx + 28, cy + 28);
-      ctx.moveTo(cx + 28, cy - 28); ctx.lineTo(cx - 28, cy + 28);
-      ctx.stroke();
-
-      // Technical Inscriptions
-      ctx.fillStyle = 'rgba(248, 250, 252, 0.55)';
-      ctx.font = 'bold 24px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('1# 离心主循环给水泵 / 12# 结晶器冷却循环泵 · 精密拆解台', cx, cy + 748);
-      ctx.font = '18px "JetBrains Mono", monospace';
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
-      ctx.fillText('AXIAL EXPLODED DIRECTION: [LEFT: SUCTION INLET] ──────▶ [RIGHT: DRIVE MOTOR]', cx, cy - 728);
 
       const tex = new THREE.CanvasTexture(canvas);
       tex.anisotropy = 8;
       return tex;
+    }
+
+    function createWorkbenchDialTexture() {
+      return createWorkbenchTopTexture(true);
     }
 
     function createPressureGaugeTexture() {
@@ -1228,7 +1235,7 @@
     const environmentGroup = new THREE.Group();
     scene.add(environmentGroup);
 
-    const workbenchTexture = createWorkbenchDialTexture();
+    const workbenchTexture = createWorkbenchTopTexture(decorRingsOn);
     const tableTopMesh = new THREE.Mesh(
       new THREE.CylinderGeometry(11.6, 11.8, 0.36, 96),
       new THREE.MeshStandardMaterial({ map: workbenchTexture, roughness: 0.4, metalness: 0.35 })
@@ -1255,9 +1262,40 @@
     floorMesh.receiveShadow = true;
     environmentGroup.add(floorMesh);
 
-    const polarGrid = new THREE.PolarGridHelper(26, 24, 10, 96, 0x334155, 0x1e293b);
-    polarGrid.position.y = -2.45;
-    environmentGroup.add(polarGrid);
+    const decorRingsGroup = new THREE.Group();
+    environmentGroup.add(decorRingsGroup);
+
+    function buildDecorRings() {
+      clearDecorRings();
+      const polarGrid = new THREE.PolarGridHelper(26, 24, 10, 96, 0x334155, 0x1e293b);
+      polarGrid.position.y = -2.45;
+      decorRingsGroup.add(polarGrid);
+    }
+
+    function clearDecorRings() {
+      while (decorRingsGroup.children.length > 0) {
+        decorRingsGroup.remove(decorRingsGroup.children[0]);
+      }
+    }
+
+    if (decorRingsOn) {
+      buildDecorRings();
+    }
+
+    function setDecorRings(on) {
+      decorRingsOn = Boolean(on);
+      if (tableTopMesh && tableTopMesh.material) {
+        tableTopMesh.material.map = createWorkbenchTopTexture(decorRingsOn);
+        tableTopMesh.material.needsUpdate = true;
+      }
+      if (decorRingsOn) {
+        buildDecorRings();
+      } else {
+        clearDecorRings();
+      }
+      return decorRingsOn;
+    }
+    window.setDecorRings = setDecorRings;
 
     // Blender 拆解台弧形竖向格栅墙与底部暖橙灯带
     const slatMat = new THREE.MeshStandardMaterial({ color: 0x0d121c, metalness: 0.65, roughness: 0.35 });

@@ -1,17 +1,57 @@
-<view class="searchbar"><input class="input" style="margin-bottom:0" placeholder="搜索设备名称 / 编码" value="{{kw}}" bindinput="onKw" /></view>
-<view wx:if="{{loading}}" class="empty">加载中...</view>
-<view wx:elif="{{view.length === 0}}" class="empty">未找到匹配设备</view>
-<view class="card" wx:for="{{view}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
-  <view class="row">
-    <view class="title">{{item.name}}</view>
-    <view class="sp"></view>
-    <view class="badge" style="{{item.sStyle}}">{{item.sText}}</view>
-  </view>
-  <view class="muted mono" style="margin:8rpx 0">{{item.code}} · {{item.model}}</view>
-  <view class="row">
-    <view class="muted">{{item.workshop}}</view>
-    <view class="sp"></view>
-    <view class="mono" style="color:{{item.hColor}};font-size:32rpx;font-weight:800">{{item.healthScore}}分</view>
-  </view>
+<!-- 设备台账 · Solar-Punk（与 Web 端设备档案视图同步） -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
 </view>
-<view class="safe-bottom"></view>
+
+<view class="page-container">
+  <!-- 顶部搜索条（玻璃条） -->
+  <view class="search-shell">
+    <view class="search-box">
+      <text class="search-icon">🔍</text>
+      <input class="search-input" placeholder="搜索设备名称 / 编码" value="{{kw}}" bindinput="onKw" />
+    </view>
+  </view>
+
+  <view class="equip-scroll">
+    <!-- 加载中 -->
+    <view wx:if="{{loading}}" class="loading-state">
+      <view class="loading-ring"></view>
+      <text class="loading-text">同步设备台账中...</text>
+    </view>
+
+    <!-- 空态 -->
+    <view wx:elif="{{view.length === 0}}" class="empty-state">
+      <text class="empty-icon">📑</text>
+      <text class="empty-text">未找到匹配设备</text>
+    </view>
+
+    <!-- 设备卡片列表 -->
+    <view class="hud-card equip-card" wx:for="{{view}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="equip-header">
+        <view class="equip-name">{{item.name}}</view>
+        <view class="status-capsule" style="{{item.sStyle}}">{{item.sText}}</view>
+      </view>
+      <view class="equip-code-row">
+        <text class="equip-code">{{item.code}}</text>
+        <text class="equip-dot">·</text>
+        <text class="equip-model">{{item.model}}</text>
+      </view>
+      <view class="equip-divider"></view>
+      <view class="equip-footer">
+        <view class="equip-workshop">
+          <text class="equip-workshop-icon">🏭</text>
+          <text>{{item.workshop}}</text>
+        </view>
+        <view class="equip-health">
+          <text class="equip-health-label">健康分</text>
+          <text class="equip-health-score" style="color:{{item.hColor}}">{{item.hText || (item.healthScore != null ? item.healthScore + '分' : '未评估')}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="bottom-spacer"></view>
+  </view>
+  <view class="safe-bottom"></view>
+</view>

@@ -1,52 +1,74 @@
-<view wx:if="{{loading}}" class="empty">加载中...</view>
-<block wx:if="{{p}}">
-  <view class="card">
-    <view class="row">
-      <view class="mono" style="color:#A78BFA">{{p.permitNo}}</view>
-      <view class="sp"></view>
-      <view class="badge" style="{{sStyle}}">{{sText}}</view>
+<!-- 作业票详情 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <view class="loading-state" wx:if="{{loading}}">
+    <view class="loading-ring"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <block wx:if="{{p}}">
+    <!-- 作业票主卡 -->
+    <view class="hud-card main-card">
+      <view class="hud-accent-top"></view>
+      <view class="permit-head">
+        <view class="permit-no">{{p.permitNo}}</view>
+        <view class="sp"></view>
+        <view class="chip" style="{{sStyle}}">{{sText}}</view>
+      </view>
+      <view class="permit-title">{{p.title}}</view>
+      <view class="permit-sub">{{p.permitType}} · {{p.riskLevel}}</view>
+
+      <view class="kv-row"><text class="kv-label">申请人</text><text class="kv-value">{{p.applicant}}</text></view>
+      <view class="kv-row"><text class="kv-label">作业位置</text><text class="kv-value">{{p.workshop}} {{p.location}}</text></view>
+      <view class="kv-row" wx:if="{{p.lotoNumber}}"><text class="kv-label">LOTO 锁号</text><text class="kv-value loto-no">{{p.lotoNumber}}</text></view>
     </view>
-    <view class="h1" style="margin:16rpx 0 8rpx">{{p.title}}</view>
-    <view class="muted">{{p.permitType}} · {{p.riskLevel}}</view>
-    <view class="kv"><text class="muted">申请人</text><text>{{p.applicant}}</text></view>
-    <view class="kv"><text class="muted">作业位置</text><text>{{p.workshop}} {{p.location}}</text></view>
-    <view class="kv" wx:if="{{p.lotoNumber}}"><text class="muted">LOTO 锁号</text><text class="mono" style="color:#A78BFA">{{p.lotoNumber}}</text></view>
-  </view>
 
-  <view class="card">
-    <view class="title">安全措施</view>
-    <view class="desc" wx:for="{{precautions}}" wx:key="*this">• {{item}}</view>
-  </view>
-
-  <view class="card" wx:if="{{p.gasTestResults}}">
-    <view class="title">气体检测</view>
-    <view class="kv"><text class="muted">氧气</text><text class="mono">{{p.gasTestResults.oxygen}}%</text></view>
-    <view class="kv"><text class="muted">可燃气</text><text class="mono">{{p.gasTestResults.combustible_gas}}%</text></view>
-    <view class="kv"><text class="muted">检测人</text><text>{{p.gasTestResults.tester}}</text></view>
-  </view>
-
-  <view class="card">
-    <view class="title">会签状态</view>
-    <view class="kv"><text class="muted">现场监护</text><text>{{p.guardianApproval && p.guardianApproval.signed ? "✅ " + p.guardianApproval.name : "未签署"}}</text></view>
-    <view class="kv"><text class="muted">主管终审</text><text>{{p.supervisorApproval && p.supervisorApproval.signed ? "✅ " + p.supervisorApproval.name : "未签署"}}</text></view>
-  </view>
-
-  <block wx:if="{{canApprove}}">
-    <view class="card">
-      <view class="title">{{step === "guardian" ? "现场监护初审" : "安全总监终审"}}</view>
-      <view class="label">审批意见</view>
-      <textarea class="textarea" value="{{comment}}" bindinput="onComment"></textarea>
-      <button class="btn btn-green" bindtap="doApprove" data-pass="true">签署通过（{{step === "guardian" ? "监护节点" : "终审节点"}}）</button>
-      <button class="btn btn-rose" bindtap="doApprove" data-pass="false">驳回</button>
+    <!-- 安全措施 -->
+    <view class="glass-card section-card">
+      <view class="section-title">🛡️ 安全措施</view>
+      <view class="precaution-item" wx:for="{{precautions}}" wx:key="*this">• {{item}}</view>
     </view>
+
+    <!-- 气体检测 -->
+    <view class="glass-card section-card" wx:if="{{p.gasTestResults}}">
+      <view class="section-title">🌫️ 气体检测</view>
+      <view class="kv-row"><text class="kv-label">氧气</text><text class="kv-value mono">{{p.gasTestResults.oxygen}}%</text></view>
+      <view class="kv-row"><text class="kv-label">可燃气</text><text class="kv-value mono">{{p.gasTestResults.combustible_gas}}%</text></view>
+      <view class="kv-row"><text class="kv-label">检测人</text><text class="kv-value">{{p.gasTestResults.tester}}</text></view>
+    </view>
+
+    <!-- 会签状态 -->
+    <view class="glass-card section-card">
+      <view class="section-title">✍️ 会签状态</view>
+      <view class="kv-row"><text class="kv-label">现场监护</text><text class="kv-value">{{p.guardianApproval && p.guardianApproval.signed ? "✅ " + p.guardianApproval.name : "未签署"}}</text></view>
+      <view class="kv-row"><text class="kv-label">主管终审</text><text class="kv-value">{{p.supervisorApproval && p.supervisorApproval.signed ? "✅ " + p.supervisorApproval.name : "未签署"}}</text></view>
+    </view>
+
+    <!-- 审批操作 -->
+    <block wx:if="{{canApprove}}">
+      <view class="glass-card section-card">
+        <view class="section-title">{{step === "guardian" ? "现场监护初审" : "安全总监终审"}}</view>
+        <view class="form-label">审批意见</view>
+        <textarea class="glass-textarea" value="{{comment}}" bindinput="onComment"></textarea>
+        <button class="btn btn-approve" bindtap="doApprove" data-pass="true">签署通过（{{step === "guardian" ? "监护节点" : "终审节点"}}）</button>
+        <button class="btn btn-reject" bindtap="doApprove" data-pass="false">驳回</button>
+      </view>
+    </block>
+
+    <!-- 闭环操作 -->
+    <block wx:if="{{canClose}}">
+      <view class="glass-card section-card">
+        <view class="section-title">🔚 作业闭环</view>
+        <view class="form-label">闭环说明</view>
+        <textarea class="glass-textarea" value="{{closeRemark}}" bindinput="onCloseRemark"></textarea>
+        <button class="btn btn-approve" bindtap="doClose">办理闭环注销</button>
+      </view>
+    </block>
+    <view class="safe-bottom"></view>
   </block>
-  <block wx:if="{{canClose}}">
-    <view class="card">
-      <view class="title">作业闭环</view>
-      <view class="label">闭环说明</view>
-      <textarea class="textarea" value="{{closeRemark}}" bindinput="onCloseRemark"></textarea>
-      <button class="btn btn-primary" bindtap="doClose">办理闭环注销</button>
-    </view>
-  </block>
-  <view class="safe-bottom"></view>
-</block>
+</view>

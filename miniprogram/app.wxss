@@ -1,67 +1,198 @@
 /**
- * 全局统一设计 Tokens（两端一致）
- * PRIMARY: #3B82F6 (小面积强调：按钮、激活态、进度条、图标)
- * DEEP:    #2563EB (仅用于 hover、文字链接、重点数值，禁止大面积深蓝背景)
- * LIGHT:   #EFF6FF (卡片底、分区底、图标底)
+ * 全局统一设计 Tokens（两端一致 · Bright Game-HUD / Solar-Punk）
+ * 与 Web 端 src/index.css 同步：
+ * PRIMARY: #2563EB / CYAN: #06B6D4 / SUCCESS: #10B981 / WARNING: #F59E0B / DANGER: #EF4444
+ * 游戏化令牌: gold #E8A33D · gold-soft #F6D08A · gold-deep #B8761F · dawn #FBBF24
+ *            sky #0EA5E9 · titanium #DCE6F2
+ * 玻璃磨砂: glass-bg rgba(255,255,255,0.88) · rim-gold rgba(232,163,61,0.55) · rim-cyan rgba(14,165,233,0.42)
+ * 圆角阶梯: 10 / 14 / 20 / 28 (rpx 双倍)
  */
+@import "common.wxss";
+
 page {
-  background: #F5F7FA;
+  /* 钛晶明亮背景 · 第四层（渐变底） */
+  background: linear-gradient(180deg, #F8FBFF 0%, #F1F7FE 55%, #F7F4FF 100%);
+  background-color: #F2F7FD;
   color: #1E293B;
   font-size: 28rpx;
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  min-height: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
+
+/* ========================================================
+   Solar-Punk 四层背景
+   小程序不支持 background-attachment: fixed，故用 fixed 定位层实现：
+   每个页面 wxml 顶部放置：
+     <view class="fx-bg">
+       <view class="fx-hex"></view>
+       <view class="fx-particles"></view>
+       <view class="fx-bloom"></view>
+     </view>
+   页面内容统一包在 <view class="page-body"> 内（relative + z-index:1）。
+   ======================================================== */
+.fx-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* 第二层：微晶六边形全息网格（带径向蒙版） */
+.fx-hex {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.05) 1px, transparent 1px),
+    linear-gradient(60deg, rgba(232, 163, 61, 0.035) 1px, transparent 1px),
+    linear-gradient(-60deg, rgba(232, 163, 61, 0.035) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 40px 40px, 40px 40px;
+  -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 0%, rgba(0, 0, 0, 0.55) 55%, transparent 82%);
+  mask-image: radial-gradient(circle at 50% 45%, #000 0%, rgba(0, 0, 0, 0.55) 55%, transparent 82%);
+}
+/* 第三层：晨曦微光粒子（缓慢上浮） */
+.fx-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    radial-gradient(circle, rgba(232, 163, 61, 0.55) 0 1.5px, transparent 2.2px),
+    radial-gradient(circle, rgba(14, 165, 233, 0.45) 0 1.2px, transparent 1.9px),
+    radial-gradient(circle, rgba(251, 191, 36, 0.40) 0 1px, transparent 1.6px);
+  background-size: 130px 130px, 190px 190px, 260px 260px;
+  background-position: 0 0, 60px 90px, 120px 40px;
+  animation: particle-float 26s linear infinite;
+  opacity: 0.55;
+}
+@keyframes particle-float {
+  0% {
+    background-position: 0 0, 60px 90px, 120px 40px;
+  }
+  100% {
+    background-position: 0 -130px, 60px -100px, 120px -220px;
+  }
+}
+/* 第一层：环境景深漫反射光晕（极缓慢漂移的“晨昏”） */
+.fx-bloom {
+  position: absolute;
+  top: -20%;
+  left: -20%;
+  right: -20%;
+  bottom: -20%;
+  background:
+    radial-gradient(46% 38% at 22% 26%, rgba(246, 208, 138, 0.30) 0%, transparent 70%),
+    radial-gradient(42% 36% at 78% 20%, rgba(14, 165, 233, 0.22) 0%, transparent 70%),
+    radial-gradient(50% 42% at 55% 88%, rgba(129, 140, 248, 0.18) 0%, transparent 72%);
+  filter: blur(10px);
+  animation: aurora-drift 34s ease-in-out infinite alternate;
+}
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(-3%, 2.5%, 0) scale(1.08);
+  }
+}
+
+/* 页面内容层（置于背景之上） */
+.page-body {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* ========================================================
+   基础组件（升级为玻璃磨砂 + 金/青细描边 + 圆角阶梯）
+   ======================================================== */
 .card {
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  border: 1rpx solid #E2E8F0;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.72);
   padding: 24rpx;
   margin: 24rpx;
-  box-shadow: 0 4rpx 12rpx rgba(15, 23, 42, 0.06);
+  box-shadow:
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.95),
+    0 0 0 1rpx rgba(232, 163, 61, 0.16),
+    0 10rpx 26rpx -14rpx rgba(15, 23, 42, 0.14);
 }
 .row { display: flex; align-items: center; }
 .col { display: flex; flex-direction: column; }
 .sp { flex: 1; }
 .muted { color: #94A3B8; font-size: 24rpx; }
 .mono { font-family: "DIN Alternate", "Menlo", monospace; }
-.title { font-size: 32rpx; font-weight: 700; color: #1E293B; }
-.h1 { font-size: 36rpx; font-weight: 700; color: #1E293B; margin: 24rpx; }
+.title { font-size: 32rpx; font-weight: 700; color: #0F172A; }
+.h1 { font-size: 36rpx; font-weight: 700; color: #0F172A; margin: 24rpx; }
 .badge {
-  display: inline-flex; align-items: center;
-  padding: 4rpx 16rpx; border-radius: 8rpx;
-  font-size: 20rpx; font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  padding: 4rpx 16rpx;
+  border-radius: 10rpx;
+  font-size: 20rpx;
+  font-weight: 600;
   border: 1rpx solid;
 }
 .btn {
-  border-radius: 16rpx; font-size: 28rpx; font-weight: 600;
-  padding: 22rpx 0; text-align: center; margin-top: 20rpx;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  padding: 22rpx 0;
+  text-align: center;
+  margin-top: 20rpx;
 }
 .btn::after { border: none; }
-.btn-primary { background: #3b82f6; color: #FFFFFF; }
-.btn-amber { background: #FBBF24; color: #1E293B; }
-.btn-rose { background: #FB7185; color: #FFFFFF; }
-.btn-green { background: #10b981; color: #FFFFFF; }
-.btn-ghost { background: #F1F5F9; color: #1E293B; border: 1rpx solid #E2E8F0; }
+.btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); color: #FFFFFF; box-shadow: 0 4rpx 14rpx -4rpx rgba(37, 99, 235, 0.45); }
+.btn-amber { background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%); color: #1E293B; }
+.btn-rose { background: linear-gradient(135deg, #F87171 0%, #EF4444 100%); color: #FFFFFF; }
+.btn-green { background: linear-gradient(135deg, #34D399 0%, #10B981 100%); color: #FFFFFF; }
+.btn-ghost { background: rgba(255, 255, 255, 0.88); color: #1E293B; border: 1rpx solid #DCE6F2; }
 .btn-disabled { opacity: 0.45; }
 .input {
-  background: #FFFFFF; border: 1rpx solid #E2E8F0; border-radius: 16rpx;
-  padding: 20rpx; color: #1E293B; font-size: 28rpx; margin-bottom: 20rpx;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1rpx solid #DCE6F2;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  color: #1E293B;
+  font-size: 28rpx;
+  margin-bottom: 20rpx;
 }
 .textarea {
-  background: #FFFFFF; border: 1rpx solid #E2E8F0; border-radius: 16rpx;
-  padding: 20rpx; color: #1E293B; font-size: 26rpx; width: auto; min-height: 140rpx;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1rpx solid #DCE6F2;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  color: #1E293B;
+  font-size: 26rpx;
+  width: auto;
+  min-height: 140rpx;
 }
 .label { color: #94A3B8; font-size: 24rpx; margin: 16rpx 0 8rpx; }
 .empty { text-align: center; color: #CBD5E1; padding: 100rpx 40rpx; font-size: 26rpx; }
-.divider { height: 1rpx; background: #E2E8F0; margin: 20rpx 0; }
+.divider { height: 1rpx; background: #DCE6F2; margin: 20rpx 0; }
 .kpi-num { font-size: 52rpx; font-weight: 800; font-family: "DIN Alternate", monospace; }
 .badge-dot { width: 12rpx; height: 12rpx; border-radius: 50%; margin-right: 8rpx; }
 .tabs { display: flex; white-space: nowrap; padding: 16rpx 24rpx 0; }
 .tab { padding: 12rpx 28rpx; color: #94A3B8; font-size: 26rpx; display: inline-block; }
-.tab.on { color: #3b82f6; border-bottom: 4rpx solid #3b82f6; font-weight: 700; }
+.tab.on { color: #2563EB; border-bottom: 4rpx solid #E8A33D; font-weight: 700; }
 .chip {
-  display: inline-block; padding: 10rpx 24rpx; margin: 8rpx 12rpx 8rpx 0;
-  background: #FFFFFF; border: 1rpx solid #E2E8F0; border-radius: 32rpx;
-  color: #94A3B8; font-size: 24rpx;
+  display: inline-block;
+  padding: 10rpx 24rpx;
+  margin: 8rpx 12rpx 8rpx 0;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1rpx solid #DCE6F2;
+  border-radius: 32rpx;
+  color: #94A3B8;
+  font-size: 24rpx;
 }
-.section-title { font-size: 28rpx; font-weight: 700; color: #1E293B; margin: 28rpx 24rpx 8rpx; }
+.section-title { font-size: 28rpx; font-weight: 700; color: #0F172A; margin: 28rpx 24rpx 8rpx; }
 .safe-bottom { padding-bottom: 60rpx; }

@@ -1,31 +1,106 @@
-<view wx:if="{{loading}}" class="empty">加载中...</view>
-<block wx:if="{{e}}">
-  <view class="card">
-    <view class="row">
-      <view class="h1" style="margin:0">{{e.name}}</view>
-      <view class="sp"></view>
-      <view class="badge" style="{{sStyle}}">{{sText}}</view>
+<!-- 设备详情 · Solar-Punk（与 Web 端设备档案视图同步） -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="loading-state">
+    <view class="loading-ring"></view>
+    <text class="loading-text">设备档案加载中...</text>
+  </view>
+
+  <block wx:if="{{e}}">
+    <!-- 一、设备主档案卡（HUD 卡 + 金→青顶线） -->
+    <view class="hud-card eq-hero">
+      <view class="hud-accent-top"></view>
+      <view class="eq-hero-header">
+        <view class="eq-hero-name">{{e.name}}</view>
+        <view class="status-capsule" style="{{sStyle}}">{{sText}}</view>
+      </view>
+      <view class="eq-hero-code">
+        <text class="eq-code">{{e.code}}</text>
+        <text class="eq-dot">·</text>
+        <text class="eq-model">{{e.model}}</text>
+        <text class="eq-dot">·</text>
+        <text class="eq-mfr">{{e.manufacturer}}</text>
+      </view>
+      <view class="eq-hero-loc">
+        <text class="eq-loc-icon">📍</text>
+        <text>{{e.workshop}} · {{e.location}}</text>
+      </view>
+      <view class="eq-hero-health">
+        <view class="eq-health-chip">
+          <text class="eq-health-chip-label">健康分</text>
+          <text class="eq-health-chip-value" style="color:{{hColor}}">{{hText}}</text>
+        </view>
+      </view>
     </view>
-    <view class="muted mono" style="margin:10rpx 0">{{e.code}} · {{e.model}} · {{e.manufacturer}}</view>
-    <view class="muted">{{e.workshop}} · {{e.location}}</view>
-  </view>
-  <view class="card">
-    <view class="title">实时遥测</view>
-    <view class="kv"><text class="muted">轴承温度</text><text class="mono">{{e.telemetry.temperature}} °C</text></view>
-    <view class="kv"><text class="muted">振动速度</text><text class="mono">{{e.telemetry.vibration}} mm/s</text></view>
-    <view class="kv"><text class="muted">运行电流</text><text class="mono">{{e.telemetry.current}} A</text></view>
-    <view class="kv"><text class="muted">负载率</text><text class="mono">{{e.telemetry.loadRate}}%</text></view>
-  </view>
-  <view class="card">
-    <view class="title">技术参数</view>
-    <view class="kv" wx:for="{{specEntries}}" wx:key="k"><text class="muted">{{item.k}}</text><text>{{item.v}}</text></view>
-  </view>
-  <view class="card" wx:if="{{e.maintenanceHistory.length > 0}}">
-    <view class="title">维修履历</view>
-    <view wx:for="{{e.maintenanceHistory}}" wx:key="orderNo" class="mh">
-      <view class="row"><view class="mono muted">{{item.orderNo}} · {{item.date}}</view><view class="sp"></view><view class="muted">{{item.durationHours}}h / ¥{{item.cost}}</view></view>
-      <view class="desc">{{item.summary}}</view>
+
+    <!-- 二、实时遥测（2×2 KPI 玻璃格） -->
+    <view class="section-title-row">
+      <view class="section-title-dot"></view>
+      <view class="section-title-text">实时遥测</view>
+      <view class="section-title-sub">Live Telemetry</view>
     </view>
-  </view>
-  <view class="safe-bottom"></view>
-</block>
+    <view class="tele-grid">
+      <view class="glass-card tele-cell">
+        <view class="tele-icon" style="background: rgba(239, 68, 68, 0.12); color: #EF4444;">🌡️</view>
+        <view class="tele-value">{{e.telemetry.temperature}}<text class="tele-unit">°C</text></view>
+        <view class="tele-label">轴承温度</view>
+      </view>
+      <view class="glass-card tele-cell">
+        <view class="tele-icon" style="background: rgba(6, 182, 212, 0.13); color: #06B6D4;">📳</view>
+        <view class="tele-value">{{e.telemetry.vibration}}<text class="tele-unit">mm/s</text></view>
+        <view class="tele-label">振动速度</view>
+      </view>
+      <view class="glass-card tele-cell">
+        <view class="tele-icon" style="background: rgba(37, 99, 235, 0.12); color: #2563EB;">⚡</view>
+        <view class="tele-value">{{e.telemetry.current}}<text class="tele-unit">A</text></view>
+        <view class="tele-label">运行电流</view>
+      </view>
+      <view class="glass-card tele-cell">
+        <view class="tele-icon" style="background: rgba(245, 158, 11, 0.13); color: #F59E0B;">📊</view>
+        <view class="tele-value">{{e.telemetry.loadRate}}<text class="tele-unit">%</text></view>
+        <view class="tele-label">负载率</view>
+      </view>
+    </view>
+
+    <!-- 三、技术参数 -->
+    <view class="section-title-row">
+      <view class="section-title-dot"></view>
+      <view class="section-title-text">技术参数</view>
+    </view>
+    <view class="glass-card spec-card">
+      <view class="spec-row" wx:for="{{specEntries}}" wx:key="k">
+        <text class="spec-k">{{item.k}}</text>
+        <text class="spec-v">{{item.v}}</text>
+      </view>
+      <view wx:if="{{specEntries.length === 0}}" class="spec-empty">暂无技术参数</view>
+    </view>
+
+    <!-- 四、维修履历 -->
+    <block wx:if="{{e.maintenanceHistory.length > 0}}">
+      <view class="section-title-row">
+        <view class="section-title-dot"></view>
+        <view class="section-title-text">维修履历</view>
+      </view>
+      <view class="glass-card mh-card">
+        <view class="mh-item" wx:for="{{e.maintenanceHistory}}" wx:key="orderNo">
+          <view class="mh-left-dot"></view>
+          <view class="mh-body">
+            <view class="mh-head">
+              <text class="mh-order">{{item.orderNo}}</text>
+              <text class="mh-date">{{item.date}}</text>
+            </view>
+            <view class="mh-summary">{{item.summary}}</view>
+            <view class="mh-cost">工时 {{item.durationHours}}h · 费用 ¥{{item.cost}}</view>
+          </view>
+        </view>
+      </view>
+    </block>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

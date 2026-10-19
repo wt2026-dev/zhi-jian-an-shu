@@ -18,6 +18,7 @@ Page({
     certifications: [],
     metrics: [],
     devices: [],
+    isAdmin: false,
     loading: false,
     loadError: ""
   },
@@ -37,6 +38,7 @@ Page({
       avatarUrl: user.avatar || ("/images/avatars/" + (user.role === "user" ? "driver" : (user.role || "admin")) + ".png"),
       roleText: role.t,
       roleStyle: ui.badge(role.c),
+      isAdmin: user.role === "admin",
       latency: ms > 0 ? ms + "ms" : "--",
     });
     this.loadProfileData();
@@ -184,6 +186,11 @@ Page({
     var url = e.currentTarget.dataset && e.currentTarget.dataset.url;
     if (!url) { wx.showToast({ title: "页面暂不可用", icon: "none" }); return; }
     wx.navigateTo({ url: url });
+  },
+
+  // 系统管理（用户与权限 / AI 内容审核 / AI 模型路由）：移动端只读，不开放操作
+  goSystemWeb() {
+    wx.showToast({ title: "系统管理请在 Web 端操作", icon: "none", duration: 2200 });
   },
 
   logout() {

@@ -1,6 +1,14 @@
-<view class="chat-page">
+<!-- AI 数字人助手对话 · Solar-Punk（金色 AI 身份 / 天青用户侧 / 玻璃磨砂气泡） -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="chat-page page-body">
   <!-- 品牌区 -->
-  <view class="brand-card">
+  <view class="brand-card hud-card">
+    <view class="hud-accent-top"></view>
     <view class="brand-robot">
       <!-- 机器人主题图标（纯 CSS 绘制，不依赖图片资源） -->
       <view class="robot-antenna"></view>
@@ -14,7 +22,10 @@
       </view>
     </view>
     <view class="brand-info">
-      <text class="brand-name">{{brandName}}</text>
+      <view class="brand-name-row">
+        <text class="brand-name">{{brandName}}</text>
+        <view class="chip-gold brand-chip">AI 专家</view>
+      </view>
       <text class="brand-desc">{{brandDesc}}</text>
       <view class="brand-tags">
         <text class="brand-tag">qwen-plus</text>
@@ -75,7 +86,7 @@
     </view>
 
     <!-- 推荐追问 -->
-    <view wx:if="{{followups.length > 0 && !typing}}" class="followup-section">
+    <view wx:if="{{followups.length > 0 && !typing}}" class="followup-section glass-card">
       <view class="followup-title">相关问题</view>
       <view class="followup-item" wx:for="{{followups}}" wx:key="*this" bindtap="askFup" data-q="{{item}}">
         <text class="followup-icon">💡</text>
@@ -83,9 +94,8 @@
       </view>
     </view>
 
-    
     <!-- AI 知识沉淀推荐卡片 (与网页端 AiAssistantView 一致) -->
-    <view wx:if="{{contributionSuggestion && !streaming && !typing}}" class="card contrib-card">
+    <view wx:if="{{contributionSuggestion && !streaming && !typing}}" class="card contrib-card glass-card">
       <view class="contrib-header">
         <view class="contrib-badge-row">
           <text class="contrib-icon">💡</text>

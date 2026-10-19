@@ -1,35 +1,47 @@
-<view class="page">
-  <view class="header">
-    <view class="back-btn" bindtap="goBack"><text>←</text></view>
-    <view class="header-info">
-      <text class="header-label">审批留痕 // 安全合规审计</text>
-      <text class="header-title">历史审批与签章</text>
+<!-- 审批历史 · Solar-Punk Bright Game-HUD -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <!-- 顶部标题 -->
+  <view class="hud-card header-card">
+    <view class="hud-accent-top"></view>
+    <view class="header-row">
+      <view class="back-chip" bindtap="goBack"><text class="back-arrow">←</text></view>
+      <view class="header-info">
+        <view class="chip-cyan chip-sm">审批留痕 // 安全合规审计</view>
+        <text class="header-title">历史审批与签章</text>
+      </view>
     </view>
   </view>
 
-  <view wx:if="{{loading}}" class="loading-box">
+  <view class="loading-state" wx:if="{{loading}}">
+    <view class="loading-ring"></view>
     <text class="loading-text">加载中...</text>
   </view>
 
-  <view wx:elif="{{loadError}}" class="error-box">
+  <view class="error-state" wx:elif="{{loadError}}">
+    <text class="error-icon">⚠️</text>
     <text class="error-text">{{loadError}}</text>
-    <view class="retry-btn" bindtap="retry"><text>重试</text></view>
+    <view class="retry-btn btn-gold" bindtap="retry">重试</view>
   </view>
 
-  <view wx:elif="{{records.length === 0}}" class="empty-box">
+  <view class="empty-state" wx:elif="{{records.length === 0}}">
     <text class="empty-icon">📝</text>
     <text class="empty-text">暂无审批记录</text>
   </view>
 
-  <view wx:else class="list">
-    <view class="card" wx:for="{{records}}" wx:key="id" bindtap="goToDetail" data-id="{{item.id}}">
+  <view wx:else>
+    <view class="glass-card record-card" wx:for="{{records}}" wx:key="id" bindtap="goToDetail" data-id="{{item.id}}">
       <view class="card-header">
         <text class="permit-no">{{item.permitNo}}</text>
-        <view class="badge {{item.signed ? 'badge-signed' : 'badge-unsigned'}}">
-          {{item.signed ? '已签章' : '未签署'}}
-        </view>
+        <view class="chip {{item.signed ? 'chip-signed' : 'chip-unsigned'}}">{{item.signed ? '已签章' : '未签署'}}</view>
       </view>
       <text class="card-title">{{item.title}}</text>
+
       <view class="info-row">
         <text class="info-label">审批节点</text>
         <text class="info-value">{{item.node}}</text>
@@ -42,9 +54,11 @@
         <text class="info-label">审批时间</text>
         <text class="info-value">{{item.signedAt || '--'}}</text>
       </view>
+
       <view class="comment-box" wx:if="{{item.comment}}">
-        <text class="comment-text">审批意见：{{item.comment}}</text>
+        <text class="comment-text">💬 审批意见：{{item.comment}}</text>
       </view>
     </view>
   </view>
+  <view class="safe-bottom"></view>
 </view>

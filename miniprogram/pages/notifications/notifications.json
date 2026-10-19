@@ -1,1 +1,7 @@
-{ "navigationBarTitleText": "通知中心", "enablePullDownRefresh": true }
+{
+  "navigationBarTitleText": "通知中心",
+  "navigationBarBackgroundColor": "#F8FBFF",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#F2F7FD",
+  "enablePullDownRefresh": true
+}

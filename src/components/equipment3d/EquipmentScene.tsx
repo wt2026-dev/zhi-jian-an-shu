@@ -16,30 +16,9 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Boxes,
-  Eye,
-  Gauge,
-  Layers,
-  LayoutGrid,
-  Maximize2,
-  RefreshCw,
-  RotateCcw,
-  Sparkles,
-  Sun,
-  Triangle,
-  Wand2,
-  X,
-  Grid3x3,
-  Waves,
-  AlertTriangle,
-  WifiOff,
-  Loader2,
-  Cpu,
-  Wrench,
-  Shield,
-  User,
-  Monitor,
-  Building2,
+  Boxes, Eye, Gauge, Layers, LayoutGrid, Maximize2, RefreshCw, RotateCcw,
+  Sparkles, Sun, Triangle, Wand2, X, Grid3x3, Waves, AlertTriangle, WifiOff,
+  Loader2, Cpu, Wrench, Shield, User, Monitor, Building2, CircleDot,
 } from 'lucide-react';
 import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type SpareProcurePrefill } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
@@ -84,6 +63,8 @@ import { useExplodedDiagnostics } from './useExplodedDiagnostics';
 import { useTelemetryPlayback } from './useTelemetryPlayback';
 import { useWorkOrderActions } from './useWorkOrderActions';
 import { useFacilityNavigation } from './useFacilityNavigation';
+import { useCleanMode } from './useCleanMode';
+import { CleanModePill } from './CleanModePill';
 
 /* ========================= 组件 ========================= */
 
@@ -206,6 +187,10 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
   // ---- 故障定位环（红色脉冲环 / 绿色恢复环）总开关，默认开 ----
   // 它是"哪台设备哪里坏了"的第一视觉线索，属于常开层；其余彩色层默认收敛。
   const [showFaultLocator, setShowFaultLocator] = useState(true);
+  // ---- 装饰刻度盘（拆解工作台同心圆与刻度）总开关，默认关 ----
+  const [showDecorRings, setShowDecorRings] = useState(false);
+  // ---- 纯净模式 Hook：管理 cleanMode 状态与全局外围板块显隐 ----
+  const { cleanMode, setCleanMode } = useCleanMode(explodedHtmlDeviceId);
 
   // ---- 超限观测 ----
   /** 预取全量遥测缓存（16 台最新48h），避免每次选中都重拉 */
@@ -1509,14 +1494,8 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
 
   return (
     <div className="equipment-industrial flex flex-col w-full h-full" style={{ minHeight: 620 }}>
-      {/* 三段式：左区 / 下钻路径条 / 右区，用 grid 的 1fr·auto·1fr 钉住正中。
-          2026-09-23 用户「太拥挤了」+ 上一轮实测：路径条原本是外壳里 absolute left-1/2 浮在
-          画布上的药丸，窄窗口一折行就往下压大屏栏（五级链路 1024px 下重叠 -39px）；改成
-          flex-1 车道又因为左右两簇不等宽（实测左 353 / 右 181）而整体偏右约 100px。
-          现在它是工具栏正常的一员：折行只会让工具栏自己长高、工作区整体下移，
-          **压住大屏栏在结构上不可能**；两侧轨道同为 1fr，路径条恒等于画布水平正中
-          （minmax(0,…) 让轨道可小于内容，内容自己是 flex-wrap，所以只会折行不会溢出）。 */}
-      <div className="equipment-industrial-header grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
+      {/* 三段式：左区 / 下钻路径条 / 右区，用 grid 1fr·auto·1fr 居中 */}
+      <div className={`equipment-industrial-header grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 ${cleanMode ? 'hidden' : ''}`}>
         <div className="flex min-w-0 flex-wrap items-center gap-2 justify-self-start">
         <div className="flex items-center gap-2 pr-2">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-300">
@@ -1541,9 +1520,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
         </div>
         </div>
 
-        {/* 下钻路径条：地图轴三级（外壳传来）+ 本层的车间 / 单设备两级，合成顶部唯一一条。
-            独立挂载（tests 里 <Equipment3DView /> 无 mapTrail、厂区总览层）时节点为空，
-            整格不渲染，避免留一个空药丸盒。 */}
+        {/* 下钻路径条：地图轴三级（外壳传来）+ 本层的车间 / 单设备两级，合成顶部唯一一条 */}
         {drillTrail.length > 0 && (
           <div className="flex min-w-0 justify-self-center" data-testid="equipment3d-crumb-lane">
             <DrillTrail nodes={drillTrail} />
@@ -1551,12 +1528,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
         )}
 
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-        {/* ---- 视图设置：可视化图层 + 渲染预设/画质 + 渲染统计，三合一 ----
-              2026-09-23 用户「太拥挤了」：这一行原本并排三颗同款下拉（渲染统计 / 可视化图层 /
-              渲染设置），光下拉就吃掉约 300px；「渲染统计」里的帧率还和大屏栏右上角的 FPS
-              是同一个数说两遍。合成一颗、内部分三段，右侧簇立刻瘦下来。
-              图层开关仍留在顶栏而不是右栏：右栏（场景参数/设备分析）在 HUD 模式下是隐藏的，
-              这一组开关需要随时可达（各颜色含义见左下角 SceneLegend 图例）。 */}
+        {/* 视图设置：可视化图层 + 渲染预设/画质 + 渲染统计 */}
           <details className="industrial-render-settings" data-testid="equipment3d-view-settings">
             <summary>视图设置</summary>
             <div className="industrial-popover">
@@ -1572,6 +1544,13 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
                 checked={showFaultLocator}
                 onChange={setShowFaultLocator}
                 icon={AlertTriangle}
+              />
+              <Toggle
+                label="装饰刻度盘（拆解工作台同心圆与刻度）"
+                testId="equipment3d-layer-decor-rings-toggle"
+                checked={showDecorRings}
+                onChange={setShowDecorRings}
+                icon={CircleDot}
               />
               <Toggle
                 label="技师轨迹与指引线（蓝色线）"
@@ -1734,19 +1713,15 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
           onPointerUp={handlePointerUp}
         />
 
-        {/* ---- 拆解视图舞台：**在当前页面内**接管主显示区域 ----
-            用户口径（2026-10-16）：点「拆解视图」不新开窗口、不整页跳走，而是把中间这块
-            显示 3D 设备模型的区域换成拆解视图 HTML；右侧面板与顶部工具栏保留。
-            第二次修正：中间那块要**完全填满**、不要留边、不要露出 3D 场景背景
-            ⇒ 背板铺满整个主区域（不透明），只有内容列按 `explodedStageInset` 内缩。
-
-            位置/层序：紧跟 canvas 之后 ⇒ 晚于它绘制，盖住 3D 画面；又**早于**后面的
-            大屏 HUD / 左侧信息列 / 右侧详情面板 ⇒ 那些面板仍浮在它上面、照常可见可点。 */}
+        {/* 拆解视图舞台：在当前页面内接管主显示区域（背板铺满，紧跟 canvas 之后绘制） */}
         {explodedHtmlDeviceId && (
           <ExplodedViewStage
             deviceId={explodedHtmlDeviceId}
             deviceName={equipments.find((e) => e.id === explodedHtmlDeviceId)?.name ?? null}
             deviceCode={equipments.find((e) => e.id === explodedHtmlDeviceId)?.code ?? null}
+            cleanMode={cleanMode}
+            onToggleCleanMode={setCleanMode}
+            showDecorRings={showDecorRings}
             onBack={() => {
               setExplodedHtmlDeviceId(null);
               setExplodedHtmlContext(null);
@@ -2252,6 +2227,13 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
                 icon={AlertTriangle}
               />
               <Toggle
+                label="装饰刻度盘（拆解工作台同心圆）"
+                testId="equipment3d-decor-rings-toggle"
+                checked={showDecorRings}
+                onChange={setShowDecorRings}
+                icon={CircleDot}
+              />
+              <Toggle
                 label="安全边界（许可圈 / LOTO 隔离罩）"
                 testId="equipment3d-safety-boundary-toggle"
                 checked={showSafetyBoundary}
@@ -2278,16 +2260,21 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
           </div>
         )}
 
-        {/* ---- 操作提示 ---- */}
-        <div className="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-lg bg-slate-900/62 backdrop-blur border border-white/10 text-[10px] text-slate-300 leading-relaxed">
-          <div className="flex items-center gap-1.5">
-            <Maximize2 className="w-3 h-3" />
-            左键旋转 · 右键平移 · 滚轮缩放 · 点击设备聚焦 · Esc 返回总览
-          </div>
-        </div>
+        {/* 纯净模式浮标（Esc 恢复） */}
+        {cleanMode && <CleanModePill onExit={() => setCleanMode(false)} />}
 
-        {/* ---- 检修步骤卡片（含场景内工单操作：派单/接单/步骤勾选/完工上报/验收） ---- */}
-        {activeOrderCard && (
+        {/* 操作提示 */}
+        {(!explodedHtmlDeviceId || !cleanMode) && (
+          <div className="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-lg bg-slate-900/62 backdrop-blur border border-white/10 text-[10px] text-slate-300 leading-relaxed">
+            <div className="flex items-center gap-1.5">
+              <Maximize2 className="w-3 h-3" />
+              左键旋转 · 右键平移 · 滚轮缩放 · 点击设备聚焦 · Esc 返回总览
+            </div>
+          </div>
+        )}
+
+        {/* 检修步骤卡片（场景内工单操作） */}
+        {activeOrderCard && !cleanMode && (
           <RepairStepCard
             workOrder={activeOrderCard}
             collapsed={repairCardCollapsed}

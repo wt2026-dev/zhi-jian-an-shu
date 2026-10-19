@@ -1,69 +1,83 @@
-<view class="card vision-card">
-  <view class="vision-title">工业设备视觉缺陷检测</view>
-  <view class="vision-sub">基于通义千问 Qwen-VL-Max 多模态模型深度探伤</view>
-  
-  <button class="btn btn-primary vision-btn" bindtap="choose">📷 拍照 / 选择设备照片诊断</button>
-  
-  <image wx:if="{{imgPath}}" src="{{imgPath}}" mode="widthFix" class="preview-img" />
-  
-  <view wx:if="{{loading}}" class="empty">
-    <view class="loading-spinner"></view>
-    <view style="margin-top: 16rpx; color: #2563EB;">Qwen-VL-Max 正在进行多模态时空特征分析，约 10~30 秒...</view>
-  </view>
-  
-  <block wx:if="{{result}}">
-    <view class="result-header">
-      <view class="badge sev-badge" style="{{sevStyle}}">{{result.severity}}</view>
-      <view class="sp"></view>
-      <view class="conf-text">置信度 {{result.confidence}}</view>
+<!-- AI 视觉识别 · Solar-Punk（hud-card 主卡 + 金/青状态芯片） -->
+<view class="fx-bg">
+  <view class="fx-hex"></view>
+  <view class="fx-particles"></view>
+  <view class="fx-bloom"></view>
+</view>
+
+<view class="page-body">
+  <view class="hud-card vision-card">
+    <view class="hud-accent-top"></view>
+    <view class="section-title-row" style="margin-bottom:6rpx;">
+      <view class="section-title-dot"></view>
+      <view class="section-title-text">工业设备视觉缺陷检测</view>
     </view>
-    
-    <view class="defect-name">{{result.defectType}}</view>
-    <view class="defect-summary">{{result.summary}}</view>
-    
-    <view class="kv-row">
-      <text class="kv-label">精确受损部位</text>
-      <text class="kv-val">{{result.location || "未识别"}}</text>
+    <view class="vision-sub">基于通义千问 Qwen-VL-Max 多模态模型深度探伤</view>
+
+    <button class="btn-gold vision-btn" bindtap="choose">📷 拍照 / 选择设备照片诊断</button>
+
+    <image wx:if="{{imgPath}}" src="{{imgPath}}" mode="widthFix" class="preview-img" />
+
+    <view wx:if="{{loading}}" class="loading-box">
+      <view class="loading-ring"></view>
+      <view class="loading-text">Qwen-VL-Max 正在进行多模态时空特征分析，约 10~30 秒...</view>
     </view>
 
-    <view wx:if="{{result.probableCauses && result.probableCauses.length}}" class="detail-section">
-      <view class="section-sub-title">潜在诱发诱因</view>
-      <view class="desc-item" wx:for="{{result.probableCauses}}" wx:key="*this">• {{item}}</view>
-    </view>
-
-    <view class="detail-section">
-      <view class="section-sub-title">排查与检修推荐规程</view>
-      <view class="desc-item" wx:for="{{result.recommendations}}" wx:key="*this">• {{item}}</view>
-    </view>
-
-    <view wx:if="{{result.safetyNotice}}" class="warn-box">
-      <view class="warn-title">🛡️ 【安全警示与LOTO规范】</view>
-      <view class="warn-content">{{result.safetyNotice}}</view>
-    </view>
-
-    <!-- 关联操作按钮 -->
-    <view class="action-btn-row">
-      <button class="btn btn-ghost half-btn" bindtap="loadSimilarCases">🔍 刷新相似案例</button>
-      <button class="btn btn-rose half-btn" bindtap="goRepair">🚨 一键转入报修</button>
-    </view>
-
-    <!-- 知识库相似维保案例推荐 -->
-    <view class="similar-section" wx:if="{{casesLoaded}}">
-      <view class="similar-header">
-        <view class="similar-badge">📚 知识库相似维保案例</view>
-        <text class="similar-count">共匹配 {{similarCases.length}} 篇</text>
+    <block wx:if="{{result}}">
+      <view class="result-header">
+        <view class="sev-badge" style="{{sevStyle}}">{{result.severity}}</view>
+        <view class="sp"></view>
+        <view class="conf-text">置信度 <text class="conf-num">{{result.confidence}}</text></view>
       </view>
-      <view wx:if="{{similarCases.length === 0}}" class="empty-cases">知识库暂无直接匹配案例，可通过知识库中心检索</view>
-      <view class="case-card" wx:for="{{similarCases}}" wx:key="id" bindtap="goKnowledgeDetail" data-id="{{item.id}}">
-        <view class="case-title">{{item.title}}</view>
-        <view class="case-summary">{{item.summary || item.content}}</view>
-        <view class="case-footer">
-          <text class="case-category">{{item.category || "检修规程"}}</text>
-          <text class="case-link">查看规程详情 ›</text>
+
+      <view class="defect-name">{{result.defectType}}</view>
+      <view class="defect-summary">{{result.summary}}</view>
+
+      <view class="kv-row">
+        <text class="kv-label">精确受损部位</text>
+        <text class="kv-val">{{result.location || "未识别"}}</text>
+      </view>
+
+      <view wx:if="{{result.probableCauses && result.probableCauses.length}}" class="detail-section">
+        <view class="section-sub-title">潜在诱发诱因</view>
+        <view class="desc-item" wx:for="{{result.probableCauses}}" wx:key="*this">• {{item}}</view>
+      </view>
+
+      <view class="detail-section">
+        <view class="section-sub-title">排查与检修推荐规程</view>
+        <view class="desc-item" wx:for="{{result.recommendations}}" wx:key="*this">• {{item}}</view>
+      </view>
+
+      <view wx:if="{{result.safetyNotice}}" class="warn-box">
+        <view class="warn-title">🛡️ 【安全警示与LOTO规范】</view>
+        <view class="warn-content">{{result.safetyNotice}}</view>
+      </view>
+
+      <!-- 关联操作按钮 -->
+      <view class="action-btn-row">
+        <view class="chip-cyan half-btn" bindtap="loadSimilarCases">🔍 刷新相似案例</view>
+        <view class="half-btn half-btn-danger" bindtap="goRepair">🚨 一键转入报修</view>
+      </view>
+
+      <!-- 知识库相似维保案例推荐 -->
+      <view class="similar-section" wx:if="{{casesLoaded}}">
+        <view class="similar-header">
+          <view class="similar-badge">📚 知识库相似维保案例</view>
+          <text class="similar-count">共匹配 {{similarCases.length}} 篇</text>
+        </view>
+        <view wx:if="{{similarCases.length === 0}}" class="empty-cases">知识库暂无直接匹配案例，可通过知识库中心检索</view>
+        <view class="glass-card case-card" wx:for="{{similarCases}}" wx:key="id" bindtap="goKnowledgeDetail" data-id="{{item.id}}">
+          <view class="case-title">{{item.title}}</view>
+          <view class="case-summary">{{item.summary || item.content}}</view>
+          <view class="case-footer">
+            <text class="case-category">{{item.category || "检修规程"}}</text>
+            <text class="case-link">查看规程详情 ›</text>
+          </view>
         </view>
       </view>
-    </view>
-  </block>
-  
-  <view wx:if="{{error}}" class="empty" style="color: #EF4444;">⚠️ {{error}}</view>
+    </block>
+
+    <view wx:if="{{error}}" class="error-box">⚠️ {{error}}</view>
+  </view>
+  <view class="safe-bottom"></view>
 </view>

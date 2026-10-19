@@ -1,30 +1,68 @@
-page { background: #F5F7FA; min-height: 100vh; }
-.page { padding: 24rpx; padding-bottom: 60rpx; }
-.header { display: flex; align-items: center; gap: 16rpx; margin-bottom: 24rpx; }
-.back-btn { width: 64rpx; height: 64rpx; background: #F8FAFC; border-radius: 12rpx; display: flex; align-items: center; justify-content: center; }
-.back-btn text { color: #1E293B; font-size: 32rpx; }
-.header-info { flex: 1; }
-.header-label { font-size: 20rpx; color: #94A3B8; }
-.header-title { font-size: 32rpx; color: #1E293B; font-weight: 700; }
-.loading-box { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 120rpx 0; }
-.loading-text { color: #94A3B8; font-size: 26rpx; margin-top: 16rpx; }
-.error-box { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
-.error-text { color: #ef4444; font-size: 26rpx; margin-bottom: 24rpx; }
-.retry-btn { background: #3b82f6; color: #F5F7FA; padding: 16rpx 48rpx; border-radius: 12rpx; font-size: 26rpx; font-weight: 600; }
-.empty-box { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
-.empty-icon { font-size: 64rpx; margin-bottom: 16rpx; }
+/* pages/approvalhistory/approvalhistory.wxss · Solar-Punk Bright Game-HUD */
+page {
+  background: linear-gradient(180deg, #F8FBFF 0%, #F1F7FE 55%, #F7F4FF 100%);
+  background-color: #F2F7FD;
+  min-height: 100vh;
+}
+
+.page-body { padding-bottom: 40rpx; }
+
+/* 头部 */
+.header-card { margin: 20rpx 24rpx; padding: 22rpx 24rpx; }
+.header-row { display: flex; align-items: center; gap: 16rpx; }
+.back-chip {
+  width: 64rpx; height: 64rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1rpx solid #DCE6F2;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.back-arrow { font-size: 32rpx; color: #1E293B; line-height: 1; }
+.header-info { display: flex; flex-direction: column; gap: 6rpx; }
+.header-title { font-size: 32rpx; font-weight: 800; color: #0F172A; }
+
+/* 加载 / 错误 / 空态 */
+.loading-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
+.loading-ring {
+  width: 56rpx; height: 56rpx;
+  border: 6rpx solid rgba(232, 163, 61, 0.2);
+  border-top-color: #E8A33D;
+  border-radius: 50%; margin-bottom: 24rpx;
+  animation: spin 0.9s linear infinite;
+}
+.loading-text { font-size: 26rpx; color: #737373; }
+.error-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 40rpx; }
+.error-icon { font-size: 64rpx; margin-bottom: 16rpx; }
+.error-text { color: #EF4444; font-size: 26rpx; margin-bottom: 24rpx; }
+.retry-btn {
+  height: 76rpx; padding: 0 48rpx;
+  border-radius: 999rpx;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26rpx; font-weight: 700;
+}
+.empty-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 40rpx; }
+.empty-icon { font-size: 72rpx; margin-bottom: 16rpx; }
 .empty-text { color: #94A3B8; font-size: 26rpx; }
-.list { display: flex; flex-direction: column; gap: 16rpx; }
-.card { background: #FFFFFF; border: 1rpx solid #E2E8F0; border-radius: 16rpx; padding: 24rpx; }
-.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12rpx; }
-.permit-no { font-size: 22rpx; color: #3b82f6; font-family: monospace; }
-.badge { font-size: 18rpx; padding: 4rpx 12rpx; border-radius: 6rpx; font-weight: 600; }
-.badge-signed { color: #22c55e; background: rgba(34, 197, 94, 0.15); }
-.badge-unsigned { color: #94A3B8; background: rgba(115, 115, 115, 0.15); }
-.card-title { font-size: 28rpx; color: #1E293B; font-weight: 600; margin-bottom: 12rpx; }
-.info-row { display: flex; justify-content: space-between; padding: 6rpx 0; font-size: 24rpx; }
+
+/* 记录卡 */
+.record-card { margin: 0 24rpx 20rpx; padding: 24rpx; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.permit-no { font-size: 21rpx; color: #B8761F; font-family: "DIN Alternate", monospace; font-weight: 700; }
+.chip { font-size: 19rpx; padding: 4rpx 16rpx; border-radius: 999rpx; font-weight: 600; }
+.chip-signed { color: #047857; background: rgba(16, 185, 129, 0.12); border: 1rpx solid rgba(16, 185, 129, 0.35); }
+.chip-unsigned { color: #64748B; background: rgba(115, 115, 115, 0.12); border: 1rpx solid rgba(115, 115, 115, 0.25); }
+.card-title { font-size: 28rpx; color: #0F172A; font-weight: 700; margin-bottom: 14rpx; line-height: 1.4; }
+.info-row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 23rpx; }
 .info-label { color: #94A3B8; }
-.info-value { color: #1E293B; }
-.comment-box { background: #F8FAFC; border-radius: 8rpx; padding: 12rpx 16rpx; margin-top: 8rpx; }
-.comment-text { font-size: 22rpx; color: #64748B; line-height: 1.6; }
-.card:active { background: #F8FAFC; }
+.info-value { color: #1E293B; font-weight: 500; }
+.comment-box {
+  background: rgba(241, 247, 254, 0.8);
+  border: 1rpx solid #DCE6F2;
+  border-radius: 12rpx;
+  padding: 14rpx 16rpx;
+  margin-top: 12rpx;
+}
+.comment-text { font-size: 21rpx; color: #475569; line-height: 1.6; }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

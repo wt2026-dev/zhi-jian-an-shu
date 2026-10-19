@@ -132,6 +132,21 @@ const hideBuiltinBackLink = (frame: HTMLIFrameElement | null): void => {
         pointer-events: none !important;
         transition: opacity 0.25s ease-in-out !important;
       }
+      /* 纯净模式：隐藏外围板块（右侧栏、标题块、模式工具条、底部控制台） */
+      body.host-clean-mode #right-sidebar,
+      body.host-clean-mode #bom-panel,
+      body.host-clean-mode aside#detail-card,
+      body.host-clean-mode aside:not(#refPopup):not(#detail-card),
+      body.host-clean-mode .right-sidebar,
+      body.host-clean-mode header,
+      body.host-clean-mode footer,
+      body.host-clean-mode section.tech-panel:has(#explode-slider),
+      body.host-clean-mode section.tech-panel:has(#btn-play-explode),
+      body.host-clean-mode .bottom-control-bar {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 0.25s ease-in-out !important;
+      }
       /* 强制所有 BOM 滚动容器 min-height: 0，确保在 flex 容器中正常触发滚动，不被截断卡死 */
       #bomTableBody, #bom-tbody, #bom-table-body, div:has(> #bom-tbody), div:has(> table), .overflow-y-auto {
         min-height: 0 !important;
@@ -495,6 +510,12 @@ export interface ExplodedViewStageProps {
   onOpenWorkOrderCreate?: (prefill: WorkOrderCreatePrefill) => void;
   /** 检修报告导出人（当前登录用户名；来自会话，不造假） */
   exporterName?: string | null;
+  /** 纯净模式：隐藏全部外围板块（默认 false） */
+  cleanMode?: boolean;
+  /** 纯净模式切换回调 */
+  onToggleCleanMode?: (clean: boolean) => void;
+  /** 装饰刻度盘显示开关（默认 false，关闭工作台同心圆与刻度） */
+  showDecorRings?: boolean;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -528,6 +549,9 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   onOpenProcure,
   onOpenWorkOrderCreate,
   exporterName = null,
+  cleanMode = false,
+  onToggleCleanMode,
+  showDecorRings = false,
 }) => {
   const url = getExplodedViewUrl(deviceId);
   const title = `${deviceName ?? deviceId} · 设备拆解视图`;
@@ -550,7 +574,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
   /** 自动完工后本地覆盖的工单状态（workOrderBrief 是跳入时的快照，不会自己变） */
   const [liveOrderStatus, setLiveOrderStatus] = useState<string | null>(null);
 
-  /* ---- 支持按 Escape 快速收起侧边工作台面板 ---- */
+  /* ---- 支持按 Escape 快速收起侧边工作台面板与退出纯净模式 ---- */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -559,14 +583,20 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
           setLotoOpen(false);
           return;
         }
+        // 侧边导轨抽屉开着时，第一下 Esc 关导轨；关了之后第二下才退出纯净模式
         if (sidebarOpen) {
           setSidebarOpen(false);
+          return;
+        }
+        if (cleanMode) {
+          onToggleCleanMode?.(false);
+          return;
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sidebarOpen, lotoOpen]);
+  }, [sidebarOpen, lotoOpen, cleanMode, onToggleCleanMode]);
 
   /* ---- 现场作业会话（真实工单 + LOTO + 步骤留痕 + 进度；写库端点的唯一数据源） ---- */
   const refreshFieldSession = useCallback(async (targetDeviceId: string) => {
@@ -790,9 +820,102 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
     if (sidebarOpen && frame.contentDocument?.body) {
       frame.contentDocument.body.classList.add('host-sidebar-open');
     }
+    if (cleanMode && frame.contentDocument?.body) {
+      frame.contentDocument.body.classList.add('host-clean-mode');
+    }
+    const win = frame.contentWindow as (Window & Record<string, unknown>) | null;
+    if (win && typeof win['setDecorRings'] === 'function') {
+      try {
+        (win['setDecorRings'] as (on: boolean) => void)(showDecorRings);
+      } catch {
+        /* noop */
+      }
+    }
     installIframeBridge(frame, (partId) => reportRef.current(partId));
     setHighlightTick((t) => t + 1);
-  }, [sidebarOpen]);
+  }, [sidebarOpen, cleanMode, showDecorRings]);
+
+  /* ---- 纯净模式宿主类同步 ---- */
+  useEffect(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body) return;
+    if (cleanMode) {
+      doc.body.classList.add('host-clean-mode');
+    } else {
+      doc.body.classList.remove('host-clean-mode');
+    }
+  }, [cleanMode, highlightTick]);
+
+  /* ---- 纯净模式边缘悬停感知（贴近上/下边缘 12px 浮现工具条与控制台，移开 300ms 收回） ---- */
+  useEffect(() => {
+    if (!cleanMode) return;
+    const frame = iframeRef.current;
+    const doc = frame?.contentDocument;
+    if (!doc?.body) return;
+
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const h = doc.documentElement?.clientHeight || window.innerHeight;
+      const isNearEdge = e.clientY <= 12 || e.clientY >= h - 12;
+      const isOverTools = e.clientY <= 65 || e.clientY >= h - 85;
+
+      if (isNearEdge) {
+        if (hideTimer) {
+          clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+        doc.body.classList.remove('host-clean-mode');
+      } else if (!isOverTools) {
+        if (!hideTimer && !doc.body.classList.contains('host-clean-mode')) {
+          hideTimer = setTimeout(() => {
+            if (cleanMode) {
+              doc.body.classList.add('host-clean-mode');
+            }
+            hideTimer = null;
+          }, 300);
+        }
+      } else {
+        if (hideTimer) {
+          clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+      }
+    };
+
+    const handleIframeKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (sidebarOpen) {
+          setSidebarOpen(false);
+        } else if (cleanMode) {
+          onToggleCleanMode?.(false);
+        }
+      }
+    };
+
+    doc.addEventListener('mousemove', handleMouseMove);
+    doc.addEventListener('keydown', handleIframeKeyDown);
+
+    return () => {
+      if (hideTimer) clearTimeout(hideTimer);
+      doc.removeEventListener('mousemove', handleMouseMove);
+      doc.removeEventListener('keydown', handleIframeKeyDown);
+    };
+  }, [cleanMode, sidebarOpen, onToggleCleanMode, highlightTick]);
+
+  /* ---- 装饰刻度盘下线：经页面原生 setDecorRings 下发 ---- */
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow as (Window & Record<string, unknown>) | null;
+    if (!win) return;
+    const fn = win['setDecorRings'];
+    if (typeof fn === 'function') {
+      try {
+        fn.call(win, showDecorRings);
+      } catch {
+        /* noop */
+      }
+    }
+  }, [showDecorRings, highlightTick]);
 
   /* ---- 自动高亮定位工单目标零件 ---- */
   useEffect(() => {
@@ -943,7 +1066,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
         }`}
       >
         {/* ---- 专属独立顶栏：包含设备标识、维修模式激活提示与核心操作组，彻底消除与 iframe 原生工具栏的重叠冲突 ---- */}
-        <header className="h-10 shrink-0 px-3 bg-slate-950/95 border-b border-cyan-500/30 flex items-center justify-between z-30 pointer-events-auto">
+        <header className={`h-10 shrink-0 px-3 bg-slate-950/95 border-b border-cyan-500/30 flex items-center justify-between z-30 pointer-events-auto ${cleanMode ? 'hidden' : ''}`}>
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center shrink-0">
               <Wrench className="w-3.5 h-3.5 text-cyan-400" />
@@ -1016,6 +1139,18 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
               )}
             </button>
 
+            {/* 纯净模式开关 */}
+            <button
+              type="button"
+              data-testid="equipment3d-exploded-clean-toggle"
+              onClick={() => onToggleCleanMode?.(!cleanMode)}
+              title={cleanMode ? '退出纯净模式 (Esc)' : '进入纯净模式：隐藏全部外围板块，专注 3D 视图（按 Esc 退出）'}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold backdrop-blur shadow-[0_2px_10px_rgba(0,0,0,0.5)] transition-all cursor-pointer bg-slate-900/90 hover:bg-slate-800/95 text-cyan-300 hover:text-cyan-100 border border-cyan-500/50 hover:border-cyan-400"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <span>纯净模式</span>
+            </button>
+
             {/* 导出检修报告 */}
             <button
               type="button"
@@ -1065,7 +1200,7 @@ export const ExplodedViewStage: React.FC<ExplodedViewStageProps> = ({
             className="absolute inset-0 pointer-events-none z-40 overflow-hidden"
           >
             {/* 折叠态侧边浮动把手：居中放置在左侧中间垂直区域，彻底不挡底部的交互指南与顶部的工具栏 */}
-            {!sidebarOpen && (
+            {!sidebarOpen && !cleanMode && (
               <aside
                 aria-label="展开维修工作台"
                 className="absolute left-3 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-1.5 pointer-events-auto bg-slate-950/90 border border-cyan-500/40 rounded-xl p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.7)] backdrop-blur"
