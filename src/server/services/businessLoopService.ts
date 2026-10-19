@@ -1555,6 +1555,14 @@ function buildSuggestions(loop: any, stagesView: any[], lotoItems: any[], allCom
 
 // ---- 预览文本生成器（全部来自真实落库数据） ----
 
+/** 条目级列表拼成一行：先剥掉条目自带的句末标点，避免出现「。；」这类重复标点 */
+export function joinClauses(items: unknown[], sep = "；"): string {
+  return items
+    .map((item) => String(item).trim().replace(/[。；;]+$/, ""))
+    .filter(Boolean)
+    .join(sep);
+}
+
 function buildWorkOrderPreview(order: any, loop: any): string {
   return [
     `【工单号】${order.orderNo}`,
@@ -1578,7 +1586,7 @@ function buildPermitPreview(permit: any): string {
     `【关联设备】${permit.equipmentName || "—"}｜车间：${permit.workshop || "—"}`,
     `【申请人】${permit.applicant}${permit.applicantDept ? `（${permit.applicantDept}）` : ""}`,
     `【有效期至】${permit.validUntil}`,
-    `【安全措施】${measures.slice(0, 5).join("；") || "—（JSA 未输出，请人工补充）"}`,
+    `【安全措施】${joinClauses(measures.slice(0, 5)) || "—（JSA 未输出，请人工补充）"}`,
     ...revisionLines,
     `【会签状态】${permit.status}（需现场监护与主管双人会签后方可生效）`,
   ].join("\n");
@@ -1592,7 +1600,7 @@ function buildLotoPreview(loop: any, prefill: any): string {
     `【隔离点位】${items.length} 处（${Array.from(new Set(items.map((i) => i.type))).join(" / ") || "无"})`,
     `【确认进度】${confirmed}/${items.length} 已由现场逐项确认`,
     ...items.map((i) => `- ${i.type}：${i.point}（锁号 ${i.lockNumber || "现场登记"}）${i.confirmed ? `✔ ${i.operator || ""} ${i.confirmTime || ""}` : " 待确认"}`),
-    `【执行标准】${(prefill.standards || []).join("；")}`,
+    `【执行标准】${joinClauses(prefill.standards || [])}`,
   ].join("\n");
 }
 
@@ -1602,7 +1610,7 @@ function buildGuidePreview(loop: any, plan: any, degraded: boolean): string {
     `【作业指引】${loop.loopNo}-SOP${degraded ? "（AI 降级规则结果，需人工核校）" : ""}`,
     `【方案概述】${plan.overview || "—"}`,
     `【作业步骤】${(plan.steps || []).map((s: any) => `${s.step}. ${s.operation}${s.qualityStandard ? `（验收：${s.qualityStandard}）` : ""}`).join("\n") || "—"}`,
-    `【LOTO 隔离点】${(plan.safetyMeasures?.lotoPoints || []).join("；") || "以环节 3 清单为准"}`,
+    `【LOTO 隔离点】${joinClauses(plan.safetyMeasures?.lotoPoints || []) || "以环节 3 清单为准"}`,
     `【PPE】${(plan.safetyMeasures?.ppe || []).join("、") || "按现场标准"}`,
     `【备件/工具】${(plan.spareParts || []).map((p: any) => `${p.name}${p.spec ? `（${p.spec}）` : ""}×${p.qty ?? 1}`).join("；") || "以现场领料为准"}`,
     `【预估工时】${plan.estimatedHours ?? "—"} 小时（${plan.workers ?? "—"} 人）`,
