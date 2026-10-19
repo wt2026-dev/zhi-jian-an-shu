@@ -1,5 +1,5 @@
 import React from 'react';
-import { NAV_GROUPS, PILOT_MODE } from './navConfig';
+import { NAV_GROUPS } from './navConfig';
 import { Sparkles, ChevronRight, X } from 'lucide-react';
 import { isTabAllowed } from '../../utils/rbac';
 
@@ -38,11 +38,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Navigation Groups List */}
       <div className="flex-1 overflow-y-auto py-3.5 px-2.5 space-y-4 custom-scrollbar">
         {NAV_GROUPS.map((group) => {
-        // 按角色过滤受限菜单项（口径集中在 utils/rbac：'user' 归一为 operator、admin 通行）；
-        // 试点模式（VITE_PILOT_MODE=1）下隐藏演示附件项（demo: true），隔离不删除。
-        const visibleItems = group.items.filter(
-          (item) => isTabAllowed(item.id, role) && !(PILOT_MODE && item.demo)
-        );
+        // 按角色过滤受限菜单项（口径集中在 utils/rbac：'user' 归一为 operator、admin 通行）
+        const visibleItems = group.items.filter((item) => isTabAllowed(item.id, role));
         if (visibleItems.length === 0) return null;
         return (
           <div key={group.id} className="space-y-1">

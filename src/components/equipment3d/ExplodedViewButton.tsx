@@ -55,7 +55,7 @@ export function ExplodedViewButton({
       className={`${base} ${skin} ${className}`}
     >
       <Boxes className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
-      {compact ? '拆解演示' : '打开拆解演示附件'}
+      {compact ? '拆解视图' : '打开拆解视图'}
       {available && <Expand className={compact ? 'w-2.5 h-2.5 opacity-70' : 'w-3 h-3 opacity-70'} />}
     </button>
   );
