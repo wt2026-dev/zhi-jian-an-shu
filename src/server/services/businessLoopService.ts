@@ -291,8 +291,17 @@ async function runPrefillSequence(loopId: string, goal: string, eq: any | null):
   const eqCtx = eq
     ? `${eq.name} (${eq.code}) | 类别: ${eq.category || "未知"} | 型号: ${eq.model || "未知"} | 车间: ${eq.workshop || "未知"} | 位置: ${eq.location || "未知"}`
     : "未识别到具体设备（目标文本未命中设备台账）";
+  // 提示词里的遥测必须逐项判断缺测：写成"温度 0°C"会让模型照着 0 写诊断结论。
+  const fmtTele = (v: unknown, unit: string, limit: number) => {
+    const n = telemetryValueOrNull(v);
+    return n == null ? "未接入" : `${n}${unit} (限值 < ${limit}${unit.replace(/^ /, "")})`;
+  };
+  const hasAnyTele = [telemetry.temperature, telemetry.vibration, telemetry.loadRate]
+    .some((v) => telemetryValueOrNull(v) != null);
   const teleCtx = eq
-    ? `温度 ${tele0(telemetry.temperature)}°C (经验限值 < ${TEMP_LIMIT}°C) | 振动 ${tele0(telemetry.vibration)} mm/s (限值 < ${VIB_LIMIT} mm/s) | 负载率 ${tele0(telemetry.loadRate)}% (限值 < ${LOAD_LIMIT}%) | 健康分 ${eq.healthScore ?? "未知"}`
+    ? (hasAnyTele
+      ? `温度 ${fmtTele(telemetry.temperature, "°C", TEMP_LIMIT)} | 振动 ${fmtTele(telemetry.vibration, " mm/s", VIB_LIMIT)} | 负载率 ${fmtTele(telemetry.loadRate, "%", LOAD_LIMIT)} | 健康分 ${eq.healthScore ?? "未知"}`
+      : `遥测未接入（该设备无有效读数，不得据此推断运行状态）| 健康分 ${eq.healthScore ?? "未知"}`)
     : "无遥测数据";
 
   // ---- 环节 1：工单草稿（generate-work-order，DashScope 真实调用） ----
@@ -355,10 +364,18 @@ async function runPrefillSequence(loopId: string, goal: string, eq: any | null):
   });
 }
 
-/** 兜底：telemetry 数值取 0 显示（不经手任何编造值） */
-function tele0(v: any): number {
+/**
+ * 遥测取值：缺测返回 null，**绝不补 0**。
+ *
+ * 旧实现叫 `tele0(v)`，把非法值一律转成 0，注释写的是"不经手任何编造值"——
+ * 但那恰恰是编造：0°C / 0mm/s / 0% 都是可判定的读数，喂给 AI 提示词和前端
+ * 后会显示成"温度 0°C（限值 80°C）"，读起来就是一台正常运转的设备。
+ * 缺测的正确表达是 null，由调用方显示「未接入」。
+ */
+function telemetryValueOrNull(v: unknown): number | null {
+  if (v == null) return null;
   const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? n : null;
 }
 
 /** 环节 1 核心：工单草稿生成（与 /api/v1/ai/generate-work-order 同源 DashScope 通道 + aiCache） */
@@ -1412,11 +1429,12 @@ function mapEquipmentForFrontend(eq: any | null) {
       model: "",
       workshop: "",
       status: "normal" as const,
-      temperature: 0,
+      // 未识别设备时没有任何读数，"温度 0°C" 会被前端读成"设备冷态正常"
+      temperature: null,
       temperatureThreshold: TEMP_LIMIT,
-      vibration: 0,
-      loadRate: 0,
-      healthScore: 0,
+      vibration: null,
+      loadRate: null,
+      healthScore: null,
     };
   }
   const rawStatus = String(eq.status || "");
@@ -1429,11 +1447,11 @@ function mapEquipmentForFrontend(eq: any | null) {
     model: eq.model || "",
     workshop: String(eq.workshop || ""),
     status,
-    temperature: tele0(te.temperature),
+    temperature: telemetryValueOrNull(te.temperature),
     temperatureThreshold: TEMP_LIMIT,
-    vibration: tele0(te.vibration),
-    loadRate: tele0(te.loadRate),
-    healthScore: Number.isFinite(Number(eq.healthScore)) ? Number(eq.healthScore) : 0,
+    vibration: telemetryValueOrNull(te.vibration),
+    loadRate: telemetryValueOrNull(te.loadRate),
+    healthScore: Number.isFinite(Number(eq.healthScore)) ? Number(eq.healthScore) : null,
   };
 }
 
@@ -1618,13 +1636,21 @@ function buildGuidePreview(loop: any, plan: any, degraded: boolean): string {
 }
 
 function buildAcceptancePreview(loop: any, order: any | null, eq: any | null, telemetry: any): string {
+  const fmtBase = (v: unknown, unit: string, limit: number) => {
+    const n = telemetryValueOrNull(v);
+    return n == null ? `未接入（限值 ${limit}${unit}）` : `${n}${unit}（限值 ${limit}${unit}）`;
+  };
+  const hasBase = [telemetry?.temperature, telemetry?.vibration, telemetry?.loadRate]
+    .some((v) => telemetryValueOrNull(v) != null);
   return [
     `【验收记录】${loop.loopNo}-ACC`,
     `【关联工单】${order ? `${order.orderNo}（当前状态 ${order.status}）` : "未生成工单记录"}`,
     `【设备】${eq ? `${eq.name}（${eq.code}）` : "未识别设备"}｜健康分 ${eq?.healthScore ?? "—"}`,
-    `【修前基线】温度 ${tele0(telemetry.temperature)}°C（限值 ${TEMP_LIMIT}）｜振动 ${tele0(telemetry.vibration)} mm/s（限值 ${VIB_LIMIT}）｜负载率 ${tele0(telemetry.loadRate)}%（限值 ${LOAD_LIMIT}）`,
+    hasBase
+      ? `【修前基线】温度 ${fmtBase(telemetry.temperature, "°C", TEMP_LIMIT)}｜振动 ${fmtBase(telemetry.vibration, " mm/s", VIB_LIMIT)}｜负载率 ${fmtBase(telemetry.loadRate, "%", LOAD_LIMIT)}`
+      : "【修前基线】遥测未接入，修前基线为空（不得据零值判定修后改善与否）",
     `【验收要求】修后实测回归经验限值以内；修前/修后对比与双签字请走「检修工单」页验收流程`,
-    `【生成说明】本记录由业务闭环确认动作生成，数据源自真实台账遥测与工单状态`,
+    `【生成说明】本记录由业务闭环确认动作生成，数据源自设备台账遥测与工单状态`,
   ].join("\n");
 }
 

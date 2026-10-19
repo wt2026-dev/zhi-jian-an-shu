@@ -26,10 +26,17 @@ interface RailInsight {
 export const AiContextRail: React.FC<AiContextRailProps> = ({ data }) => {
   const [activeQuestion, setActiveQuestion] = useState<RailInsight | null>(null);
 
-  // 后端未识别到目标设备时（equipment.id 为空），数值一律如实显示「—」，不得编造
+  // 后端未识别到目标设备时（equipment.id 为空），数值一律如实显示「—」，不得编造。
+  // v 也要接住 null：服务端把"遥测未接入"如实回成 null，而 `${null}°C` 会渲染成
+  // 字面量 "null°C"，既不是数字也不是「—」。
   const hasEquipment = data.equipment.id !== '';
   const eq = data.equipment;
-  const dash = (v: string | number | undefined) => (hasEquipment ? v : '—');
+  const dash = (v: string | number | undefined | null) =>
+    (hasEquipment && v !== null && v !== undefined ? v : '—');
+  // 数值+单位：缺测返回「—」。不能用模板串再交给 dash —— `${null}°C` 已经是 "null°C"，
+  // dash 拿到的是一个非空字符串，拦不住。
+  const withUnit = (v: number | null | undefined, unit: string) =>
+    (hasEquipment && typeof v === 'number' && Number.isFinite(v) ? `${v}${unit}` : '—');
 
   const stagePrefill = (order: number) => data.stages.find((s) => s.order === order)?.aiPrefill;
   const draft1 = (stagePrefill(1)?.raw as Stage1Prefill | undefined)?.workOrderDraft;
@@ -125,7 +132,7 @@ export const AiContextRail: React.FC<AiContextRailProps> = ({ data }) => {
             设备健康画像
           </span>
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
-            健康评分 {dash(eq.healthScore)}
+            健康评分 {withUnit(eq.healthScore, '')}
           </span>
         </div>
 
@@ -141,7 +148,7 @@ export const AiContextRail: React.FC<AiContextRailProps> = ({ data }) => {
               <Thermometer className="w-3 h-3" />
               温度
             </div>
-            <div className="font-mono font-bold text-rose-700 text-xs mt-0.5">{dash(`${eq.temperature}°C`)}</div>
+            <div className="font-mono font-bold text-rose-700 text-xs mt-0.5">{withUnit(eq.temperature, '°C')}</div>
             <div className="text-[9px] text-rose-500 font-medium">经验限值 {eq.temperatureThreshold}°C</div>
           </div>
 
@@ -150,13 +157,13 @@ export const AiContextRail: React.FC<AiContextRailProps> = ({ data }) => {
               <Activity className="w-3 h-3 text-slate-400" />
               振动RMS
             </div>
-            <div className="font-mono font-bold text-slate-800 text-xs mt-0.5">{dash(`${eq.vibration} mm/s`)}</div>
+            <div className="font-mono font-bold text-slate-800 text-xs mt-0.5">{withUnit(eq.vibration, ' mm/s')}</div>
             <div className="text-[9px] text-slate-400">台账遥测</div>
           </div>
 
           <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80">
             <div className="text-slate-500 font-medium">负荷工况</div>
-            <div className="font-mono font-bold text-slate-800 text-xs mt-0.5">{dash(`${eq.loadRate}%`)}</div>
+            <div className="font-mono font-bold text-slate-800 text-xs mt-0.5">{withUnit(eq.loadRate, '%')}</div>
             <div className="text-[9px] text-slate-400">负载率</div>
           </div>
         </div>

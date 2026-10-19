@@ -519,16 +519,23 @@ export const StageWorkbench: React.FC<StageWorkbenchProps> = ({
           <StructuredBlock title="完工验收记录（引用真实工单状态与台账遥测基线）" icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}>
             <Para label="验收摘要" text={(prefill.raw as Stage5Prefill)?.acceptanceSummary || prefill.content} />
             <ListBlock
-              label="修前基线（设备台账真实遥测）"
+              label="修前基线（设备台账设备遥测）"
               items={
-                hasEquipment
-                  ? [
-                      `轴承温度 ${loopData.equipment.temperature}°C（经验限值 ${loopData.equipment.temperatureThreshold}°C）`,
-                      `振动 RMS ${loopData.equipment.vibration} mm/s`,
-                      `负载率 ${loopData.equipment.loadRate}%`,
-                      `健康分 ${loopData.equipment.healthScore}`,
-                    ]
-                  : ['未识别到台账设备，无遥测基线']
+                !hasEquipment
+                  ? ['未识别到台账设备，无遥测基线']
+                  : (() => {
+                      const e = loopData.equipment;
+                      const withUnit = (v: number | null | undefined, unit: string) =>
+                        (typeof v === 'number' && Number.isFinite(v) ? `${v}${unit}` : null);
+                      const rows = [
+                        withUnit(e.temperature, '°C') && `轴承温度 ${withUnit(e.temperature, '°C')}（经验限值 ${e.temperatureThreshold}°C）`,
+                        withUnit(e.vibration, ' mm/s') && `振动 RMS ${withUnit(e.vibration, ' mm/s')}`,
+                        withUnit(e.loadRate, '%') && `负载率 ${withUnit(e.loadRate, '%')}`,
+                        withUnit(e.healthScore, '') && `健康分 ${withUnit(e.healthScore, '')}`,
+                      ].filter(Boolean) as string[];
+                      // 一条读数都没有时不能说"基线为空"，否则会被当成"设备状态不适用"
+                      return rows.length > 0 ? rows : ['该设备遥测未接入（无有效读数），修前基线为空'];
+                    })()
               }
             />
           </StructuredBlock>
