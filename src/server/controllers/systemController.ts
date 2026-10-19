@@ -8,6 +8,8 @@ import { aiCache, aiCacheClear, cacheStats } from "../../utils/aiCache.ts";
 import { XINGYUN_APP_ID, XINGYUN_APP_SECRET } from "../utils/config.ts";
 import { perfRegistry } from "../utils/perf.ts";
 import { addAuditLog } from "../services/auditService.ts";
+import { resolveCandidates } from "../services/aiModelRouter.ts";
+import { pickFirstChatHop } from "../services/aiClient.ts";
 import { AuditLogRepository } from "../../db/repositories/index.ts";
 
 // 审计日志查询 API (GET /api/v1/audit-logs)
@@ -62,6 +64,21 @@ export async function handleHealthDetail(_req: any, res: any) {
     await db.query("SELECT 1");
     dbMs = Date.now() - t0;
   } catch (e: any) { dbOk = false; }
+  // AI 这一段原来只看 DASHSCOPE_* 环境变量：换成 Agnes 路由后它长期报
+  // "model: qwen-plus / dashscopeConfigured: false"，与健康检查的真实能力相反。
+  // 现在报路由实际会先调用的那一跳；读失败也如实留 null + 原因，不填默认值冒充。
+  let aiHealthView: any;
+  try {
+    const candidates = await resolveCandidates();
+    const primary = pickFirstChatHop(candidates);
+    aiHealthView = {
+      configured: !!primary,
+      primaryEngine: primary ? primary.displayName || primary.modelName : null,
+      candidateCount: candidates.length,
+    };
+  } catch (e: any) {
+    aiHealthView = { configured: null, primaryEngine: null, candidateCount: null, note: `AI 路由读取失败：${e?.message || e}` };
+  }
   res.status(dbOk ? 200 : 503).json({
     status: dbOk ? "ok" : "degraded",
     uptimeSeconds: Math.round(process.uptime()),
@@ -74,7 +91,7 @@ export async function handleHealthDetail(_req: any, res: any) {
         systemTotalMb: Number((totalMem / 1024 / 1024).toFixed(0)),
         usagePercent: Number(((1 - freeMem / totalMem) * 100).toFixed(1)),
       },
-      ai: { dashscopeConfigured: !!process.env.DASHSCOPE_API_KEY, model: process.env.DASHSCOPE_MODEL || "qwen-plus" },
+      ai: aiHealthView,
       version: "2.0.0",
     },
   });

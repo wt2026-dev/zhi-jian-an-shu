@@ -4,7 +4,8 @@
  *
  * ① 引擎名原来只取"本会话已经答过话的那条消息上的 model"，所以每次刚进页面、
  *    还没问过 AI 时必然显示「未连接」—— 而模型路由里明明配着 healthy 的引擎。
- *    现在补一条真实来源：读 /api/v1/admin/ai-models，按后端同一套优先级挑主用模型。
+ *    补的真实来源是 /api/v1/ai/engine：第一跳由后端按路由口径算，
+ *    不是 /admin/ai-models（admin 专属，主管登录只会 403，非管理员永远看不到引擎名）。
  * ② 输入框的 Enter 处理没判 isComposing。中文输入法在候选未上屏时按 Enter 是
  *    "选词"，处理器照旧 preventDefault 会把候选提交一起吞掉，表现就是按了没反应、
  *    请求根本没发出去（服务端访问日志里那条时间窗确实一条 POST 都没有）。
@@ -12,26 +13,21 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AiModelConfig } from '../../src/api';
+import type { AiEngineStatus } from '../../src/api/aiEngine';
 
-const listMock = vi.hoisted(() => vi.fn());
-vi.mock('../../src/api', () => ({ adminAiModelApi: { list: listMock } }));
+const getMock = vi.hoisted(() => vi.fn());
+vi.mock('../../src/api/aiEngine', () => ({ aiEngineApi: { get: getMock } }));
 
-const { pickPrimaryChatModel, useAiEngineLabel } = await import('../../src/components/ai/useAiEngineLabel');
+const { formatEngineLabel, useAiEngineLabel } = await import('../../src/components/ai/useAiEngineLabel');
 const { AiChatInputBar } = await import('../../src/components/ai/AiChatInputBar');
 
-const cfg = (over: Partial<AiModelConfig> = {}): AiModelConfig => ({
-  id: 'aimc-x',
-  provider: 'agnes',
+const status = (over: Partial<AiEngineStatus> = {}): AiEngineStatus => ({
+  configured: true,
   displayName: '占位模型',
-  baseUrl: '',
-  apiKeyMasked: 'sk-***',
   modelName: 'placeholder',
-  capabilities: ['chat'],
-  priority: 5,
-  enabled: true,
+  provider: 'agnes',
   healthStatus: 'healthy',
-  lastCheckedAt: null,
+  chatCandidateCount: 1,
   ...over,
 });
 
@@ -42,50 +38,37 @@ const Harness = () => {
 
 afterEach(() => {
   cleanup();
-  listMock.mockReset();
+  getMock.mockReset();
 });
 
-describe('pickPrimaryChatModel —— 引擎名取的是真实配置里的主用模型', () => {
-  it('按 priority 升序取主用模型，而不是数组第一条', () => {
-    // 反证：故意把备用（priority 更大）的放在前面
-    const configs = [
-      cfg({ id: 'aimc-backup', displayName: '备用引擎', priority: 20 }),
-      cfg({ id: 'aimc-main', displayName: '主用引擎', priority: 5 }),
-    ];
-    expect(pickPrimaryChatModel(configs)).toBe('主用引擎');
-  });
-
-  it('只具备 vision / video 能力的模型不能顶替应答引擎', () => {
-    expect(pickPrimaryChatModel([cfg({ displayName: '视觉模型', capabilities: ['vision'] })])).toBeNull();
-  });
-
-  it('停用的模型不参与选择', () => {
-    expect(pickPrimaryChatModel([cfg({ displayName: '已停用引擎', enabled: false })])).toBeNull();
+describe('formatEngineLabel —— 拿到投影字段后怎么说人话', () => {
+  it('直接报后端算出的第一跳名字', () => {
+    expect(formatEngineLabel(status({ displayName: '主用引擎' }))).toBe('主用引擎');
   });
 
   it('最近探测失败时如实标注，不伪装成在线', () => {
-    expect(pickPrimaryChatModel([cfg({ displayName: '主用引擎', healthStatus: 'unhealthy' })])).toBe(
+    expect(formatEngineLabel(status({ displayName: '主用引擎', healthStatus: 'unhealthy' }))).toBe(
       '主用引擎（最近探测失败）'
     );
     // unknown（刚播种还没测过）不加失败标记，避免把没数据说成坏数据
-    expect(pickPrimaryChatModel([cfg({ displayName: '主用引擎', healthStatus: 'unknown' })])).toBe('主用引擎');
+    expect(formatEngineLabel(status({ displayName: '主用引擎', healthStatus: 'unknown' }))).toBe('主用引擎');
   });
 
-  it('空配置返回 null，交给界面决定占位文案', () => {
-    expect(pickPrimaryChatModel([])).toBeNull();
+  it('configured:false（路由里没有可用候选）不编名字，交给界面显示占位', () => {
+    expect(formatEngineLabel(status({ configured: false, displayName: null, healthStatus: null }))).toBeNull();
   });
 });
 
 describe('useAiEngineLabel —— 进页面就能报出真实引擎', () => {
-  it('读到模型配置后显示主用引擎名（而不是「未连接」）', async () => {
-    listMock.mockResolvedValue([cfg({ displayName: 'Agnes 2.5 Flash（对话+视觉）', healthStatus: 'healthy' })]);
+  it('读到引擎状态后显示主用引擎名（而不是「未连接」）', async () => {
+    getMock.mockResolvedValue(status({ displayName: 'Agnes 2.5 Flash（对话+视觉）' }));
     render(<Harness />);
     expect(await screen.findByText('Agnes 2.5 Flash（对话+视觉）')).toBeTruthy();
-    expect(listMock).toHaveBeenCalledTimes(1);
+    expect(getMock).toHaveBeenCalledTimes(1);
   });
 
-  it('读不到配置（无权限 / 后端未启动）时退回占位，不编造引擎名', async () => {
-    listMock.mockRejectedValue(new Error('403'));
+  it('读不到（后端未启动 / 请求失败）时退回占位，不编造引擎名', async () => {
+    getMock.mockRejectedValue(new Error('ECONNREFUSED'));
     render(<Harness />);
     expect(await screen.findByText('未探测')).toBeTruthy();
   });

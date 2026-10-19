@@ -1,11 +1,13 @@
 // 重构说明：AI 模型路由管理端控制器——列表（密钥掩码）/新增更新/连接测试/重排序。
 import { addAuditLog } from "../services/auditService.ts";
 import { AiModelConfigRepository } from "../../db/repositories/index.ts";
+import { pickFirstChatHop } from "../services/aiClient.ts";
 import {
   maskApiKey,
   encryptApiKey,
   decryptApiKey,
   invalidateModelConfigCache,
+  resolveCandidates,
   testModelConfig,
   ModelCandidate,
 } from "../services/aiModelRouter.ts";
@@ -35,6 +37,45 @@ export const handleListAiModels = async (req: any, res: any) => {
     );
   } catch (err: any) {
     res.status(500).json({ error: "获取模型配置列表失败", message: err.message });
+  }
+};
+
+/**
+ * GET /api/v1/ai/engine —— 任何登录角色可读的「当前应答引擎」只读投影。
+ * 存在的理由：/admin/ai-models 是 admin 专属，非管理员页面拿不到引擎真名，
+ * 只能显示「未探测」；这里只投影展示字段，密钥一律不出库、不出接口。
+ */
+export const handleGetChatEngineStatus = async (_req: any, res: any) => {
+  try {
+    const candidates = await resolveCandidates();
+    const primary = pickFirstChatHop(candidates);
+    const chatCandidates = candidates.filter((c) => (c.capabilities || []).includes("chat"));
+    if (!primary) {
+      // 读不到候选就如实说没配置，不给一个"看起来在线"的默认值
+      return res.json({
+        configured: false,
+        displayName: null,
+        modelName: null,
+        provider: null,
+        healthStatus: null,
+        chatCandidateCount: 0,
+      });
+    }
+    let healthStatus: string | null = null;
+    if (primary.configId) {
+      const row: any = await AiModelConfigRepository.getById(primary.configId);
+      healthStatus = row?.healthStatus ?? null;
+    }
+    res.json({
+      configured: true,
+      displayName: primary.displayName || primary.modelName,
+      modelName: primary.modelName,
+      provider: primary.provider,
+      healthStatus,
+      chatCandidateCount: chatCandidates.length,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "获取当前应答引擎失败", message: err?.message || String(err) });
   }
 };
 

@@ -113,6 +113,16 @@ export function orderCandidates(
   });
 }
 
+/**
+ * 当前会先被调用的一跳：与 lazyModelRouter 取候选的方式完全一致
+ * （同一个 reqModel=DASHSCOPE_CHAT_MODEL、同一种能力偏好），所以这就是实际第一跳，
+ * 不是配置列表里的第一条。导出给引擎状态投影与健康检查共用，避免两处各写一套排序。
+ */
+export function pickFirstChatHop(candidates: ModelCandidate[]): ModelCandidate | null {
+  if (!candidates.length) return null;
+  return orderCandidates(candidates, DASHSCOPE_CHAT_MODEL, "chat")[0] ?? null;
+}
+
 /** 同步构建懒解析路由客户端；preferredCapability 仅在请求 model 与任何配置都不匹配时影响候选排序 */
 function lazyModelRouter(preferredCapability: "chat" | "vision"): LazyModelRouter {
   return {

@@ -41,6 +41,7 @@ import {
   handleAiDiagnose,
 } from "../controllers/aiGenerationController.ts";
 import { handleAiSuggestContribution } from "../controllers/contributionController.ts";
+import { handleGetChatEngineStatus } from "../controllers/aiModelConfigController.ts";
 import { handleHealthForecast, handleGenerateReport, handleSafetyRiskAssessment } from "../controllers/aiForecastController.ts";
 import { handleCreatePipeline, handleGetPipeline, handlePipelineEvents, handleListPipeline } from "../controllers/aiPipelineController.ts";
 
@@ -49,6 +50,10 @@ export function registerAiRoutes(app: express.Express) {
   // AI 统计
   app.get("/api/v1/ai-stats", requireAuth, handleGetAiStats);
   app.get("/api/v1/admin/ai-stats", requireAuth, handleGetAiStats);
+
+  // 当前应答引擎真名：任何登录角色可读的只读投影（管理端列表是 admin 专属，
+  // 非管理员页面据此显示角标，读不到就显示未探测，绝不写死模型名）
+  app.get("/api/v1/ai/engine", requireAuth, handleGetChatEngineStatus);
 
   // ---------- AI 每日预算状态（仅 admin 可见） ----------
   app.get("/api/v1/ai/budget", requireAuth, requireRole(["admin"], "查看 AI 预算"), (_req: any, res: any) => {
