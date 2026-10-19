@@ -388,7 +388,7 @@ async function runWorkOrderDraftCore(input: {
   "title": "工单标题（20字内，含设备名与故障）",
   "faultType": "机械振动|轴承温度|润滑系统|气路与密封|电气联锁|传动部件|其他",
   "priority": "urgent|high|medium|low 之一",
-  "description": "现场情况描述（80字内，引用真实遥测数值）",
+  "description": "现场情况描述（80字内，引用设备遥测数值）",
   "estimatedHours": 4,
   "recommendedSteps": ["检查/处置步骤1", "步骤2", "步骤3"],
   "safetyNotes": ["开工前安全注意事项1", "注意2"]

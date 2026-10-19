@@ -1,5 +1,6 @@
 import { getDb } from "../db.ts";
 import { parseJson } from "./shared.ts";
+import type { Equipment } from "../../types/index.ts";
 
 export const EquipmentRepository = {
   async getAll(filters?: { workshop?: string; status?: string; search?: string }) {
@@ -99,7 +100,15 @@ export const EquipmentRepository = {
   },
 };
 
-function mapEquipmentRow(r: any) {
+/**
+ * 行 → 领域对象。
+ *
+ * ⚠️ 这里曾写 `function mapEquipmentRow(r: any)`（无返回类型），于是 `getById` / `getAll`
+ * 的返回类型被推导成 `any`，**所有调用方都拿不到类型**：下游 `businessLoopService.ts`
+ * 一度有 91 处 `any`，根因有一半在这里。补上 `Equipment` 返回类型后，字段拼错、
+ * 漏字段、把 string 当 number 用都会在编译期暴露。
+ */
+function mapEquipmentRow(r: any): Equipment {
   return {
     id: r.id,
     code: r.code,
@@ -113,7 +122,12 @@ function mapEquipmentRow(r: any) {
     status: r.status,
     healthScore: r.health_score,
     criticality: r.criticality,
-    telemetry: parseJson(r.telemetry, {}),
+    // 空对象不是合法遥测：DB 默认值就是 '{}'，直接透传会让下游读到 undefined 却以为有值。
+    // parseJson 返回 null 表示「未接入」，由调用方决定显示「—」还是「未接入」，不补 0。
+    telemetry: (() => {
+      const t = parseJson<Record<string, unknown> | null>(r.telemetry, null);
+      return t && typeof t === "object" && "temperature" in t ? (t as unknown as Equipment["telemetry"]) : null;
+    })(),
     specs: parseJson(r.specs, {}),
     maintenanceHistory: parseJson(r.maintenance_history, []),
     nextInspectionDate: r.next_inspection_date,

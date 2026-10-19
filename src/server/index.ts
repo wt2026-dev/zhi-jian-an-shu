@@ -337,8 +337,28 @@ export async function createApp() {
   // 的路由不再匿名可达（白名单见 middleware/auth.ts 的 PUBLIC_API_*）。
   app.use(globalAuthGuard);
 
+  // ==================== 旧前缀 /api/* 守卫（2026-10-19 清理已完成） ====================
+  // 背景：清理前 206 条路由里有 191 条以旧前缀 /api/* 与 /api/v1/* 成对注册
+  // （如 routes/acceptance.ts 的 acceptance/checks 两条一模一样的 handler）。
+  // 2026-10-19 已把 35 条旧前缀路由**全部删除**（其中 32 条有 v1 对等路由；
+  // /api/health 由根路径 /health 取代；/api/download-zip 迁到 /api/v1/download-zip；
+  // /api/debug-log 因前端从未实现发送端而直接下线）。
+  // 现在这里不再"标记弃用"，而是**拦住回潮**：任何非 /api/v1/ 的 /api/* 请求一律 404
+  // 并回一个可诊断的 JSON，避免后续有人顺手 `app.get("/api/xxx")` 又把旧前缀养回来。
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/") && !req.path.startsWith("/api/v1/")) {
+      return res.status(404).json({
+        error: "该接口前缀已下线，请改用 /api/v1",
+        code: "LEGACY_API_PREFIX_REMOVED",
+        path: req.originalUrl,
+        successor: `/api/v1${req.path.slice("/api".length)}`,
+      });
+    }
+    next();
+  });
+
   // ==================== 业务域路由注册（保持原 server.ts 首次注册顺序） ====================
-  registerSystemRoutes(app); // 审计日志查询 / 管理 admin 接口 / 健康详情 / swagger / 数字人状态 / 调试日志 / 源码打包
+  registerSystemRoutes(app); // 审计日志查询 / 管理 admin 接口 / 健康详情 / swagger / 数字人状态 / 源码打包
   registerDashboardRoutes(app); // 驾驶舱指标
   // 注意：legacy /api/ai/* 兼容层已下线（路由文件已删除，由 /api/v1/ai/* 统一接管）；
   // AI 分析类接口不提供 /stream 双胞胎——只有对话流式（/api/v1/ai/chat/stream）有真实调用方，

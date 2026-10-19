@@ -27,7 +27,6 @@ const signSchema = z.object({
 
 export function registerAcceptanceRoutes(app: express.Express) {
   app.get("/api/v1/work-orders/:orderId/acceptance", validateParams(orderIdParamSchema), handleGetAcceptance);
-  app.get("/api/work-orders/:orderId/acceptance", validateParams(orderIdParamSchema), handleGetAcceptance);
 
   app.post(
     "/api/v1/work-orders/:orderId/acceptance/checks",
@@ -36,23 +35,9 @@ export function registerAcceptanceRoutes(app: express.Express) {
     validateBody(checkSchema),
     handleAcceptanceCheck
   );
-  app.post(
-    "/api/work-orders/:orderId/acceptance/checks",
-    requireAuth,
-    validateParams(orderIdParamSchema),
-    validateBody(checkSchema),
-    handleAcceptanceCheck
-  );
 
   app.post(
     "/api/v1/work-orders/:orderId/acceptance/sign",
-    requireAuth,
-    validateParams(orderIdParamSchema),
-    validateBody(signSchema),
-    handleAcceptanceSign
-  );
-  app.post(
-    "/api/work-orders/:orderId/acceptance/sign",
     requireAuth,
     validateParams(orderIdParamSchema),
     validateBody(signSchema),

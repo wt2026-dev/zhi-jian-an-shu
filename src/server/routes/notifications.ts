@@ -12,13 +12,10 @@ import {
 export function registerNotificationRoutes(app: express.Express) {
   // 通知列表 (登录即可查看，按用户真实隔离落库)
   app.get("/api/v1/notifications", requireAuth, validateQuery(notificationsQuerySchema), handleGetNotifications);
-  app.get("/api/notifications", requireAuth, validateQuery(notificationsQuerySchema), handleGetNotifications);
 
   // 标记单条通知已读
   app.patch("/api/v1/notifications/:id/read", requireAuth, validateParams(idParamSchema), handleMarkNotificationRead);
-  app.patch("/api/notifications/:id/read", requireAuth, validateParams(idParamSchema), handleMarkNotificationRead);
 
   // 标记全部通知已读 (支持按当前用户隔离)
   app.post("/api/v1/notifications/read-all", requireAuth, handleMarkAllNotificationsRead);
-  app.post("/api/notifications/read-all", requireAuth, handleMarkAllNotificationsRead);
 }

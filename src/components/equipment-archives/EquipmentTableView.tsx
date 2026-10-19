@@ -64,15 +64,15 @@ export const EquipmentTableView: React.FC<EquipmentTableViewProps> = ({
                     </span>
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] space-x-2">
-                    <span className={eq.telemetry.temperature > 75 ? 'text-rose-600' : 'text-slate-700'}>
-                      {eq.telemetry.temperature}°C
+                    <span className={eq.telemetry && eq.telemetry.temperature > 75 ? 'text-rose-600' : 'text-slate-700'}>
+                      {eq.telemetry?.temperature ?? "—"}°C
                     </span>
                     <span className="text-slate-300">|</span>
-                    <span className={eq.telemetry.vibration > 4.5 ? 'text-rose-600' : 'text-slate-700'}>
-                      {eq.telemetry.vibration}mm/s
+                    <span className={eq.telemetry && eq.telemetry.vibration > 4.5 ? 'text-rose-600' : 'text-slate-700'}>
+                      {eq.telemetry?.vibration ?? "—"}mm/s
                     </span>
                     <span className="text-slate-300">|</span>
-                    <span className="text-slate-700">{eq.telemetry.current}A</span>
+                    <span className="text-slate-700">{eq.telemetry?.current ?? "—"}A</span>
                   </td>
                   <td className="px-4 py-3 font-mono text-slate-500">{eq.nextInspectionDate}</td>
                   <td className="px-4 py-3 text-right space-x-1.5">

@@ -43,6 +43,5 @@ export function registerSafetyRoutes(app: express.Express) {
   app.post("/api/v1/loto-locks", requireRole(["admin", "manager", "inspector"], "登记隔离锁"), validateBody(createLotoLockSchema), handleCreateLotoLock);
   app.post("/api/v1/loto-locks/:id/release", requireRole(["admin", "manager", "inspector"], "记录隔离锁释放"), validateParams(idParamSchema), validateBody(releaseLotoLockSchema), handleReleaseLotoLock);
   app.get("/api/v1/loto-locks", requireAuth, handleGetLotoLocks);
-  app.get("/api/loto-locks", requireAuth, handleGetLotoLocks);
   app.get("/api/v1/loto-locks/:id", requireAuth, validateParams(idParamSchema), handleGetLotoLockById);
 }

@@ -164,11 +164,12 @@ describe('故障定位 · 源码契约（防静默删功能）', () => {
     expect(svc).toContain('OBSERVATION_HINTS'); // 关键词映射表
   });
 
-  it('HTTP 链路：/equipments/:id/fault-diagnostics 注册在 controller + 路由（/api/v1 与 /api 双份）', () => {
+  it('HTTP 链路：/equipments/:id/fault-diagnostics 注册在 controller + 路由（仅 /api/v1）', () => {
     expect(read(CONTROLLER)).toContain('handleGetDeviceFaultDiagnostics');
     const routes = read(ROUTES);
     expect(routes).toContain('/api/v1/equipments/:deviceId/fault-diagnostics');
-    expect(routes).toContain('/api/equipments/:deviceId/fault-diagnostics');
+    // 2026-10-19：旧 /api/* 前缀已下线，原先这里断言"双份注册"，现在断言"不得复活"
+    expect(routes).not.toContain('/api/equipments/:deviceId/fault-diagnostics"');
     expect(read('src/api/index.ts')).toContain('getFaultDiagnostics');
   });
 

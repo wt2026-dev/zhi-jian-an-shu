@@ -1,5 +1,5 @@
 /**
- * 设备故障定位服务 —— 把「设备运行状态监测」在真实遥测里检出的超标指标，
+ * 设备故障定位服务 —— 把「设备运行状态监测」在设备遥测里检出的超标指标，
  * 与「拆解视图 BOM 位号」对齐，供拆解页自动高亮故障观察部位 + 侧边故障详情卡。
  *
  * ## 数据来源（全部真实，不编造）
@@ -9,7 +9,7 @@
  *   · 部位：explodedCatalog.generated.ts —— 拆解页零件数组原文提取的真实 BOM。
  *
  * ## 判定口径（诚实声明）
- *   · "未处理的故障" = 最近 24h 窗口的**最新真实读数**仍在报警阈值之上
+ *   · "未处理的故障" = 最近 24h 窗口的**最新遥测读数**仍在报警阈值之上
  *     （读数恢复正常 = 已处理恢复，不再高亮 —— 不查工单表假装闭环）。
  *   · 遥测是"设备级"读数，不是"零件级"传感器 —— 不做部件诊断。超标指标与拆解页
  *     零件的对应关系按「观察部位」口径（与大厅 partEvidence 一致）：每个指标声明
@@ -196,7 +196,7 @@ export function classifyMetricFault(metric: FaultMetric, rows: FaultSampleRow[])
 }
 
 /**
- * 读真实遥测（最近 24h）判定该设备当前是否有未处理故障，并把超标指标
+ * 读设备遥测（最近 24h）判定该设备当前是否有未处理故障，并把超标指标
  * 与拆解页观察部位对齐。遥测/台账均为真实 DB 记录，窗口无读数时如实说明。
  */
 export async function getDeviceFaultDiagnostics(deviceId: string): Promise<DeviceFaultDiagnostics> {
@@ -238,7 +238,7 @@ export async function getDeviceFaultDiagnostics(deviceId: string): Promise<Devic
   faults.sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] || b.value - a.value);
 
   const notes: string[] = [
-    '故障由设备遥测真实读数与报警阈值判定（与 3D 场景同一份阈值口径）；最新读数仍在阈值之上视为未处理。'
+    '故障由设备遥测遥测读数与报警阈值判定（与 3D 场景同一份阈值口径）；最新读数仍在阈值之上视为未处理。'
   ];
   if (!faults.length) notes.push('窗口内最新读数均低于报警阈值，设备当前无超标故障。');
   const isOverhauling = ['overhauling', 'maintenance', 'repair', 'overhaul'].includes(String(eq.status ?? '').toLowerCase());

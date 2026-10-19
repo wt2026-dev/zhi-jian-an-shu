@@ -106,24 +106,24 @@ export const EquipmentDetailDrawer: React.FC<EquipmentDetailDrawerProps> = ({
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
             <h4 className="font-semibold text-slate-800 flex items-center">
               <Activity className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
-              实时遥测数据流 (IoT Gateway)
+              设备遥测快照
             </h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="p-2 rounded bg-white border border-slate-200 shadow-xs">
                 <span className="text-[10px] text-slate-500 block">轴承温度</span>
-                <span className="font-mono text-sm font-bold text-slate-800">{activeEquipment.telemetry.temperature} °C</span>
+                <span className="font-mono text-sm font-bold text-slate-800">{activeEquipment.telemetry?.temperature ?? "—"} °C</span>
               </div>
               <div className="p-2 rounded bg-white border border-slate-200 shadow-xs">
                 <span className="text-[10px] text-slate-500 block">振动速度 RMS</span>
-                <span className="font-mono text-sm font-bold text-slate-800">{activeEquipment.telemetry.vibration} mm/s</span>
+                <span className="font-mono text-sm font-bold text-slate-800">{activeEquipment.telemetry?.vibration ?? "—"} mm/s</span>
               </div>
               <div className="p-2 rounded bg-white border border-slate-200 shadow-xs">
                 <span className="text-[10px] text-slate-500 block">工作电压</span>
-                <span className="font-mono text-sm font-bold text-slate-800">{activeEquipment.telemetry.voltage} V</span>
+                <span className="font-mono text-sm font-bold text-slate-800">{activeEquipment.telemetry?.voltage ?? "—"} V</span>
               </div>
               <div className="p-2 rounded bg-white border border-slate-200 shadow-xs">
                 <span className="text-[10px] text-slate-500 block">负荷率</span>
-                <span className="font-mono text-sm font-bold text-slate-800">{activeEquipment.telemetry.loadRate} %</span>
+                <span className="font-mono text-sm font-bold text-slate-800">{activeEquipment.telemetry?.loadRate ?? "—"} %</span>
               </div>
             </div>
           </div>

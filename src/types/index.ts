@@ -64,7 +64,17 @@ export interface Equipment {
   status: EquipmentStatus;
   healthScore: number;   // 0 - 100
   criticality: '关键核心' | '主要生产' | '通用辅助';
-  telemetry: TelemetryData;
+  /**
+   * 设备台账上的最近一次遥测快照。
+   *
+   * ⚠️ 可为 `null`：`equipments.telemetry` 在 DB 层的默认值就是 `'{}'::jsonb`
+   * （见 `src/db/migrations/001_init.sql`），所以"没有遥测"是数据库允许的合法状态。
+   * 早先这里声明为必填 `TelemetryData`，仓储则用 `parseJson(r.telemetry, {})` 把空对象
+   * 强塞进来 —— 类型检查能过，运行时下游读 `.temperature` 得到 `undefined`，
+   * 最终渲染成 `undefined°C`。现改为 `null`，调用方必须显式处理缺测。
+   * 数据红线：缺测显示「未接入」，**不得补 0**。
+   */
+  telemetry: TelemetryData | null;
   specs: Record<string, string>;
   maintenanceHistory: MaintenanceRecord[];
   nextInspectionDate: string;
@@ -97,7 +107,7 @@ export type WorkOrderFaultType = WorkOrder['faultType'];
 
 /**
  * 建单预填载荷（故障定位红色脉冲高亮 →「创建维修工单」跳转用）。
- * fields 全部来自真实遥测故障详情：设备 / 指标 / 严重度 / 观察部位，不造数据。
+ * fields 全部来自设备遥测故障详情：设备 / 指标 / 严重度 / 观察部位，不造数据。
  */
 export interface WorkOrderCreatePrefill {
   equipmentId: string;
@@ -193,7 +203,7 @@ export interface AcceptanceCheckRecord {
   at: string;
 }
 
-/** 修前基线：来自真实遥测表 equipment_telemetry 的窗口统计 */
+/** 修前基线：来自设备遥测表 equipment_telemetry 的窗口统计 */
 export interface AcceptanceBaseline {
   metric: 'temperature' | 'vibration' | 'current';
   label: string;

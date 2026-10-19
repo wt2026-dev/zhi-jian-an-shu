@@ -78,19 +78,19 @@ export const EquipmentGridView: React.FC<EquipmentGridViewProps> = ({
               <div className="mt-3 p-2 rounded-lg bg-slate-50 border border-slate-200 grid grid-cols-3 gap-2 text-[11px]">
                 <div>
                   <span className="text-slate-500 block text-[10px]">轴温</span>
-                  <span className={`font-mono font-semibold ${eq.telemetry.temperature > 75 ? 'text-rose-600' : 'text-slate-700'}`}>
-                    {eq.telemetry.temperature}°C
+                  <span className={`font-mono font-semibold ${eq.telemetry && eq.telemetry.temperature > 75 ? 'text-rose-600' : 'text-slate-700'}`}>
+                    {eq.telemetry?.temperature ?? "—"}°C
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">振动RMS</span>
-                  <span className={`font-mono font-semibold ${eq.telemetry.vibration > 4.5 ? 'text-rose-600' : 'text-slate-700'}`}>
-                    {eq.telemetry.vibration}mm/s
+                  <span className={`font-mono font-semibold ${eq.telemetry && eq.telemetry.vibration > 4.5 ? 'text-rose-600' : 'text-slate-700'}`}>
+                    {eq.telemetry?.vibration ?? "—"}mm/s
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">运行电流</span>
-                  <span className="font-mono font-semibold text-slate-700">{eq.telemetry.current}A</span>
+                  <span className="font-mono font-semibold text-slate-700">{eq.telemetry?.current ?? "—"}A</span>
                 </div>
               </div>
             </div>

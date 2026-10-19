@@ -212,7 +212,9 @@ describe('EquipmentArchivesView 模块化重构验证', () => {
     fireEvent.click(screen.getByText('1# 循环水主泵'));
 
     expect(screen.getByText('基础制造与安装参数')).toBeInTheDocument();
-    expect(screen.getByText('实时遥测数据流 (IoT Gateway)')).toBeInTheDocument();
+    // 标题不得再出现 IoT Gateway：本项目没有任何网关接入通路，遥测只有种子期合成
+    expect(screen.getByText('设备遥测快照')).toBeInTheDocument();
+    expect(screen.queryByText(/IoT Gateway/)).not.toBeInTheDocument();
     expect(screen.getByText('关键技术规格与易损备件标准')).toBeInTheDocument();
     expect(screen.getByText('设备专属扫码报修码')).toBeInTheDocument();
 

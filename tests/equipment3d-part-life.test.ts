@@ -262,11 +262,12 @@ describe('零件寿命预警 · 源码契约', () => {
     expect(svc).toContain('运行系数'); // dataNote 披露折算口径
   });
 
-  it('HTTP 链路：/equipments/:id/part-life-diagnostics 双前缀注册 + api 客户端方法', () => {
+  it('HTTP 链路：/equipments/:id/part-life-diagnostics 仅 /api/v1 前缀 + api 客户端方法', () => {
     expect(read(CONTROLLER)).toContain('handleGetDevicePartLifeDiagnostics');
     const routes = read(ROUTES);
     expect(routes).toContain('/api/v1/equipments/:deviceId/part-life-diagnostics');
-    expect(routes).toContain('/api/equipments/:deviceId/part-life-diagnostics');
+    // 2026-10-19：旧 /api/* 已下线，原「双前缀」断言改为「不得复活」
+    expect(routes).not.toContain('/api/equipments/:deviceId/part-life-diagnostics"');
     expect(read('src/api/index.ts')).toContain('getPartLifeDiagnostics');
   });
 

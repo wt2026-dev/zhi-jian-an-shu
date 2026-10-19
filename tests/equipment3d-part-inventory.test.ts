@@ -245,12 +245,14 @@ describe('源码契约 · 库存联动全链路接线', () => {
     expect(src).toContain('无备件记录');
   });
 
-  it('controller + routes 暴露 part-inventory 双前缀端点', () => {
+  it('controller + routes 暴露 part-inventory 端点（仅 /api/v1）', () => {
     const ctl = read(CONTROLLER);
     expect(ctl).toContain('handleGetDevicePartInventory');
     expect(ctl).toContain('getDevicePartInventory');
     const routes = read(ROUTES);
-    expect(routes).toContain('/part-inventory');
+    expect(routes).toContain('/api/v1/equipments/:deviceId/part-inventory');
+    // 2026-10-19：原断言只模糊匹配 '/part-inventory'，旧前缀复活也照样绿；改为钉死后缀
+    expect(routes).not.toContain('/api/equipments/:deviceId/part-inventory"');
   });
 
   it('api 层提供 explodedViewApi.getPartInventory 与诊断类型', () => {

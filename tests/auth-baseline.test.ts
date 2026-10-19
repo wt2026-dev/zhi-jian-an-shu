@@ -62,7 +62,7 @@ function pathFor(name: string): string {
     case "post switch-user": return "/api/v1/auth/switch-user";
     case "post logout": return "/api/v1/auth/logout";
     case "get me": return "/api/v1/auth/me";
-    case "get download-zip": return "/api/download-zip";
+    case "get download-zip": return "/api/v1/download-zip";
     case "get audit-logs": return "/api/v1/audit-logs";
     case "get safety-permits": return "/api/v1/safety-permits";
     case "post safety-permits": return "/api/v1/safety-permits";
@@ -116,7 +116,7 @@ describe("全局鉴权基线：关键接口 RBAC 收口", () => {
   });
 
   it("download-zip 与 audit-logs：技师访问应返回 403，admin 可访问", { retry: 1 }, async () => {
-    const zipRes = await request(app).get("/api/download-zip").set("Authorization", `Bearer ${techToken}`);
+    const zipRes = await request(app).get("/api/v1/download-zip").set("Authorization", `Bearer ${techToken}`);
     expect(zipRes.status).toBe(403);
     const auditRes = await request(app).get("/api/v1/audit-logs").set("Authorization", `Bearer ${techToken}`);
     expect(auditRes.status).toBe(403);
@@ -132,7 +132,7 @@ describe("全局鉴权基线：关键接口 RBAC 收口", () => {
     const zipAdmin = await new Promise<any>((resolve, reject) => {
       let settled = false;
       const req = request(app)
-        .get("/api/download-zip")
+        .get("/api/v1/download-zip")
         .set("Authorization", `Bearer ${adminToken}`)
         .buffer(false);
       req.on("response", (res: any) => {
@@ -175,7 +175,7 @@ describe("全局鉴权基线：白名单路径匿名可达", () => {
   it("健康探针 /health /ready /api/health 匿名 200", { retry: 1 }, async () => {
     expect((await request(app).get("/health")).status).toBe(200);
     expect((await request(app).get("/ready")).status).toBe(200);
-    expect((await request(app).get("/api/health")).status).toBe(200);
+    expect((await request(app).get("/health")).status).toBe(200);
   });
 
   it("OpenAPI 规范 /api-docs.json 匿名 200", { retry: 1 }, async () => {

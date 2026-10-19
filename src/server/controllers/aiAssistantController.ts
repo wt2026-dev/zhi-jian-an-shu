@@ -225,7 +225,7 @@ export const handleEquipmentSummary = async (req: any, res: any) => {
     for (const task of inspections.slice(0, 20)) {
       for (const item of task.items || []) {
         if ((item.equipmentId === equipmentId || item.equipmentName === eq.name) && (item.status === "abnormal" || item.isPass === false)) {
-          abnormalPoints.push(`- [${task.scheduledDate || ""}] ${item.checkPoint || item.checkItem}: 实测 ${item.recordedValue ?? "异常"} ${item.unit || ""} (标准 ${item.standard || ""})`);
+          abnormalPoints.push(`- [${task.scheduledDate || ""}] ${item.checkPoint || item.checkItem}: 点检读数 ${item.recordedValue ?? "异常"} ${item.unit || ""} (标准 ${item.standard || ""})`);
         }
       }
     }

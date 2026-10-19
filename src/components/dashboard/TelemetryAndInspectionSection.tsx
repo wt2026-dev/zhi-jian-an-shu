@@ -42,6 +42,12 @@ export const TelemetryAndInspectionSection: React.FC<TelemetryAndInspectionSecti
           {equipments.slice(0, 4).map((eq) => {
             const isAlarm = eq.healthScore < 60 || eq.status === 'fault';
             const isWarn = eq.healthScore >= 60 && eq.healthScore < 80;
+            // 缺测（telemetry 为 null）时：不参与阈值判定、不显示数字。
+            // 注意 `undefined > 75` 求值为 false —— 直接写 eq.telemetry?.temperature > 75
+            // 会把「没有读数」静默渲染成「正常」，比显示 undefined 更危险。
+            const tel = eq.telemetry;
+            const overTemp = tel != null && tel.temperature > 75;
+            const overVib = tel != null && tel.vibration > 4.5;
             return (
               <div
                 key={eq.id}
@@ -67,18 +73,18 @@ export const TelemetryAndInspectionSection: React.FC<TelemetryAndInspectionSecti
                 <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5 font-medium">
                   <span>
                     温度:{' '}
-                    <strong className={eq.telemetry.temperature > 75 ? 'text-rose-600 font-mono' : 'text-slate-800 font-mono'}>
-                      {eq.telemetry.temperature}°C
+                    <strong className={overTemp ? 'text-rose-600 font-mono' : 'text-slate-800 font-mono'}>
+                      {tel ? `${tel.temperature}°C` : '—'}
                     </strong>
                   </span>
                   <span>
                     振动:{' '}
-                    <strong className={eq.telemetry.vibration > 4.5 ? 'text-rose-600 font-mono' : 'text-slate-800 font-mono'}>
-                      {eq.telemetry.vibration}mm/s
+                    <strong className={overVib ? 'text-rose-600 font-mono' : 'text-slate-800 font-mono'}>
+                      {tel ? `${tel.vibration}mm/s` : '—'}
                     </strong>
                   </span>
                   <span>
-                    负荷: <strong className="text-slate-800 font-mono">{eq.telemetry.loadRate}%</strong>
+                    负荷: <strong className="text-slate-800 font-mono">{tel ? `${tel.loadRate}%` : '—'}</strong>
                   </span>
                 </div>
               </div>
