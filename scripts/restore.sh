@@ -1,17 +1,9 @@
 #!/bin/sh
-# 恢复脚本：从指定备份文件恢复 PGlite 数据
-# 用法: ./restore.sh backups/pglite-backup-20260906-020000.tar.gz
+# 恢复演练入口——校验备份文件可用性（隔离临时目录，绝不触碰真实数据）。
+# 用法: ./restore.sh backups/pglite-snapshot-<TS>.tar.gz
+#
+# 真实恢复操作（会覆盖数据）不由脚本自动执行：须先停止应用、备份当前数据目录、
+# 人工确认后手工解包快照到数据目录，再启动应用并核对 /ready 与关键业务数据。
 set -e
-FILE="$1"
-if [ -z "$FILE" ] || [ ! -f "$FILE" ]; then
-  echo "用法: $0 <备份文件路径>  (例如 backups/pglite-backup-20260906-020000.tar.gz)"
-  exit 1
-fi
-echo "[restore] 停止应用容器..."
-docker compose stop app
-echo "[restore] 清空数据卷并恢复 $FILE ..."
-docker run --rm -v industrial-maintenance_appdata:/data -v "$(pwd)/$(dirname "$FILE"):/backup:ro" alpine \
-  sh -c "rm -rf /data/* && tar -xzf /backup/$(basename $FILE) -C /data"
-echo "[restore] 重启应用容器..."
-docker compose start app
-echo "[restore] 恢复完成。"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+exec node "$SCRIPT_DIR/restore-drill.mjs" "$@"
