@@ -279,16 +279,8 @@ export function handleApiDocsJson(_req: any, res: any) {
   res.json(buildOpenApiSpec());
 }
 
-// API Health Endpoint
-export function handleApiHealth(req: any, res: any) {
-  res.json({
-    status: "ok",
-    version: "2.0.0",
-    system: "智检安枢（数字孪生驱动的工业装备检修与安全管控一体化平台）",
-    hasAiKey: !!process.env.DASHSCOPE_API_KEY,
-    timestamp: new Date().toISOString(),
-  });
-}
+// 旧 /api/health 与 /api/debug-log 的 handler 已于 2026-10-19 前缀清理中删除：
+// 前者与根路径 /health 语义重复（且载荷不同），后者前端从未实现发送端。
 
 // 魔珐星云数字人配置状态接口 (无密钥时优雅降级告知前端)
 export function handleDigitalHumanStatus(req: any, res: any) {
@@ -299,15 +291,6 @@ export function handleDigitalHumanStatus(req: any, res: any) {
     message: configured ? "魔珐星云数字人服务已就绪" : "数字人服务未配置：缺少 XINGYUN_APP_ID / XINGYUN_APP_SECRET 环境变量",
     degraded: !configured,
   });
-}
-
-// 接收前端浏览器运行时异常
-export function handleDebugLog(req: any, res: any) {
-  console.error(">>> [CLIENT_RUNTIME_ERROR]:", JSON.stringify(req.body, null, 2));
-  try {
-    fs.appendFileSync("/tmp/client_runtime_errors.log", JSON.stringify({ time: new Date().toISOString(), ...req.body }) + "\n");
-  } catch (e) {}
-  res.json({ received: true });
 }
 
 // 全量源码工程打包下载 ZIP (受 ENABLE_SOURCE_DOWNLOAD 环境变量保护，生产环境默认关闭)

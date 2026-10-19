@@ -7,5 +7,3 @@ export const auditLogsQuerySchema = z.object({
   status: z.string().optional(),
   limit: z.coerce.number().optional(),
 });
-
-export const debugLogSchema = z.any();

@@ -14,11 +14,9 @@ import {
 export function registerEquipmentRoutes(app: express.Express) {
   // 1. 获取设备台账列表
   app.get("/api/v1/equipments", validateQuery(equipmentsQuerySchema), handleGetEquipments);
-  app.get("/api/equipments", validateQuery(equipmentsQuerySchema), handleGetEquipments);
 
   // 2. 获取单个设备详情
   app.get("/api/v1/equipments/:id", validateParams(idParamSchema), handleGetEquipmentById);
-  app.get("/api/equipments/:id", validateParams(idParamSchema), handleGetEquipmentById);
 
   // 14. 设备专属二维码与历史时序监控接口
   app.get("/api/v1/equipments/:id/qrcode", validateParams(idParamSchema), handleGetEquipmentQrcode);

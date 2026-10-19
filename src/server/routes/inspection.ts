@@ -13,7 +13,6 @@ import {
 // ==================== 16.5 巡检任务真实落库 (Inspections CRUD) ====================
 export function registerInspectionRoutes(app: express.Express) {
   app.get("/api/v1/inspections", validateQuery(inspectionsQuerySchema), handleGetInspections);
-  app.get("/api/inspections", validateQuery(inspectionsQuerySchema), handleGetInspections);
 
   app.get("/api/v1/inspections/:id", validateParams(idParamSchema), handleGetInspectionById);
 

@@ -53,18 +53,13 @@ const photoActionSchema = z.object({
 export function registerFieldOpsRoutes(app: express.Express) {
   // 现场作业会话（只读；跨设备前两个分支）
   app.get("/api/v1/equipments/:deviceId/field-session", validateParams(deviceIdParamSchema), handleGetFieldSession);
-  app.get("/api/equipments/:deviceId/field-session", validateParams(deviceIdParamSchema), handleGetFieldSession);
 
   // 写操作一律昂贵校验放服务层；:orderId 用 id 校验
   app.post("/api/v1/work-orders/:orderId/field-actions/loto", requireAuth, validateParams(orderIdParamSchema), validateBody(lotoActionSchema), handleFieldLoto);
-  app.post("/api/work-orders/:orderId/field-actions/loto", requireAuth, validateParams(orderIdParamSchema), validateBody(lotoActionSchema), handleFieldLoto);
 
   app.post("/api/v1/work-orders/:orderId/field-actions/step", requireAuth, validateParams(orderIdParamSchema), validateBody(stepActionSchema), handleFieldStep);
-  app.post("/api/work-orders/:orderId/field-actions/step", requireAuth, validateParams(orderIdParamSchema), validateBody(stepActionSchema), handleFieldStep);
 
   app.post("/api/v1/work-orders/:orderId/field-actions/measure", requireAuth, validateParams(orderIdParamSchema), validateBody(measureActionSchema), handleFieldMeasure);
-  app.post("/api/work-orders/:orderId/field-actions/measure", requireAuth, validateParams(orderIdParamSchema), validateBody(measureActionSchema), handleFieldMeasure);
 
   app.post("/api/v1/work-orders/:orderId/field-actions/photo", requireAuth, validateParams(orderIdParamSchema), validateBody(photoActionSchema), handleFieldPhoto);
-  app.post("/api/work-orders/:orderId/field-actions/photo", requireAuth, validateParams(orderIdParamSchema), validateBody(photoActionSchema), handleFieldPhoto);
 }

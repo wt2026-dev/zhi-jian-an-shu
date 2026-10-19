@@ -4,7 +4,7 @@ import swaggerUi from "swagger-ui-express";
 import { buildOpenApiSpec } from "../../openapi.ts";
 import { requireAuth, requireRole } from "../middleware/auth.ts";
 import { validateBody, validateQuery } from "../middleware/validate.ts";
-import { auditLogsQuerySchema, debugLogSchema } from "../schemas/system.ts";
+import { auditLogsQuerySchema } from "../schemas/system.ts";
 import {
   handleGetAuditLogs,
   handleAdminAiStats,
@@ -13,9 +13,7 @@ import {
   handleAdminMetrics,
   handleAdminOperationalMetrics,
   handleApiDocsJson,
-  handleApiHealth,
   handleDigitalHumanStatus,
-  handleDebugLog,
   handleDownloadZip,
 } from "../controllers/systemController.ts";
 import {
@@ -52,17 +50,18 @@ export function registerSystemRoutes(app: express.Express) {
     })
   );
 
-  // API Health Endpoint
-  app.get("/api/health", handleApiHealth);
+  // 健康检查：对外唯一入口是 /health（见 index.ts，供容器探针与 README 使用）。
+  // 旧 /api/health 已下线（2026-10-19 前缀清理）：它与 /health 返回不同的载荷却共用
+  // 一个「健康检查」语义，两处并存只会让探针指向不一致的那一个。
 
   // 魔珐星云数字人配置状态接口 (无密钥时优雅降级告知前端)
   app.get("/api/v1/digital-human/status", handleDigitalHumanStatus);
 
-  // 接收前端浏览器运行时异常
-  app.post("/api/debug-log", validateBody(debugLogSchema), handleDebugLog);
+  // 前端运行时异常上报已下线（2026-10-19）：前端从未实现发送端（全仓无调用方），
+  // 且原实现写死 POSIX 路径 /tmp，在 Windows 上必然 ENOENT 被空 catch 吞掉。
 
   // 全量源码工程打包下载 ZIP：等价于源码整体泄露面，仅登录后的 admin 可下载
-  app.get("/api/download-zip", requireAuth, requireRole(["admin"], "下载源码包"), handleDownloadZip);
+  app.get("/api/v1/download-zip", requireAuth, requireRole(["admin"], "下载源码包"), handleDownloadZip);
 
   // ==================== AI 模型路由管理（多模型接入 / 降级优先级 / 连接测试，仅管理员） ====================
   app.get("/api/v1/admin/ai-models", requireAuth, requireRole(["admin"], "查看 AI 模型配置"), handleListAiModels);
