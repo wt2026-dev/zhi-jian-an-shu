@@ -84,8 +84,11 @@ describe("God-file 棘轮（只降不升）", () => {
 
   it("扫描本身有效（防空跑：真的数到了 src 源文件）", () => {
     expect(files.length, "src 下没扫到 .ts/.tsx，本文件的断言全是空跑").toBeGreaterThan(400);
-    // 2026-10-19 起最大头是 EquipmentScene.tsx 2919（scene.ts 经 CameraRig 切分降至 2908）。
-    // 阈值跟着最重文件下调，防止棘轮继续收紧后这条防空跑断言自己误红。
-    expect(top[0].lines).toBeGreaterThan(2800);
+    expect(top[0].lines).toBeGreaterThan(1500);
+    // 三个登记头部必须真的扫得到：上一版用「最大行数 > 2800」当有效性探针，
+    // 结果瘦身把最大头降到 2671 时守卫自己误红。存在性才是它想说的东西。
+    for (const rel of Object.keys(TOP_FILES)) {
+      expect(files.find((f) => f.rel === rel), `${rel} 没扫到 —— 是移动了还是路径写错？`).toBeTruthy();
+    }
   });
 });

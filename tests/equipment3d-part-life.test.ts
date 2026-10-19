@@ -38,6 +38,9 @@ const CONFIG = 'src/server/config/partLifeConfig.ts';
 const PANEL = 'src/components/equipment3d/ExplodedPartLifePanel.tsx';
 const STAGE = 'src/components/equipment3d/ExplodedViewStage.tsx';
 const SCENE = 'src/components/equipment3d/EquipmentScene.tsx';
+// 2026-10-19：寿命/故障/库存诊断的拉取从 EquipmentScene 主体抽到 useExplodedDiagnostics
+// （hook 聚簇切分，第二刀）。契约跟着链条走：场景驱动 hook，hook 持有真实 API 调用。
+const DIAG_HOOK = 'src/components/equipment3d/useExplodedDiagnostics.ts';
 import { EXPLODED_VIEW_FILES } from '../src/components/equipment3d/explodedViewFiles';
 
 const HOUR = 3_600_000;
@@ -292,8 +295,9 @@ describe('零件寿命预警 · 源码契约', () => {
 
   it('场景：拆解设备驱动寿命拉取（与故障诊断并列）并透传给舞台', () => {
     const scene = read(SCENE);
-    expect(scene).toContain('getPartLifeDiagnostics');
+    expect(scene).toContain('useExplodedDiagnostics(explodedHtmlDeviceId)');
     expect(scene).toContain('lifeInfo={explodedLifeInfo}');
+    expect(read(DIAG_HOOK)).toContain('getPartLifeDiagnostics');
   });
 
   it('面板契约：汇总 / 建议保养时间 / 四要素卡（预计·已用·剩余%·状态）/ 生成保养建议按钮 testid 齐全', () => {

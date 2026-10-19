@@ -41,7 +41,7 @@ import {
   Monitor,
   Building2,
 } from 'lucide-react';
-import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type ExplodedFaultDiagnostics, type ExplodedPartLifeDiagnostics, type ExplodedPartInventoryDiagnostics, type SpareProcurePrefill } from '../../api';
+import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type SpareProcurePrefill } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
 import { useOptionalAuth } from '../../context/AuthContext';
@@ -84,6 +84,7 @@ import {
   type ExplodedPartData
 } from './ExplodedView';
 import { LAYOUT_OPTIONS, VIEW_OPTIONS, QUALITY_OPTIONS, SHELL_OPTIONS, ZONE_NOTES, hex, telemetryFeed, Chip, Section, Slider, Toggle } from './uiPrimitives';
+import { useExplodedDiagnostics } from './useExplodedDiagnostics';
 
 /* ========================= 组件 ========================= */
 
@@ -197,87 +198,15 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
    */
   const [explodedHtmlContext, setExplodedHtmlContext] = useState<ExplodedViewWorkOrderContext | null>(null);
   /**
-   * 故障定位（F4）：拆解舞台打开的设备的真实遥测故障诊断。
-   * 服务端把 equipment_telemetry 真实读数与真实阈值比对后返回超标指标 + 观察部位位号，
-   * 舞台自动脉冲定位，侧边给故障详情（描述/时间/严重度/建议）与「创建维修工单」。
+   * 拆解舞台的三路真实诊断（F4 故障 / F5 寿命 / F6 备件库存）已收进
+   * useExplodedDiagnostics：唯一自变量是 explodedHtmlDeviceId，失败一律回落 null
+   * （拆解页照常打开、只是不出对应面板，不造假）。
    */
-  const [explodedFaultInfo, setExplodedFaultInfo] = useState<ExplodedFaultDiagnostics | null>(null);
-  useEffect(() => {
-    if (!explodedHtmlDeviceId) {
-      setExplodedFaultInfo(null);
-      return;
-    }
-    let cancelled = false;
-    explodedViewApi
-      .getFaultDiagnostics(explodedHtmlDeviceId)
-      .then((diagnostics) => {
-        if (!cancelled) setExplodedFaultInfo(diagnostics);
-      })
-      .catch(() => {
-        // 诊断接口不可达 / 设备无台账：拆解页照常打开，只是不出故障面板（不造假）
-        if (!cancelled) setExplodedFaultInfo(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [explodedHtmlDeviceId]);
-
-  /**
-   * 零件寿命预警（F5）：拆解舞台打开的设备的真实寿命诊断。
-   * 服务端用真实更换记录（完工单 parts_used）× 真实运行时钟（上次更换/install_date）
-   * 算各位号已用/剩余寿命；舞台自动黄/暗红高亮到期零件，侧边给汇总与「生成保养建议」。
-   */
-  const [explodedLifeInfo, setExplodedLifeInfo] = useState<ExplodedPartLifeDiagnostics | null>(null);
-  useEffect(() => {
-    if (!explodedHtmlDeviceId) {
-      setExplodedLifeInfo(null);
-      return;
-    }
-    let cancelled = false;
-    explodedViewApi
-      .getPartLifeDiagnostics(explodedHtmlDeviceId)
-      .then((diagnostics) => {
-        if (!cancelled) setExplodedLifeInfo(diagnostics);
-      })
-      .catch(() => {
-        // 寿命接口不可达 / 设备无台账：拆解页照常打开，只是不出寿命面板（不造假）
-        if (!cancelled) setExplodedLifeInfo(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [explodedHtmlDeviceId]);
-
-  /**
-   * 备件库存联动（F6）：拆解舞台打开的设备的真实备件库存诊断。
-   * 服务端一次拉全 spare_parts 真实台账后按位号归属（未命中如实"无备件记录"），
-   * 侧边给库存四要素卡与低库存采购申请入口（跳备件库存页预填采购入库单）。
-   */
-  const [explodedInventoryInfo, setExplodedInventoryInfo] = useState<ExplodedPartInventoryDiagnostics | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    if (!explodedHtmlDeviceId) {
-      // 关闭拆解页时清诊断：微任务延迟一轮（避免 effect 内同步 setState 级联渲染）
-      queueMicrotask(() => {
-        if (!cancelled) setExplodedInventoryInfo(null);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-    explodedViewApi
-      .getPartInventory(explodedHtmlDeviceId)
-      .then((diagnostics) => {
-        if (!cancelled) setExplodedInventoryInfo(diagnostics);
-      })
-      .catch(() => {
-        // 库存接口不可达 / 设备无台账：拆解页照常打开，只是不出库存面板（不造假）
-        if (!cancelled) setExplodedInventoryInfo(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [explodedHtmlDeviceId]);
+  const {
+    faultInfo: explodedFaultInfo,
+    lifeInfo: explodedLifeInfo,
+    inventoryInfo: explodedInventoryInfo,
+  } = useExplodedDiagnostics(explodedHtmlDeviceId);
 
   // ---- 安全边界可视化 ----
   const [showSafetyBoundary, setShowSafetyBoundary] = useState(true);

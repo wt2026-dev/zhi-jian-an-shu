@@ -33,6 +33,10 @@ const SERVICE = 'src/server/services/equipmentFaultLocatorService.ts';
 const CONTROLLER = 'src/server/controllers/explodedViewController.ts';
 const ROUTES = 'src/server/routes/explodedView.ts';
 const SCENE = 'src/components/equipment3d/EquipmentScene.tsx';
+// 2026-10-19：故障/寿命/库存三路诊断的拉取从 EquipmentScene 主体抽到
+// useExplodedDiagnostics（hook 聚簇切分，第二刀）。契约跟着链条走：
+// 场景负责「驱动 + 透传 + 回调」，hook 负责「真实 API 拉取 + 失败回落不造假」。
+const DIAG_HOOK = 'src/components/equipment3d/useExplodedDiagnostics.ts';
 const WORKORDERS = 'src/components/WorkOrdersView.tsx';
 const APP = 'src/App.tsx';
 const SHELL = 'src/components/equipment3d/DrilldownShell.tsx';
@@ -190,9 +194,12 @@ describe('故障定位 · 源码契约（防静默删功能）', () => {
 
   it('场景：拆解设备驱动诊断拉取 + 建单回调贯通 DrilldownShell 与 App', () => {
     const scene = read(SCENE);
-    expect(scene).toContain('getFaultDiagnostics');
+    // 拉取已下沉到 hook：场景必须以拆解舞台设备 id 驱动它，否则等于静默删功能
+    expect(scene).toContain('useExplodedDiagnostics(explodedHtmlDeviceId)');
     expect(scene).toContain('faultInfo={explodedFaultInfo}');
     expect(scene).toContain('handleCreateWorkOrderFromFault');
+    const hook = read(DIAG_HOOK);
+    expect(hook).toContain('getFaultDiagnostics');
     const shell = read(SHELL);
     expect(shell).toContain('onNavigateToWorkOrderCreate');
     const appAndDispatcher = read(APP) + (fs.existsSync(path.join(ROOT, 'src/components/layout/AppViewDispatcher.tsx')) ? read('src/components/layout/AppViewDispatcher.tsx') : '');

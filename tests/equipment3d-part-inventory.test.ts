@@ -39,6 +39,9 @@ const ROUTES = 'src/server/routes/explodedView.ts';
 const PANEL = 'src/components/equipment3d/ExplodedPartInventoryPanel.tsx';
 const STAGE = 'src/components/equipment3d/ExplodedViewStage.tsx';
 const SCENE = 'src/components/equipment3d/EquipmentScene.tsx';
+// 2026-10-19：库存诊断拉取随故障/寿命一起下沉到 useExplodedDiagnostics（hook 聚簇第二刀），
+// 场景保留采购申请深链回调与 sessionStorage 兜底。
+const DIAG_HOOK = 'src/components/equipment3d/useExplodedDiagnostics.ts';
 const SHELL = 'src/components/equipment3d/DrilldownShell.tsx';
 const APP = 'src/App.tsx';
 const SPARE_VIEW = 'src/components/SparePartsView.tsx';
@@ -277,7 +280,8 @@ describe('源码契约 · 库存联动全链路接线', () => {
 
   it('EquipmentScene 拉取真实库存诊断 + 采购申请深链回调（含 sessionStorage 兜底）', () => {
     const src = read(SCENE);
-    expect(src).toContain('getPartInventory');
+    expect(src).toContain('useExplodedDiagnostics(explodedHtmlDeviceId)');
+    expect(read(DIAG_HOOK)).toContain('getPartInventory');
     expect(src).toContain('explodedInventoryInfo');
     expect(src).toContain('onNavigateToSpareProcure');
     expect(src).toContain("'spare-procure-prefill'");
