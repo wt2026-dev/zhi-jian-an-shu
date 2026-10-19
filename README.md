@@ -43,6 +43,8 @@ docker compose up -d
 
 > [!NOTE]
 > **安全范围说明**：系统实现 JWT 认证、RBAC 权限控制、审计日志与单实例内存限流；尚未完成等级保护测评，也未达到多实例生产部署要求。演示种子包含初始账号；首次登录强制改密可通过 `DEMO_FORCE_PASSWORD_CHANGE=true` 启用。对公网或生产部署前必须替换初始凭据并完成独立安全评估。默认 PGlite 适用于单节点演示，PostgreSQL 配置见 `README-DEPLOY.md`。
+>
+> **数据层双通道（安全叙事与实现一致）**：演示/开发默认 PGlite（嵌入式 PostgreSQL，零外部依赖）；生产部署以 `DB_TYPE=postgres` 切换独立 PostgreSQL（已在 PG 16.15 完成全链路验证，步骤见 `README-DEPLOY.md` 第九章）。安全基线中涉及数据持久化、备份与访问控制的条款，按生产模式下的 PostgreSQL 实例落实，不依赖嵌入式演示库。
 
 
 开发模式：`npm install && npm run dev`（tsx 直跑，Vite 中间件热更新）
