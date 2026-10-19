@@ -86,6 +86,7 @@ import {
 import { LAYOUT_OPTIONS, VIEW_OPTIONS, QUALITY_OPTIONS, SHELL_OPTIONS, ZONE_NOTES, hex, telemetryFeed, Chip, Section, Slider, Toggle } from './uiPrimitives';
 import { useExplodedDiagnostics } from './useExplodedDiagnostics';
 import { useTelemetryPlayback } from './useTelemetryPlayback';
+import { useWorkOrderActions } from './useWorkOrderActions';
 
 /* ========================= 组件 ========================= */
 
@@ -151,11 +152,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [activeOrderCard, setActiveOrderCard] = useState<WorkOrder | null>(null);
 
-  // ---- 维修闭环（场景内工单操作：派单/接单/步骤勾选/完工上报/验收） ----
-  const [orderActionBusy, setOrderActionBusy] = useState(false);
-  const [orderActionError, setOrderActionError] = useState<string | null>(null);
-  /** 检修步骤勾选进度（工单 id → 已勾数），重新选中设备不丢进度 */
-  const stepProgressRef = useRef<Map<string, number>>(new Map());
+  // ---- 维修闭环：busy / error / 步骤勾选进度自持在 useWorkOrderActions（调用点见 5.x） ----
   /** 聚焦层数据快照（handlePick 时缓存；工单状态变化后据此刷新五步卡片） */
   const focusDecorBaseRef = useRef<FocusDecorData | null>(null);
   /** 检修工单卡收起态：单台聚焦时默认收起为左缘窄 tab，给 3D 画布让位 */
@@ -877,6 +874,33 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     stop: stopPlayback,
   } = useTelemetryPlayback({ selectedId, telemetry, equipments, sceneRef });
 
+  /* ---------- 5.2 维修闭环：场景内工单操作（派单/接单/步骤勾选/完工上报/验收） ----------
+   * 动作本身与 busy / error / 步骤勾选进度自持在 useWorkOrderActions；这里只把
+   * 卡片状态（activeOrderCard）、台账（setRemote）与引擎门面（sceneRef）注进去。
+   * 调用点刻意放在 resetSelectionVisuals 之前：切换选中时要清掉上一张卡片的报错。 */
+  const {
+    orderActionBusy,
+    orderActionError,
+    clearOrderActionError,
+    stepProgressRef,
+    handleOrderDispatch,
+    handleOrderClaim,
+    handleOrderComplete,
+    handleOrderAccept,
+    handleStepProgress,
+  } = useWorkOrderActions({
+    activeOrderCard,
+    readOnly3D,
+    currentUser,
+    sceneRef,
+    focusDecorBaseRef,
+    setActiveOrderCard,
+    setRecentOrders,
+    setRemote,
+    contextUpdateWorkOrder,
+    fetchWorkOrders,
+  });
+
   const resetSelectionVisuals = useCallback(() => {
     stopPlayback();
     explodedCleanupRef.current?.();
@@ -892,14 +916,14 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     setExplodedParts([]);
     setIsExplodedAnimating(false);
     setActiveOrderCard(null);
-    setOrderActionError(null);
+    clearOrderActionError();
     focusDecorBaseRef.current = null;
     scene?.clearFaultChain();
     scene?.clearStatusOverrides();
     for (const eq of equipments) {
       scene?.setDeviceTelemetry(eq.id, telemetryFeed(eq.status, eq.telemetry));
     }
-  }, [explodedDeviceId, equipments, showSafetyBoundary, showWorkers, stopPlayback]);
+  }, [explodedDeviceId, equipments, showSafetyBoundary, showWorkers, stopPlayback, clearOrderActionError]);
 
   const handlePick = useCallback(
     (id: string) => {
@@ -1173,163 +1197,6 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     downRef.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
   }, []);
-
-  /* ---------- 5.2 维修闭环：场景内工单操作（派单/接单/步骤勾选/完工上报/验收） ---------- */
-
-  const operatorName = useMemo(
-    () => (currentUser ? `${currentUser.name} (${currentUser.roleTitle})` : undefined),
-    [currentUser]
-  );
-
-  /** 只读模式统一闸门：操作工在 3D 场景内只能浏览，任何处置动作在此被拦下 */
-  const guardReadOnly = useCallback(() => {
-    if (!readOnly3D) return false;
-    setOrderActionError('当前角色仅可浏览 3D 场景，不能操作设备或推进工单，请切换角色');
-    return true;
-  }, [readOnly3D]);
-
-  /** 工单操作成功后的统一收口：当前卡片 + 选中设备工单列表 + 全局上下文 + 指示环 */
-  const applyOrderUpdate = useCallback(
-    (updated: WorkOrder) => {
-      setActiveOrderCard((prev) => (prev && prev.id === updated.id ? updated : prev));
-      setRecentOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-      contextUpdateWorkOrder?.(updated);
-      fetchWorkOrders();
-    },
-    [contextUpdateWorkOrder, fetchWorkOrders]
-  );
-
-  /** 刷新聚焦层五步卡片的工单状态（底版快照在 handlePick 时缓存） */
-  const refreshFocusDecorOrder = useCallback((order: WorkOrder | null) => {
-    const base = focusDecorBaseRef.current;
-    if (!base || !sceneRef.current) return;
-    sceneRef.current.setFocusDecorData({
-      ...base,
-      workOrder: order ? { orderNo: order.orderNo, status: order.status, faultType: order.faultType } : null,
-    });
-  }, []);
-
-  const handleOrderDispatch = useCallback(async () => {
-    const order = activeOrderCard;
-    if (!order || orderActionBusy) return;
-    if (guardReadOnly()) return;
-    setOrderActionBusy(true);
-    setOrderActionError(null);
-    try {
-      const rec = await dispatchApi.recommend(order.id);
-      const top = rec?.recommendations?.[0]?.technician;
-      if (!top?.id) throw new Error('调度推荐未返回可用技师');
-      const res = await dispatchApi.assign({ workOrderId: order.id, userId: top.id });
-      applyOrderUpdate((res?.workOrder ?? (res as unknown)) as WorkOrder);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setOrderActionError(`派单失败：${msg}`);
-      logger.warn('[equipment3d] 场景内派单失败:', err);
-    } finally {
-      setOrderActionBusy(false);
-    }
-  }, [activeOrderCard, orderActionBusy, applyOrderUpdate]);
-
-  const handleOrderClaim = useCallback(async () => {
-    const order = activeOrderCard;
-    if (!order || orderActionBusy) return;
-    if (guardReadOnly()) return;
-    setOrderActionBusy(true);
-    setOrderActionError(null);
-    try {
-      const updated = await workOrderApi.claim(order.id, { operatorName, version: order.version });
-      applyOrderUpdate(updated);
-      const eqId = order.equipmentId || (order as any).equipment_id;
-      // 接单即进场：设备状态切"检修中"蓝（只覆盖显示，台账不动）
-      if (eqId) sceneRef.current?.setDeviceRepairPhase(eqId, 'repairing');
-      refreshFocusDecorOrder(updated);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setOrderActionError(`接单失败：${msg}`);
-      logger.warn('[equipment3d] 场景内接单失败:', err);
-    } finally {
-      setOrderActionBusy(false);
-    }
-  }, [activeOrderCard, orderActionBusy, operatorName, applyOrderUpdate, refreshFocusDecorOrder]);
-
-  const handleOrderComplete = useCallback(
-    async (payload: { causeAnalysis: string; workHours: number; resolutionSteps: string }) => {
-      const order = activeOrderCard;
-      if (!order || orderActionBusy) return;
-      if (guardReadOnly()) return;
-      setOrderActionBusy(true);
-      setOrderActionError(null);
-      try {
-        const updated = await workOrderApi.complete(order.id, {
-          causeAnalysis: payload.causeAnalysis,
-          resolutionSteps: payload.resolutionSteps,
-          workHours: payload.workHours,
-          completionPhotos: [],
-          operatorName,
-          version: order.version,
-        });
-        applyOrderUpdate(updated);
-        const eqId = order.equipmentId || (order as any).equipment_id;
-        // 修复完成：定位标红转绿淡出 + 设备复转 + 相机缓推
-        if (eqId) sceneRef.current?.playRepairRecovery(eqId);
-        refreshFocusDecorOrder(updated);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setOrderActionError(`完工上报失败：${msg}`);
-        logger.warn('[equipment3d] 场景内完工上报失败:', err);
-      } finally {
-        setOrderActionBusy(false);
-      }
-    },
-    [activeOrderCard, orderActionBusy, operatorName, applyOrderUpdate, refreshFocusDecorOrder]
-  );
-
-  const handleOrderAccept = useCallback(async () => {
-    const order = activeOrderCard;
-    if (!order || orderActionBusy) return;
-    if (guardReadOnly()) return;
-    setOrderActionBusy(true);
-    setOrderActionError(null);
-    try {
-      const updated = await workOrderApi.accept(order.id, {
-        inspectorName: operatorName,
-        pass: true,
-        score: 5,
-        comment: '现场复测合格，具备复机条件',
-        version: order.version,
-      });
-      applyOrderUpdate(updated);
-      const eqId = order.equipmentId || (order as any).equipment_id;
-      // 台账同步：沿用 AppDataContext「工单 completed → 设备 running」的既有口径，
-      // 并把 running 合并进 3D 自己拉的 remote 台账，消除"验收完切回 3D 还是故障色"的时滞。
-      if (eqId) {
-        setRemote((prev) =>
-          prev ? prev.map((e) => (e.id === eqId ? { ...e, status: 'running' } : e)) : prev
-        );
-        sceneRef.current?.setDeviceRepairPhase(eqId, 'operating');
-      }
-      refreshFocusDecorOrder(updated);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setOrderActionError(`验收失败：${msg}`);
-      logger.warn('[equipment3d] 场景内验收失败:', err);
-    } finally {
-      setOrderActionBusy(false);
-    }
-  }, [activeOrderCard, orderActionBusy, operatorName, applyOrderUpdate, refreshFocusDecorOrder]);
-
-  /** 步骤勾选 → 3D 故障定位标逐层减淡（勾一步消一层） */
-  const handleStepProgress = useCallback(
-    (checked: number, total: number) => {
-      const order = activeOrderCard;
-      if (!order) return;
-      if (guardReadOnly()) return;
-      stepProgressRef.current.set(order.id, checked);
-      const eqId = order.equipmentId || (order as any).equipment_id;
-      if (eqId) sceneRef.current?.setDeviceRepairProgress(eqId, total > 0 ? checked / total : 0);
-    },
-    [activeOrderCard]
-  );
 
   /** AI 诊断结果回写 3D：原因关键词匹配观测部位，把故障定位标挪过去 */
   const handleAiDiagnosis = useCallback(
