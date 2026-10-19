@@ -42,7 +42,8 @@ import {
 } from "../controllers/aiGenerationController.ts";
 import { handleAiSuggestContribution } from "../controllers/contributionController.ts";
 import { handleGetChatEngineStatus } from "../controllers/aiModelConfigController.ts";
-import { handleHealthForecast, handleGenerateReport, handleSafetyRiskAssessment } from "../controllers/aiForecastController.ts";
+import { handleHealthForecast, handleSafetyRiskAssessment } from "../controllers/aiForecastController.ts";
+import { handleGenerateReport } from "../controllers/aiReportController.ts";
 import { handleCreatePipeline, handleGetPipeline, handlePipelineEvents, handleListPipeline } from "../controllers/aiPipelineController.ts";
 
 // ==================== AI 统计与 v1 功能路由（自 server.ts 拆出，保持原相对顺序） ====================

@@ -36,7 +36,7 @@ describe("健康分/工时不得用编造默认值兜底", () => {
   });
 
   it("AI 报告统计里健康分不得按 0 参与计算", () => {
-    const code = read("src/server/controllers/aiForecastController.ts");
+    const code = read("src/server/controllers/aiReportController.ts");
     expect(code).not.toMatch(/healthScore\s*\|\|\s*0/);
     expect(code).not.toMatch(/healthScore\s*\?\?\s*0/);
     // 均值必须只在「有评估记录」的设备上算
@@ -46,14 +46,14 @@ describe("健康分/工时不得用编造默认值兜底", () => {
   });
 
   it("MTTR 无工时记录时写 null 而不是 0 小时", () => {
-    const code = read("src/server/controllers/aiForecastController.ts");
+    const code = read("src/server/controllers/aiReportController.ts");
     expect(code).not.toMatch(/mttrHours:.*:\s*0\s*,/);
     // 允许中间夹换行或注释
     expect(code).toMatch(/mttrHours:[\s\S]{0,200}?:\s*null/);
   });
 
   it("提示词必须写明 null 的含义（否则模型会把 null 当 0 用）", () => {
-    const code = read("src/server/controllers/aiForecastController.ts");
+    const code = read("src/server/controllers/aiReportController.ts");
     // 光把数据改成 null 不够：模型需要显式口径，否则会自行补一个数字
     expect(code).toMatch(/字段值为\s*null\s*表示\*\*该项未采集\*\*/);
     expect(code).toMatch(/禁止\*\*当成\s*0/);
@@ -64,6 +64,7 @@ describe("健康分/工时不得用编造默认值兜底", () => {
     // 模型会当成 0 分或自行猜一个数 —— 而这段文字用户看不到，只在结论里体现。
     const promptFiles = [
       "src/server/controllers/aiForecastController.ts",
+      "src/server/controllers/aiReportController.ts",
       "src/server/controllers/aiAssistantController.ts",
       "src/server/controllers/aiGenerationController.ts",
     ];
