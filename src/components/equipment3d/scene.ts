@@ -21,6 +21,8 @@
  *   ✅ cameraFraming.ts   取景数学纯函数（computeIsolatedFraming，带单测）
  *   ✅ deviceDetailEnv.ts 聚焦层工业环境（地面/立柱/管道/物料/工人/灯光）
  *   ✅ faultLocator.ts    故障定位标（红线框 + 减淡/恢复动画）
+ *   ✅ sceneMinimap.ts    小地图绘制（drawSceneMinimap 纯函数）
+ *   ✅ safetyBoundaries.ts 安全边界层（安全圈 + LOTO 罩 + 标签贴片；锚点由场景侧解析后传入）
  *   ⬜ CameraRig          orbit 状态 + 滚轮/双指 + userZoomRange + update() 相机段
  *                         （最大一块：this.orbit 在本文件被引用 ~40 处，需一次性机械替换）
  *   ⬜ FaultChainLayer    buildFaultChain/createFaultLabel/animateFaultPropagation
@@ -64,6 +66,7 @@ import {
   type FactoryRankMetric,
 } from './factoryOverview';
 import { FaultLocator, type FaultAnchor } from './faultLocator';
+import { SafetyBoundaries, type SafetyAnchor } from './safetyBoundaries';
 import { DeviceDetailEnv, type DeviceDetailEnvBox } from './deviceDetailEnv';
 import { computeIsolatedFraming } from './cameraFraming';
 import {
@@ -185,14 +188,14 @@ export class EquipmentScene {
   private propsGroup = new THREE.Group();
   private helperGroup = new THREE.Group();
   private workOrderGroup = new THREE.Group();
-  private safetyGroup = new THREE.Group();
+  private safety = new SafetyBoundaries();
   private faultChainGroup = new THREE.Group();
   private workerGroup = new THREE.Group();
   /**
    * 派工指引虚线层（技师 → 故障设备）。
    *
    * 刻意与 workerGroup 分开：聚焦层按既定口径（有单测守护：聚焦时
-   * workerGroup/safetyGroup 一律隐藏）整体隐藏 workerGroup —— 技师人形与历史
+   * workerGroup/safety.group 一律隐藏）整体隐藏 workerGroup —— 技师人形与历史
    * 轨迹属于车间层信息，进详情层会与"画面里只剩这一台"冲突。而"选中哪台设备，
    * 就看它相关的那条链路"要求这条虚线在聚焦层保留，所以单独成层，并且
    * **不进 applyIsolationChrome 的隐藏表**。生命周期仍与 workerGroup 一致：
@@ -248,15 +251,6 @@ export class EquipmentScene {
   private lineEnabled = true;
   /** 生产线当前几何对应的厂房尺寸键，尺寸变了才重建 */
   private lineKey = '';
-
-  // 安全边界动画数据（旋转圆环 + 隔离罩脉冲）
-  private safetyAnims: Array<{
-    obj: THREE.Object3D;
-    kind: 'rotate' | 'pulse';
-    speed: number;
-    phase: number;
-    base?: number;
-  }> = [];
 
   // 工单状态指示环（共享几何体与红/黄/绿基础材质）
   private workOrderRingGeo: THREE.RingGeometry | null = null;
@@ -458,7 +452,7 @@ export class EquipmentScene {
       this.propsGroup,
       this.helperGroup,
       this.workOrderGroup,
-      this.safetyGroup,
+      this.safety.group,
       this.faultChainGroup,
       this.workerGroup,
       this.guideGroup,
@@ -846,211 +840,42 @@ export class EquipmentScene {
   /**
    * 安全边界数据（由 React 层从 API 拉取后传入，3D 层只消费不访问网络）
    */
-  private safetyData: Map<string, { permits: any[]; locks: any[] }> | null = null;
-
   /**
    * 构建安全边界3D：安全圈 + 能量隔离罩。
    * 由 React 层在 API 数据就绪后调用（非阻塞，不防抖）。
+   * 场景侧只负责把设备 id 解析成世界坐标锚点，网格生成/销毁在 safetyBoundaries 模块。
    */
   buildSafetyBoundaries(data: Map<string, { permits: any[]; locks: any[] }>): void {
-    this.disposeGroup(this.safetyGroup);
-    this.safetyAnims = [];
-    this.safetyData = data;
-    if (data.size === 0) return;
-
-    const slots = this.slots;
+    const anchors = new Map<string, SafetyAnchor>();
     const boxById = this.equipment?.boxById;
-    if (!boxById || !this.hall) return;
-
-    // 预定义颜色
-    const TYPE_COLOR: Record<string, number> = {
-      '动火': 0xfbbf24,
-      '吊装': 0xef4444,
-    };
-    const RING_SEG = 32;
-
-    for (const [eqId, info] of data) {
-      const idx = this.equipment?.indexById.get(eqId);
-      if (typeof idx !== 'number' || !slots[idx]) continue;
-      const slot = slots[idx];
-      const y = this.hall.reliefAt(slot.x, slot.z);
-      const box = boxById.get(eqId);
-
-      for (const permit of info.permits) {
-        const pt = permit.permitType ?? '';
-        const color = TYPE_COLOR[pt.includes('动火') ? '动火' : pt.includes('吊装') ? '吊装' : '其他'] ?? 0xf97316;
-        const r = this.extractRadius(permit, 10);
-
-        // 安全圈：共享几何（R=1, 段数32, 合并后 scale=r） + 旋转动画
-        const ringGeo = new THREE.RingGeometry(0.92, 1.0, RING_SEG);
-        ringGeo.rotateX(-Math.PI / 2);
-        ringGeo.userData.shared = true;
-        const ringMat = new THREE.MeshBasicMaterial({
-          color, transparent: true, opacity: 0.42,
-          side: THREE.DoubleSide, depthWrite: false, toneMapped: false,
+    if (this.hall && boxById) {
+      for (const eqId of data.keys()) {
+        const idx = this.equipment?.indexById.get(eqId);
+        if (typeof idx !== 'number' || !this.slots[idx]) continue;
+        const slot = this.slots[idx];
+        const box = boxById.get(eqId);
+        anchors.set(eqId, {
+          x: slot.x,
+          y: this.hall.reliefAt(slot.x, slot.z),
+          z: slot.z,
+          phase: idx,
+          h: box?.h,
+          w: box?.w,
+          d: box?.d,
         });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.set(slot.x, y + 0.07, slot.z);
-        ring.scale.setScalar(r);
-        ring.name = `safety-ring:${eqId}`;
-        this.safetyGroup.add(ring);
-        this.safetyAnims.push({ obj: ring, kind: 'rotate', speed: 0.12, phase: idx * 0.7 });
-
-        // 安全圈内侧填充：半透明扇形垫底（视觉更饱满，不引入新几何）
-        const fillGeo = new THREE.CircleGeometry(0.92, RING_SEG);
-        fillGeo.rotateX(-Math.PI / 2);
-        fillGeo.userData.shared = true;
-        const fillMat = new THREE.MeshBasicMaterial({
-          color, transparent: true, opacity: 0.06,
-          side: THREE.DoubleSide, depthWrite: false, toneMapped: false,
-        });
-        const fill = new THREE.Mesh(fillGeo, fillMat);
-        fill.position.set(slot.x, y + 0.06, slot.z);
-        fill.scale.setScalar(r);
-        fill.name = `safety-fill:${eqId}`;
-        this.safetyGroup.add(fill);
-
-        // 标签贴片：深色底板 + 彩色边线（现成 nameplate 方案）
-        const permitCode = permit.permitNo ?? '';
-        const permitLabel = pt.replace('作业票', '');
-        if (permitCode || permitLabel) {
-          const lbl = this.createSafetyLabel(`${permitCode} ${permitLabel}`, color, 1.2, 0.28);
-          const h = box?.h ?? 2.5;
-          const s = this.equipment?.boxById.get(eqId)?.scale ?? 1;
-          lbl.position.set(slot.x + r + 1.8, y + 0.6, slot.z);
-          this.safetyGroup.add(lbl);
-        }
-      }
-
-      // LOTO 能量隔离罩：绿色半透明圆柱 + 顶部锁数
-      if (info.locks.length > 0) {
-        const h = (box?.h ?? 2.5) * 0.7;
-        const r = (Math.max(box?.w ?? 3, box?.d ?? 3) * 0.5) + 0.6;
-        const cylGeo = new THREE.CylinderGeometry(r, r, h, 24, 1, true);
-        cylGeo.userData.shared = true;
-        const cylMat = new THREE.MeshBasicMaterial({
-          color: 0x22c55e, transparent: true, opacity: 0.13,
-          side: THREE.DoubleSide, depthWrite: false, toneMapped: false,
-        });
-        const cyl = new THREE.Mesh(cylGeo, cylMat);
-        cyl.position.set(slot.x, y + h / 2 + 0.08, slot.z);
-        cyl.name = `safety-loto:${eqId}`;
-        this.safetyGroup.add(cyl);
-        this.safetyAnims.push({ obj: cyl, kind: 'pulse', speed: 0.8, phase: idx * 1.3, base: 0.13 });
-
-        // 锁具标记：每把挂锁一个 box + 环形锁扣
-        for (let i = 0; i < Math.min(info.locks.length, 3); i++) {
-          const a = (i / info.locks.length) * Math.PI * 2 + 0.5;
-          const lx = slot.x + Math.cos(a) * (r + 0.15);
-          const lz = slot.z + Math.sin(a) * (r + 0.15);
-          const bodyGeo = new THREE.BoxGeometry(0.22, 0.28, 0.14);
-          bodyGeo.userData.shared = true;
-          const bodyMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.6, metalness: 0.3 });
-          const body = new THREE.Mesh(bodyGeo, bodyMat);
-          body.position.set(lx, y + 0.42, lz);
-          this.safetyGroup.add(body);
-          const shackleGeo = new THREE.TorusGeometry(0.08, 0.018, 8, 12, Math.PI);
-          shackleGeo.userData.shared = true;
-          const shackleMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.3, metalness: 0.8 });
-          const shackle = new THREE.Mesh(shackleGeo, shackleMat);
-          shackle.position.set(lx, y + 0.62, lz);
-          this.safetyGroup.add(shackle);
-        }
-
-        // 锁数标签
-        const lockLabel = this.createSafetyLabel(`${info.locks.length} \u628A\u9501`, 0x22c55e, 0.72, 0.22);
-        lockLabel.position.set(slot.x, y + h + 0.3, slot.z);
-        this.safetyGroup.add(lockLabel);
       }
     }
-  }
-
-  /** 从 precautions 文本提取半径数值（如"半径 10 米"→ 10） */
-  private extractRadius(permit: any, fallback: number): number {
-    const list: string[] = permit.precautions ?? [];
-    for (const s of list) {
-      const m = s.match(/半径\s*(\d+(?:\.\d+)?)\s*米/);
-      if (m) return parseFloat(m[1]);
-    }
-    return fallback;
-  }
-
-  /** 创建安全标签（深色底板 + 彩色边线，与铭牌同方案） */
-  private createSafetyLabel(text: string, accentColor: number, w: number, h: number): THREE.Object3D {
-    const group = new THREE.Group();
-    group.name = 'safety-label';
-
-    // 底板
-    const bgGeo = new THREE.PlaneGeometry(w, h);
-    bgGeo.userData.shared = true;
-    const bgMat = new THREE.MeshBasicMaterial({
-      color: 0x0f172a, transparent: true, opacity: 0.88,
-      side: THREE.DoubleSide, toneMapped: false,
-    });
-    const bg = new THREE.Mesh(bgGeo, bgMat);
-    bg.rotation.x = -Math.PI / 4;
-    group.add(bg);
-
-    // 上方彩色边线
-    const borderGeo = new THREE.PlaneGeometry(w * 1.02, h * 0.08);
-    borderGeo.userData.shared = true;
-    const borderMat = new THREE.MeshBasicMaterial({
-      color: accentColor, side: THREE.DoubleSide, toneMapped: false,
-    });
-    const border = new THREE.Mesh(borderGeo, borderMat);
-    border.position.set(0, h * 0.44, 0.001);
-    border.rotation.x = -Math.PI / 4;
-    group.add(border);
-
-    // Canvas 贴图
-    if (typeof document !== 'undefined') {
-      const cw = Math.round(w * 256);
-      const ch = Math.round(h * 256);
-      const canvas = document.createElement('canvas');
-      canvas.width = cw;
-      canvas.height = ch;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, cw, ch);
-        ctx.fillStyle = '#e8eef5';
-        ctx.font = `bold ${Math.round(ch * 0.42)}px ui-monospace, Menlo, Consolas, monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, cw / 2, ch / 2);
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.needsUpdate = true;
-        const texGeo = new THREE.PlaneGeometry(w * 0.96, h * 0.8);
-        texGeo.userData.shared = true;
-        const texMat = new THREE.MeshBasicMaterial({
-          map: tex, transparent: true, side: THREE.DoubleSide, toneMapped: false, depthWrite: false,
-        });
-        const texMesh = new THREE.Mesh(texGeo, texMat);
-        texMesh.position.set(0, 0, 0.002);
-        texMesh.rotation.x = -Math.PI / 4;
-        group.add(texMesh);
-      }
-    }
-    return group;
+    this.safety.build(data, anchors);
   }
 
   /** 安全边界动画（合并进现有 RAF 循环） */
   animateSafetyBoundaries(time: number): void {
-    if (this.safetyAnims.length === 0) return;
-    for (const a of this.safetyAnims) {
-      const t = time + a.phase;
-      if (a.kind === 'rotate') {
-        (a.obj as THREE.Mesh).rotation.z = t * a.speed;
-      } else if (a.kind === 'pulse' && a.base != null) {
-        const mat = (a.obj as THREE.Mesh).material as THREE.MeshBasicMaterial;
-        mat.opacity = a.base + Math.sin(t * Math.PI) * 0.04;
-      }
-    }
+    this.safety.animate(time);
   }
 
   /** 安全边界显隐开关 */
   setSafetyBoundaryVisible(visible: boolean): void {
-    this.setChromeVisible(this.safetyGroup, visible);
+    this.setChromeVisible(this.safety.group, visible);
   }
 
   /* ========================= 故障传播链 ========================= */
@@ -2399,7 +2224,7 @@ export class EquipmentScene {
       // 按层级派生（进恢复表会让"厂区层→详情→退出"后车间层再也看不到产线）。
       // filter(Boolean)：既有单测用 Object.create(prototype) 构造精简实例，
       // 未定义这两个新增 group，直接 push 会把 undefined 混进数组并在下方 .visible 处炸掉。
-      const objects = [this.propsGroup, this.workerGroup, this.workOrderGroup, this.safetyGroup, this.helperGroup,
+      const objects = [this.propsGroup, this.workerGroup, this.workOrderGroup, this.safety.group, this.helperGroup,
         this.factoryGroup,
         ...this.hallGroup.children.filter(object => object.name !== 'floor' && object.name !== 'apron')]
         .filter((o): o is THREE.Object3D => !!o);
@@ -2588,7 +2413,7 @@ export class EquipmentScene {
     this.lineGroup.visible = this.lineLayerVisible;
     // 总览层不需要车间内的工单环 / 安全边界 / 故障链 / 人员
     this.workOrderGroup.visible = !isFactory;
-    this.safetyGroup.visible = !isFactory;
+    this.safety.group.visible = !isFactory;
     this.faultChainGroup.visible = !isFactory;
     this.workerGroup.visible = !isFactory;
     // 派工指引虚线：厂区层没有"车间内的人/设备链路"，一律不显示；
@@ -3288,7 +3113,7 @@ export class EquipmentScene {
   /** 进入拆解视图：隐藏指定设备的实例，准备创建拆解零件 */
   enterExplodedView(deviceId: string): void {
     this.equipment?.hideDeviceInstances(deviceId);
-    this.safetyGroup.visible = false;
+    this.safety.group.visible = false;
     this.faultChainGroup.visible = false;
     this.workerGroup.visible = false;
     const explodedGroup = this.scene.getObjectByName('explodedView') as THREE.Group | null;
@@ -3583,6 +3408,7 @@ export class EquipmentScene {
     this.disposeFocusDecor();
     this.disposeFocusCallouts();
     this.faultLocator.dispose();
+    this.safety.dispose();
     this.workOrderRings.clear();
     this.currentWorkOrderMap.clear();
     this.workOrderGroup.clear();

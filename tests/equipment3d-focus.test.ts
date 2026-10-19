@@ -25,7 +25,7 @@ function harness() {
     orbit: { target: new THREE.Vector3(), sTarget: new THREE.Vector3(), radius: 100, sRadius: 100,
       theta: 0, sTheta: 0, phi: 1, sPhi: 1, minPhi: 0.06, maxPhi: 1.52, minRadius: 3, maxRadius: 620 },
     hallGroup: new THREE.Group(), propsGroup: new THREE.Group(), workerGroup: new THREE.Group(),
-    workOrderGroup: new THREE.Group(), safetyGroup: new THREE.Group(), helperGroup: new THREE.Group(),
+    workOrderGroup: new THREE.Group(), safety: { group: new THREE.Group() }, helperGroup: new THREE.Group(),
     faultChainGroup: new THREE.Group(), grid: new THREE.Group(), selectionRing: new THREE.Group(),
     fluidFlow: { setIsolation: vi.fn() }, fitRadius: 100,
     renderer: { setSize: vi.fn(), setPixelRatio: vi.fn() }, container: { clientWidth: 960, clientHeight: 600 },
@@ -104,15 +104,16 @@ describe('actual geometry focus bounds', () => {
     const { s } = harness();
     s.propsGroup.visible = false;
     s.setIsolation('eq-105'); s.setIsolation('unknown');
-    for (const key of ['propsGroup', 'workerGroup', 'workOrderGroup', 'safetyGroup', 'helperGroup']) expect(s[key].visible).toBe(false);
+    for (const key of ['propsGroup', 'workerGroup', 'workOrderGroup', 'helperGroup']) expect(s[key].visible).toBe(false);
+    expect(s.safety.group.visible).toBe(false);
     expect(s.hallGroup.getObjectByName('floor').visible).toBe(true);
     expect(s.hallGroup.getObjectByName('structure').visible).toBe(false);
     s.setWorkerVisible(true); s.setSafetyBoundaryVisible(true);
-    expect(s.workerGroup.visible).toBe(false); expect(s.safetyGroup.visible).toBe(false);
+    expect(s.workerGroup.visible).toBe(false); expect(s.safety.group.visible).toBe(false);
     s.setSafetyBoundaryVisible(false); s.params.showGrid = false;
     s.setIsolation(null);
     expect(s.propsGroup.visible).toBe(false); expect(s.workerGroup.visible).toBe(true);
-    expect(s.workOrderGroup.visible).toBe(true); expect(s.safetyGroup.visible).toBe(false);
+    expect(s.workOrderGroup.visible).toBe(true); expect(s.safety.group.visible).toBe(false);
     expect(s.grid.visible).toBe(false); expect(s.helperGroup.visible).toBe(true);
     expect(s.hallGroup.getObjectByName('structure').visible).toBe(true);
   });
