@@ -62,7 +62,13 @@ export interface Equipment {
   installDate: string;
   manufacturer: string;
   status: EquipmentStatus;
-  healthScore: number;   // 0 - 100
+  /**
+   * 健康分 0–100。**可为 null**：新建台账、以及尚未做过任何健康评估的设备，
+   * 都没有这个数（`equipments.health_score` 的库默认值是 100，但"默认 100"
+   * 等于"新建即满分健康"，是同一类编造）。null 在界面上显示「未评估」，
+   * 不得回落成 0 或 100。
+   */
+  healthScore: number | null;
   criticality: '关键核心' | '主要生产' | '通用辅助';
   /**
    * 设备台账上的最近一次遥测快照。

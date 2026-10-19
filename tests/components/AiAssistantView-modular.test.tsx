@@ -63,6 +63,7 @@ describe('AiAssistantView 模块化子组件单元测试', () => {
     render(
       <AiChatMessagesList
         messages={messages}
+        sourceStatus={{ knowledge: 'online', telemetry: 'online' }}
         currentUser={mockUser}
         isSpeaking={false}
         isStreaming={false}

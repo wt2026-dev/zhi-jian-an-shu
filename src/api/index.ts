@@ -357,7 +357,7 @@ export const explodedViewApi = {
   getPartHistory: (deviceId: string, partId: string) =>
     request<ExplodedPartHistory>(`/equipments/${deviceId}/parts/${partId}/maintenance-history`),
 
-  /** 设备 → 真实遥测故障诊断（拆解视图红色脉冲高亮「未处理故障」用） */
+  /** 设备 → 设备遥测故障诊断（拆解视图红色脉冲高亮「未处理故障」用） */
   getFaultDiagnostics: (deviceId: string) =>
     request<ExplodedFaultDiagnostics>(`/equipments/${deviceId}/fault-diagnostics`),
 
@@ -481,6 +481,8 @@ export interface AcceptanceItem {
   judgedBy: 'auto' | 'manual';
   standardSource: string;
   confidence: string;
+  /** 阈值依据（点检标准原文 / 铭牌功率电压推导过程）；无依据为 null */
+  standardBasis?: string | null;
   note: string | null;
   record: AcceptanceCheckRecord | null;
   verdict: AcceptanceVerdict;

@@ -102,16 +102,15 @@ export async function handleCreateEquipment(req: any, res: any) {
       installDate: now.toISOString().split("T")[0],
       manufacturer: body.manufacturer,
       status: body.status || "running",
-      healthScore: 100,
+      // 新建台账不等于"设备健康 100 分"：健康分是评估结果，不是录入时就能知道的事实。
+      // 传 null，让它在有首次评估/遥测之前如实显示「未评估」。
+      healthScore: null,
       criticality: body.criticality || "主要生产",
-      telemetry: {
-        temperature: 0,
-        vibration: 0,
-        voltage: 0,
-        current: 0,
-        loadRate: 0,
-        lastUpdated: "待首次遥测上报",
-      },
+      // 新建台账时**没有任何遥测**：不写一套 0 值快照。
+      // 曾经这里写的是 { temperature: 0, ..., lastUpdated: "待首次遥测上报" }，
+      // 结果新设备一创建就带着"温度 0°C / 振动 0mm/s"的读数，界面显示成正常运转的设备，
+      // 而 lastUpdated 的占位文案还会被当成"有上报"。缺测就存 null。
+      telemetry: null,
       specs: body.specs || { "安装工段": body.workshop || "未指定" },
       maintenanceHistory: [],
       nextInspectionDate: new Date(now.getTime() + 30 * 24 * 3600 * 1000).toISOString().split("T")[0],

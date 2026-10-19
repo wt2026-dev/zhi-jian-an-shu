@@ -137,8 +137,10 @@ function incidentRank(eq: Equipment): number {
   const worst = worstSpot(spots);
   const spotRank = worst ? { nodata: -1, normal: 0, unrated: 0, warning: 1, fault: 2, critical: 3 }[worst.severity] : -1;
   const status = STATUS_RANK[eq.status] ?? 0;
-  // 状态占高位，遥测占中位，健康分做同分时的次序
-  return status * 100 + spotRank * 10 + (100 - (eq.healthScore ?? 0)) / 10;
+  // 状态占高位，遥测占中位，健康分做同分时的次序。
+  // 未评估（null）不得按"100 分"参与排序 —— 那会把一台从未体检过的设备排到最后，
+  // 让真正该优先复核的设备排在它后面。这里给 50（中性分），与"正常但不优"同档。
+  return status * 100 + spotRank * 10 + (100 - (eq.healthScore ?? 50)) / 10;
 }
 
 /**
