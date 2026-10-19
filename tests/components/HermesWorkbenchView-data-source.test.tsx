@@ -330,6 +330,17 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     );
   });
 
+  /**
+   * 推进/落库按钮在请求在途时是 disabled 的：点之前先等它真的可点，
+   * 别把「刚渲染出来」当成「可以提交」—— findByRole 只保证存在，不保证没被 busy 按住。
+   */
+  const clickWhenReady = async (name: RegExp) => {
+    const btn = await screen.findByRole('button', { name });
+    await waitFor(() => expect(btn).toBeEnabled());
+    fireEvent.click(btn);
+    return btn;
+  };
+
   it('LOTO 未 100% 确认时前端拦住推进，不把半成品请求发给服务端', async () => {
     renderView();
     const advance = await screen.findByRole('button', { name: /确认推进/ });
@@ -346,9 +357,31 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     fireEvent.click(checkToggle('压缩空气蓄能管路及冷却器腔体'));
     await waitFor(() => expect(screen.getByText(/当前已确认 3\/3 项/)).toBeInTheDocument());
 
-    const advance = await screen.findByRole('button', { name: /确认推进/ });
-    fireEvent.click(advance);
+    await clickWhenReady(/确认推进/);
     await waitFor(() => expect(api.confirmStage).toHaveBeenCalledWith('bl-1', 3, undefined));
+  });
+
+  it('确认请求在途时按钮禁用，连点不会重复落库', async () => {
+    api.getById.mockResolvedValue(loopAtStage1);
+    let settle: ((next: BusinessClosedLoopData) => void) | null = null;
+    api.confirmStage.mockImplementationOnce(
+      () =>
+        new Promise<BusinessClosedLoopData>((resolve) => {
+          settle = resolve;
+        })
+    );
+    renderView();
+    const advance = await clickWhenReady(/确认推进/);
+    await waitFor(() => expect(api.confirmStage).toHaveBeenCalledTimes(1));
+
+    // 请求未回：按钮必须已被 busy 按住，再点就是空操作（重复 POST 会落两张工单）
+    await waitFor(() => expect(advance).toBeDisabled());
+    fireEvent.click(advance);
+    fireEvent.click(advance);
+    expect(api.confirmStage).toHaveBeenCalledTimes(1);
+
+    settle?.(loop);
+    expect(await screen.findByText(/当前已确认 2\/3 项/)).toBeInTheDocument();
   });
 
   it('工单要素在确认前可改写：确认请求带 edits，未改的字段不提交', async () => {
@@ -359,7 +392,7 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     fireEvent.change(screen.getByLabelText(/优先级/), { target: { value: 'urgent' } });
     // 提示条如实标出待提交处数，确认按钮文案同步
     expect(await screen.findByText(/待提交人工修订 2 处/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /确认落库（含 2 处人工修订）/ }));
+    await clickWhenReady(/确认落库（含 2 处人工修订）/);
     await waitFor(() =>
       expect(api.confirmStage).toHaveBeenCalledWith('bl-1', 1, {
         workOrderDraft: { estimatedHours: 2.5, priority: 'urgent' },
@@ -374,7 +407,7 @@ describe('HermesWorkbenchView 数据源纪律', () => {
     fireEvent.change(title, { target: { value: '人工改过的标题名字' } });
     fireEvent.click(screen.getByRole('button', { name: /恢复 AI 原值/ }));
     expect((title as HTMLInputElement).value).toBe('2# 无油螺杆空压机主机振动偏高检修');
-    fireEvent.click(screen.getByRole('button', { name: /确认推进/ }));
+    await clickWhenReady(/确认推进/);
     await waitFor(() => expect(api.confirmStage).toHaveBeenCalledWith('bl-1', 1, undefined));
   });
 
