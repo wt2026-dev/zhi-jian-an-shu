@@ -383,7 +383,7 @@ export const WorkOrderCreateModal: React.FC<WorkOrderCreateModalProps> = ({
                       <div className="bg-white p-2 rounded-lg border border-slate-200">
                         <span className="text-slate-500 block text-[10px]">健康度指数</span>
                         <span className="font-mono font-bold text-blue-600">
-                          {currentEq.healthScore || 92}%
+                          {typeof currentEq.healthScore === 'number' ? `${currentEq.healthScore}%` : '—'}
                         </span>
                       </div>
                     </div>

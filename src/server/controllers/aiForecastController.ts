@@ -128,7 +128,8 @@ export const handleGenerateReport = async (req: any, res: any) => {
       created: orders.filter((w: any) => w.status === "created").length,
       inProgress: orders.filter((w: any) => w.status === "in_progress").length,
       urgent: orders.filter((w: any) => w.priority === "urgent").length,
-      mttrHours: workHours.length ? Number((workHours.reduce((a: number, b: number) => a + b, 0) / workHours.length).toFixed(2)) : 0,
+      // 没有工时记录 ⇒ null（"未采集"），不是 0 小时
+      mttrHours: workHours.length ? Number((workHours.reduce((a: number, b: number) => a + b, 0) / workHours.length).toFixed(2)) : null,
       faultTypeTop: Object.entries(
         orders.reduce((acc: Record<string, number>, w: any) => {
           acc[w.faultType] = (acc[w.faultType] || 0) + 1;
@@ -137,14 +138,26 @@ export const handleGenerateReport = async (req: any, res: any) => {
       ).sort((a: any, b: any) => (b[1] as number) - (a[1] as number)).slice(0, 3).map(([type, count]) => `${type}(${count})`),
     };
 
+    // ⚠️ 这一段会原样进 AI 提示词，模型会照着数字写结论。所以：
+    // - `healthScore || 0` 会把"未评估"算成 0 分，把一台从未体检的设备拉成重度故障；
+    // - MTTR 在没有任何工时记录时不能写 0 小时（那是"秒修"，比缺失更误导）。
+    // 缺测一律写 null，并在提示词里明确"该项未采集"，让模型陈述缺失而不是编一个小数字。
     const equipments = await EquipmentRepository.getAll(workshop ? { workshop } : undefined);
+    const scoredEquipments = equipments.filter((e: any) => typeof e.healthScore === "number");
     const equipmentStats = {
       total: equipments.length,
       running: equipments.filter((e: any) => e.status === "running").length,
       warning: equipments.filter((e: any) => e.status === "warning").length,
       fault: equipments.filter((e: any) => e.status === "fault" || e.status === "overhauling").length,
-      avgHealth: Math.round(equipments.reduce((s: number, e: any) => s + (e.healthScore || 0), 0) / (equipments.length || 1)),
-      worst: [...equipments].sort((a: any, b: any) => (a.healthScore || 0) - (b.healthScore || 0)).slice(0, 3).map((e: any) => `${e.name}(${e.healthScore}分)`),
+      avgHealth: scoredEquipments.length
+        ? Math.round(scoredEquipments.reduce((s: number, e: any) => s + e.healthScore, 0) / scoredEquipments.length)
+        : null,
+      /** 未评估设备数：让模型知道 avgHealth 的分母只有这么多台 */
+      healthUnscored: equipments.length - scoredEquipments.length,
+      worst: [...scoredEquipments]
+        .sort((a: any, b: any) => a.healthScore - b.healthScore)
+        .slice(0, 3)
+        .map((e: any) => `${e.name}(${e.healthScore}分)`),
     };
 
     const permits = (await SafetyPermitRepository.getAll(workshop ? { workshop } : undefined)).filter((p: any) => inRange(p.appliedAt));
@@ -161,6 +174,12 @@ export const handleGenerateReport = async (req: any, res: any) => {
 【工单统计】${JSON.stringify(orderStats)}
 【设备健康分布】${JSON.stringify(equipmentStats)}
 【作业票统计】${JSON.stringify(permitStats)}
+
+数据口径（必须遵守，不得自行补值）:
+- 字段值为 null 表示**该项未采集**（例如 avgHealth 为 null = 区间内没有任何设备做过健康评估，
+  mttrHours 为 null = 没记录过维修工时）。此时请在报告中写「未采集/暂无数据」，**禁止**当成 0 或
+  自行估算一个数字；也不要用 null 反推"设备状况极差"这类结论。
+- avgHealth 只覆盖有评估记录的设备，覆盖台数见 healthUnscored（未评估台数），写均值时请一并说明覆盖范围。
 
 严格按如下 JSON 结构输出:
 {

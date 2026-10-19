@@ -177,7 +177,7 @@ export const InspectionQrModal: React.FC<InspectionQrModalProps> = ({
                 <div className="text-[11px] text-slate-500 space-y-0.5">
                   <div>车间位置: <span className="text-slate-800">{curEq?.workshop} / {curEq?.location || '生产A线'}</span></div>
                   <div>规格型号: <span className="text-slate-800">{curEq?.model || '工业重型标准型'}</span></div>
-                  <div>健康度指数: <strong className="text-emerald-700 font-bold">{curEq?.healthScore || 92}%</strong></div>
+                  <div>健康度指数: <strong className="text-emerald-700 font-bold">{typeof curEq?.healthScore === 'number' ? `${curEq.healthScore}%` : '—'}</strong></div>
                 </div>
               </div>
             </div>
