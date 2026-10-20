@@ -7,7 +7,8 @@
  *
  * 环境变量：
  *   DB_TYPE        pglite（默认）| postgres
- *   DATA_DIR       PGlite 数据目录（默认 data/industrial_ops_pg）
+ *   DATA_DIR       显式指定要备份的 PGlite 数据目录（不指定则按 data/.pglite-active.json 指针解析）
+ *   DATA_ROOT      指针文件所在根目录（默认 data/），仅测试与迁移演练用
  *   BACKUP_DIR     备份输出目录（默认 backups/）
  *   BACKUP_KEEP_N  保留最近 N 份（默认 7，0 = 不清理）
  *   PGDUMP_BIN     postgres 模式的 pg_dump 可执行文件（默认 pg_dump）
@@ -52,12 +53,29 @@ function pruneOldBackups() {
   }
 }
 
+/**
+ * 解析要备份的 PGlite 目录。
+ * 必须跟 src/db/db.ts 的 openPgliteWithFallback 同口径：先看 data/.pglite-active.json 指针，
+ * 指针不存在才回落到规范目录 industrial_ops_pg。
+ * 早期版本写死规范目录，结果备的是早已弃用的死库（该目录自切换起零写入），
+ * 真正在跑的库从来没进过备份。
+ */
+function resolveActiveDataDir(dataRoot) {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(dataRoot, ".pglite-active.json"), "utf8"));
+    if (typeof j?.active === "string" && j.active) return path.join(dataRoot, j.active);
+  } catch {}
+  return path.join(dataRoot, "industrial_ops_pg");
+}
+
 async function backupPglite() {
-  const dataDir = process.env.DATA_DIR || path.join(projectRoot, "data", "industrial_ops_pg");
+  const dataRoot = process.env.DATA_ROOT || path.join(projectRoot, "data");
+  const dataDir = process.env.DATA_DIR || resolveActiveDataDir(dataRoot);
   if (!fs.existsSync(dataDir)) {
     console.error(`[backup][FATAL] 数据目录不存在: ${dataDir}（首次启动前无需备份）`);
     process.exit(1);
   }
+  log(`备份目标: ${path.relative(projectRoot, dataDir).replace(/\\/g, "/")}（来源：${process.env.DATA_DIR ? "DATA_DIR 显式指定" : ".pglite-active.json 指针"}）`);
 
   const db = new PGlite(dataDir);
   try {
@@ -85,6 +103,9 @@ async function backupPglite() {
   const extractDir = path.join(workDir, "data");
   fs.mkdirSync(extractDir, { recursive: true });
   try {
+    // 快照先复制进工作目录再用相对名解包：Git-Bash 的 tar 会把 "D:\..." 里的冒号当成
+    // host:path（报 Cannot connect to D:），相对路径 + cwd 才是跨 shell 稳的写法。
+    fs.copyFileSync(outFile, path.join(workDir, path.basename(outFile)));
     execFileSync("tar", ["-xzf", path.basename(outFile), "-C", "data"], { cwd: workDir });
     const db2 = new PGlite(extractDir);
     await db2.waitReady;

@@ -40,7 +40,11 @@ let failed = false;
 try {
   console.log(`[drill] 备份文件: ${backupAbs}`);
   console.log(`[drill] 隔离工作目录: ${workDir}（演练结束自动清理）`);
-  execFileSync("tar", ["-xzf", path.basename(backupAbs), "-C", path.basename(dataDir)], { cwd: path.dirname(dataDir) });
+  // 备份文件先复制进工作目录再用相对名解包：Git-Bash 的 tar 会把 "D:\..." 里的冒号
+  // 当成 host:path（报 Cannot connect to D:），而相对路径 + cwd 是跨 shell 唯一稳的写法。
+  const stagedName = path.basename(backupAbs);
+  fs.copyFileSync(backupAbs, path.join(workDir, stagedName));
+  execFileSync("tar", ["-xzf", stagedName, "-C", path.basename(dataDir)], { cwd: workDir });
   console.log("[drill] 解包完成，正在以 PGlite 重新打开...");
 
   const db = new PGlite(dataDir);
