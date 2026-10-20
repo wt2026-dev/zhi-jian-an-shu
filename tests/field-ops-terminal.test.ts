@@ -451,9 +451,16 @@ describe("全部步骤记录完成 → 自动提交完工上报（待验收，�
       repairLog: { causeAnalysis: "", resolutionSteps: "1. 步骤一", partsUsed: [], workHours: 0.5, completionPhotos: [] },
     });
     // A：创建晚（10-10）但完工早（10-11）
-    // B：创建早（10-01）但完工晚（10-20）
+    // B：创建早（10-01）但完工晚（相对当前时刻 +1h）
+    //
+    // 2026-10-20 实测时间炸弹：B 原先写死为 2026-10-20T08:00:00Z（本地 16:00），
+    // 而本文件更早的「全部步骤完成 → 自动完工」用例会把种子单 wo-20240902-001 推到待验收，
+    // 完工时间戳取**当前时刻**。当天 16:00 之前 B 更大、用例绿；一过 16:00 种子单必然反超，
+    // 此后每次全量都红（与代码无关）。改为相对当前时刻构造，保证 B 恒为「最近完工」。
     await WorkOrderRepository.create(mk("wo-sort-A", "WO-SORT-A", "2026/10/10 08:00:00", "2026-10-11T08:00:00.000Z"));
-    await WorkOrderRepository.create(mk("wo-sort-B", "WO-SORT-B", "2026/10/01 08:00:00", "2026-10-20T08:00:00.000Z"));
+    await WorkOrderRepository.create(
+      mk("wo-sort-B", "WO-SORT-B", "2026/10/01 08:00:00", new Date(Date.now() + 3600_000).toISOString()),
+    );
 
     const s = await getSession();
     expect(s.status).toBe(200);
