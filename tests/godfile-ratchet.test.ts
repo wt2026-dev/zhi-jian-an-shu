@@ -40,7 +40,7 @@ const BUDGET = { gt300: 116, gt800: 26, gt1000: 17 };
 const TOP_FILES: Record<string, number> = {
   "src/components/equipment3d/scene.ts": 2908,
   "src/components/equipment3d/EquipmentScene.tsx": 2316, // 3743→2919→2742→2671→2608→2475→2411→2316（六刀：uiPrimitives / 拆解诊断 / 遥测回放 / 维修闭环 / 三级层级导航 / 台账派生清单）
-  "src/api/index.ts": 1500, // 1498→1500：AcceptanceItem 增 standardBasis 可选字段(+2/-1)，验收阈值可追溯功能的一部分，见同 commit api/index.ts 修复
+  "src/api/index.ts": 1177, // 1500→1177（2026-10-20 第七刀）：explodedView 域纯移动到 explodedView.ts + explodedViewTypes.ts + explodedDiagnosticsTypes.ts，桶只保留转发；预算同步收紧，不留余量
 };
 
 function lineCount(file: string): number {

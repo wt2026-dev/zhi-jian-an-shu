@@ -36,7 +36,9 @@ const REPO = 'src/db/repositories/partHistoryRepository.ts';
 const PDF = 'src/components/equipment3d/maintenanceReportPdf.ts';
 const STAGE = 'src/components/equipment3d/ExplodedViewStage.tsx';
 const SCENE = 'src/components/equipment3d/EquipmentScene.tsx';
-const API = 'src/api/index.ts';
+// 2026-10-20：api 域切分后，方法在 explodedView.ts、聚合类型在 explodedDiagnosticsTypes.ts。
+// 两处都读，避免「方法还在」把「类型被删」掩盖过去。
+const API_FILES = ['src/api/explodedView.ts', 'src/api/explodedDiagnosticsTypes.ts'];
 const PKG = 'package.json';
 
 /* ------------------------------------------------------------------ */
@@ -169,7 +171,7 @@ describe('源码契约 · 检修报告全链路', () => {
   });
 
   it('api 层提供 explodedViewApi.getMaintenanceReport 与聚合类型', () => {
-    const src = read(API);
+    const src = API_FILES.map(read).join('\n');
     expect(src).toContain('MaintenanceReportData');
     expect(src).toMatch(/getMaintenanceReport\s*[:(]/);
   });

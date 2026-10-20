@@ -45,7 +45,9 @@ const DIAG_HOOK = 'src/components/equipment3d/useExplodedDiagnostics.ts';
 const SHELL = 'src/components/equipment3d/DrilldownShell.tsx';
 const APP = 'src/App.tsx';
 const SPARE_VIEW = 'src/components/SparePartsView.tsx';
-const API = 'src/api/index.ts';
+// 2026-10-20：api 域切分后，方法在 explodedView.ts、类型在 explodedDiagnosticsTypes.ts。
+// 两处都读，避免「方法还在」把「类型被删」掩盖过去。
+const API_FILES = ['src/api/explodedView.ts', 'src/api/explodedDiagnosticsTypes.ts'];
 
 /* ------------------------------------------------------------------ */
 /* A1. 采购前置期配置（分类口径，env 可调）                              */
@@ -256,7 +258,7 @@ describe('源码契约 · 库存联动全链路接线', () => {
   });
 
   it('api 层提供 explodedViewApi.getPartInventory 与诊断类型', () => {
-    const src = read(API);
+    const src = API_FILES.map(read).join('\n');
     expect(src).toContain('ExplodedPartInventoryDiagnostics');
     expect(src).toContain('SpareProcurePrefill');
     expect(src).toMatch(/getPartInventory\s*[(:]/);

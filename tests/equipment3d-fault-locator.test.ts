@@ -170,7 +170,8 @@ describe('故障定位 · 源码契约（防静默删功能）', () => {
     expect(routes).toContain('/api/v1/equipments/:deviceId/fault-diagnostics');
     // 2026-10-19：旧 /api/* 前缀已下线，原先这里断言"双份注册"，现在断言"不得复活"
     expect(routes).not.toContain('/api/equipments/:deviceId/fault-diagnostics"');
-    expect(read('src/api/index.ts')).toContain('getFaultDiagnostics');
+    // 2026-10-20：api 域切分后 getFaultDiagnostics 的实现搬到 explodedView.ts，index.ts 只留桶转发
+    expect(read('src/api/explodedView.ts')).toContain('getFaultDiagnostics');
   });
 
   it('10 份拆解页都有页面原生 setFaultHighlight + 红色脉动 + 行高亮 CSS（页面自己改自发光）', () => {

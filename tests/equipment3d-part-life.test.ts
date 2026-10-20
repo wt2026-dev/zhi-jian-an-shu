@@ -268,7 +268,8 @@ describe('零件寿命预警 · 源码契约', () => {
     expect(routes).toContain('/api/v1/equipments/:deviceId/part-life-diagnostics');
     // 2026-10-19：旧 /api/* 已下线，原「双前缀」断言改为「不得复活」
     expect(routes).not.toContain('/api/equipments/:deviceId/part-life-diagnostics"');
-    expect(read('src/api/index.ts')).toContain('getPartLifeDiagnostics');
+    // 2026-10-20：api 域切分后 getPartLifeDiagnostics 的实现搬到 explodedView.ts，index.ts 只留桶转发
+    expect(read('src/api/explodedView.ts')).toContain('getPartLifeDiagnostics');
   });
 
   it('10 份拆解页都有页面原生 setLifeAlert + 黄/暗红两档 + BOM 行 CSS（3D 颜色由页面自己渲染）', () => {
