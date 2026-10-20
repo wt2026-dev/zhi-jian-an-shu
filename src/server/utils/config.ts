@@ -107,6 +107,8 @@ export const XINGYUN_BASE_URL = process.env.XINGYUN_BASE_URL || "https://api.xin
 // ==================== 微信小程序服务配置 (环境变量注入，严禁暴露前端) ====================
 export const WECHAT_APP_ID = process.env.WECHAT_APP_ID || "";
 export const WECHAT_APP_SECRET = process.env.WECHAT_APP_SECRET || "";
+// 小程序码环境版本：develop=开发版(仅调试时用，需开着开发者工具) / trial=体验版(上传后长期有效) / release=正式版(上线后改)
+export const WECHAT_ENV_VERSION = process.env.WECHAT_ENV_VERSION || "develop";
 
 // ==================== AI 预算控制 ====================
 export function isAiBudgetEnabled(): boolean { return process.env.AI_BUDGET_ENABLED === "true"; }

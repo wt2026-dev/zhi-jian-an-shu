@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { Request, Response } from "express";
 import QRCode from "qrcode";
 import { logger } from "../../utils/logger.ts";
-import { XINGYUN_APP_ID, XINGYUN_APP_SECRET, WECHAT_APP_ID, WECHAT_APP_SECRET } from "../utils/config.ts";
+import { XINGYUN_APP_ID, XINGYUN_APP_SECRET, WECHAT_APP_ID, WECHAT_APP_SECRET, WECHAT_ENV_VERSION } from "../utils/config.ts";
 import { STATUS_LABELS, pushWorkOrderLog } from "./workOrderController.ts";
 import { pushNotification } from "../services/auditService.ts";
 import { EquipmentRepository, WorkOrderRepository } from "../../db/repositories/index.ts";
@@ -228,7 +228,7 @@ export async function handleWechatRepairQrcode(req: Request, res: Response) {
       page: "pages/repair/repair",
       width,
       check_path: false,
-      env_version: "release",
+      env_version: WECHAT_ENV_VERSION,
     };
 
     const wxaResp = await fetch(wxaUrl, {

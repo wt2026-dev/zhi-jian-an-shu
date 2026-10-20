@@ -23,6 +23,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
 }) => {
   const [qrModalTab, setQrModalTab] = useState<'simulate' | 'real_qrcode'>('simulate');
   const [selectedQrEquipId, setSelectedQrEquipId] = useState<string>('');
+  // 记录哪些设备的小程序码加载失败（未配置微信凭证或接口异常），降级到 H5 码
+  const [wxQrFailedMap, setWxQrFailedMap] = useState<Record<string, boolean>>({});
 
   if (!isOpen) return null;
 
@@ -141,20 +143,37 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               const currId = selectedQrEquipId || equipments[0]?.id;
               const currEq = equipments.find((e) => e.id === currId) || equipments[0];
               if (!currEq) return null;
+
+              // 优先走微信小程序太阳码（扫了直接跳小程序报修页），失败则降级到 H5 普通二维码
+              const useH5 = wxQrFailedMap[currEq.id] === true;
+              const qrSrc = useH5
+                ? `/api/v1/wechat/h5-qrcode?deviceId=${encodeURIComponent(currEq.id)}`
+                : `/api/v1/wechat/repair-qrcode?deviceId=${encodeURIComponent(currEq.id)}&width=360`;
+
               return (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-center gap-3.5">
                   <div className="w-32 h-32 bg-white p-2 border border-slate-200 rounded-lg shrink-0 shadow-xs flex items-center justify-center">
                     <img
-                      src={`/api/v1/equipments/${currEq.id}/qrcode`}
+                      src={qrSrc}
                       alt={`${currEq.name} 专属二维码`}
                       className="w-full h-full object-contain"
+                      onError={() => {
+                        // 小程序码加载失败（未配置 AppID/Secret 或接口异常），自动切 H5 过渡码
+                        if (!useH5) {
+                          setWxQrFailedMap((prev) => ({ ...prev, [currEq.id]: true }));
+                        }
+                      }}
                     />
                   </div>
                   <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="font-bold text-slate-900 text-sm truncate">{currEq.name}</div>
                     <div className="text-[11px] font-mono text-blue-600 font-semibold">{currEq.code}</div>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      ✅ 真实工业二维码：手机微信或工业 PDA 扫码直达现场巡检或报修工单。
+                      {useH5 ? (
+                        <>ℹ️ 小程序码待配置，当前为临时 H5 扫码报修页（手机浏览器打开）</>
+                      ) : (
+                        <>✅ 真实工业二维码：手机微信扫码直达小程序报修工单，自动带出当前设备</>
+                      )}
                     </p>
                     <button
                       type="button"
