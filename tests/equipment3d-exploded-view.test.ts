@@ -370,3 +370,58 @@ describe('维修步骤指引 · iframe 桥洞洞（F3）', () => {
     expect(src).toContain('equipment3d-step-guide-collapsed');
   });
 });
+
+/**
+ * 2026-10-20 实测故障：拆解视图整块打不开，页面里只剩一块黑画布。
+ * 根因不在本仓代码，而在**依赖公网 CDN**：`cdn.jsdelivr.net` 在本机直连解析不到、
+ * 走代理也被掐（ERR_CONNECTION_RESET），于是 `THREE.OrbitControls` 是 undefined，
+ * 拆解页主脚本在 `new THREE.OrbitControls(...)` 这一行整体抛断 —— 灯光、零件几何、
+ * BOM 表格、渲染循环一行都没执行。tsc / build / 接口全绿，只有肉眼能看出来。
+ *
+ * 所以这里钉三件事：three 系资源必须同源本地加载；调用 OrbitControls 的页面必须真的
+ * 引到它；任何一份页面重新长出公网 three.js CDN 都算回归。
+ */
+describe('拆解视图 · three.js 必须同源本地加载（禁止公网 CDN）', () => {
+  const VENDOR_DIR = path.join(ROOT, 'public', EXPLODED_VIEW_DIR, 'vendor');
+
+  it('本地 three 资源在位且非空壳（OrbitControls 必须真的定义构造函数）', () => {
+    const three = path.join(VENDOR_DIR, 'three.min.js');
+    const orbit = path.join(VENDOR_DIR, 'OrbitControls.js');
+    expect(fs.existsSync(three), 'public/exploded/vendor/three.min.js 缺失').toBe(true);
+    expect(fs.existsSync(orbit), 'public/exploded/vendor/OrbitControls.js 缺失').toBe(true);
+    // r128 压缩版约 600KB；小于 100KB 就是被换成了占位/错误页
+    expect(fs.statSync(three).size).toBeGreaterThan(100_000);
+    expect(fs.readFileSync(orbit, 'utf8')).toContain('THREE.OrbitControls');
+  });
+
+  it('10 份页面一律用相对路径引本地 three.min.js，且不再出现公网 three CDN', () => {
+    for (const file of Object.values(EXPLODED_VIEW_FILES)) {
+      const html = read(path.join('public', EXPLODED_VIEW_DIR, file));
+      expect(html, `${file} 未改为本地 vendor/three.min.js`).toContain('src="vendor/three.min.js"');
+      expect(html, `${file} 又引回了公网 three.js CDN`).not.toMatch(
+        /src="https?:\/\/[^"]*(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)[^"]*three[^"]*"/
+      );
+    }
+  });
+
+  it('调用 new THREE.OrbitControls 的页面必须引到 OrbitControls.js（漏一个 = 该页整块黑屏）', () => {
+    const callers: string[] = [];
+    for (const file of Object.values(EXPLODED_VIEW_FILES)) {
+      const html = read(path.join('public', EXPLODED_VIEW_DIR, file));
+      if (!html.includes('new THREE.OrbitControls')) continue;
+      callers.push(file);
+      expect(html, `${file} 用了 OrbitControls 却没加载 vendor/OrbitControls.js`).toContain(
+        'src="vendor/OrbitControls.js"'
+      );
+    }
+    expect(callers.sort()).toEqual(
+      [
+        'compressor_exploded.html',
+        'machining_center_exploded.html',
+        'motor_exploded.html',
+        'pump_exploded.html',
+        'robot_exploded_v2.html',
+      ].sort()
+    );
+  });
+});

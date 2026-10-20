@@ -5,9 +5,8 @@
  * 对外暴露 speak / stop / setSpeaking / setPersona 四个方法（与 DigitalHumanVRM / DigitalHuman3D 同构，
  * 可直接替换使用）。
  *
- * 模型：public/models/engineer/china_engineer.glb（中国男性工程师，腾讯混元3D 图生3D 生成，
- * 浅灰短袖+深蓝背带工装，~75MB 静态模型——无骨骼无动画，先解决"中国人脸"问题，
- * 绑骨/动画后续再补。）
+ * 模型：public/models/engineer/worker_talk.glb（写实男性工人，~10.4MB，PBR 材质，
+ * 完整 Mixamo 骨骼，内置说话动画——浅灰短袖+深蓝背带工装。）
  *
  * 历史：原先指向 asian_worker.glb，但该文件早已损坏（2.3KB，内容是 Sketchfab 网页 HTML，
  * 见 ATTRIBUTION.md 警告），GLTFLoader 解析失败后整个数字人降级成程序化安全帽小人。
@@ -50,12 +49,12 @@ interface DigitalHumanGLBProps {
 // 注意：这是静态模型（无骨骼/无动画），BONE 查找全部返回 null，
 // 呼吸/头动/手臂摆动等程序化动画对它自动 no-op——模型站在网格上即可。
 // 后续绑骨/换带骨骼模型时再切回带骨骼的 GLB。
-const CHINA_ENGINEER_GLB = '/models/engineer/china_engineer.glb';
+const WORKER_GLB = '/models/engineer/worker_talk.glb';
 
 const PERSONA_MODEL: Record<string, string> = {
-  zhang: CHINA_ENGINEER_GLB,
-  li: CHINA_ENGINEER_GLB,
-  zhi: CHINA_ENGINEER_GLB,
+  zhang: WORKER_GLB,
+  li: WORKER_GLB,
+  zhi: WORKER_GLB,
 };
 
 // ─── worker_talk.glb 实际骨骼映射（Mixamo 骨骼体系）──────────────────────
