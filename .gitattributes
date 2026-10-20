@@ -7,6 +7,33 @@
 # worktree 里实炸 —— 工作区是 LF 所以本地全绿，检出成 CRLF 就把口径守卫本身弄挂了）。
 *.mjs text eol=lf
 *.cjs text eol=lf
+
+# Windows PowerShell 脚本统一按 CRLF 检出（仓库内仍归一化为 LF）。
+# 2026-10-20 补齐：此前 .ps1 只靠 `* text=auto` 兜底，属于"碰巧没事"。
+*.ps1 text eol=crlf
+# 二进制资产必须显式声明 `binary`（= -text -diff）。
+# `* text=auto` 依赖内容探测，文件头恰好可打印时会被当文本做行尾转换，资产直接损坏；
+# 这类损坏在 diff 里看不出来，只有运行时才发现图片/模型/字体打不开。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.glb binary
+*.gltf binary
+*.pck binary
+*.wasm binary
+*.otf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.mp4 binary
+*.pdf binary
+*.zip binary
+*.docx binary
+*.pptx binary
+*.xlsx binary
 *.glb filter=lfs diff=lfs merge=lfs -text
 *.gltf filter=lfs diff=lfs merge=lfs -text
 *.vrm filter=lfs diff=lfs merge=lfs -text
