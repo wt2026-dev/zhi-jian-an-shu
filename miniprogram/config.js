@@ -6,10 +6,10 @@
 //   「开发管理 → 开发设置 → 服务器域名」中把该域名加入 request 合法域名。
 var IS_PROD = false; // 发布正式版前改为 true
 
-// 真机调试时把这里改成电脑局域网 IPv4
-var LAN_IP = "127.0.0.1";
+// 内网穿透 https 地址（localtunnel 临时域名，重启后会变）
+var TUNNEL_URL = "https://industrial-repair.loca.lt";
 
 module.exports = {
   IS_PROD: IS_PROD,
-  BASE_URL: IS_PROD ? "https://api.example-industrial.com" : "http://" + LAN_IP + ":3000",
+  BASE_URL: TUNNEL_URL,
 };
