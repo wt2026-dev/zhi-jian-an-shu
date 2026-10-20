@@ -24,7 +24,9 @@ beforeAll(async () => {
   process.env.WECHAT_APP_SECRET = "";
   const { createApp } = await import("../server.ts");
   app = await createApp();
-});
+  // 全量并行时本文件可能被排在负载高峰，createApp 要跑迁移 + 种子，默认 30s 会超时
+  // （2026-10-20 实测：单跑 13s，全量并行时 >30s）。与 ai-capability-registry 等重初始化用例同口径。
+}, 90000);
 
 describe("设备二维码：小程序码不可用时降级 H5", () => {
   it("未配置小程序凭据 → repair-qrcode 返回 404 + configured:false（前端据此切 H5）", async () => {
