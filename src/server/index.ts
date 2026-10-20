@@ -49,6 +49,7 @@ import { registerFieldOpsRoutes } from "./routes/fieldOps.ts";
 import { registerAcceptanceRoutes } from "./routes/acceptance.ts";
 import { registerBusinessLoopRoutes } from "./routes/businessLoops.ts";
 import { registerTelemetryRoutes } from "./routes/telemetry.ts";
+import { writeShutdownSnapshot } from "./services/shutdownSnapshotService.ts";
 
 // 重构说明：本文件为应用装配与启动入口，自 server.ts（原 7329 行单文件）拆出。
 // 各业务域路由/控制器/服务见同目录 routes/、controllers/、services/、middleware/、schemas/、utils/。
@@ -512,6 +513,20 @@ export async function startServer() {
         logger.info("[Shutdown] 数据库已干净关闭");
       } catch (e: any) {
         logger.warn("[Shutdown] 关闭数据库出错:", e?.message);
+      }
+
+      // 关库之后才是留底的唯一安全时机：此时我们是最后一个持有者且已经松手。
+      // 不能放在启动前——实测对已被持有的 PGlite 目录二次 open 不会 fail-fast，会双开活库。
+      try {
+        clearTimeout(force);
+        const snapForce = setTimeout(() => {
+          logger.warn("[Shutdown] 留底超过 60s，放弃并退出");
+          process.exit(0);
+        }, 60_000);
+        snapForce.unref?.();
+        await writeShutdownSnapshot();
+      } catch (e: any) {
+        logger.warn("[Shutdown] 留底出错:", e?.message);
       }
 
       process.exit(0);

@@ -25,6 +25,12 @@ export type DatabaseClient = DatabaseAdapter;
 
 let dbInstance: DatabaseAdapter | null = null;
 
+/** 当前实际打开的 PGlite 数据目录（fallback 后可能与规范目录不同名）；postgres/内存模式为 null。 */
+let pgliteActiveDir: string | null = null;
+export function getPgliteActiveDir(): string | null {
+  return pgliteActiveDir;
+}
+
 /** 数据库查询性能统计（P2-6：杜绝 N+1、慢查询标记） */
 const queryStats = {
   total: 0,
@@ -243,6 +249,7 @@ async function createPgliteAdapter(): Promise<DatabaseAdapter> {
   logger.info(`[Database] 正在加载嵌入式持久化 PostgreSQL 数据库 (存储路径: ${pgDataPath}) ...`);
   var opened = await openPgliteWithFallback(dataDir, dbFolderName);
   var pglite = opened.pglite;
+  pgliteActiveDir = opened.usedPath;
   if (opened.usedPath !== pgDataPath) {
     logger.warn(`[Database] 实际使用的数据目录: ${opened.usedPath}`);
   }
