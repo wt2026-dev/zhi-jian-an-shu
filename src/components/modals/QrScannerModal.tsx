@@ -144,8 +144,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               const currEq = equipments.find((e) => e.id === currId) || equipments[0];
               if (!currEq) return null;
 
-              // 优先走微信小程序太阳码（扫了直接跳小程序报修页），失败则降级到 H5 普通二维码
-              const useH5 = wxQrFailedMap[currEq.id] === true;
+              // 真机演示模式：H5 普通二维码（微信扫了打开网页报修页，自动带设备信息）
+              // 等内网穿透配好 https 域名后，再切回小程序太阳码
+              const useH5 = true;
               const qrSrc = useH5
                 ? `/api/v1/wechat/h5-qrcode?deviceId=${encodeURIComponent(currEq.id)}`
                 : `/api/v1/wechat/repair-qrcode?deviceId=${encodeURIComponent(currEq.id)}&width=360`;

@@ -1,4 +1,4 @@
-const { BASE_URL } = require("../config.js");
+const { BASE_URL, IS_PROD } = require("../config.js");
 
 // 最近一次成功请求的真实耗时（ms），供"我的"页展示网络延迟，无请求时为 0
 var lastLatencyMs = 0;
@@ -71,9 +71,15 @@ function request(path, opts) {
       },
       fail(err) {
         var msg = "网络异常，请检查网络或服务器地址";
-        if (err && err.errMsg && String(err.errMsg).indexOf("timeout") >= 0) msg = "请求超时，请稍后重试";
+        var reason = (err && err.errMsg) || "";
+        if (reason.indexOf("timeout") >= 0) msg = "请求超时，请稍后重试";
+        // fail 分支把域名校验没关、代理拦截、端口连不上、模拟器重载全部压成同一句话，
+        // 现场无法区分。开发环境把真实 errMsg 与目标地址带出来（生产环境保持干净文案）。
+        if (!IS_PROD) {
+          msg += "｜" + (reason || "request:fail") + " → " + BASE_URL + path;
+        }
         if (!opts.silent) toast(msg);
-        reject(Object.assign({}, err || {}, { error: msg }));
+        reject(Object.assign({}, err || {}, { error: msg, errMsg: reason, url: BASE_URL + path }));
       },
     });
   });

@@ -404,6 +404,34 @@ describe('拆解视图 · three.js 必须同源本地加载（禁止公网 CDN�
     }
   });
 
+  it('★ 样式与图标也必须同源本地：公网 Tailwind / FontAwesome 一律禁止', () => {
+    // 2026-10-20 第二次实测故障：three.js 本地化之后页面**仍然**塌成一堆纯文本 ——
+    // 3D 与引线标签都在（页面自带 <style> 生效），但 BOM 面板 / 顶栏 / 底部控制条全没了。
+    // 根因是 Tailwind Play CDN 拉不到（ERR_CONNECTION_RESET）：整页的布局全靠它的工具类，
+    // 它一没，`fixed right-4 w-85` 这类定位全部失效 ⇒ 面板退回文档流、逐行竖排；
+    // 同时 canvas 容器的尺寸也来自工具类 ⇒ 高度 0，3D 画布看不见。
+    // 所以 Tailwind 与图标字体必须和 three 一样走 vendor/，否则"修了 three 还是白修"。
+    for (const file of Object.values(EXPLODED_VIEW_FILES)) {
+      const html = read(path.join('public', EXPLODED_VIEW_DIR, file));
+      expect(html, `${file} 又引回了公网 Tailwind`).not.toContain('cdn.tailwindcss.com');
+      expect(html, `${file} 又引回了公网 FontAwesome`).not.toContain('font-awesome');
+    }
+    // 引用方必须在位且不是空壳（Play CDN 约 400KB；小于 100KB 就是错误页/占位）
+    const tw = path.join(VENDOR_DIR, 'tailwindcss.js');
+    expect(fs.existsSync(tw), 'public/exploded/vendor/tailwindcss.js 缺失').toBe(true);
+    expect(fs.statSync(tw).size).toBeGreaterThan(100_000);
+    expect(fs.readFileSync(tw, 'utf8')).toContain('tailwind');
+    // 图标字体：CSS 与它真正要用的 woff2 缺一个，按钮就只剩文字
+    const faCss = path.join(VENDOR_DIR, 'fontawesome', 'all.min.css');
+    expect(fs.existsSync(faCss), 'public/exploded/vendor/fontawesome/all.min.css 缺失').toBe(true);
+    for (const font of ['fa-solid-900', 'fa-regular-400', 'fa-brands-400', 'fa-v4compatibility']) {
+      const woff2 = path.join(VENDOR_DIR, 'webfonts', `${font}.woff2`);
+      expect(fs.existsSync(woff2), `${font}.woff2 缺失`).toBe(true);
+      // 真伪只看前 4 字节：真 woff2 是 wOF2，被换成 HTML 错误页会是 '<!DO'
+      expect(fs.readFileSync(woff2).subarray(0, 4).toString('latin1')).toBe('wOF2');
+    }
+  });
+
   it('调用 new THREE.OrbitControls 的页面必须引到 OrbitControls.js（漏一个 = 该页整块黑屏）', () => {
     const callers: string[] = [];
     for (const file of Object.values(EXPLODED_VIEW_FILES)) {
