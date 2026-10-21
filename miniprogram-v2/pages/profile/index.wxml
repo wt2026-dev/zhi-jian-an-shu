@@ -1,0 +1,189 @@
+<!-- pages/profile/index.wxml -->
+<view class="solar-page-container">
+  <!-- 背景光晕层 (Solar-Punk 光辉) -->
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="tab-page-content" enable-flex>
+    <view class="px-page py-sm">
+
+      <view wx:if="{{loading}}" class="glass-card p-md mb-md profile-state">
+        <view class="led-dot led-pulse-gold"></view>
+        <text class="font-body-sm text-muted">正在读取个人档案与实时业务数据...</text>
+      </view>
+
+      <view wx:elif="{{error}}" class="glass-card p-md mb-md profile-state">
+        <text class="font-body-sm text-error">{{error}}</text>
+        <button class="btn-secondary mt-sm" bindtap="handleRetry">
+          <text>重试</text>
+        </button>
+      </view>
+
+      <block wx:else>
+        <!-- 1. 个人档案主卡 -->
+        <view class="glass-card-gold p-md mb-md">
+          <view class="flex items-center gap-md">
+            <view class="avatar-container">
+              <image wx:if="{{user.avatar}}" class="avatar-img" src="{{user.avatar}}" mode="aspectFill" />
+              <view wx:else class="avatar-fallback">{{user.initial}}</view>
+              <view class="avatar-badge">⭐</view>
+            </view>
+            <view class="flex-1 min-w-0">
+              <view class="flex items-center gap-xs flex-wrap">
+                <text class="font-headline-sm text-on-surface">{{user.name}}</text>
+                <text class="chip-badge chip-gold">{{user.roleTitle}}</text>
+              </view>
+              <view class="font-code-sm text-primary mt-xs">{{user.username}}</view>
+              <view class="font-body-sm text-muted mt-xs truncate">{{user.department || '未登记部门'}}</view>
+            </view>
+          </view>
+
+          <view class="profile-contact-grid mt-md">
+            <view class="profile-contact-item">
+              <text class="font-code-sm text-muted">手机号</text>
+              <text class="font-body-sm text-on-surface">{{user.phone || '未登记'}}</text>
+            </view>
+            <view class="profile-contact-item">
+              <text class="font-code-sm text-muted">邮箱</text>
+              <text class="font-body-sm text-on-surface truncate">{{user.email || '未登记'}}</text>
+            </view>
+          </view>
+          <view class="font-code-sm text-muted mt-sm">档案来源：GET /api/v1/auth/me</view>
+        </view>
+
+        <!-- 2. 我的实时作业统计 -->
+        <view class="glass-card p-md mb-md">
+          <view class="flex items-center justify-between mb-sm">
+            <view class="flex items-center gap-xs">
+              <view class="led-dot led-pulse-gold"></view>
+              <text class="font-headline-sm text-on-surface">我的实时作业</text>
+            </view>
+            <text class="chip-badge chip-cyan">真实数据聚合</text>
+          </view>
+
+          <view class="profile-stats-grid">
+            <view class="inner-well p-sm profile-stat-card">
+              <text class="font-mono-lg text-primary">{{stats.myOpenOrders}}</text>
+              <text class="font-body-sm text-muted">我的在办工单</text>
+            </view>
+            <view class="inner-well p-sm profile-stat-card">
+              <text class="font-mono-lg text-success">{{stats.myCompletedToday}}</text>
+              <text class="font-body-sm text-muted">我的今日完工</text>
+            </view>
+            <view class="inner-well p-sm profile-stat-card">
+              <text class="font-mono-lg text-secondary">{{stats.myInspectionsToday}}</text>
+              <text class="font-body-sm text-muted">我的今日巡检完成</text>
+            </view>
+            <view class="inner-well p-sm profile-stat-card">
+              <text class="font-mono-lg text-error">{{stats.activeLocks}}</text>
+              <text class="font-body-sm text-muted">全厂在役安全锁</text>
+            </view>
+          </view>
+          <view class="font-code-sm text-muted mt-sm">工单与巡检按当前登录人匹配；安全锁统计全厂 status=locked 的锁具。</view>
+        </view>
+
+        <!-- 3. 今日当班与交接班入口 -->
+        <view class="glass-card p-md mb-md">
+          <view class="flex items-center justify-between pb-xs border-b-subtle mb-sm">
+            <view class="flex items-center gap-xs">
+              <view class="led-dot led-pulse-gold"></view>
+              <text class="font-headline-sm text-on-surface">今日当班与交接班</text>
+            </view>
+            <text class="chip-badge chip-gold">实时汇总</text>
+          </view>
+
+          <view class="grid-3col mb-md">
+            <view class="inner-well p-xs text-center">
+              <view class="font-mono-md text-on-surface">{{stats.todayCompletedOrders}}</view>
+              <view class="font-body-sm text-muted mt-xs">今日完工工单</view>
+            </view>
+            <view class="inner-well p-xs text-center">
+              <view class="font-mono-md text-secondary">{{stats.todayCompletedInspections}}</view>
+              <view class="font-body-sm text-muted mt-xs">巡检完成</view>
+            </view>
+            <view class="inner-well p-xs text-center">
+              <view class="font-mono-md text-error">{{stats.pendingHazards}}</view>
+              <view class="font-body-sm text-muted mt-xs">待整改隐患</view>
+            </view>
+          </view>
+
+          <button class="btn-primary w-full" bindtap="goToShiftHandover">
+            <text>查看交接班实时台账 →</text>
+          </button>
+          <view class="font-code-sm text-muted mt-xs">交接班页由当日工单、巡检、隐患与 LOTO 数据实时聚合，不生成后端交接单。</view>
+        </view>
+
+        <!-- 4. 特种作业与资质证书 -->
+        <view class="glass-card p-md mb-md">
+          <view class="flex items-center justify-between mb-sm">
+            <view class="flex items-center gap-xs">
+              <text>🏅</text>
+              <text class="font-headline-sm text-on-surface">特种作业与资质证书</text>
+            </view>
+            <text wx:if="{{certifications.length}}" class="font-code-sm text-muted">{{certifications.length}} 项</text>
+          </view>
+
+          <block wx:if="{{certifications.length}}">
+            <view wx:for="{{certifications}}" wx:key="id" class="inner-well p-sm mb-xs flex items-center justify-between">
+              <view class="flex-1 min-w-0">
+                <view class="font-title-md text-on-surface">{{item.name}}</view>
+                <view class="font-code-sm text-muted mt-xs">
+                  有效期至: {{item.expiry || '未登记'}}<text wx:if="{{item.issuer}}"> · 发证机构: {{item.issuer}}</text>
+                </view>
+              </view>
+              <text class="chip-badge {{item.statusClass}}">{{item.statusText}}</text>
+            </view>
+          </block>
+          <view wx:else class="profile-empty-note">
+            <text class="font-body-sm text-muted">后端未登记资质证书数据，页面不编造展示。</text>
+          </view>
+        </view>
+
+        <!-- 5. 账号操作权限 -->
+        <view class="glass-card p-md mb-md">
+          <view class="flex items-center justify-between mb-sm">
+            <text class="font-headline-sm text-on-surface">账号操作权限</text>
+            <text class="chip-badge chip-cyan">{{user.role}}</text>
+          </view>
+          <view class="flex flex-wrap gap-xs">
+            <block wx:for="{{permissionTags}}" wx:key="*this">
+              <view class="chip chip-cyan">
+                <text class="font-code-sm">{{item}}</text>
+              </view>
+            </block>
+            <text wx:if="{{!permissionTags.length}}" class="font-body-sm text-muted">后端未配置权限项</text>
+          </view>
+        </view>
+
+        <!-- 6. 工业运维协同工具箱 -->
+        <view class="glass-card p-md mb-md">
+          <view class="font-headline-sm text-on-surface mb-sm">工业运维协同工具箱</view>
+          <view class="toolkit-list">
+            <view
+              wx:for="{{toolkitItems}}"
+              wx:key="name"
+              class="toolkit-item flex items-center justify-between py-sm border-b-subtle"
+              data-page="{{item.page}}"
+              bindtap="handleToolkitClick"
+            >
+              <view>
+                <view class="font-title-md text-on-surface">{{item.name}}</view>
+                <view class="font-body-sm text-muted mt-xs">{{item.desc}}</view>
+              </view>
+              <text class="text-muted font-code-sm">></text>
+            </view>
+          </view>
+        </view>
+
+        <button class="btn-secondary w-full mb-lg" bindtap="handleLogout">
+          <text>退出登录</text>
+        </button>
+      </block>
+
+    </view>
+  </scroll-view>
+</view>
