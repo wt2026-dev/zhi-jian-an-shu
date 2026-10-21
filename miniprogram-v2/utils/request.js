@@ -30,27 +30,33 @@ function toast(message) {
   wx.showToast({ title, icon: 'none', duration: 2600 });
 }
 
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function isWrapped(payload) {
+  if (typeof payload.success === 'boolean') return true;
+  // 业务实体本身也可能带 code（如设备编码），仅当 code 为数值且伴随 data/message 时才视为包装层
+  if (!hasOwn(payload, 'code')) return false;
+  const numeric = payload.code !== '' && Number.isFinite(Number(payload.code));
+  return numeric && (hasOwn(payload, 'data') || typeof payload.message === 'string');
+}
+
 function unwrap(payload) {
-  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-    if (Object.prototype.hasOwnProperty.call(payload, 'code')) {
-      const code = Number(payload.code);
-      if (code !== 200) {
-        throw createError(payload.message || payload.error || '业务处理失败 (code=' + payload.code + ')', {
-          code: payload.code,
-          data: payload
-        });
-      }
-      return Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
-    }
+  if (payload && typeof payload === 'object' && !Array.isArray(payload) && isWrapped(payload)) {
     if (payload.success === false) {
       throw createError(payload.message || payload.error || '业务处理失败', {
         code: payload.code,
         data: payload
       });
     }
-    if (payload.success === true && Object.prototype.hasOwnProperty.call(payload, 'data')) {
-      return payload.data;
+    if (hasOwn(payload, 'code') && Number(payload.code) !== 200) {
+      throw createError(payload.message || payload.error || '业务处理失败 (code=' + payload.code + ')', {
+        code: payload.code,
+        data: payload
+      });
     }
+    return hasOwn(payload, 'data') ? payload.data : payload;
   }
   return payload;
 }
