@@ -23,6 +23,7 @@ export type EquipmentStatus =
   | 'running'       // 正常运行
   | 'warning'       // 预警关注
   | 'fault'         // 故障待修
+  | 'critical'      // 紧急（健康度严重劣化，优先级高于 fault；与 equipment3d 的 StatusKey 对齐）
   | 'overhauling'   // 检修中
   | 'standby'       // 停机备用
   | 'scrapped';      // 报废

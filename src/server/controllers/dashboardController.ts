@@ -11,8 +11,15 @@ export async function handleGetCockpitMetrics(_req: any, res: any) {
 
     const [ordersRes, compRes, eqRes, inspRes, aiRes, hazRes, spRes] = await Promise.all([
       db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'completed')::int AS completed, COUNT(*) FILTER (WHERE priority = 'urgent' AND status != 'completed')::int AS urgent FROM work_orders;"),
-      db.query("SELECT COUNT(*)::int AS c FROM work_orders WHERE status = 'completed' AND (accepted_by_inspector_at LIKE $1 OR accepted_by_inspector_at LIKE $2)", [new Date().toLocaleDateString("zh-CN") + "%", new Date().toISOString().slice(0, 10) + "%"]),
-      db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'normal')::int AS normal, COUNT(*) FILTER (WHERE status IN ('fault','overhauling'))::int AS faulty, COALESCE(AVG(health_score), 0)::int AS avg_health FROM equipments;"),
+      // accepted_by_inspector_at 自 028 迁移起为 TIMESTAMPTZ，不能再用 LIKE 做前缀匹配（会报
+      // operator does not exist: timestamp with time zone ~~ unknown），改为按当日 [起, 次日) 区间比较。
+      db.query("SELECT COUNT(*)::int AS c FROM work_orders WHERE status = 'completed' AND accepted_by_inspector_at >= $1 AND accepted_by_inspector_at < $2", [dayStart, new Date(dayStart.getTime() + 86400000)]),
+      // 口径修正：EquipmentStatus（src/types/index.ts）里没有 'normal' 这一档，
+      // 正常运行对应的是 'running'，原先按 status = 'normal' 统计会让 equipmentNormal 恒为 0
+      // （实测 26 台里 15 台 running 被算成"非正常"）。
+      // faulty 纳入 'critical'：仓库既有约定把 critical 视作"更严重的故障"
+      // （seed.ts 的 severity 计算、focusSceneDecor.toFocusDecorStatus 都这么处理）。
+      db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'running')::int AS normal, COUNT(*) FILTER (WHERE status IN ('fault','critical','overhauling'))::int AS faulty, COALESCE(AVG(health_score), 0)::int AS avg_health FROM equipments;"),
       db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'completed')::int AS completed, COALESCE(SUM(total_points), 0)::int AS total_pts, COALESCE(SUM(completed_points), 0)::int AS done_pts, COALESCE(SUM(abnormal_count), 0)::int AS abnormal FROM inspections;"),
       db.query("SELECT COUNT(*)::int AS c FROM audit_logs WHERE module = 'ai' AND action_type LIKE 'AI_%';"),
       HazardsRepository.getMetrics(),

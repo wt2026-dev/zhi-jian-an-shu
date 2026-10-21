@@ -30,7 +30,8 @@ export const EquipmentGridView: React.FC<EquipmentGridViewProps> = ({
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {equipments.map((eq) => {
         const statusBadge = getStatusBadge(eq.status);
-        const isAlarm = eq.healthScore < 60 || eq.status === 'fault';
+        // critical 与 fault 同属"告警"（critical 是更严重的一档），不能只判 fault。
+        const isAlarm = eq.healthScore < 60 || eq.status === 'fault' || eq.status === 'critical';
         const isWarn = eq.healthScore >= 60 && eq.healthScore < 80;
 
         return (

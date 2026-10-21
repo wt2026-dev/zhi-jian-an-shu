@@ -118,9 +118,12 @@ export async function handleAdminMetrics(_req: any, res: any) {
   var dayStartMs = dayStart.getTime();
   var db = await getDb();
   var ordersToday = await db.query("SELECT COUNT(*)::int AS c FROM work_orders WHERE created_timestamp >= $1", [dayStartMs]);
-  var completedToday = await db.query("SELECT COUNT(*)::int AS c FROM work_orders WHERE status = 'completed' AND (accepted_by_inspector_at LIKE $1 OR accepted_by_inspector_at LIKE $2)", [new Date().toLocaleDateString("zh-CN") + "%", new Date().toISOString().slice(0, 10) + "%"]);
+  // accepted_by_inspector_at 自 028 迁移起为 TIMESTAMPTZ，不能用 LIKE 做前缀匹配（会报
+  // operator does not exist: timestamp with time zone ~~ unknown），改为按当日 [起, 次日) 区间比较。
+  var completedToday = await db.query("SELECT COUNT(*)::int AS c FROM work_orders WHERE status = 'completed' AND accepted_by_inspector_at >= $1 AND accepted_by_inspector_at < $2", [dayStart, new Date(dayStart.getTime() + 86400000)]);
   var mttr = await db.query("SELECT COALESCE(AVG((repair_log->>'workHours')::numeric), 0)::numeric(10,2) AS v FROM work_orders WHERE status = 'completed' AND repair_log IS NOT NULL");
-  var eqStats = await db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status IN ('fault','overhauling'))::int AS faulty FROM equipments");
+  // 故障口径与驾驶舱保持一致：critical 视作更严重的故障（见 dashboardController 同名统计）。
+  var eqStats = await db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status IN ('fault','critical','overhauling'))::int AS faulty FROM equipments");
   var insp = await db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'completed')::int AS completed, COALESCE(SUM(abnormal_count),0)::int AS abnormal FROM inspections");
   var aiCalls = await db.query("SELECT COUNT(*)::int AS c FROM audit_logs WHERE module = 'ai' AND action_type LIKE 'AI_%'");
   res.json({
