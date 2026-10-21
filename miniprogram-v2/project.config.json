@@ -1,0 +1,22 @@
+{
+  "description": "智检安枢 - 工业智能管控小程序 V2",
+  "appid": "touristappid",
+  "projectname": "industrial-maintenance-miniprogram-v2",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "./",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    },
+    "minifyWXML": true
+  },
+  "libVersion": "3.4.10",
+  "condition": {}
+}

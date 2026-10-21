@@ -1,0 +1,61 @@
+{
+  "pages": [
+    "pages/login/index",
+    "pages/workbench/index",
+    "pages/work-orders/index",
+    "pages/inspections/index",
+    "pages/ai-assistant/index",
+    "pages/profile/index",
+    "pages/work-order-detail/index",
+    "pages/work-order-create/index",
+    "pages/shift-handover/index",
+    "pages/push-template/index"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#FAF8FF",
+    "navigationBarTitleText": "智检安枢",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#FAF8FF"
+  },
+  "tabBar": {
+    "color": "#64748B",
+    "selectedColor": "#835400",
+    "backgroundColor": "#FAF8FF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/workbench/index",
+        "text": "工作台",
+        "iconPath": "images/tabbar/workbench.png",
+        "selectedIconPath": "images/tabbar/workbench-active.png"
+      },
+      {
+        "pagePath": "pages/work-orders/index",
+        "text": "工单",
+        "iconPath": "images/tabbar/work-orders.png",
+        "selectedIconPath": "images/tabbar/work-orders-active.png"
+      },
+      {
+        "pagePath": "pages/inspections/index",
+        "text": "巡检",
+        "iconPath": "images/tabbar/inspections.png",
+        "selectedIconPath": "images/tabbar/inspections-active.png"
+      },
+      {
+        "pagePath": "pages/ai-assistant/index",
+        "text": "AI助手",
+        "iconPath": "images/tabbar/ai-assistant.png",
+        "selectedIconPath": "images/tabbar/ai-assistant-active.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "images/tabbar/profile.png",
+        "selectedIconPath": "images/tabbar/profile-active.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

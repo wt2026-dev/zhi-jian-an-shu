@@ -1,0 +1,605 @@
+/**
+ * common.wxss - 「智检安枢」小程序 V2 基础全局样式
+ * 风格：明亮 Solar-Punk 工业智能运维（浅色渐变背景 + 金/天青光晕 + 磨砂玻璃卡片）
+ * 严格遵照原型设计规范与 Design Tokens
+ */
+
+/* ==========================================================================
+   1. 设计令牌 (CSS 变量)
+   ========================================================================== */
+page {
+  /* 基础画布与表面 */
+  --surface: #faf8ff;
+  --surface-dim: #d2d9f4;
+  --surface-bright: #faf8ff;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f2f3ff;
+  --surface-container: #eaedff;
+  --surface-container-high: #e2e7ff;
+  --surface-container-highest: #dae2fd;
+  --surface-variant: #dae2fd;
+
+  /* 文字体系 */
+  --on-surface: #131b2e;
+  --on-surface-variant: #514536;
+  --on-background: #131b2e;
+  --text-muted: #64748b;
+  --text-subtle: #847564;
+
+  /* 边框体系 */
+  --outline: #847564;
+  --outline-variant: #d6c4b0;
+  --border-light: rgba(214, 196, 176, 0.4);
+  --border-glass: rgba(255, 255, 255, 0.85);
+  --border-gold: rgba(232, 163, 61, 0.28);
+  --border-cyan: rgba(41, 193, 223, 0.28);
+
+  /* 主色调 - Dawn Gold (晨曦金/太阳金) */
+  --primary: #835400;
+  --primary-container: #e8a33d;
+  --primary-amber: #f59e0b;
+  --on-primary: #ffffff;
+  --on-primary-container: #5f3c00;
+  --primary-fixed: #ffddb5;
+  --primary-fixed-dim: #ffb956;
+  --on-primary-fixed: #2a1800;
+  --on-primary-fixed-variant: #643f00;
+
+  /* 次色调 - Sky Blue (天穹蓝/气动蓝) */
+  --secondary: #006591;
+  --secondary-container: #39b8fd;
+  --secondary-fixed: #c9e6ff;
+  --secondary-fixed-dim: #89ceff;
+  --on-secondary: #ffffff;
+  --on-secondary-container: #004666;
+  --on-secondary-fixed: #001e2f;
+  --on-secondary-fixed-variant: #004c6e;
+
+  /* 第三色调 - Solar Cyan (光能青/遥测青) */
+  --tertiary: #00687a;
+  --tertiary-container: #29c1df;
+  --tertiary-fixed: #acedff;
+  --tertiary-fixed-dim: #4cd7f6;
+  --on-tertiary: #ffffff;
+  --on-tertiary-container: #004b58;
+  --on-tertiary-fixed: #001f26;
+  --on-tertiary-fixed-variant: #004e5c;
+
+  /* 状态与告警语义色 */
+  --error: #ba1a1a;
+  --error-crimson: #ef4444;
+  --error-container: #ffdad6;
+  --on-error: #ffffff;
+  --on-error-container: #93000a;
+  --success: #10b981;
+  --success-container: #d1fae5;
+  --on-success: #065f46;
+  --warning: #f59e0b;
+  --warning-container: #fef3c7;
+  --on-warning: #92400e;
+
+  /* 全局默认基底设置 (禁止纯白背景、禁止黑底) */
+  background-color: var(--surface);
+  color: var(--on-surface);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.45;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+}
+
+view, text, image, scroll-view, input, textarea, button {
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   2. Solar-Punk 专属光效与背景
+   ========================================================================== */
+
+/* Solar-Punk 明亮光晕基底页面包装 */
+.solar-page-container {
+  min-height: 100vh;
+  position: relative;
+  background: linear-gradient(180deg, #f8fbff 0%, #faf8ff 35%, #f7f4ff 100%);
+  overflow-x: hidden;
+}
+
+/* 顶部与底部的柔和彩色能量光晕 (背景层) */
+.ambient-glow-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.glow-top-gold {
+  position: absolute;
+  top: -80rpx;
+  right: -80rpx;
+  width: 500rpx;
+  height: 500rpx;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232, 163, 61, 0.22) 0%, rgba(232, 163, 61, 0) 70%);
+  filter: blur(40rpx);
+}
+
+.glow-mid-cyan {
+  position: absolute;
+  top: 35%;
+  left: -120rpx;
+  width: 520rpx;
+  height: 520rpx;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(41, 193, 223, 0.18) 0%, rgba(41, 193, 223, 0) 70%);
+  filter: blur(48rpx);
+}
+
+.glow-bottom-blue {
+  position: absolute;
+  bottom: 120rpx;
+  right: -60rpx;
+  width: 480rpx;
+  height: 480rpx;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(57, 184, 253, 0.15) 0%, rgba(57, 184, 253, 0) 70%);
+  filter: blur(44rpx);
+}
+
+/* 工业几何六边形装饰背景微网格 */
+.hex-mesh-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.05;
+  background-image: radial-gradient(#131b2e 1rpx, transparent 1rpx);
+  background-size: 24rpx 24rpx;
+}
+
+/* ==========================================================================
+   3. 磨砂玻璃卡片与容器
+   ========================================================================== */
+
+/* 核心磨砂玻璃卡片 Level 1 */
+.glass-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
+  border-radius: 28rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4rpx 20rpx -2rpx rgba(14, 165, 233, 0.07), 0 2rpx 6rpx rgba(19, 27, 46, 0.03);
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* 带有光晕金边的高级别卡片 Level 2 */
+.glass-card-gold {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(250, 248, 255, 0.9) 100%);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
+  border-radius: 28rpx;
+  border: 1rpx solid rgba(232, 163, 61, 0.32);
+  box-shadow: 0 10rpx 30rpx -4rpx rgba(232, 163, 61, 0.18), 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  z-index: 1;
+}
+
+/* 带有天青发光的卡片 */
+.glass-card-cyan {
+  position: relative;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
+  border-radius: 28rpx;
+  border: 1rpx solid rgba(41, 193, 223, 0.3);
+  box-shadow: 0 8rpx 28rpx -4rpx rgba(41, 193, 223, 0.16);
+  z-index: 1;
+}
+
+/* 内嵌轻量小容器 */
+.inner-well {
+  background: rgba(242, 243, 255, 0.85);
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(218, 226, 253, 0.6);
+}
+
+.inner-well-gold {
+  background: rgba(255, 248, 238, 0.85);
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(255, 221, 181, 0.6);
+}
+
+.inner-well-cyan {
+  background: rgba(237, 252, 255, 0.85);
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(172, 237, 255, 0.6);
+}
+
+/* 激光级极细发光分割线 */
+.glow-divider {
+  width: 100%;
+  height: 2rpx;
+  background: linear-gradient(90deg, transparent 0%, rgba(41, 193, 223, 0.35) 50%, transparent 100%);
+  margin: 16rpx 0;
+}
+
+.glow-divider-gold {
+  width: 100%;
+  height: 2rpx;
+  background: linear-gradient(90deg, transparent 0%, rgba(232, 163, 61, 0.35) 50%, transparent 100%);
+  margin: 16rpx 0;
+}
+
+/* ==========================================================================
+   4. 按钮与交互控件
+   ========================================================================== */
+
+/* 主操作按钮（Dawn Gold 晨曦金梯度） */
+.btn-primary {
+  background: linear-gradient(135deg, #e8a33d 0%, #f59e0b 100%);
+  color: #131b2e;
+  font-weight: 700;
+  border-radius: 18rpx;
+  padding: 16rpx 28rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  box-shadow: 0 4rpx 14rpx rgba(232, 163, 61, 0.32), inset 0 2rpx 0 rgba(255, 255, 255, 0.4);
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+  opacity: 0.92;
+}
+
+/* 次级操作按钮（天青/天空蓝微光） */
+.btn-secondary {
+  background: rgba(242, 243, 255, 0.9);
+  color: var(--secondary);
+  font-weight: 600;
+  border-radius: 18rpx;
+  padding: 16rpx 24rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  border: 1rpx solid rgba(14, 165, 233, 0.3);
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.03);
+}
+
+.btn-secondary:active {
+  background: rgba(226, 231, 255, 0.95);
+  transform: scale(0.98);
+}
+
+/* 红色紧急处置按钮 */
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 18rpx;
+  padding: 16rpx 28rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  box-shadow: 0 4rpx 14rpx rgba(239, 68, 68, 0.32);
+}
+
+/* 轻量文本/图标按钮 */
+.btn-ghost {
+  background: transparent;
+  color: var(--on-surface-variant);
+  border-radius: 14rpx;
+  padding: 10rpx 16rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+}
+
+/* 悬浮圆形 AI 助手按钮 */
+.fab-ai {
+  position: fixed;
+  right: 32rpx;
+  bottom: calc(160rpx + env(safe-area-inset-bottom));
+  width: 108rpx;
+  height: 108rpx;
+  border-radius: 54rpx;
+  background: linear-gradient(135deg, #e8a33d 0%, #ffb956 50%, #29c1df 100%);
+  box-shadow: 0 10rpx 28rpx rgba(232, 163, 61, 0.42), 0 0 16rpx rgba(41, 193, 223, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.fab-ai:active {
+  transform: scale(0.92);
+}
+
+/* ==========================================================================
+   5. 状态徽章与药丸标签 (Pills & Chips)
+   ========================================================================== */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* 绿色正常 */
+.chip-nominal {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1rpx solid rgba(16, 185, 129, 0.3);
+}
+
+/* 晨曦金预警 */
+.chip-gold {
+  background: rgba(232, 163, 61, 0.15);
+  color: #b45309;
+  border: 1rpx solid rgba(232, 163, 61, 0.35);
+}
+
+/* 天青遥测 */
+.chip-cyan {
+  background: rgba(41, 193, 223, 0.14);
+  color: #00768c;
+  border: 1rpx solid rgba(41, 193, 223, 0.35);
+}
+
+/* 天穹蓝 */
+.chip-blue {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0284c7;
+  border: 1rpx solid rgba(14, 165, 233, 0.3);
+}
+
+/* 红色紧急 */
+.chip-critical {
+  background: #ffdad6;
+  color: #ba1a1a;
+  border: 1rpx solid rgba(186, 26, 26, 0.3);
+}
+
+/* 灰色未激活 */
+.chip-muted {
+  background: rgba(226, 232, 240, 0.7);
+  color: #64748b;
+  border: 1rpx solid rgba(203, 213, 225, 0.8);
+}
+
+/* 状态脉冲呼吸灯指示器 */
+.led-dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.led-pulse-gold {
+  background: #e8a33d;
+  box-shadow: 0 0 10rpx #e8a33d;
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+.led-pulse-cyan {
+  background: #29c1df;
+  box-shadow: 0 0 10rpx #29c1df;
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+.led-pulse-emerald {
+  background: #10b981;
+  box-shadow: 0 0 10rpx #10b981;
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+.led-pulse-crimson {
+  background: #ef4444;
+  box-shadow: 0 0 12rpx #ef4444;
+  animation: pulse-fast 1s infinite ease-in-out;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+@keyframes pulse-fast {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.7; }
+}
+
+/* ==========================================================================
+   6. 字体与排版类 (Typography)
+   ========================================================================== */
+.font-headline-xl {
+  font-size: 48rpx;
+  line-height: 56rpx;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.font-headline-lg {
+  font-size: 38rpx;
+  line-height: 48rpx;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.font-headline-sm {
+  font-size: 32rpx;
+  line-height: 42rpx;
+  font-weight: 700;
+}
+
+.font-title-md {
+  font-size: 28rpx;
+  line-height: 38rpx;
+  font-weight: 700;
+}
+
+.font-body-lg {
+  font-size: 28rpx;
+  line-height: 40rpx;
+  font-weight: 500;
+}
+
+.font-body-md {
+  font-size: 26rpx;
+  line-height: 36rpx;
+  font-weight: 400;
+}
+
+.font-body-sm {
+  font-size: 22rpx;
+  line-height: 32rpx;
+  font-weight: 400;
+}
+
+/* 等宽数值与代码展示（JetBrains Mono 风格） */
+.font-mono-lg {
+  font-family: "JetBrains Mono", Consolas, Menlo, Monaco, monospace;
+  font-size: 40rpx;
+  line-height: 48rpx;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.font-mono-md {
+  font-family: "JetBrains Mono", Consolas, Menlo, Monaco, monospace;
+  font-size: 28rpx;
+  line-height: 36rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-code-sm {
+  font-family: "JetBrains Mono", Consolas, Menlo, Monaco, monospace;
+  font-size: 22rpx;
+  line-height: 30rpx;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* ==========================================================================
+   7. 常用布局与辅助工具 (Flex, Grid, Spacing)
+   ========================================================================== */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-row { flex-direction: row; }
+.flex-wrap { flex-wrap: wrap; }
+.flex-1 { flex: 1; }
+.flex-shrink-0 { flex-shrink: 0; }
+
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.items-baseline { align-items: baseline; }
+
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.justify-around { justify-content: space-around; }
+
+/* 间距工具 */
+.gap-xs { gap: 8rpx; }
+.gap-sm { gap: 16rpx; }
+.gap-md { gap: 24rpx; }
+.gap-lg { gap: 32rpx; }
+
+.px-page { padding-left: 28rpx; padding-right: 28rpx; }
+.py-sm { padding-top: 16rpx; padding-bottom: 16rpx; }
+.py-md { padding-top: 24rpx; padding-bottom: 24rpx; }
+.py-lg { padding-top: 32rpx; padding-bottom: 32rpx; }
+
+.m-page { margin-left: 28rpx; margin-right: 28rpx; }
+.mt-xs { margin-top: 8rpx; }
+.mt-sm { margin-top: 16rpx; }
+.mt-md { margin-top: 24rpx; }
+.mt-lg { margin-top: 32rpx; }
+.mb-xs { margin-bottom: 8rpx; }
+.mb-sm { margin-bottom: 16rpx; }
+.mb-md { margin-bottom: 24rpx; }
+.mb-lg { margin-bottom: 32rpx; }
+
+/* 文本辅助 */
+.text-on-surface { color: var(--on-surface); }
+.text-on-surface-variant { color: var(--on-surface-variant); }
+.text-muted { color: var(--text-muted); }
+.text-primary { color: var(--primary); }
+.text-gold { color: #e8a33d; }
+.text-secondary { color: var(--secondary); }
+.text-tertiary { color: var(--tertiary); }
+.text-cyan { color: #06b6d4; }
+.text-error { color: var(--error); }
+.text-success { color: var(--success); }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 进度条通用 */
+.progress-bar-bg {
+  width: 100%;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: var(--surface-container-high);
+  overflow: hidden;
+}
+
+.progress-bar-fill-gold {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #e8a33d 0%, #f59e0b 100%);
+  transition: width 0.3s ease;
+}
+
+.progress-bar-fill-cyan {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #006591 0%, #29c1df 100%);
+  transition: width 0.3s ease;
+}
+
+/* 安全区适配 (遵循 skills 规范) */
+.tab-page-content {
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
+}
+
+.fixed-bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
+  border-top: 1rpx solid rgba(218, 226, 253, 0.8);
+  box-shadow: 0 -4rpx 20rpx rgba(19, 27, 46, 0.05);
+  z-index: 50;
+}

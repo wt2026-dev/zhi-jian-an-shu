@@ -1,0 +1,12 @@
+/**
+ * app.wxss - 全局入口样式
+ */
+@import './common.wxss';
+
+/* 全局滚动条隐藏 */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  color: transparent;
+  display: none;
+}

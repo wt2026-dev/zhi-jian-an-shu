@@ -1,0 +1,90 @@
+<!-- pages/login/index.wxml -->
+<view class="solar-page-container">
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="login-scroll" enable-flex>
+    <view class="login-wrap px-page">
+      <view class="login-brand">
+        <view class="brand-mark">智</view>
+        <view class="brand-title">智检安枢</view>
+        <view class="brand-sub">数字孪生驱动的检修与安全管控一体化平台</view>
+      </view>
+
+      <view class="glass-card-gold login-card">
+        <view class="font-headline-sm text-on-surface">登录企业工作台</view>
+        <view class="font-body-sm text-muted mt-xs">使用与 Web 端一致的工号账号登录</view>
+
+        <view class="login-field mt-md">
+          <text class="font-code-sm text-muted">账号</text>
+          <input
+            class="login-input font-body-md"
+            placeholder="请输入用户名"
+            value="{{username}}"
+            bindinput="handleUserInput"
+            confirm-type="next"
+          />
+        </view>
+
+        <view class="login-field mt-sm">
+          <text class="font-code-sm text-muted">密码</text>
+          <input
+            class="login-input font-body-md"
+            placeholder="请输入密码"
+            password="{{true}}"
+            value="{{password}}"
+            bindinput="handlePasswordInput"
+            confirm-type="done"
+            bindconfirm="handleLogin"
+          />
+        </view>
+
+        <view wx:if="{{errorMsg}}" class="login-error mt-sm">
+          <text class="font-body-sm">{{errorMsg}}</text>
+        </view>
+
+        <button
+          class="btn-primary login-submit mt-md"
+          loading="{{loading}}"
+          disabled="{{loading || wxLoading}}"
+          bindtap="handleLogin"
+        >
+          <text>{{loading ? '登录中...' : '账号登录'}}</text>
+        </button>
+
+        <button
+          class="btn-secondary login-wx mt-sm"
+          loading="{{wxLoading}}"
+          disabled="{{loading || wxLoading}}"
+          bindtap="handleWxLogin"
+        >
+          <text>{{wxLoading ? '微信登录中...' : '微信一键登录'}}</text>
+        </button>
+      </view>
+
+      <view class="glass-card login-demo mt-md">
+        <view class="flex items-center justify-between">
+          <text class="font-title-md text-on-surface">开发者工具演示账号</text>
+          <text class="font-code-sm text-muted">点击载入</text>
+        </view>
+        <view class="demo-grid mt-sm">
+          <view
+            wx:for="{{demoAccounts}}"
+            wx:key="username"
+            class="demo-chip"
+            data-username="{{item.username}}"
+            bindtap="handleSelectDemo"
+          >
+            <text class="font-code-sm text-primary font-bold">{{item.username}}</text>
+            <text class="font-body-sm text-muted demo-chip-label">{{item.label}}</text>
+          </view>
+        </view>
+        <view class="font-code-sm text-muted mt-sm">真机联调请把 utils/request.js 的 BASE_URL 改为局域网或内网穿透地址。</view>
+      </view>
+    </view>
+  </scroll-view>
+</view>
