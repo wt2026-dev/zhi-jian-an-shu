@@ -8,6 +8,7 @@ Page({
     activeTab: 'ALL',
     stats: { all: 0, urgent: 0, inProgress: 0, pending: 0 },
     statsLoaded: false,
+    statsDegraded: false,
     spotlight: null,
     orders: [],
     searchKeyword: '',
@@ -47,15 +48,26 @@ Page({
     return query;
   },
 
+  computeStats(orders) {
+    const stats = { all: orders.length, urgent: 0, inProgress: 0, pending: 0 };
+    orders.forEach((order) => {
+      if (!order) return;
+      if (order.priority === 'urgent') stats.urgent += 1;
+      if (order.status === 'in_progress') stats.inProgress += 1;
+      if (order.status === 'created') stats.pending += 1;
+    });
+    return stats;
+  },
+
   async loadData(callback) {
-    this.setData({ loading: true, loadError: '' });
+    this.setData({ loading: true, loadError: '', statsDegraded: false });
     try {
       const results = await Promise.all([
-        api.getWorkOrderStats(),
+        api.getWorkOrderStats().catch(() => null),
         api.getWorkOrders(this.buildQuery()),
         api.getWorkOrders({ priority: 'urgent' })
       ]);
-      const stats = results[0] || {};
+      const stats = results[0];
       const list = Array.isArray(results[1]) ? results[1] : [];
       const urgentList = Array.isArray(results[2]) ? results[2] : [];
 
@@ -68,14 +80,26 @@ Page({
         .map((order) => this.mapOrder(order))
         .filter((order) => order.status !== 'completed' && order.status !== 'cancelled');
 
-      this.setData({
-        statsLoaded: true,
-        stats: {
+      let statsView;
+      if (stats) {
+        statsView = {
           all: stats.totalCount || 0,
           urgent: stats.urgentCount || 0,
           inProgress: stats.inProgressCount || 0,
           pending: stats.createdCount || 0
-        },
+        };
+      } else {
+        let allOrders = list;
+        if (this.data.activeTab !== 'ALL' || (this.data.searchKeyword || '').trim()) {
+          allOrders = await api.getWorkOrders({});
+        }
+        statsView = this.computeStats(Array.isArray(allOrders) ? allOrders : []);
+      }
+
+      this.setData({
+        statsLoaded: true,
+        statsDegraded: !stats,
+        stats: statsView,
         orders: viewList,
         spotlight: activeUrgent.length ? this.mapSpotlight(activeUrgent[0]) : null
       });

@@ -136,7 +136,7 @@ const api = {
     request({ url: '/cockpit/abnormal-equipments', data: { type: type || 'health' } }),
 
   // 工单
-  getWorkOrderStats: () => request({ url: '/work-orders/stats' }),
+  getWorkOrderStats: () => request({ url: '/work-orders/stats', silent: true }),
   getWorkOrders: (params) => request({ url: '/work-orders', data: params || {} }),
   getWorkOrder: (id) => request({ url: '/work-orders/' + encodeURIComponent(id) }),
   getWorkOrderLogs: (id) => request({ url: '/work-orders/' + encodeURIComponent(id) + '/logs' }),

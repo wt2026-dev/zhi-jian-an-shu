@@ -70,6 +70,8 @@
         </view>
       </scroll-view>
 
+      <view wx:if="{{statsDegraded}}" class="font-code-sm text-error mb-sm">统计接口暂不可用，当前计数由工单列表实时汇总。</view>
+
       <!-- 3. 高优先级应急派单聚光卡片（仅存在真实紧急工单时展示） -->
       <view wx:if="{{spotlight}}" class="glass-card-gold spotlight-card mb-md">
         <view class="flex items-center justify-between pb-xs border-b-subtle">
