@@ -132,10 +132,10 @@ describe("迁移版本追踪 schema_migrations（试点部署基线 G3）", () =
     const { rows } = await db.query<{ filename: string; applied_at: string }>(
       "SELECT filename, applied_at FROM schema_migrations ORDER BY filename;"
     );
-    // 27 个迁移文件全部有版本记录
-    expect(rows).toHaveLength(27);
+    // 28 个迁移文件全部有版本记录
+    expect(rows).toHaveLength(28);
     expect(rows[0].filename).toBe("001_init.sql");
-    expect(rows[rows.length - 1].filename).toBe("027_business_loops.sql");
+    expect(rows[rows.length - 1].filename).toBe("028_work_order_timestamps_timestamptz.sql");
     expect(rows.every((r) => r.applied_at)).toBe(true);
 
     // 跳过证明：删掉一张已应用迁移建的业务表，再跑迁移——
@@ -156,6 +156,6 @@ describe("迁移版本追踪 schema_migrations（试点部署基线 G3）", () =
     const { rows: after } = await db.query<{ n: string }>(
       "SELECT COUNT(*) AS n FROM schema_migrations;"
     );
-    expect(Number(after[0].n)).toBe(27);
+    expect(Number(after[0].n)).toBe(28);
   });
 });

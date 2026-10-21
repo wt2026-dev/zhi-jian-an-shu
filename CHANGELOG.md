@@ -3,11 +3,20 @@
 > 本文件按 v2.0.0 发布基线的 12 条语义化提交自动整理，标注本次基线清理范围。
 > 历史清理说明：2026-09-13 整理出 12 条发布基线，原始 43 条开发提交完整保留于 `backup/pre-cleanup` 分支；敏感文件历史审计结论为 0 个残留（详见 `docs/敏感文件审计清单.md`）。
 >
-> **现行口径以 `README.md` 为唯一真源**（2026-10-18 校准）：34 张业务表 / 迁移 001–027 /
+> **现行口径以 `README.md` 为唯一真源**（2026-10-18 校准）：34 张业务表 / 迁移 001–028 /
 > 3 项核心 AI 能力（单一来源 `src/aiCapabilities.ts`；此处原写"24 项"，属漂移，已按表校正） /
 > 159 个测试文件 1696 个用例（数字随并行会话变动，以 `npm run metrics:check` 实测为准 —— 且必须在
 > 干净检出里跑：工作区里躺着别人未提交的测试文件时，读数会把它们一起算进口径。下方各版本条目里的数字是**当时**的快照，
 > 按日志惯例保留原值、不回填 —— 带 `口径历史快照` 标记的行由 `npm run metrics:check` 跳过校验。
+
+
+## [Unreleased] - 2026-10-21
+
+### fix（数据一致性）
+- 工单五个时间列（`created_at` / `dispatched_at` / `accepted_at` / `completed_at` / `accepted_by_inspector_at`）
+  由 VARCHAR 迁移为 TIMESTAMPTZ（`028_work_order_timestamps_timestamptz.sql`）：空串归 NULL、历史本地时间按
+  Asia/Shanghai 解释、列已是 TIMESTAMPTZ 时原值直通。修复 `GET /api/v1/work-orders/stats` 因
+  `character varying - character varying` 报 500，MTTR / MTBF 恢复真实计算。
 
 
 ## [2.0.1] - 2026-09-18（参赛提交收口）

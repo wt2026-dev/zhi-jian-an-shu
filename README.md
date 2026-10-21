@@ -161,7 +161,7 @@ docker compose up -d # 容器化部署
 
 | 类型 | 位置 | 职责 | 幂等策略 |
 |---|---|---|---|
-| 结构迁移（DDL） | `src/db/migrations/001–027` | 建表 / 加列 / 建索引 | 全部幂等，可重复执行 |
+| 结构迁移（DDL） | `src/db/migrations/001–028` | 建表 / 加列 / 建索引 | 全部幂等，可重复执行 |
 | 运行时种子（DML） | `src/db/seed.ts` + `src/db/seed-data/*.json` | 初始与演示业务数据 | `ON CONFLICT DO UPDATE` / `DO NOTHING` |
 
 **历史兼容说明（主动坦白）**：`008_seed_maintenance_procedures.sql` 与 `014_seed_demo_data.sql` 两个迁移文件内含 DML 种子数据，属项目早期的历史设计——当时 `db:seed` 尚未独立拆分，初始数据随建表一起写入以保证空库启动即可完整演示。删除它们会导致**从零建库时缺失初始数据**，因此**保留不动**，仅在文件头以 ADR 注释完整说明来龙去脉与演进方向。
@@ -189,13 +189,14 @@ docker compose up -d # 容器化部署
 
 ## 数据库表
 
-迁移脚本 `src/db/migrations/` 按编号 001–027 连续唯一（按文件名字典序执行，全部幂等），共 **34 张业务表**：
+迁移脚本 `src/db/migrations/` 按编号 001–028 连续唯一（按文件名字典序执行，全部幂等），共 **34 张业务表**：
 
 > 口径说明：`024_video_progress.sql` 只对 `procedure_videos` 加两列（`progress_pct` / `internal_status`），
 > **不新建表**；`025_factories.sql` 新增 `factories`（29 → 30）；`026_acceptance_standards.sql` 新增
 > `acceptance_standards`（30 → 31）；`027_business_loops.sql` 新增 `business_loops` / `business_loop_stages`
-> / `business_loop_artifacts` 三张（31 → 34）。
-> 这三处数字由 `scripts/project-facts.mjs` 从迁移 SQL 派生，并由 `tests/project-facts.test.ts` 在
+> / `business_loop_artifacts` 三张（31 → 34）；`028_work_order_timestamps_timestamptz.sql` 只把工单五个
+> 时间列从 VARCHAR 迁到 TIMESTAMPTZ（幂等 USING，历史本地时间按 Asia/Shanghai 解释），不新建表。
+> 这些数字由 `scripts/project-facts.mjs` 从迁移 SQL 派生，并由 `tests/project-facts.test.ts` 在
 > pre-commit 与 CI 的全量 vitest 里核对 —— 表数与迁移区间不再靠人工对表。
 
 | 分域 | 表 | 说明 |
@@ -227,7 +228,7 @@ docker compose up -d # 容器化部署
 server.ts               # 兼容入口（装配与业务实现见 src/server/：routes/ controllers/ services/ middleware/）
 src/api/index.ts        # 前端 API 客户端
 src/components/         # React 视图与 AI 组件
-src/db/                 # 迁移 SQL（001–027）、Repository、种子数据
+src/db/                 # 迁移 SQL（001–028）、Repository、种子数据
 src/utils/logger.ts     # pino 日志（控制台 + 文件轮转）
 scripts/                # 备份/恢复脚本
 ```
