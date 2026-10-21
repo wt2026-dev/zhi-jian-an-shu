@@ -1,0 +1,236 @@
+<!-- pages/inspections/index.wxml -->
+<view class="solar-page-container">
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="tab-page-content with-fixed-action" enable-flex>
+    <view class="px-page py-sm">
+
+      <!-- 1. 状态筛选 -->
+      <scroll-view scroll-x class="tab-scroll-container mb-sm" enable-flex>
+        <view class="tab-scroll-content">
+          <view
+            wx:for="{{statusTabs}}"
+            wx:key="value"
+            class="triage-tab {{activeStatus === item.value ? 'triage-tab-active-dark' : 'triage-tab-idle'}}"
+            data-value="{{item.value}}"
+            bindtap="handleStatusChange"
+          >
+            <text class="tab-title">{{item.label}}</text>
+            <text wx:if="{{activeStatus === item.value}}" class="tab-count tab-count-active">{{batches.length}}</text>
+          </view>
+        </view>
+      </scroll-view>
+
+      <!-- 2. 批次列表 -->
+      <view wx:if="{{loadingBatches && batches.length === 0}}" class="glass-card p-md mb-sm text-center">
+        <view class="font-body-md text-muted">正在同步巡检批次…</view>
+      </view>
+
+      <view wx:elif="{{loadError && batches.length === 0}}" class="glass-card p-md mb-sm text-center">
+        <view class="font-title-md text-error mb-xs">巡检数据加载失败</view>
+        <view class="font-body-sm text-muted mb-sm">{{loadError}}</view>
+        <button class="btn-secondary" bindtap="handleRetry"><text>重新加载</text></button>
+      </view>
+
+      <view wx:elif="{{batches.length === 0}}" class="glass-card p-md mb-sm text-center">
+        <view class="font-title-md text-on-surface mb-xs">当前筛选下暂无巡检批次</view>
+        <view class="font-body-sm text-muted">可切换上方状态筛选查看其他批次。</view>
+      </view>
+
+      <block wx:else>
+        <scroll-view scroll-x class="batch-scroll mb-sm" enable-flex>
+          <view class="batch-row">
+            <block wx:for="{{batches}}" wx:key="id">
+              <view
+                class="batch-card {{selectedBatchId === item.id ? 'batch-card-active' : ''}}"
+                data-id="{{item.id}}"
+                bindtap="handleBatchSelect"
+              >
+                <view class="flex items-center justify-between">
+                  <text class="font-code-sm text-primary font-bold">{{item.taskNo}}</text>
+                  <text class="chip-badge {{item.statusClass}}">{{item.statusText}}</text>
+                </view>
+                <view class="batch-title font-title-md text-on-surface">{{item.title}}</view>
+                <view class="flex items-center justify-between mt-xs">
+                  <text class="font-code-sm text-muted">{{item.workshop || ''}}</text>
+                  <text class="font-code-sm text-muted">{{item.progressText}}</text>
+                </view>
+                <view class="progress-bar-bg batch-progress">
+                  <view class="progress-bar-fill-cyan" style="width: {{item.progressWidth}}%;"></view>
+                </view>
+              </view>
+            </block>
+          </view>
+        </scroll-view>
+
+        <view wx:if="{{loadingBatch}}" class="glass-card p-md mb-sm text-center">
+          <view class="font-body-md text-muted">正在加载巡检任务详情…</view>
+        </view>
+
+        <block wx:elif="{{batch}}">
+          <!-- 3. 批次详情 -->
+          <view class="glass-card-gold p-md mb-sm">
+            <view class="flex items-center justify-between pb-xs border-b-gold mb-sm">
+              <view class="flex items-center gap-xs">
+                <view class="led-dot led-pulse-gold"></view>
+                <text class="font-code-sm text-primary font-bold">{{batch.taskNo}}</text>
+                <text class="chip-badge chip-muted">{{batch.typeText}}</text>
+              </view>
+              <text class="chip-badge {{batch.statusClass}}">{{batch.statusText}}</text>
+            </view>
+
+            <view class="font-headline-sm text-on-surface">{{batch.title}}</view>
+            <view class="font-code-sm text-muted mt-xs">{{batch.inspectorName}} · {{batch.workshop}}</view>
+            <view class="font-code-sm text-muted mt-xs">计划: {{batch.scheduledDate}}</view>
+            <view wx:if="{{batch.route}}" class="font-body-sm text-on-surface-variant mt-xs">路线: {{batch.route}}</view>
+
+            <view class="flex items-center justify-between mt-sm mb-xs">
+              <text class="font-code-sm text-muted">批次完成进度</text>
+              <text class="font-mono-md text-on-surface font-bold">{{batch.completedPoints}} / {{batch.totalPoints}}</text>
+            </view>
+            <view class="progress-bar-bg" style="height: 14rpx;">
+              <view class="progress-bar-fill-cyan" style="width: {{batch.progressWidth}}%;"></view>
+            </view>
+
+            <view class="batch-metrics mt-sm">
+              <view class="metric-box">
+                <text class="metric-label">已完成点位</text>
+                <text class="metric-value">{{batch.completedPoints}}</text>
+              </view>
+              <view class="metric-box">
+                <text class="metric-label">异常点位</text>
+                <text class="metric-value metric-value-error">{{batch.abnormalCount}}</text>
+              </view>
+              <view class="metric-box">
+                <text class="metric-label">未完成点位</text>
+                <text class="metric-value">{{batch.totalPoints - batch.completedPoints}}</text>
+              </view>
+            </view>
+
+            <view wx:if="{{batch.summary}}" class="font-body-sm text-on-surface-variant pre-wrap mt-sm">{{batch.summary}}</view>
+            <view class="font-code-sm text-muted mt-xs">
+              开始: {{batch.startedAtText}} · 完成: {{batch.finishedAtText}}
+            </view>
+          </view>
+
+          <!-- 4. RFID 交互（不伪造标签数据） -->
+          <view class="glass-card-cyan p-sm flex items-center justify-between mb-sm" bindtap="handleTouchRFID">
+            <view class="flex items-center gap-sm">
+              <view class="rfid-icon-box">
+                <text class="rfid-icon">📡</text>
+              </view>
+              <view>
+                <view class="flex items-center gap-xs">
+                  <text class="font-title-md text-on-surface">RFID 碰一碰打卡</text>
+                  <text class="chip-badge chip-muted">以现场设备为准</text>
+                </view>
+                <view class="font-code-sm text-muted mt-xs">未接入现场读写器，点击查看说明</view>
+              </view>
+            </view>
+            <button class="btn-secondary" style="padding: 10rpx 20rpx; font-size: 22rpx;">
+              <text>说明</text>
+            </button>
+          </view>
+
+          <!-- 5. 检查项 -->
+          <view class="mb-xs flex items-center justify-between">
+            <text class="font-title-md text-on-surface font-bold">点位与检查项</text>
+            <text class="font-code-sm text-muted">共 {{items.length}} 项</text>
+          </view>
+
+          <view wx:if="{{items.length === 0}}" class="glass-card p-md mb-md text-center">
+            <view class="font-body-sm text-muted">该批次暂无可执行的巡检项。</view>
+          </view>
+
+          <view class="checklist-container mb-md">
+            <block wx:for="{{items}}" wx:key="id">
+              <view class="glass-card checklist-card mb-sm">
+                <view class="flex items-center justify-between mb-xs">
+                  <view class="flex items-center gap-xs">
+                    <text class="item-index">{{item.index}}</text>
+                    <text class="chip-badge {{item.statusClass}}">{{item.statusText}}</text>
+                  </view>
+                  <text class="font-code-sm text-muted">{{item.method}}</text>
+                </view>
+
+                <view class="font-title-md text-on-surface">{{item.checkPoint}}</view>
+                <view class="font-code-sm text-primary mt-xs">{{item.equipmentName}} · {{item.equipmentCode}}</view>
+                <view wx:if="{{item.location}}" class="font-code-sm text-muted mt-xs">📍 {{item.location}}</view>
+
+                <view class="inner-well p-sm mt-sm">
+                  <view class="font-body-sm text-muted">标准基准</view>
+                  <view class="font-body-sm text-on-surface">{{item.standard}}</view>
+                  <view wx:if="{{item.limitText}}" class="font-code-sm text-secondary mt-xs">合格区间: {{item.limitText}}</view>
+                  <view class="font-code-sm text-muted mt-xs">最近记录: {{item.recordedValueText}}</view>
+                </view>
+
+                <view class="mt-sm">
+                  <view class="flex items-center justify-between">
+                    <text class="font-code-sm text-muted">本次实测录入</text>
+                    <text wx:if="{{item.hasLimits}}" class="font-code-sm text-muted">按上下限自动判定</text>
+                  </view>
+
+                  <view class="measure-row mt-xs">
+                    <input
+                      type="digit"
+                      class="number-input font-mono-md"
+                      placeholder="实测值"
+                      value="{{item.draftValue}}"
+                      data-id="{{item.id}}"
+                      bindinput="handleItemValueInput"
+                    />
+                    <text class="font-code-sm text-muted unit-text">{{item.unit || '—'}}</text>
+                    <view class="mini-status-group">
+                      <view
+                        class="mini-status {{item.draftStatus === 'normal' ? 'mini-status-normal' : ''}}"
+                        data-id="{{item.id}}"
+                        data-status="normal"
+                        bindtap="handleItemMark"
+                      >合格</view>
+                      <view
+                        class="mini-status {{item.draftStatus === 'abnormal' ? 'mini-status-abnormal' : ''}}"
+                        data-id="{{item.id}}"
+                        data-status="abnormal"
+                        bindtap="handleItemMark"
+                      >异常</view>
+                    </view>
+                  </view>
+
+                  <input
+                    class="note-input"
+                    maxlength="120"
+                    placeholder="现场备注（可选）"
+                    value="{{item.notes}}"
+                    data-id="{{item.id}}"
+                    bindinput="handleItemNotes"
+                  />
+                </view>
+              </view>
+            </block>
+          </view>
+        </block>
+      </block>
+
+    </view>
+  </scroll-view>
+
+  <!-- 6. 固定底部操作条 -->
+  <view class="inspection-action-bar flex items-center gap-sm">
+    <button class="btn-danger" style="padding: 18rpx 24rpx;" bindtap="handleReportHazard">
+      <text>🚨 隐患上报</text>
+    </button>
+    <button
+      class="btn-primary flex-1"
+      bindtap="handleSaveProgress"
+      loading="{{saving}}"
+      disabled="{{saving || !batch}}"
+    >
+      <text>保存本批次巡检进度 →</text>
+    </button>
+  </view>
+</view>

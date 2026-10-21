@@ -1,0 +1,280 @@
+/* pages/inspections/index.wxss */
+
+.p-md {
+  padding: 24rpx;
+}
+
+.border-b-gold {
+  border-bottom: 1rpx solid rgba(232, 163, 61, 0.2);
+}
+
+.rfid-icon-box {
+  width: 68rpx;
+  height: 68rpx;
+  border-radius: 18rpx;
+  background: rgba(41, 193, 223, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rfid-icon {
+  font-size: 34rpx;
+}
+
+/* 检查项卡片 */
+.checklist-card {
+  padding: 22rpx 20rpx;
+}
+
+.radio-option {
+  padding: 10rpx 24rpx;
+  border-radius: 14rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.radio-option-idle {
+  background: rgba(242, 243, 255, 0.85);
+  color: var(--on-surface-variant);
+  border: 1rpx solid rgba(218, 226, 253, 0.8);
+}
+
+.radio-option-active {
+  background: linear-gradient(135deg, #e8a33d 0%, #f59e0b 100%);
+  color: #131b2e;
+  border: 1rpx solid #e8a33d;
+  box-shadow: 0 4rpx 10rpx rgba(232, 163, 61, 0.3);
+}
+
+.number-input {
+  width: 140rpx;
+  height: 60rpx;
+  background: #ffffff;
+  border: 1rpx solid rgba(203, 213, 225, 0.9);
+  border-radius: 12rpx;
+  padding: 0 16rpx;
+  text-align: center;
+}
+
+.shrink-0 {
+  flex-shrink: 0;
+}
+
+.chip-badge {
+  font-size: 20rpx;
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+  font-weight: 700;
+  display: inline-block;
+}
+
+/* 固定底部操作条 (位于原生 tabBar 之上) */
+.inspection-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16rpx 28rpx calc(20rpx + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
+  border-top: 1rpx solid rgba(218, 226, 253, 0.85);
+  box-shadow: 0 -6rpx 20rpx rgba(19, 27, 46, 0.06);
+  z-index: 50;
+}
+
+.with-fixed-action {
+  padding-bottom: calc(220rpx + env(safe-area-inset-bottom));
+}
+
+.pre-wrap {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 状态筛选 */
+.tab-scroll-container {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.tab-scroll-content {
+  display: inline-flex;
+  gap: 16rpx;
+  padding: 4rpx 0;
+}
+
+.triage-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 14rpx 24rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.triage-tab-idle {
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--on-surface-variant);
+  border: 1rpx solid rgba(218, 226, 253, 0.8);
+}
+
+.triage-tab-active-dark {
+  background: #131b2e;
+  color: #ffffff;
+}
+
+.tab-count {
+  font-size: 20rpx;
+  padding: 2rpx 10rpx;
+  border-radius: 999rpx;
+  background: rgba(226, 231, 255, 0.8);
+  color: var(--on-surface-variant);
+}
+
+.tab-count-active {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* 批次横向列表 */
+.batch-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.batch-row {
+  display: inline-flex;
+  gap: 16rpx;
+  padding: 2rpx 0 6rpx;
+}
+
+.batch-card {
+  width: 440rpx;
+  flex-shrink: 0;
+  padding: 20rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1rpx solid rgba(218, 226, 253, 0.9);
+  box-shadow: 0 4rpx 16rpx -4rpx rgba(14, 165, 233, 0.08);
+  white-space: normal;
+}
+
+.batch-card-active {
+  border-color: rgba(232, 163, 61, 0.6);
+  box-shadow: 0 8rpx 24rpx -4rpx rgba(232, 163, 61, 0.25);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 248, 238, 0.95) 100%);
+}
+
+.batch-title {
+  margin-top: 10rpx;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.batch-progress {
+  height: 8rpx;
+  margin-top: 12rpx;
+}
+
+/* 批次指标 */
+.batch-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+}
+
+.metric-box {
+  background: rgba(255, 248, 238, 0.9);
+  border: 1rpx solid rgba(255, 221, 181, 0.7);
+  border-radius: 16rpx;
+  padding: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.metric-label {
+  font-size: 20rpx;
+  color: var(--text-muted);
+}
+
+.metric-value {
+  font-family: "JetBrains Mono", Consolas, Menlo, Monaco, monospace;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.metric-value-error {
+  color: var(--error);
+}
+
+/* 检查项录入 */
+.item-index {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 12rpx;
+  background: rgba(19, 27, 46, 0.9);
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 700;
+  text-align: center;
+  line-height: 40rpx;
+}
+
+.measure-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.unit-text {
+  min-width: 60rpx;
+}
+
+.mini-status-group {
+  display: flex;
+  gap: 8rpx;
+  margin-left: auto;
+}
+
+.mini-status {
+  font-size: 20rpx;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(242, 243, 255, 0.9);
+  color: var(--text-muted);
+  border: 1rpx solid rgba(218, 226, 253, 0.9);
+}
+
+.mini-status-normal {
+  background: rgba(16, 185, 129, 0.14);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.45);
+  font-weight: 700;
+}
+
+.mini-status-abnormal {
+  background: #ffdad6;
+  color: #ba1a1a;
+  border-color: rgba(186, 26, 26, 0.4);
+  font-weight: 700;
+}
+
+.note-input {
+  width: 100%;
+  min-height: 64rpx;
+  margin-top: 12rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 12rpx;
+  background: rgba(242, 243, 255, 0.7);
+  border: 1rpx solid rgba(218, 226, 253, 0.8);
+  font-size: 24rpx;
+  color: var(--on-surface);
+}
