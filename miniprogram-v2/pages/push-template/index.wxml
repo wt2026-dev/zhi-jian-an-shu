@@ -1,0 +1,149 @@
+<!-- pages/push-template/index.wxml -->
+<view class="solar-page-container">
+  <!-- 背景光晕层 (Solar-Punk 光辉) -->
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="page-content" enable-flex>
+    <view class="px-page py-sm">
+
+      <!-- 1. 推送通道状态 -->
+      <view class="glass-card-cyan p-md mb-md">
+        <view class="flex items-center justify-between pb-xs border-b-cyan mb-sm">
+          <view class="flex items-center gap-xs min-w-0">
+            <view class="led-dot led-pulse-gold"></view>
+            <text class="font-headline-sm text-on-surface">班组机器人推送通道</text>
+          </view>
+          <text class="chip-badge chip-gold shrink-0">{{channelState}}</text>
+        </view>
+
+        <view class="font-title-md text-on-surface">企业微信群机器人 · 待接入</view>
+        <view class="font-body-sm text-muted mt-xs">
+          当前后端未提供推送模板/Webhook 路由，本页不读取、不写入任何配置，也不发送消息。
+        </view>
+
+        <view class="inner-well p-xs px-sm mt-sm">
+          <view class="template-state-row">
+            <text class="font-code-sm text-muted">Webhook</text>
+            <text class="font-code-sm text-on-surface">{{webhookState}}</text>
+          </view>
+          <view class="template-state-row">
+            <text class="font-code-sm text-muted">绑定群组</text>
+            <text class="font-code-sm text-on-surface">{{groupState}}</text>
+          </view>
+          <view class="template-state-row">
+            <text class="font-code-sm text-muted">配置保存</text>
+            <text class="font-code-sm text-on-surface">未接入</text>
+          </view>
+        </view>
+
+        <view class="template-warning mt-sm">
+          需配置企业微信群机器人 Webhook 后方可使用，本轮小程序不扩展后端。
+        </view>
+      </view>
+
+      <!-- 2. 推送模板选择（仅 UI 占位） -->
+      <view class="glass-card p-md mb-md">
+        <view class="flex items-center justify-between mb-sm">
+          <text class="font-headline-sm text-on-surface">班组推送模板</text>
+          <text class="chip-badge chip-blue">仅 UI 占位</text>
+        </view>
+
+        <view class="template-list">
+          <block wx:for="{{templates}}" wx:key="id">
+            <view
+              class="inner-well p-sm mb-xs template-item {{activeTemplateId === item.id ? 'template-item-selected' : ''}}"
+              data-id="{{item.id}}"
+              bindtap="handleSelectTemplate"
+            >
+              <view class="flex items-center justify-between mb-xs">
+                <view class="flex items-center gap-xs min-w-0">
+                  <text class="chip-badge {{item.code === 'TPL_CRITICAL_ALERT' ? 'chip-critical' : (item.code === 'TPL_ORDER_TIMEOUT' ? 'chip-gold' : 'chip-blue')}}">
+                    {{item.code}}
+                  </text>
+                  <text class="font-title-md text-on-surface font-bold">{{item.name}}</text>
+                </view>
+                <switch
+                  checked="{{item.enabled}}"
+                  disabled="{{true}}"
+                  color="#e8a33d"
+                  data-id="{{item.id}}"
+                />
+              </view>
+              <view class="font-body-sm text-muted">{{item.desc}}</view>
+            </view>
+          </block>
+        </view>
+
+        <view class="font-code-sm text-muted mt-sm">
+          开关为禁用状态：模板启用状态需要后端持久化，当前页面不保存本地伪配置。
+        </view>
+      </view>
+
+      <!-- 3. 群消息卡片占位预览 -->
+      <view class="glass-card-gold p-md mb-md">
+        <view class="flex items-center justify-between pb-xs border-b-gold mb-sm">
+          <view class="flex items-center gap-xs min-w-0">
+            <text class="font-headline-sm text-on-surface">群消息卡片预览</text>
+          </view>
+          <text class="chip-badge chip-gold shrink-0">占位</text>
+        </view>
+
+        <view class="chat-preview-wrapper">
+          <view class="chat-bot-header flex items-center gap-xs mb-xs">
+            <view class="bot-icon">🤖</view>
+            <view class="font-code-sm text-muted">企业微信群机器人 · 待配置</view>
+          </view>
+
+          <view class="message-card-inner">
+            <view class="card-title font-title-md text-on-surface font-bold">
+              {{activeTemplate.name}}
+            </view>
+            <view class="font-code-sm text-muted mt-xs">
+              模板编码：{{activeTemplate.code}} · 本地占位预览
+            </view>
+
+            <view class="divider-subtle my-xs"></view>
+
+            <view
+              wx:for="{{previewFields}}"
+              wx:key="label"
+              class="card-field-row flex justify-between py-xs"
+            >
+              <text class="font-body-sm text-muted">{{item.label}}</text>
+              <text class="font-body-sm text-placeholder">{{item.value}}</text>
+            </view>
+
+            <view class="card-action-bar mt-sm">
+              <text class="font-code-sm text-muted">卡片跳转链接：待接入后生成</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="font-code-sm text-muted mt-sm">
+          预览中的字段均为占位文案，不包含任何设备遥测、工单号或人员数据。
+        </view>
+      </view>
+
+      <!-- 4. 操作区（全部禁用） -->
+      <view class="flex flex-col gap-sm mb-lg">
+        <view class="flex items-start gap-sm">
+          <button class="btn-secondary flex-1 disabled-button" disabled="{{true}}">
+            <text>发送测试消息</text>
+          </button>
+          <button class="btn-primary flex-1 disabled-button" disabled="{{true}}">
+            <text>保存模板配置</text>
+          </button>
+        </view>
+        <view class="disabled-hint" bindtap="showNotConfigured">
+          发送与保存已禁用：需配置企业微信群机器人 Webhook
+        </view>
+      </view>
+
+    </view>
+  </scroll-view>
+</view>

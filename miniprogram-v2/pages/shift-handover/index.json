@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "交接班实时台账",
+  "navigationBarBackgroundColor": "#FAF8FF",
+  "navigationBarTextStyle": "black",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
+}

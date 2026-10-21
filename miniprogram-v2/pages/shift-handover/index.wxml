@@ -1,0 +1,165 @@
+<!-- pages/shift-handover/index.wxml -->
+<view class="solar-page-container">
+  <!-- 背景光晕层 (Solar-Punk 光辉) -->
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="page-content" enable-flex>
+    <view class="px-page py-sm">
+
+      <view wx:if="{{loading}}" class="glass-card p-md mb-md shift-state">
+        <view class="led-dot led-pulse-gold"></view>
+        <text class="font-body-sm text-muted">正在聚合今日工单、巡检、隐患与安全锁数据...</text>
+      </view>
+
+      <view wx:elif="{{error}}" class="glass-card p-md mb-md shift-state">
+        <text class="font-body-sm text-error">{{error}}</text>
+        <button class="btn-secondary mt-sm" bindtap="handleRetry">
+          <text>重试</text>
+        </button>
+      </view>
+
+      <block wx:else>
+        <!-- 1. 实时交接台账主卡 -->
+        <view class="glass-card-gold p-md mb-md">
+          <view class="flex items-center justify-between pb-xs border-b-gold mb-sm">
+            <view class="flex items-center gap-xs min-w-0">
+              <text class="font-headline-sm text-on-surface">交接班实时台账</text>
+              <text class="chip-badge chip-gold">实时聚合</text>
+            </view>
+            <text class="font-code-sm text-muted shrink-0">{{dateText}}</text>
+          </view>
+          <view class="font-code-sm text-muted mb-sm">生成时间：{{generatedAt}} · 非后端交接班单据</view>
+
+          <view class="grid-2col mb-sm">
+            <view class="inner-well p-sm">
+              <view class="font-code-sm text-muted">交班负责人（当前登录）</view>
+              <view class="font-headline-sm text-on-surface font-bold mt-xs">{{outgoing.name}}</view>
+              <view class="font-code-sm text-primary mt-xs">{{outgoing.roleTitle}}</view>
+              <view class="font-code-sm text-muted">{{outgoing.department}}</view>
+            </view>
+
+            <view class="inner-well p-sm">
+              <view class="font-code-sm text-muted">接班负责人</view>
+              <view class="font-headline-sm text-on-surface font-bold mt-xs">{{incoming.name}}</view>
+              <view class="font-code-sm text-muted mt-xs">{{incoming.note}}</view>
+            </view>
+          </view>
+
+          <view class="shift-metrics-grid">
+            <view class="inner-well-cyan p-sm shift-metric-card">
+              <text class="font-mono-lg text-primary">{{metrics.completedOrders}}</text>
+              <text class="font-body-sm text-muted">今日完工工单</text>
+            </view>
+            <view class="inner-well-cyan p-sm shift-metric-card">
+              <text class="font-mono-lg text-secondary">{{metrics.completedInspections}}</text>
+              <text class="font-body-sm text-muted">今日巡检完成</text>
+            </view>
+            <view class="inner-well-cyan p-sm shift-metric-card">
+              <text class="font-mono-lg text-gold">{{metrics.abnormalInspections}}</text>
+              <text class="font-body-sm text-muted">巡检异常批次</text>
+            </view>
+            <view class="inner-well-cyan p-sm shift-metric-card">
+              <text class="font-mono-lg text-error">{{metrics.openHazards}}</text>
+              <text class="font-body-sm text-muted">未闭环隐患</text>
+            </view>
+            <view class="inner-well-cyan p-sm shift-metric-card shift-metric-wide">
+              <text class="font-mono-lg text-success">{{metrics.activeLocks}}</text>
+              <text class="font-body-sm text-muted">在役安全锁</text>
+            </view>
+          </view>
+
+          <view class="shift-note mt-sm">
+            本页未调用交接班后端接口（当前后端无此路由），以上数据由当日工单、巡检、隐患与 LOTO 台账实时聚合。
+          </view>
+        </view>
+
+        <!-- 2. 重点移交事项 -->
+        <view class="glass-card-cyan p-md mb-md">
+          <view class="flex items-center justify-between pb-xs border-b-cyan mb-sm">
+            <view class="flex items-center gap-xs">
+              <text class="font-headline-sm text-on-surface">重点移交事项</text>
+              <text class="chip-badge chip-cyan">{{notes.length}} 项</text>
+            </view>
+            <text class="font-code-sm text-muted">按优先级与状态聚合</text>
+          </view>
+
+          <block wx:if="{{notes.length}}">
+            <view wx:for="{{notes}}" wx:key="id" class="inner-well p-sm mb-xs">
+              <view class="flex items-center gap-xs mb-xs flex-wrap">
+                <text class="chip-badge {{item.typeClass}}">{{item.typeText}}</text>
+                <text class="font-title-md text-on-surface shift-note-title">{{item.title}}</text>
+              </view>
+              <view class="font-body-sm text-on-surface-variant">{{item.desc}}</view>
+            </view>
+          </block>
+          <view wx:else class="shift-empty-note">
+            <text class="font-body-sm text-muted">当前无在办工单、巡检异常、未闭环隐患或在役安全锁。</text>
+          </view>
+        </view>
+
+        <!-- 3. 数据口径 -->
+        <view class="glass-card p-md mb-md">
+          <view class="flex items-center justify-between mb-sm">
+            <text class="font-headline-sm text-on-surface">数据口径</text>
+            <text class="chip-badge chip-blue">真实接口</text>
+          </view>
+
+          <view class="shift-source-row">
+            <text class="font-body-sm text-muted">今日完工工单</text>
+            <text class="font-body-sm text-on-surface">{{metrics.completedOrders}} 项</text>
+          </view>
+          <view class="font-code-sm text-muted mb-sm">/work-orders 中 status=completed 且完成/验收时间为今日</view>
+
+          <view class="shift-source-row">
+            <text class="font-body-sm text-muted">今日巡检完成</text>
+            <text class="font-body-sm text-on-surface">{{metrics.completedInspections}}</text>
+          </view>
+          <view class="font-code-sm text-muted mb-sm">/inspections 中计划日期或完成时间为今日，完成数/总数</view>
+
+          <view class="shift-source-row">
+            <text class="font-body-sm text-muted">巡检异常批次</text>
+            <text class="font-body-sm text-on-surface">{{metrics.abnormalInspections}} 个</text>
+          </view>
+          <view class="font-code-sm text-muted mb-sm">今日巡检中 abnormalCount &gt; 0 的批次</view>
+
+          <view class="shift-source-row">
+            <text class="font-body-sm text-muted">未闭环隐患</text>
+            <text class="font-body-sm text-on-surface">{{metrics.openHazards}} 项</text>
+          </view>
+          <view class="font-code-sm text-muted mb-sm">/hazards 中 status != closed 的记录</view>
+
+          <view class="shift-source-row">
+            <text class="font-body-sm text-muted">在役安全锁</text>
+            <text class="font-body-sm text-on-surface">{{metrics.activeLocks}} 把</text>
+          </view>
+          <view class="font-code-sm text-muted">/loto-locks 中 status=locked 的记录</view>
+        </view>
+
+        <!-- 4. 操作区 -->
+        <view class="flex flex-col gap-sm mb-lg">
+          <button class="btn-primary w-full" bindtap="handleRefreshData">
+            <text>刷新实时台账</text>
+          </button>
+          <view class="flex items-start gap-sm">
+            <button class="btn-secondary flex-1" bindtap="handleCopySummary">
+              <text>复制台账摘要</text>
+            </button>
+            <view class="action-column flex-1">
+              <button class="btn-secondary w-full disabled-button" disabled="{{true}}">
+                <text>推送至班组协同群</text>
+              </button>
+              <view class="disabled-hint" bindtap="handlePushToBot">发送已禁用：需配置企业微信群机器人 Webhook</view>
+            </view>
+          </view>
+        </view>
+
+      </block>
+
+    </view>
+  </scroll-view>
+</view>
