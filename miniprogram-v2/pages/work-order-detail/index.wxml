@@ -155,7 +155,8 @@
             <text class="font-code-sm text-muted">{{logs.length}} 条</text>
           </view>
 
-          <view wx:if="{{logs.length === 0}}" class="font-body-sm text-muted">后端暂未返回该工单的流转日志。</view>
+          <view wx:if="{{logsError}}" class="font-body-sm text-error">日志加载失败：{{logsError}}</view>
+          <view wx:elif="{{logs.length === 0}}" class="font-body-sm text-muted">后端暂未返回该工单的流转日志。</view>
 
           <block wx:for="{{logs}}" wx:key="id">
             <view class="log-item">

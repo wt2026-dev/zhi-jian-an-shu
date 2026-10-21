@@ -51,6 +51,7 @@ Page({
     loadError: '',
     order: null,
     logs: [],
+    logsError: '',
     role: '',
     roleTitle: '',
     userName: '',
@@ -93,19 +94,25 @@ Page({
   },
 
   async loadDetail(callback) {
-    this.setData({ loading: true, loadError: '' });
+    this.setData({ loading: true, loadError: '', logsError: '' });
     try {
-      const results = await Promise.all([
-        api.getWorkOrder(this.data.id),
-        api.getWorkOrderLogs(this.data.id).catch(() => [])
-      ]);
+      let logsError = '';
+      const logsPromise = api
+        .getWorkOrderLogs(this.data.id)
+        .then((list) => (Array.isArray(list) ? list : []))
+        .catch((err) => {
+          logsError = (err && err.message) || '流转日志加载失败';
+          return [];
+        });
+      const results = await Promise.all([api.getWorkOrder(this.data.id), logsPromise]);
       const raw = results[0] || null;
       if (!raw) throw new Error('工单不存在或已被删除');
       const order = this.mapOrder(raw);
-      const logs = (Array.isArray(results[1]) ? results[1] : []).map((log) => this.mapLog(log));
+      const logs = results[1].map((log) => this.mapLog(log));
       this.setData({
         order,
         logs,
+        logsError,
         steps: this.buildSteps(order.status),
         ...this.buildPermissions(order.status)
       });
