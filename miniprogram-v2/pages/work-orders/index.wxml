@@ -1,0 +1,170 @@
+<!-- pages/work-orders/index.wxml -->
+<view class="solar-page-container">
+  <!-- 背景光晕层 (Solar-Punk 光辉) -->
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="tab-page-content" enable-flex>
+    <view class="px-page py-sm">
+
+      <!-- 1. 搜索框与集成扫码识别工具 -->
+      <view class="glass-card search-card mb-sm">
+        <text class="search-icon">🔍</text>
+        <input
+          class="search-input font-body-md"
+          placeholder="搜索工单编号、设备名称、故障描述…"
+          value="{{searchKeyword}}"
+          confirm-type="search"
+          bindinput="handleSearchInput"
+        />
+        <view class="search-actions">
+          <view class="search-btn-icon" bindtap="handleScanCode" title="扫码报修">
+            <text>📷</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 2. 横向分类筛选 Triage Tabs -->
+      <scroll-view scroll-x class="tab-scroll-container mb-md" enable-flex>
+        <view class="tab-scroll-content">
+          <view
+            class="triage-tab {{activeTab === 'ALL' ? 'triage-tab-active-dark' : 'triage-tab-idle'}}"
+            data-tab="ALL"
+            bindtap="handleTabChange"
+          >
+            <text class="tab-title">全部</text>
+            <text class="tab-count {{activeTab === 'ALL' ? 'tab-count-active' : ''}}">{{statsLoaded ? stats.all : '—'}}</text>
+          </view>
+
+          <view
+            class="triage-tab {{activeTab === 'URGENT' ? 'triage-tab-active-gold' : 'triage-tab-idle'}}"
+            data-tab="URGENT"
+            bindtap="handleTabChange"
+          >
+            <view class="led-dot led-pulse-crimson"></view>
+            <text class="tab-title">急需响应</text>
+            <text class="tab-count tab-count-urgent">{{statsLoaded ? stats.urgent : '—'}}</text>
+          </view>
+
+          <view
+            class="triage-tab {{activeTab === 'IN_PROGRESS' ? 'triage-tab-active-cyan' : 'triage-tab-idle'}}"
+            data-tab="IN_PROGRESS"
+            bindtap="handleTabChange"
+          >
+            <text class="tab-title">处理中</text>
+            <text class="tab-count">{{statsLoaded ? stats.inProgress : '—'}}</text>
+          </view>
+
+          <view
+            class="triage-tab {{activeTab === 'PENDING' ? 'triage-tab-active-cyan' : 'triage-tab-idle'}}"
+            data-tab="PENDING"
+            bindtap="handleTabChange"
+          >
+            <text class="tab-title">待指派</text>
+            <text class="tab-count">{{statsLoaded ? stats.pending : '—'}}</text>
+          </view>
+        </view>
+      </scroll-view>
+
+      <!-- 3. 高优先级应急派单聚光卡片（仅存在真实紧急工单时展示） -->
+      <view wx:if="{{spotlight}}" class="glass-card-gold spotlight-card mb-md">
+        <view class="flex items-center justify-between pb-xs border-b-subtle">
+          <view class="flex items-center gap-xs">
+            <text class="chip-badge chip-critical">紧急</text>
+            <text class="font-code-sm text-primary font-bold">{{spotlight.orderNo}}</text>
+          </view>
+          <text class="font-code-sm text-muted">创建于 {{spotlight.createdAtText}}</text>
+        </view>
+
+        <view class="mt-sm">
+          <view class="font-code-sm text-muted">{{spotlight.workshop}} · {{spotlight.faultType}}</view>
+          <view class="font-headline-sm text-on-surface mt-xs">{{spotlight.equipmentName}}</view>
+          <view class="font-code-sm text-primary mt-xs">{{spotlight.equipmentCode}}</view>
+        </view>
+
+        <view class="inner-well-gold p-sm my-sm flex items-center justify-between">
+          <view>
+            <view class="font-body-sm text-muted">工单状态</view>
+            <view class="font-title-md text-on-surface font-bold mt-xs">{{spotlight.statusText}}</view>
+          </view>
+          <view class="text-right">
+            <view class="font-body-sm text-muted">当前负责人</view>
+            <view class="font-code-sm text-primary font-bold mt-xs">{{spotlight.assignee}}</view>
+          </view>
+        </view>
+
+        <view class="font-body-sm text-on-surface-variant mb-sm">{{spotlight.faultDesc}}</view>
+
+        <view class="flex items-center gap-sm">
+          <button class="btn-primary flex-1" bindtap="handleAcceptUrgentOrder">
+            <text>查看工单并处置 →</text>
+          </button>
+          <button class="btn-secondary" bindtap="viewKnowledgeGraph">
+            <text>查知识图谱</text>
+          </button>
+        </view>
+      </view>
+
+      <!-- 4. 工单列表 (Work Order List) -->
+      <view class="mb-xs flex items-center justify-between">
+        <text class="font-title-md text-on-surface font-bold">待办检修工单清单</text>
+        <text class="font-code-sm text-muted">共 {{orders.length}} 条符合条件</text>
+      </view>
+
+      <!-- 加载 / 错误 / 空态 -->
+      <view wx:if="{{loading && orders.length === 0}}" class="glass-card p-md mb-sm text-center">
+        <view class="font-body-md text-muted">正在同步工单数据…</view>
+      </view>
+
+      <view wx:elif="{{loadError}}" class="glass-card p-md mb-sm text-center">
+        <view class="font-title-md text-error mb-xs">工单数据加载失败</view>
+        <view class="font-body-sm text-muted mb-sm">{{loadError}}</view>
+        <button class="btn-secondary" bindtap="handleRetry">
+          <text>重新加载</text>
+        </button>
+      </view>
+
+      <view wx:elif="{{orders.length === 0}}" class="glass-card p-md mb-sm text-center">
+        <view class="font-title-md text-on-surface mb-xs">暂无符合条件的工单</view>
+        <view class="font-body-sm text-muted">可切换筛选条件，或点击右下角按钮新建报修工单。</view>
+      </view>
+
+      <view wx:else class="orders-list">
+        <block wx:for="{{orders}}" wx:key="id">
+          <view class="glass-card order-item-card mb-sm" data-id="{{item.id}}" bindtap="handleOrderClick">
+            <view class="flex items-center justify-between mb-xs">
+              <view class="flex items-center gap-xs">
+                <text class="chip-badge {{item.priorityClass}}">{{item.priorityText}}</text>
+                <text class="font-code-sm text-primary font-bold">{{item.orderNo}}</text>
+              </view>
+              <text class="chip-badge {{item.statusClass}}">{{item.statusText}}</text>
+            </view>
+
+            <view class="font-title-md text-on-surface mt-xs">{{item.title}}</view>
+            <view class="font-code-sm text-muted">{{item.equipmentName}} · {{item.equipmentCode}} · {{item.workshop}}</view>
+
+            <view class="font-body-sm text-on-surface-variant my-xs">{{item.faultSummary}}</view>
+
+            <view class="order-footer flex items-center justify-between pt-xs">
+              <view class="flex items-center gap-xs text-muted font-body-sm">
+                <text>👤 负责人:</text>
+                <text class="text-on-surface font-bold">{{item.assignee}}</text>
+              </view>
+              <text class="font-code-sm text-muted">🕒 {{item.createdAtText}}</text>
+            </view>
+          </view>
+        </block>
+      </view>
+
+    </view>
+  </scroll-view>
+
+  <!-- 新建报修工单入口 -->
+  <view class="fab-create" bindtap="handleCreateOrder">
+    <text class="fab-create-icon">＋</text>
+  </view>
+</view>

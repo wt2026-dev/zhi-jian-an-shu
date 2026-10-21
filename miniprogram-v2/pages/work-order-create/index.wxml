@@ -1,0 +1,148 @@
+<!-- pages/work-order-create/index.wxml -->
+<view class="solar-page-container">
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="tab-page-content" enable-flex>
+    <view class="px-page py-sm">
+
+      <!-- 1. 设备台账选择 -->
+      <view class="glass-card-cyan p-md mb-md">
+        <view class="flex items-center justify-between pb-xs border-b-cyan mb-sm">
+          <view class="flex items-center gap-xs">
+            <view class="led-dot led-pulse-cyan"></view>
+            <text class="font-title-md text-on-surface font-bold">报修设备（真实台账）</text>
+          </view>
+          <text class="font-code-sm text-muted">共 {{equipments.length}} 台</text>
+        </view>
+
+        <view wx:if="{{loadingEquipments}}" class="font-body-sm text-muted">正在加载设备台账…</view>
+
+        <view wx:elif="{{equipmentError}}" class="text-center">
+          <view class="font-body-sm text-error mb-xs">{{equipmentError}}</view>
+          <button class="btn-secondary" bindtap="retryEquipments"><text>重新加载</text></button>
+        </view>
+
+        <block wx:else>
+          <view class="search-card">
+            <text class="search-icon">🔍</text>
+            <input
+              class="search-input font-body-md"
+              placeholder="按设备名称 / 编码 / 车间搜索"
+              value="{{equipmentKeyword}}"
+              bindinput="handleEquipmentSearch"
+            />
+          </view>
+
+          <view wx:if="{{selectedEquipment}}" class="selected-equipment mt-sm">
+            <view class="flex-1">
+              <view class="font-title-md text-on-surface font-bold">{{selectedEquipment.name}}</view>
+              <view class="font-code-sm text-primary">{{selectedEquipment.code || '无设备编码'}} · {{selectedEquipment.workshop || '未标注车间'}}</view>
+            </view>
+            <view class="selected-clear" bindtap="clearEquipment">更换</view>
+          </view>
+
+          <view wx:if="{{filteredEquipments.length === 0}}" class="font-body-sm text-muted mt-sm">
+            没有匹配的设备，请调整搜索关键词。
+          </view>
+
+          <view wx:else class="mt-sm">
+            <picker mode="selector" range="{{equipmentNames}}" value="{{equipmentIndex}}" bindchange="handleEquipmentChange">
+              <view class="picker-trigger">
+                <text>{{selectedEquipment ? '重新选择设备' : '从台账中选择设备'}}</text>
+                <text class="picker-arrow">▾</text>
+              </view>
+            </picker>
+            <view class="font-code-sm text-muted mt-xs">设备数据来自 GET /api/v1/equipments，不会在此处新建设备。</view>
+          </view>
+        </block>
+      </view>
+
+      <!-- 2. 工单信息 -->
+      <view class="glass-card p-md mb-md">
+        <view class="font-title-md text-on-surface font-bold mb-sm">工单信息</view>
+
+        <view class="field-label">工单标题 *</view>
+        <input
+          class="field-input"
+          maxlength="60"
+          placeholder="例如：3# 减速箱轴承温度异常"
+          value="{{form.title}}"
+          bindinput="handleTitleInput"
+        />
+
+        <view class="field-label">故障类型</view>
+        <input
+          class="field-input"
+          maxlength="30"
+          placeholder="填写或选择下方常用类型"
+          value="{{form.faultType}}"
+          bindinput="handleFaultTypeInput"
+        />
+        <view class="flex flex-wrap gap-xs mt-xs">
+          <text
+            wx:for="{{['机械振动', '轴承过热', '液压泄漏', '电气故障', '润滑异常']}}"
+            wx:key="*this"
+            class="quick-chip {{form.faultType === item ? 'quick-chip-active' : ''}}"
+            data-value="{{item}}"
+            bindtap="selectFaultType"
+          >{{item}}</text>
+        </view>
+
+        <view class="field-label">优先级</view>
+        <view class="segment-row">
+          <view
+            wx:for="{{priorityOptions}}"
+            wx:key="value"
+            class="segment-item {{form.priority === item.value ? 'segment-item-priority-' + item.value : ''}}"
+            data-value="{{item.value}}"
+            bindtap="handlePriorityChange"
+          >{{item.label}}</view>
+        </view>
+
+        <view class="field-label">故障描述 *</view>
+        <textarea
+          class="field-textarea"
+          auto-height
+          maxlength="600"
+          placeholder="描述现场观察到的现象、发生时间与影响范围"
+          value="{{form.description}}"
+          bindinput="handleDescriptionInput"
+        ></textarea>
+
+        <view class="field-label">安全要求</view>
+        <view class="flex flex-col gap-xs">
+          <view
+            wx:for="{{safetyOptions}}"
+            wx:key="label"
+            class="safety-option {{item.checked ? 'safety-option-checked' : ''}}"
+            data-index="{{index}}"
+            bindtap="toggleSafety"
+          >
+            <text class="safety-check">{{item.checked ? '✓' : '○'}}</text>
+            <text class="font-body-sm text-on-surface">{{item.label}}</text>
+          </view>
+        </view>
+
+        <view class="field-label">提单人</view>
+        <view class="font-body-md text-on-surface">{{user.name || user.username || '—'}}</view>
+        <view class="font-code-sm text-muted">提单人取自当前登录账号，提交后写入真实工单记录。</view>
+      </view>
+
+      <view class="create-bottom-spacer"></view>
+    </view>
+  </scroll-view>
+
+  <view class="fixed-bottom-bar">
+    <view class="flex items-center gap-sm">
+      <button class="btn-secondary flex-1" bindtap="handleReset"><text>重置</text></button>
+      <button class="btn-primary flex-1" bindtap="handleSubmit" loading="{{submitting}}" disabled="{{submitting}}">
+        <text>提交报修工单 →</text>
+      </button>
+    </view>
+  </view>
+</view>

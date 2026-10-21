@@ -1,0 +1,354 @@
+<!-- pages/work-order-detail/index.wxml -->
+<view class="solar-page-container">
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="tab-page-content" enable-flex>
+    <view class="px-page py-sm">
+
+      <!-- 加载态 -->
+      <view wx:if="{{loading && !order}}" class="glass-card p-md mb-sm text-center">
+        <view class="font-body-md text-muted">正在加载工单详情与流转日志…</view>
+      </view>
+
+      <!-- 错误态 -->
+      <view wx:elif="{{loadError}}" class="glass-card p-md mb-sm text-center">
+        <view class="font-title-md text-error mb-xs">工单详情加载失败</view>
+        <view class="font-body-sm text-muted mb-sm">{{loadError}}</view>
+        <button class="btn-secondary" bindtap="handleRetry">
+          <text>重新加载</text>
+        </button>
+      </view>
+
+      <block wx:elif="{{order}}">
+        <!-- 1. 工单主信息 -->
+        <view class="glass-card-gold p-md mb-md">
+          <view class="flex items-center justify-between pb-xs border-b-subtle">
+            <view class="flex items-center gap-xs">
+              <text class="chip-badge {{order.priorityClass}}">{{order.priorityText}}</text>
+              <text class="font-code-sm text-primary font-bold" bindtap="copyOrderNo">{{order.orderNo}}</text>
+            </view>
+            <text class="chip-badge {{order.statusClass}}">{{order.statusText}}</text>
+          </view>
+
+          <view class="font-headline-sm text-on-surface mt-sm">{{order.title}}</view>
+          <view class="font-code-sm text-muted mt-xs">{{order.equipmentName}} · {{order.equipmentCode}}</view>
+
+          <view class="detail-grid mt-sm">
+            <view class="detail-item">
+              <text class="detail-label">所属车间</text>
+              <text class="detail-value">{{order.workshop}}</text>
+            </view>
+            <view class="detail-item">
+              <text class="detail-label">故障类型</text>
+              <text class="detail-value">{{order.faultType}}</text>
+            </view>
+            <view class="detail-item">
+              <text class="detail-label">创建人</text>
+              <text class="detail-value">{{order.creator}}</text>
+            </view>
+            <view class="detail-item">
+              <text class="detail-label">当前负责人</text>
+              <text class="detail-value detail-value-primary">{{order.assignee}}</text>
+            </view>
+          </view>
+
+          <view class="font-code-sm text-muted mt-sm">创建时间 {{order.createdAtText}}</view>
+        </view>
+
+        <!-- 2. 流转进度 -->
+        <view class="glass-card p-md mb-md">
+          <view class="flex items-center justify-between mb-sm">
+            <text class="font-title-md text-on-surface font-bold">工单流转进度</text>
+            <text class="font-code-sm text-muted">{{order.statusText}}</text>
+          </view>
+          <view class="step-track">
+            <block wx:for="{{steps}}" wx:key="key">
+              <view class="step-node">
+                <view class="step-dot step-dot-{{item.state}}"></view>
+                <text class="step-label step-label-{{item.state}}">{{item.label}}</text>
+              </view>
+              <view
+                wx:if="{{index < steps.length - 1}}"
+                class="step-connector {{item.state === 'done' ? 'step-connector-done' : ''}}"
+              ></view>
+            </block>
+          </view>
+        </view>
+
+        <!-- 3. 故障描述与安全要求 -->
+        <view class="glass-card p-md mb-md">
+          <view class="font-title-md text-on-surface font-bold mb-xs">故障描述</view>
+          <view class="font-body-md text-on-surface-variant pre-wrap">{{order.description}}</view>
+
+          <view wx:if="{{order.safetyRequirements.length}}" class="mt-sm">
+            <view class="font-code-sm text-muted mb-xs">安全要求</view>
+            <view class="flex flex-wrap gap-xs">
+              <text wx:for="{{order.safetyRequirements}}" wx:key="*this" class="chip chip-gold">{{item}}</text>
+            </view>
+          </view>
+
+          <view wx:if="{{order.photoCount}}" class="font-code-sm text-muted mt-sm">
+            现场照片 {{order.photoCount}} 张（已存于工单附件，当前端不渲染外部地址）
+          </view>
+        </view>
+
+        <!-- 4. 完工上报内容 -->
+        <view wx:if="{{order.repairLog}}" class="glass-card-cyan p-md mb-md">
+          <view class="flex items-center justify-between pb-xs border-b-cyan mb-sm">
+            <text class="font-title-md text-on-surface font-bold">完工上报内容</text>
+            <text class="chip-badge chip-cyan">申报工时 {{order.repairLog.workHoursText}}</text>
+          </view>
+
+          <view class="font-code-sm text-muted">故障原因分析</view>
+          <view class="font-body-md text-on-surface-variant pre-wrap mb-sm">{{order.repairLog.causeAnalysis}}</view>
+
+          <view class="font-code-sm text-muted">检修处理步骤</view>
+          <view class="font-body-md text-on-surface-variant pre-wrap mb-sm">{{order.repairLog.resolutionStepsText}}</view>
+
+          <view class="font-code-sm text-muted">消耗备件</view>
+          <view class="font-body-md text-on-surface-variant mb-sm">{{order.repairLog.partsUsedText}}</view>
+
+          <view wx:if="{{order.repairLog.remark}}">
+            <view class="font-code-sm text-muted">补充说明</view>
+            <view class="font-body-md text-on-surface-variant pre-wrap">{{order.repairLog.remark}}</view>
+          </view>
+
+          <view wx:if="{{order.repairLog.completionPhotoCount}}" class="font-code-sm text-muted mt-xs">
+            完工照片 {{order.repairLog.completionPhotoCount}} 张（已存于工单附件）
+          </view>
+        </view>
+
+        <!-- 5. 验收结果 -->
+        <view wx:if="{{order.acceptance}}" class="glass-card-gold p-md mb-md">
+          <view class="flex items-center justify-between pb-xs border-b-subtle mb-sm">
+            <text class="font-title-md text-on-surface font-bold">质检验收结果</text>
+            <text class="chip-badge {{order.acceptance.passClass}}">{{order.acceptance.passText}}</text>
+          </view>
+          <view class="detail-grid">
+            <view class="detail-item">
+              <text class="detail-label">验收人</text>
+              <text class="detail-value">{{order.acceptance.inspectorName}}</text>
+            </view>
+            <view class="detail-item">
+              <text class="detail-label">验收评分</text>
+              <text class="detail-value">{{order.acceptance.scoreText}}</text>
+            </view>
+            <view class="detail-item">
+              <text class="detail-label">签署日期</text>
+              <text class="detail-value">{{order.acceptance.signatureDate}}</text>
+            </view>
+          </view>
+          <view wx:if="{{order.acceptance.comment}}" class="font-body-sm text-on-surface-variant pre-wrap mt-sm">
+            {{order.acceptance.comment}}
+          </view>
+        </view>
+
+        <!-- 6. 真实流转日志 -->
+        <view class="glass-card p-md mb-md">
+          <view class="flex items-center justify-between mb-sm">
+            <text class="font-title-md text-on-surface font-bold">流转日志</text>
+            <text class="font-code-sm text-muted">{{logs.length}} 条</text>
+          </view>
+
+          <view wx:if="{{logs.length === 0}}" class="font-body-sm text-muted">后端暂未返回该工单的流转日志。</view>
+
+          <block wx:for="{{logs}}" wx:key="id">
+            <view class="log-item">
+              <view class="log-rail">
+                <view class="log-dot"></view>
+                <view wx:if="{{index < logs.length - 1}}" class="log-line"></view>
+              </view>
+              <view class="flex-1 log-body">
+                <view class="flex items-center justify-between">
+                  <text class="font-title-md text-on-surface font-bold">{{item.actionText}}</text>
+                  <text class="font-code-sm text-muted">{{item.createdAtText}}</text>
+                </view>
+                <view wx:if="{{item.transitionText}}" class="font-code-sm text-primary mt-xs">{{item.transitionText}}</view>
+                <view wx:if="{{item.comment}}" class="font-body-sm text-on-surface-variant pre-wrap mt-xs">{{item.comment}}</view>
+                <view class="font-code-sm text-muted mt-xs">操作人: {{item.operatorName}}</view>
+              </view>
+            </view>
+          </block>
+        </view>
+
+        <!-- 7. 权限提示 -->
+        <view
+          wx:if="{{!canDispatch && !canClaim && !canComplete && !canAccept && !canCancel && !canReopen}}"
+          class="glass-card p-sm mb-md"
+        >
+          <text class="font-body-sm text-muted">
+            当前账号{{roleTitle ? '（' + roleTitle + '）' : ''}}对处于「{{order.statusText}}」状态的工单没有流转操作权限，仅可查看。
+          </text>
+        </view>
+
+        <view class="detail-bottom-spacer"></view>
+      </block>
+
+    </view>
+  </scroll-view>
+
+  <!-- 底部操作栏：按角色与状态动态出现 -->
+  <view
+    wx:if="{{order && (canDispatch || canClaim || canComplete || canAccept || canCancel || canReopen)}}"
+    class="fixed-bottom-bar"
+  >
+    <view class="flex items-center gap-sm">
+      <button wx:if="{{canCancel}}" class="btn-secondary flex-1" bindtap="handleCancelOrder">
+        <text>取消工单</text>
+      </button>
+      <button wx:if="{{canReopen}}" class="btn-secondary flex-1" bindtap="handleReopen">
+        <text>退回待派单</text>
+      </button>
+      <button wx:if="{{canDispatch}}" class="btn-primary flex-1" bindtap="openDispatchPanel">
+        <text>派发工单 →</text>
+      </button>
+      <button wx:if="{{canClaim}}" class="btn-primary flex-1" bindtap="handleClaim">
+        <text>确认接单 →</text>
+      </button>
+      <button wx:if="{{canComplete}}" class="btn-primary flex-1" bindtap="openCompletePanel">
+        <text>完工上报 →</text>
+      </button>
+      <button wx:if="{{canAccept}}" class="btn-primary flex-1" bindtap="openAcceptPanel">
+        <text>质检验收 →</text>
+      </button>
+    </view>
+  </view>
+
+  <!-- 操作面板 -->
+  <view wx:if="{{actionPanel}}" class="action-sheet-mask" bindtap="closePanel">
+    <view class="action-sheet" catchtap="noop">
+      <view class="sheet-handle"></view>
+
+      <!-- 派发 -->
+      <block wx:if="{{actionPanel === 'dispatch'}}">
+        <view class="font-headline-sm text-on-surface font-bold mb-sm">派发工单</view>
+        <view class="font-body-sm text-muted mb-sm">从真实账号列表中选择承接技师，并给出预估工时。</view>
+
+        <view class="field-label">承接技师</view>
+        <picker mode="selector" range="{{technicianNames}}" value="{{technicianIndex}}" bindchange="handleTechnicianChange">
+          <view class="picker-value">
+            <text>{{technicianNames[technicianIndex] || '暂无可用技师'}}</text>
+            <text class="picker-arrow">▾</text>
+          </view>
+        </picker>
+
+        <view class="field-label">预估工时（小时）</view>
+        <input class="field-input" type="digit" value="{{dispatchForm.estimatedHours}}" bindinput="handleDispatchHours" />
+
+        <view class="flex items-center gap-sm mt-md">
+          <button class="btn-secondary flex-1" bindtap="closePanel"><text>取消</text></button>
+          <button class="btn-primary flex-1" bindtap="submitDispatch" loading="{{submitting}}" disabled="{{submitting}}">
+            <text>确认派发</text>
+          </button>
+        </view>
+      </block>
+
+      <!-- 完工 -->
+      <block wx:elif="{{actionPanel === 'complete'}}">
+        <view class="font-headline-sm text-on-surface font-bold mb-sm">完工上报</view>
+        <view class="font-body-sm text-muted mb-sm">上报后进入待验收，由主管或安全总监验收归档。</view>
+
+        <view class="field-label">故障原因分析 *</view>
+        <textarea
+          class="field-textarea"
+          auto-height
+          maxlength="500"
+          placeholder="填写真实排查结论与故障根因"
+          value="{{completeForm.causeAnalysis}}"
+          data-field="causeAnalysis"
+          bindinput="handleCompleteInput"
+        ></textarea>
+
+        <view class="field-label">检修处理步骤 *</view>
+        <textarea
+          class="field-textarea"
+          auto-height
+          maxlength="800"
+          placeholder="按步骤记录现场处理过程"
+          value="{{completeForm.resolutionSteps}}"
+          data-field="resolutionSteps"
+          bindinput="handleCompleteInput"
+        ></textarea>
+
+        <view class="field-label">申报工时（小时）</view>
+        <input
+          class="field-input"
+          type="digit"
+          value="{{completeForm.workHours}}"
+          data-field="workHours"
+          bindinput="handleCompleteInput"
+        />
+
+        <view class="field-label">补充说明</view>
+        <textarea
+          class="field-textarea"
+          auto-height
+          maxlength="300"
+          placeholder="备件、遗留问题等（可选）"
+          value="{{completeForm.remark}}"
+          data-field="remark"
+          bindinput="handleCompleteInput"
+        ></textarea>
+
+        <view class="flex items-center gap-sm mt-md">
+          <button class="btn-secondary flex-1" bindtap="closePanel"><text>取消</text></button>
+          <button class="btn-primary flex-1" bindtap="submitComplete" loading="{{submitting}}" disabled="{{submitting}}">
+            <text>提交完工</text>
+          </button>
+        </view>
+      </block>
+
+      <!-- 验收 -->
+      <block wx:elif="{{actionPanel === 'accept'}}">
+        <view class="font-headline-sm text-on-surface font-bold mb-sm">质检验收</view>
+        <view class="font-body-sm text-muted mb-sm">通过后工单归档闭环；驳回则退回检修中。</view>
+
+        <view class="field-label">验收结论</view>
+        <view class="segment-row">
+          <view
+            class="segment-item {{acceptForm.pass ? 'segment-item-active' : ''}}"
+            data-pass="{{true}}"
+            bindtap="handleAcceptPass"
+          >验收通过</view>
+          <view
+            class="segment-item {{!acceptForm.pass ? 'segment-item-danger' : ''}}"
+            data-pass="{{false}}"
+            bindtap="handleAcceptPass"
+          >验收驳回</view>
+        </view>
+
+        <view class="field-label">验收评分（1-5）</view>
+        <input
+          class="field-input"
+          type="number"
+          value="{{acceptForm.score}}"
+          data-field="score"
+          bindinput="handleAcceptInput"
+        />
+
+        <view class="field-label">验收意见{{acceptForm.pass ? '' : '（驳回必填）'}}</view>
+        <textarea
+          class="field-textarea"
+          auto-height
+          maxlength="300"
+          placeholder="填写真实验收意见"
+          value="{{acceptForm.comment}}"
+          data-field="comment"
+          bindinput="handleAcceptInput"
+        ></textarea>
+
+        <view class="flex items-center gap-sm mt-md">
+          <button class="btn-secondary flex-1" bindtap="closePanel"><text>取消</text></button>
+          <button class="btn-primary flex-1" bindtap="submitAccept" loading="{{submitting}}" disabled="{{submitting}}">
+            <text>提交验收</text>
+          </button>
+        </view>
+      </block>
+    </view>
+  </view>
+</view>
