@@ -1,0 +1,628 @@
+<!-- pages/ai-assistant/index.wxml -->
+<view class="solar-page-container">
+  <!-- 背景光晕层 (Solar-Punk 光辉) -->
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <scroll-view scroll-y class="tab-page-content with-fixed-input" scroll-into-view="{{scrollIntoView}}" enable-flex>
+    <view class="px-page py-sm">
+
+      <!-- 1. 真实设备上下文 -->
+      <view class="glass-card p-md mb-sm">
+        <view class="flex items-center justify-between mb-sm">
+          <view class="flex items-center gap-xs">
+            <text class="font-title-md text-on-surface">AI 诊断上下文</text>
+            <text class="chip-badge chip-cyan">真实设备台账</text>
+          </view>
+          <text wx:if="{{contextLoading}}" class="font-code-sm text-muted">加载中...</text>
+          <text wx:else class="font-code-sm text-muted">GET /equipments</text>
+        </view>
+
+        <view wx:if="{{contextLoading}}" class="context-placeholder">
+          <view class="led-dot led-pulse-gold"></view>
+          <text class="font-body-sm text-muted">正在读取设备台账与健康异常清单...</text>
+        </view>
+
+        <view wx:elif="{{contextError}}" class="context-placeholder">
+          <text class="font-body-sm text-error">{{contextError}}</text>
+          <button class="btn-secondary context-retry" bindtap="handleRetryContext">
+            <text>重试</text>
+          </button>
+        </view>
+
+        <view wx:elif="{{!activeEquipment}}" class="context-placeholder">
+          <text class="font-body-sm text-muted">设备台账暂无数据，AI 问诊仍可使用，但无法绑定设备上下文。</text>
+        </view>
+
+        <block wx:else>
+          <picker mode="selector" range="{{equipmentOptions}}" value="{{equipmentIndex}}" bindchange="handleEquipmentChange">
+            <view class="context-picker">
+              <view class="flex items-center gap-xs min-w-0">
+                <text class="font-body-sm text-muted shrink-0">当前设备</text>
+                <text class="font-title-md text-on-surface truncate">{{activeEquipment.name}}</text>
+              </view>
+              <text class="context-picker-arrow">切换 ▾</text>
+            </view>
+          </picker>
+
+          <view class="context-meta-grid mt-sm">
+            <view class="context-meta-item">
+              <text class="font-code-sm text-muted">设备编码</text>
+              <text class="font-code-sm text-on-surface">{{activeEquipment.code}}</text>
+            </view>
+            <view class="context-meta-item">
+              <text class="font-code-sm text-muted">所属车间</text>
+              <text class="font-body-sm text-on-surface truncate">{{activeEquipment.workshop}}</text>
+            </view>
+            <view class="context-meta-item">
+              <text class="font-code-sm text-muted">运行状态</text>
+              <text class="font-body-sm text-on-surface">{{activeEquipment.statusText}}</text>
+            </view>
+            <view class="context-meta-item">
+              <text class="font-code-sm text-muted">健康分</text>
+              <view class="flex items-center gap-xs">
+                <text class="font-mono-md {{activeEquipment.healthClass}}">{{activeEquipment.healthText}}</text>
+                <text class="font-code-sm text-muted">{{activeEquipment.healthLevel}}</text>
+              </view>
+            </view>
+          </view>
+
+          <view wx:if="{{activeEquipment.abnormalText}}" class="context-alert mt-sm">
+            <text class="font-code-sm text-error">⚠ 健康异常：{{activeEquipment.abnormalText}}</text>
+            <text wx:if="{{activeEquipment.abnormalDetail}}" class="font-body-sm text-muted mt-xs">{{activeEquipment.abnormalDetail}}</text>
+          </view>
+        </block>
+      </view>
+
+      <!-- 2. 真实知识图谱 -->
+      <view class="glass-card-gold p-md mb-md">
+        <view class="flex items-center justify-between mb-sm">
+          <view class="flex items-center gap-xs min-w-0">
+            <text class="font-headline-sm text-on-surface">故障因果知识图谱</text>
+            <text class="chip-badge chip-gold">{{graph.modeLabel}}</text>
+          </view>
+          <text wx:if="{{!graph.loading && !graph.error}}" class="font-code-sm text-primary shrink-0">{{graph.nodeCount}} 实体 · {{graph.edgeCount}} 关系</text>
+        </view>
+
+        <view wx:if="{{graph.loading}}" class="graph-empty">
+          <view class="led-dot led-pulse-gold"></view>
+          <text class="font-body-sm text-muted">正在读取知识图谱实体与关系...</text>
+        </view>
+
+        <view wx:elif="{{graph.error}}" class="graph-empty">
+          <text class="font-body-sm text-error">{{graph.error}}</text>
+          <view class="font-code-sm text-secondary mt-xs" bindtap="handleReloadGraph">点击重试</view>
+        </view>
+
+        <view wx:elif="{{graph.empty}}" class="graph-empty">
+          <text class="font-body-sm text-muted">知识图谱暂无实体。需由管理员在 Web 端知识中心执行图谱抽取后才会展示。</text>
+        </view>
+
+        <block wx:else>
+          <view class="graph-nodes-flex mt-sm">
+            <block wx:for="{{graph.nodes}}" wx:key="id">
+              <view class="graph-node-chip {{item.typeClass}}">
+                <text class="font-code-sm graph-node-type">{{item.type}}</text>
+                <text class="font-body-sm truncate">{{item.name}}</text>
+              </view>
+            </block>
+          </view>
+
+          <view wx:if="{{graph.edges.length}}" class="mt-sm">
+            <view class="font-code-sm text-muted mb-xs">实体关系（展示前 {{graph.edges.length}} 条）</view>
+            <block wx:for="{{graph.edges}}" wx:key="id">
+              <view class="graph-relation-row">
+                <text class="font-code-sm text-on-surface truncate graph-rel-node">{{item.source}}</text>
+                <text class="graph-rel-arrow">—{{item.relation}}→</text>
+                <text class="font-code-sm text-on-surface truncate graph-rel-node">{{item.target}}</text>
+              </view>
+            </block>
+          </view>
+          <view wx:else class="font-body-sm text-muted mt-sm">仅有实体节点，暂无关系边。</view>
+
+          <view wx:if="{{graph.fallbackNote}}" class="font-code-sm text-muted mt-xs">{{graph.fallbackNote}}</view>
+          <view class="font-code-sm text-muted mt-xs">数据来源：{{graph.sourceNote}}</view>
+        </block>
+      </view>
+
+      <!-- 3. AI 现场工具入口 -->
+      <view id="tools-section" class="glass-card p-md mb-md">
+        <view class="flex items-center justify-between mb-sm">
+          <view class="flex items-center gap-xs">
+            <text class="font-title-md text-on-surface">AI 现场工具</text>
+            <text class="chip-badge chip-blue">真实模型接口</text>
+          </view>
+          <text class="font-code-sm text-muted">/api/v1/ai/*</text>
+        </view>
+
+        <view class="ai-tool-grid">
+          <view class="ai-tool-cell" data-tool="rag" bindtap="handleOpenTool">
+            <view class="ai-tool-icon">🔎</view>
+            <view class="ai-tool-name">RAG 知识检索</view>
+            <view class="ai-tool-desc">已审核知识文档增强回答</view>
+          </view>
+          <view class="ai-tool-cell" data-tool="workorder" bindtap="handleOpenTool">
+            <view class="ai-tool-icon">📝</view>
+            <view class="ai-tool-name">AI 工单草稿</view>
+            <view class="ai-tool-desc">按设备与异常生成检修草稿</view>
+          </view>
+          <view class="ai-tool-cell" data-tool="rca" bindtap="handleOpenTool">
+            <view class="ai-tool-icon">🧠</view>
+            <view class="ai-tool-name">根因分析 RCA</view>
+            <view class="ai-tool-desc">5 Why 与纠正措施建议</view>
+          </view>
+          <view class="ai-tool-cell" data-tool="plan" bindtap="handleOpenTool">
+            <view class="ai-tool-icon">🛠️</view>
+            <view class="ai-tool-name">检修方案生成</view>
+            <view class="ai-tool-desc">步骤、LOTO 与质检点</view>
+          </view>
+          <view class="ai-tool-cell ai-tool-cell-wide" data-tool="report" bindtap="handleOpenTool">
+            <view class="ai-tool-icon">📊</view>
+            <view class="ai-tool-name">智能报告生成</view>
+            <view class="ai-tool-desc">基于区间内真实巡检、工单、设备与作业票统计</view>
+          </view>
+        </view>
+
+        <view class="font-code-sm text-muted mt-sm">模型未配置或调用失败时接口会明确报错，页面不会生成模拟内容。</view>
+      </view>
+
+      <!-- 4. 真实 AI 对话流 -->
+      <view class="mb-xs flex items-center justify-between">
+        <text class="font-title-md text-on-surface">AI 对话</text>
+        <text class="font-code-sm text-muted">POST /ai/chat</text>
+      </view>
+
+      <view wx:if="{{!chatHistory.length && !isThinking}}" class="glass-card chat-empty-card mb-md">
+        <view class="chat-empty-icon">✨</view>
+        <view class="font-title-md text-on-surface">向安枢工业智脑提问</view>
+        <view class="font-body-sm text-muted mt-xs">回答由后端真实大模型生成；带上当前设备上下文后可追问故障排查、SOP 与安全规范。</view>
+      </view>
+
+      <view class="chat-stream-container mb-md">
+        <block wx:for="{{chatHistory}}" wx:key="id">
+          <block wx:if="{{item.sender === 'user'}}">
+            <view class="chat-bubble-row row-user">
+              <view class="chat-bubble bubble-user">
+                <text class="font-body-md pre-wrap">{{item.text}}</text>
+                <view class="bubble-time font-code-sm text-right mt-xs">{{item.time}}</view>
+              </view>
+            </view>
+          </block>
+
+          <block wx:if="{{item.sender === 'ai'}}">
+            <view class="chat-bubble-row row-ai">
+              <view class="ai-avatar">✨</view>
+              <view class="chat-bubble bubble-ai flex-1">
+                <view class="flex items-center justify-between mb-xs">
+                  <text class="font-code-sm text-primary font-bold">安枢工业智脑</text>
+                  <text wx:if="{{item.degraded}}" class="chip-badge chip-gold">降级引擎</text>
+                </view>
+                <text class="font-body-md text-on-surface pre-wrap">{{item.text}}</text>
+                <view class="flex items-center justify-between mt-xs">
+                  <text class="font-code-sm text-muted truncate flex-1">{{item.model}}</text>
+                  <text class="font-code-sm text-muted ml-xs">{{item.time}}</text>
+                </view>
+              </view>
+            </view>
+          </block>
+
+          <block wx:if="{{item.sender === 'error'}}">
+            <view class="chat-bubble-row row-ai">
+              <view class="ai-avatar ai-avatar-error">!</view>
+              <view class="chat-bubble bubble-error flex-1">
+                <text class="font-body-sm pre-wrap">{{item.text}}</text>
+                <view class="bubble-time font-code-sm mt-xs">{{item.time}}</view>
+              </view>
+            </view>
+          </block>
+        </block>
+
+        <view wx:if="{{isThinking}}" class="chat-bubble-row row-ai">
+          <view class="ai-avatar">✨</view>
+          <view class="chat-bubble bubble-ai">
+            <text class="font-body-md text-muted">正在请求 /api/v1/ai/chat ...</text>
+          </view>
+        </view>
+      </view>
+      <view id="chat-end" class="chat-end-anchor"></view>
+
+    </view>
+  </scroll-view>
+
+  <!-- 5. 固定底部输入栏 -->
+  <view class="ai-fixed-input-bar">
+    <scroll-view scroll-x class="quick-prompts-scroll mb-xs" enable-flex>
+      <view class="quick-prompts-list">
+        <block wx:for="{{quickPrompts}}" wx:key="*this">
+          <view class="prompt-chip" data-prompt="{{item}}" bindtap="handlePromptClick">
+            <text class="font-code-sm">💡 {{item}}</text>
+          </view>
+        </block>
+      </view>
+    </scroll-view>
+
+    <view class="input-row flex items-center gap-xs">
+      <view class="tool-btn" bindtap="handleShowTools" title="AI 工具">
+        <text>🧰</text>
+      </view>
+      <view class="tool-btn" bindtap="handleCameraDiagnostic" title="拍照诊断">
+        <text>📷</text>
+      </view>
+      <input
+        class="chat-input font-body-md"
+        placeholder="向安枢智脑提问故障诊断与 SOP..."
+        value="{{inputValue}}"
+        bindinput="handleInputChange"
+        confirm-type="send"
+        bindconfirm="handleSend"
+        disabled="{{isThinking}}"
+      />
+      <button class="btn-primary" style="padding: 14rpx 28rpx;" bindtap="handleSend" loading="{{isThinking}}" disabled="{{isThinking}}">
+        <text>发送</text>
+      </button>
+    </view>
+  </view>
+
+  <!-- 6. AI 工具结果面板 -->
+  <view wx:if="{{activeTool}}" class="sheet-mask" bindtap="handleCloseTool"></view>
+  <view wx:if="{{activeTool}}" class="tool-sheet" catchtap="noop">
+    <view class="sheet-handle"></view>
+    <view class="sheet-header flex items-center justify-between">
+      <view class="flex items-center gap-xs min-w-0">
+        <text class="sheet-icon">{{activeToolIcon}}</text>
+        <text class="font-title-md text-on-surface truncate">{{activeToolTitle}}</text>
+      </view>
+      <view class="sheet-close" bindtap="handleCloseTool">✕</view>
+    </view>
+
+    <scroll-view scroll-y class="tool-sheet-body">
+      <!-- RAG -->
+      <block wx:if="{{activeTool === 'rag'}}">
+        <view class="sheet-label">检索问题</view>
+        <input
+          class="sheet-input"
+          placeholder="例如：齿轮箱振动超标排查步骤"
+          value="{{ragQuery}}"
+          bindinput="handleRagInput"
+          confirm-type="search"
+          bindconfirm="handleRagSearch"
+        />
+        <view class="sheet-hint">先按关键词读取已审核知识文档，再交给 /ai/rag-search 生成综合回答。</view>
+        <button class="btn-primary sheet-submit" bindtap="handleRagSearch" loading="{{toolLoading}}" disabled="{{toolLoading}}">
+          <text>检索并生成回答</text>
+        </button>
+      </block>
+
+      <!-- 工单草稿 -->
+      <block wx:if="{{activeTool === 'workorder'}}">
+        <view class="sheet-equipment-row">
+          <text class="font-code-sm text-muted">设备</text>
+          <text class="font-body-sm text-on-surface truncate">{{activeEquipment.name}} · {{activeEquipment.code}}</text>
+        </view>
+        <view class="sheet-label">异常描述</view>
+        <textarea
+          class="sheet-textarea"
+          placeholder="{{activeEquipment.abnormalText || '填写现象、部位、测量值与影响范围'}}"
+          value="{{toolForm.abnormalDescription}}"
+          data-field="abnormalDescription"
+          bindinput="handleToolField"
+          maxlength="500"
+        />
+        <view class="sheet-hint">将结合真实设备档案与遥测生成工单草稿；草稿不会自动提交。</view>
+        <button class="btn-primary sheet-submit" bindtap="handleGenerateWorkOrder" loading="{{toolLoading}}" disabled="{{toolLoading}}">
+          <text>生成工单草稿</text>
+        </button>
+      </block>
+
+      <!-- 根因分析 -->
+      <block wx:if="{{activeTool === 'rca'}}">
+        <view class="sheet-equipment-row">
+          <text class="font-code-sm text-muted">设备</text>
+          <text class="font-body-sm text-on-surface truncate">{{activeEquipment.name}} · {{activeEquipment.code}}</text>
+        </view>
+        <view class="sheet-label">故障描述</view>
+        <textarea
+          class="sheet-textarea"
+          placeholder="描述故障现象、发生时间、测量数据与已采取措施"
+          value="{{toolForm.faultDescription}}"
+          data-field="faultDescription"
+          bindinput="handleToolField"
+          maxlength="500"
+        />
+        <view class="sheet-hint">将结合设备历史工单与知识库规程生成 5 Why 与根因判断。</view>
+        <button class="btn-primary sheet-submit" bindtap="handleRootCauseAnalysis" loading="{{toolLoading}}" disabled="{{toolLoading}}">
+          <text>执行根因分析</text>
+        </button>
+      </block>
+
+      <!-- 检修方案 -->
+      <block wx:if="{{activeTool === 'plan'}}">
+        <view class="sheet-equipment-row">
+          <text class="font-code-sm text-muted">设备</text>
+          <text class="font-body-sm text-on-surface truncate">{{activeEquipment.name}} · {{activeEquipment.code}}</text>
+        </view>
+        <view class="sheet-label">故障描述</view>
+        <textarea
+          class="sheet-textarea"
+          placeholder="描述故障部位、现象与检修目标"
+          value="{{toolForm.faultDescription}}"
+          data-field="faultDescription"
+          bindinput="handleToolField"
+          maxlength="500"
+        />
+        <view class="sheet-hint">生成步骤、LOTO 隔离点、PPE、工具、备件与质检点；方案需现场审核后执行。</view>
+        <button class="btn-primary sheet-submit" bindtap="handleGenerateMaintenancePlan" loading="{{toolLoading}}" disabled="{{toolLoading}}">
+          <text>生成检修方案</text>
+        </button>
+      </block>
+
+      <!-- 报告 -->
+      <block wx:if="{{activeTool === 'report'}}">
+        <view class="sheet-label">报告类型</view>
+        <picker mode="selector" range="{{reportTypes}}" range-key="label" value="{{toolForm.reportTypeIndex}}" bindchange="handleReportTypeChange">
+          <view class="sheet-picker">{{toolForm.reportTypeLabel}} ▾</view>
+        </picker>
+        <view class="sheet-grid-2 mt-sm">
+          <view>
+            <view class="sheet-label">开始日期</view>
+            <picker mode="date" value="{{toolForm.startDate}}" data-field="startDate" bindchange="handleDateChange">
+              <view class="sheet-picker">{{toolForm.startDate}}</view>
+            </picker>
+          </view>
+          <view>
+            <view class="sheet-label">结束日期</view>
+            <picker mode="date" value="{{toolForm.endDate}}" data-field="endDate" bindchange="handleDateChange">
+              <view class="sheet-picker">{{toolForm.endDate}}</view>
+            </picker>
+          </view>
+        </view>
+        <view class="sheet-label mt-sm">车间（可选）</view>
+        <input class="sheet-input" value="{{toolForm.workshop}}" data-field="workshop" bindinput="handleToolField" placeholder="留空表示全部车间" />
+        <view class="sheet-hint">报告统计区间内的巡检、工单、设备健康与作业票真实数据，缺失项由模型标注未采集。</view>
+        <button class="btn-primary sheet-submit" bindtap="handleGenerateReport" loading="{{toolLoading}}" disabled="{{toolLoading}}">
+          <text>生成报告</text>
+        </button>
+      </block>
+
+      <!-- 视觉诊断 -->
+      <block wx:if="{{activeTool === 'vision'}}">
+        <view class="sheet-hint">拍摄设备部件照片，由后端视觉模型识别缺陷；图片仅用于本次诊断。</view>
+        <button class="btn-secondary sheet-submit" bindtap="handleCameraDiagnostic" disabled="{{toolLoading}}">
+          <text>重新拍摄</text>
+        </button>
+      </block>
+
+      <view wx:if="{{toolLoading}}" class="tool-loading">
+        <view class="led-dot led-pulse-gold"></view>
+        <text class="font-body-sm text-muted">正在调用真实 AI 接口，请稍候...</text>
+      </view>
+
+      <view wx:if="{{toolError}}" class="tool-error">
+        <text class="font-body-sm text-error">{{toolError}}</text>
+      </view>
+
+      <view wx:if="{{toolResult && resultModel}}" class="result-meta-row">
+        <text class="chip-badge chip-blue">{{resultModel}}</text>
+        <text wx:if="{{resultCache}}" class="chip-badge chip-gold">缓存结果</text>
+        <text wx:if="{{resultDegraded}}" class="chip-badge chip-critical">降级返回</text>
+      </view>
+
+      <!-- RAG 结果 -->
+      <view wx:if="{{toolResult && toolResult.kind === 'rag'}}" class="result-section">
+        <view class="result-title">RAG 综合回答</view>
+        <text class="font-body-sm text-on-surface pre-wrap">{{toolResult.summary}}</text>
+        <view class="font-code-sm text-muted mt-xs">
+          命中文档：{{toolResult.matchedText}}<text wx:if="{{toolResult.fallbackUsed}}"> · 关键词未命中，已使用近期已审核文档</text>
+        </view>
+        <view wx:if="{{toolResult.docs.length}}" class="result-list mt-xs">
+          <view wx:for="{{toolResult.docs}}" wx:key="*this" class="font-code-sm text-secondary truncate">· {{item}}</view>
+        </view>
+        <block wx:if="{{toolResult.hits.length}}">
+          <view class="font-code-sm text-muted mt-sm">后端返回的知识库原文片段</view>
+          <view wx:for="{{toolResult.hits}}" wx:key="id" class="result-mini-card">
+            <view class="font-code-sm text-on-surface">{{item.title}}</view>
+            <view class="font-code-sm text-muted mt-xs">{{item.excerpt}}</view>
+          </view>
+        </block>
+      </view>
+
+      <!-- 工单草稿结果 -->
+      <view wx:if="{{toolResult && toolResult.kind === 'workorder'}}" class="result-section">
+        <view class="flex items-center justify-between mb-xs">
+          <view class="result-title flex-1">{{toolResult.title}}</view>
+          <text class="chip-badge chip-gold">{{toolResult.priorityText}}</text>
+        </view>
+        <view wx:if="{{toolResult.equipmentText}}" class="font-code-sm text-muted mb-xs">{{toolResult.equipmentText}}</view>
+        <text class="font-body-sm text-on-surface pre-wrap">{{toolResult.description}}</text>
+        <view wx:if="{{toolResult.priorityReason}}" class="result-note">优先级依据：{{toolResult.priorityReason}}</view>
+        <view wx:if="{{toolResult.steps.length}}" class="mt-sm">
+          <view class="result-subtitle">建议检修步骤</view>
+          <view wx:for="{{toolResult.steps}}" wx:key="id" class="result-list-row">
+            <text class="result-index">{{index + 1}}</text>
+            <text class="font-body-sm text-on-surface flex-1">{{item.text}}</text>
+          </view>
+        </view>
+        <view wx:if="{{toolResult.parts.length}}" class="mt-sm">
+          <view class="result-subtitle">建议备件</view>
+          <view wx:for="{{toolResult.parts}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view class="result-note">预计工时：{{toolResult.estimatedHoursText}}。本结果仅为 AI 草稿，未提交到工单中心。</view>
+      </view>
+
+      <!-- RCA 结果 -->
+      <view wx:if="{{toolResult && toolResult.kind === 'rca'}}" class="result-section">
+        <view class="result-title">根因分析摘要</view>
+        <text class="font-body-sm text-on-surface pre-wrap">{{toolResult.summary}}</text>
+
+        <view wx:if="{{toolResult.whys.length}}" class="mt-sm">
+          <view class="result-subtitle">5 Why 递进</view>
+          <view wx:for="{{toolResult.whys}}" wx:key="id" class="result-card">
+            <view class="font-code-sm text-primary">Why {{item.level}}</view>
+            <view class="font-body-sm text-on-surface mt-xs">{{item.question}}</view>
+            <view class="font-body-sm text-muted mt-xs">{{item.reason}}</view>
+            <view wx:if="{{item.evidence}}" class="font-code-sm text-secondary mt-xs">判断依据：{{item.evidence}}</view>
+          </view>
+        </view>
+
+        <view wx:if="{{toolResult.rootCauses.length}}" class="mt-sm">
+          <view class="result-subtitle">根因判断</view>
+          <view wx:for="{{toolResult.rootCauses}}" wx:key="id" class="result-card">
+            <view class="flex items-center justify-between">
+              <text class="font-code-sm text-primary">{{item.type}}</text>
+              <text wx:if="{{item.probability}}" class="chip-badge chip-gold">概率 {{item.probability}}</text>
+            </view>
+            <view class="font-body-sm text-on-surface mt-xs">{{item.cause}}</view>
+            <view wx:if="{{item.evidence}}" class="font-code-sm text-muted mt-xs">{{item.evidence}}</view>
+          </view>
+        </view>
+
+        <view wx:if="{{toolResult.shortTerm.length}}" class="mt-sm">
+          <view class="result-subtitle">短期遏制措施</view>
+          <view wx:for="{{toolResult.shortTerm}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view wx:if="{{toolResult.longTerm.length}}" class="mt-sm">
+          <view class="result-subtitle">长期预防措施</view>
+          <view wx:for="{{toolResult.longTerm}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view wx:if="{{toolResult.references.length}}" class="mt-sm">
+          <view class="result-subtitle">引用知识库</view>
+          <view wx:for="{{toolResult.references}}" wx:key="id" class="font-code-sm text-secondary truncate mt-xs">· {{item.text}}</view>
+        </view>
+      </view>
+
+      <!-- 检修方案结果 -->
+      <view wx:if="{{toolResult && toolResult.kind === 'plan'}}" class="result-section">
+        <view class="result-title">方案概述</view>
+        <text class="font-body-sm text-on-surface pre-wrap">{{toolResult.overview}}</text>
+
+        <view wx:if="{{toolResult.steps.length}}" class="mt-sm">
+          <view class="result-subtitle">检修步骤</view>
+          <view wx:for="{{toolResult.steps}}" wx:key="id" class="result-card">
+            <view class="font-code-sm text-primary">步骤 {{item.step}}</view>
+            <view class="font-body-sm text-on-surface mt-xs">{{item.operation}}</view>
+            <view wx:if="{{item.standard}}" class="font-code-sm text-muted mt-xs">质量标准：{{item.standard}}</view>
+          </view>
+        </view>
+
+        <view class="mt-sm">
+          <view class="result-subtitle">安全措施</view>
+          <view wx:if="{{toolResult.lotoPoints.length}}" class="result-subblock">
+            <view class="font-code-sm text-error">LOTO 能量隔离点</view>
+            <view wx:for="{{toolResult.lotoPoints}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+          </view>
+          <view wx:if="{{toolResult.ppe.length}}" class="result-subblock">
+            <view class="font-code-sm text-error">PPE 要求</view>
+            <view wx:for="{{toolResult.ppe}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+          </view>
+          <view wx:if="{{toolResult.highRiskNotes.length}}" class="result-subblock">
+            <view class="font-code-sm text-error">高危作业提示</view>
+            <view wx:for="{{toolResult.highRiskNotes}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+          </view>
+        </view>
+
+        <view wx:if="{{toolResult.tools.length}}" class="mt-sm">
+          <view class="result-subtitle">工具</view>
+          <view wx:for="{{toolResult.tools}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view wx:if="{{toolResult.parts.length}}" class="mt-sm">
+          <view class="result-subtitle">备件</view>
+          <view wx:for="{{toolResult.parts}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view wx:if="{{toolResult.checkpoints.length}}" class="mt-sm">
+          <view class="result-subtitle">质量检查点</view>
+          <view wx:for="{{toolResult.checkpoints}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+
+        <view class="result-note">预计工时与人员：{{toolResult.estimatedText}}</view>
+        <view wx:if="{{toolResult.safetyNotice}}" class="safety-note">{{toolResult.safetyNotice}}</view>
+      </view>
+
+      <!-- 报告结果 -->
+      <view wx:if="{{toolResult && toolResult.kind === 'report'}}" class="result-section">
+        <view wx:if="{{toolResult.metaText}}" class="font-code-sm text-muted mb-xs">{{toolResult.metaText}}</view>
+        <view class="result-title">报告摘要</view>
+        <text class="font-body-sm text-on-surface pre-wrap">{{toolResult.summary}}</text>
+
+        <view wx:if="{{toolResult.statistics.length}}" class="report-stats-grid mt-sm">
+          <view wx:for="{{toolResult.statistics}}" wx:key="id" class="report-stat-card">
+            <text class="font-code-sm text-muted">{{item.label}}</text>
+            <text class="font-title-md text-on-surface">{{item.value}}</text>
+          </view>
+        </view>
+
+        <view wx:if="{{toolResult.highlights.length}}" class="mt-sm">
+          <view class="result-subtitle">工作亮点</view>
+          <view wx:for="{{toolResult.highlights}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view wx:if="{{toolResult.problems.length}}" class="mt-sm">
+          <view class="result-subtitle">存在问题</view>
+          <view wx:for="{{toolResult.problems}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view wx:if="{{toolResult.topIssues.length}}" class="mt-sm">
+          <view class="result-subtitle">重点问题</view>
+          <view wx:for="{{toolResult.topIssues}}" wx:key="id" class="result-card">
+            <view class="flex items-center justify-between">
+              <text class="font-body-sm text-on-surface flex-1">{{item.title}}</text>
+              <text wx:if="{{item.countText}}" class="chip-badge chip-gold">{{item.countText}}</text>
+            </view>
+            <view wx:if="{{item.analysis}}" class="font-code-sm text-muted mt-xs">{{item.analysis}}</view>
+          </view>
+        </view>
+        <view wx:if="{{toolResult.suggestions.length}}" class="mt-sm">
+          <view class="result-subtitle">改进建议</view>
+          <view wx:for="{{toolResult.suggestions}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+
+        <view wx:if="{{toolResult.markdown}}" class="mt-sm">
+          <view class="result-subtitle">报告正文</view>
+          <text class="font-body-sm text-on-surface-variant pre-wrap">{{toolResult.markdown}}</text>
+        </view>
+
+        <view wx:if="{{toolResult.reviewId}}" class="result-note">已写入 AI 内容审核台，审核记录：{{toolResult.reviewId}}</view>
+      </view>
+
+      <!-- 视觉诊断结果 -->
+      <view wx:if="{{toolResult && toolResult.kind === 'vision'}}" class="result-section">
+        <image wx:if="{{toolResult.imagePath}}" class="vision-preview" src="{{toolResult.imagePath}}" mode="aspectFill" />
+        <view class="vision-grid mt-sm">
+          <view class="vision-metric">
+            <text class="font-code-sm text-muted">缺陷类型</text>
+            <text class="font-body-sm text-on-surface">{{toolResult.defectType}}</text>
+          </view>
+          <view class="vision-metric">
+            <text class="font-code-sm text-muted">严重程度</text>
+            <text class="font-body-sm text-on-surface">{{toolResult.severity}}</text>
+          </view>
+          <view class="vision-metric">
+            <text class="font-code-sm text-muted">置信度</text>
+            <text class="font-body-sm text-on-surface">{{toolResult.confidenceText}}</text>
+          </view>
+          <view class="vision-metric">
+            <text class="font-code-sm text-muted">缺陷位置</text>
+            <text class="font-body-sm text-on-surface">{{toolResult.location}}</text>
+          </view>
+        </view>
+        <view class="mt-sm">
+          <view class="result-subtitle">诊断结论</view>
+          <text class="font-body-sm text-on-surface pre-wrap">{{toolResult.summary}}</text>
+        </view>
+        <view wx:if="{{toolResult.causes.length}}" class="mt-sm">
+          <view class="result-subtitle">可能原因</view>
+          <view wx:for="{{toolResult.causes}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view wx:if="{{toolResult.recommendations.length}}" class="mt-sm">
+          <view class="result-subtitle">处置建议</view>
+          <view wx:for="{{toolResult.recommendations}}" wx:key="id" class="font-body-sm text-on-surface-variant mt-xs">· {{item.text}}</view>
+        </view>
+        <view wx:if="{{toolResult.safetyNotice}}" class="safety-note">{{toolResult.safetyNotice}}</view>
+        <view class="font-code-sm text-muted mt-xs">视觉引擎：{{toolResult.engine || '未标注'}}</view>
+      </view>
+
+      <view class="sheet-bottom-space"></view>
+    </scroll-view>
+  </view>
+</view>
