@@ -59,7 +59,9 @@ function prune(backupDir: string, keepN: number) {
     .readdirSync(backupDir)
     .filter((f) => new RegExp(`^${PREFIX}-.*\\.tar\\.gz$`).test(f))
     .map((f) => ({ f, t: fs.statSync(path.join(backupDir, f)).mtimeMs }))
-    .sort((a, b) => b.t - a.t);
+    // mtime 相同（同一次写入落在同一时钟刻度）时按文件名倒序兜底：
+    // 文件名本身是 ISO 时间戳，阅读顺序=新旧顺序；否则清理谁取决于目录枚举顺序。
+    .sort((a, b) => b.t - a.t || b.f.localeCompare(a.f));
   for (const { f } of files.slice(keepN)) {
     fs.rmSync(path.join(backupDir, f), { force: true });
     logger.info(`[Shutdown][snapshot] 已删除过期留底: ${f}`);
