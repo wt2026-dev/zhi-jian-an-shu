@@ -78,7 +78,11 @@ function normalizeHttpError(payload, statusCode) {
 function request(options) {
   const opts = options || {};
   const token = getToken();
-  const header = Object.assign({ 'content-type': 'application/json' }, opts.header || {});
+  // 后端启用 ETag，重复 GET 会返回 304；小程序请求层无法拿到缓存体，统一要求服务端回 200 全量数据
+  const header = Object.assign(
+    { 'content-type': 'application/json', 'cache-control': 'no-cache', pragma: 'no-cache' },
+    opts.header || {}
+  );
   if (token) header.Authorization = 'Bearer ' + token;
 
   return new Promise((resolve, reject) => {
