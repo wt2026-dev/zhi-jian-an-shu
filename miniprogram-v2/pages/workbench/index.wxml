@@ -1,0 +1,345 @@
+<!-- pages/workbench/index.wxml -->
+<view class="solar-page-container">
+  <!-- 背景光晕层 (Solar-Punk 光辉) -->
+  <view class="ambient-glow-wrapper">
+    <view class="glow-top-gold"></view>
+    <view class="glow-mid-cyan"></view>
+    <view class="glow-bottom-blue"></view>
+    <view class="hex-mesh-bg"></view>
+  </view>
+
+  <!-- 页面主体内容 (留足 tab 栏安全区) -->
+  <scroll-view scroll-y class="tab-page-content" enable-flex>
+    <view class="px-page py-sm">
+
+      <!-- 0. 顶部微型环境状态指示条 -->
+      <view class="flex items-center justify-between mb-sm">
+        <view class="flex items-center gap-xs">
+          <view class="led-dot led-pulse-cyan"></view>
+          <text class="font-code-sm text-on-surface-variant">后端实时数据 · {{updatedAtText}}</text>
+        </view>
+        <view class="chip {{loadError ? 'chip-critical' : 'chip-cyan'}}">
+          <text class="font-code-sm">{{loadError ? '连接异常' : (loading ? '同步中…' : '已连接服务')}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{loadError}}" class="glass-card p-sm mb-sm">
+        <text class="font-body-sm text-error">{{loadError}}</text>
+        <view class="mt-xs" bindtap="handleRefresh">
+          <text class="font-code-sm text-primary font-bold">点击重试</text>
+        </view>
+      </view>
+
+      <!-- 1. 顶部三联遥测流胶囊卡片 (Telemetry Capsule Grid) -->
+      <view class="capsule-grid mb-md">
+        <!-- 胶囊 1: 健康度 -->
+        <view class="glass-card capsule-card">
+          <view class="flex items-center justify-between">
+            <text class="font-code-sm text-on-surface-variant">健康度</text>
+            <text class="chip-badge chip-blue">{{healthLevel}}</text>
+          </view>
+          <view class="flex items-baseline gap-xs my-xs">
+            <text class="font-headline-lg text-on-surface">{{healthDisplay}}</text>
+            <text wx:if="{{healthIsNumber}}" class="font-code-sm text-secondary">%</text>
+          </view>
+          <view class="progress-bar-bg">
+            <view class="progress-bar-fill-cyan" style="width: {{healthPercent}}%;"></view>
+          </view>
+          <text class="font-body-sm text-muted mt-xs">设备健康均值（仅已评估设备）</text>
+        </view>
+
+        <!-- 胶囊 2: 点检任务 -->
+        <view class="glass-card capsule-card" bindtap="goToInspections">
+          <view class="flex items-center justify-between">
+            <text class="font-code-sm text-on-surface-variant">巡检任务</text>
+            <text class="chip-badge chip-cyan">{{metricsLoaded ? metrics.inspectionRate : '—'}}%</text>
+          </view>
+          <view class="flex items-baseline gap-xs my-xs">
+            <text class="font-headline-lg text-on-surface">{{metricsLoaded ? metrics.inspectionCompleted : '—'}}</text>
+            <text class="font-code-sm text-on-surface-variant">/ {{metricsLoaded ? metrics.inspectionTotal : '—'}} 批次</text>
+          </view>
+          <view class="progress-bar-bg">
+            <view class="progress-bar-fill-gold" style="width: {{inspectionProgress}}%;"></view>
+          </view>
+          <text class="font-body-sm text-muted mt-xs">异常点位 {{metricsLoaded ? metrics.inspectionAbnormal : '—'}} 个</text>
+        </view>
+
+        <!-- 胶囊 3: 异常告警 -->
+        <view class="glass-card capsule-card" bindtap="handleDispatchNow">
+          <view class="flex items-center justify-between">
+            <text class="font-code-sm text-on-surface-variant">异常告警</text>
+            <text class="chip-badge chip-critical">{{abnormalCount}} 台</text>
+          </view>
+          <view class="flex items-baseline gap-xs my-xs">
+            <text class="font-headline-lg text-error">{{metricsLoaded ? metrics.workOrderUrgent : '—'}}</text>
+            <text class="font-code-sm text-error">紧急工单</text>
+          </view>
+          <view class="progress-bar-bg">
+            <view style="height:100%; border-radius:999rpx; background: #ef4444; width: {{urgentPercent}}%;"></view>
+          </view>
+          <text class="font-body-sm text-muted mt-xs">待处理隐患 {{metricsLoaded ? metrics.hazardsPending : '—'}} 项</text>
+        </view>
+      </view>
+
+      <!-- 2. 严重紧急告警运营横幅 (Emergency Operational Broadcast Banner) -->
+      <view wx:if="{{primaryAlert}}" class="glass-card urgent-banner mb-md">
+        <view class="urgent-left-stripe"></view>
+        <view class="urgent-header">
+          <view class="urgent-icon-box">
+            <text class="urgent-icon-txt">⚠️</text>
+          </view>
+          <view class="flex-1 min-w-0">
+            <view class="flex items-center gap-xs">
+              <text class="font-code-sm text-error font-bold">{{primaryAlert.severityLabel}} · {{primaryAlert.abnormalType}}</text>
+              <text class="font-code-sm text-muted truncate">{{primaryAlert.workshop}}</text>
+            </view>
+            <view class="font-title-md text-on-surface font-bold mt-xs truncate">{{primaryAlert.equipmentName}}</view>
+            <view class="font-code-sm text-primary mt-xs">{{primaryAlert.equipmentCode}}</view>
+          </view>
+        </view>
+
+        <!-- 读数与门限 -->
+        <view class="inner-well px-page py-sm flex items-center justify-between mt-sm">
+          <view class="flex items-center gap-xs">
+            <text class="font-code-sm text-primary">{{primaryAlert.metricLabel}}:</text>
+            <text class="font-mono-md text-error font-bold">{{primaryAlert.metricValue}}</text>
+          </view>
+          <text class="font-code-sm text-muted">健康分: {{primaryAlert.healthDisplay}}</text>
+        </view>
+        <view class="font-body-sm text-on-surface-variant mt-sm">{{primaryAlert.detail}}</view>
+        <view class="font-code-sm text-muted mt-xs">最近巡检: {{primaryAlert.lastInspectionText}}</view>
+
+        <!-- 操作按钮组 -->
+        <view class="flex items-center gap-sm mt-sm">
+          <button class="btn-primary flex-1" bindtap="handleDispatchNow">
+            <text>前往工单处理 →</text>
+          </button>
+          <button class="btn-secondary" bindtap="handleRefresh">
+            <text>刷新数据</text>
+          </button>
+        </view>
+      </view>
+
+      <view wx:elif="{{abnormalLoaded}}" class="glass-card p-md mb-md">
+        <text class="font-title-md text-on-surface">当前无健康异常设备</text>
+        <view class="font-body-sm text-muted mt-xs">后端 cockpit/abnormal-equipments 暂无健康类异常记录。</view>
+      </view>
+
+      <!-- 2.5 异常设备清单 -->
+      <view class="glass-card section-card mb-md">
+        <view class="flex items-center justify-between mb-sm">
+          <view class="font-headline-sm text-on-surface">异常设备清单</view>
+          <text class="chip-badge chip-gold">{{abnormalCount}} 台</text>
+        </view>
+        <block wx:for="{{abnormal}}" wx:key="key">
+          <view class="inner-well p-sm mb-xs" data-index="{{index}}" bindtap="handleAbnormalClick">
+            <view class="flex items-center justify-between">
+              <text class="font-title-md text-on-surface font-bold">{{item.equipmentName}}</text>
+              <text class="chip-badge {{item.severityClass}}">{{item.severityLabel}}</text>
+            </view>
+            <view class="font-code-sm text-muted mt-xs">{{item.equipmentCode}} · {{item.workshop}}</view>
+            <view class="font-body-sm text-on-surface-variant mt-xs">{{item.abnormalType}}：{{item.detail}}</view>
+            <view class="flex items-center justify-between mt-xs">
+              <text class="font-code-sm text-primary">{{item.metricLabel}} {{item.metricValue}}</text>
+              <text class="font-code-sm {{item.healthIsNumber ? 'text-on-surface' : 'text-muted'}}">健康分 {{item.healthDisplay}}</text>
+            </view>
+            <view class="font-code-sm text-muted mt-xs">最近巡检: {{item.lastInspectionText}} · 点击登记报修</view>
+          </view>
+        </block>
+        <view wx:if="{{abnormalLoaded && abnormalCount === 0}}" class="font-body-sm text-muted">暂无异常设备。</view>
+        <view wx:if="{{!abnormalLoaded}}" class="font-body-sm text-muted">异常设备加载中…</view>
+      </view>
+
+      <!-- 3. 四大核心业务模块卡片组 -->
+
+      <!-- 卡片 A: 设备资产管控 -->
+      <view class="glass-card section-card mb-md">
+        <view class="flex items-center justify-between mb-sm">
+          <view class="flex items-center gap-sm">
+            <view class="module-icon-box bg-gold-subtle">
+              <text class="icon-sym text-gold">⚙️</text>
+            </view>
+            <view>
+              <view class="font-headline-sm text-on-surface">设备资产管控</view>
+              <view class="font-code-sm text-muted">资产全生命周期与健康监测</view>
+            </view>
+          </view>
+          <view class="flex items-center text-primary">
+            <text class="font-code-sm font-bold">设备总数 ({{metricsLoaded ? metrics.equipmentTotal : '—'}})</text>
+          </view>
+        </view>
+
+        <view class="grid-2x2">
+          <view class="inner-well p-sm flex flex-col justify-between">
+            <view class="flex items-center justify-between">
+              <text class="icon-sub text-secondary">📈</text>
+              <text class="chip-badge chip-blue">{{metricsLoaded ? metrics.equipmentNormal : '—'}} 台</text>
+            </view>
+            <view class="mt-sm">
+              <view class="font-title-md text-on-surface">正常运行</view>
+              <view class="font-body-sm text-muted">后端设备状态为 normal/running</view>
+            </view>
+          </view>
+          <view class="inner-well p-sm flex flex-col justify-between">
+            <view class="flex items-center justify-between">
+              <text class="icon-sub text-tertiary">💓</text>
+              <view class="led-dot led-pulse-cyan"></view>
+            </view>
+            <view class="mt-sm">
+              <view class="font-title-md text-on-surface">健康度均值</view>
+              <view class="font-body-sm text-muted">{{healthDisplay}}{{healthIsNumber ? '%' : ''}} · {{healthLevel}}</view>
+            </view>
+          </view>
+          <view class="inner-well p-sm flex flex-col justify-between">
+            <view class="flex items-center justify-between">
+              <text class="icon-sub text-error">🛠️</text>
+              <text class="chip-badge chip-critical">{{metricsLoaded ? metrics.equipmentFaulty : '—'}} 台</text>
+            </view>
+            <view class="mt-sm">
+              <view class="font-title-md text-on-surface">故障 / 检修中</view>
+              <view class="font-body-sm text-muted">来自设备台账实时状态</view>
+            </view>
+          </view>
+          <view class="inner-well p-sm flex flex-col justify-between">
+            <view class="flex items-center justify-between">
+              <text class="icon-sub text-error">📦</text>
+              <text class="chip-badge chip-critical">{{metricsLoaded ? metrics.sparePartsLowStock : '—'}} 项低库存</text>
+            </view>
+            <view class="mt-sm">
+              <view class="font-title-md text-on-surface">备件库存</view>
+              <view class="font-body-sm text-muted">共 {{metricsLoaded ? metrics.sparePartsTotal : '—'}} 种备件</view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 卡片 B: 现场维保作业 -->
+      <view class="glass-card section-card mb-md">
+        <view class="flex items-center justify-between mb-sm">
+          <view class="flex items-center gap-sm">
+            <view class="module-icon-box bg-cyan-subtle">
+              <text class="icon-sym text-cyan">🛠️</text>
+            </view>
+            <view>
+              <view class="font-headline-sm text-on-surface">现场维保作业</view>
+              <view class="font-code-sm text-muted">巡检执行与工单闭环</view>
+            </view>
+          </view>
+          <text class="chip-badge chip-blue">{{metricsLoaded ? metrics.workOrderRate : '—'}}%</text>
+        </view>
+
+        <view class="inner-well p-sm mb-sm">
+          <view class="flex items-center justify-between mb-xs">
+            <text class="font-body-md text-on-surface font-bold">巡检完成进度</text>
+            <text class="font-code-sm text-muted">{{metricsLoaded ? metrics.inspectionCompleted : '—'}} / {{metricsLoaded ? metrics.inspectionTotal : '—'}} 批次 ({{metricsLoaded ? metrics.inspectionRate : '—'}}%)</text>
+          </view>
+          <view class="progress-bar-bg" style="height: 16rpx;">
+            <view class="progress-bar-fill-cyan" style="width: {{inspectionProgress}}%;"></view>
+          </view>
+        </view>
+
+        <view class="micro-stats-row">
+          <view class="inner-well text-center py-xs">
+            <view class="font-mono-lg text-on-surface">{{metricsLoaded ? metrics.workOrderCompleted : '—'}}</view>
+            <view class="font-body-sm text-muted mt-xs">完工工单</view>
+          </view>
+          <view class="inner-well text-center py-xs">
+            <view class="font-mono-lg text-secondary">{{metricsLoaded ? metrics.hazardsPending : '—'}}</view>
+            <view class="font-body-sm text-muted mt-xs">待处理隐患</view>
+          </view>
+          <view class="inner-well text-center py-xs">
+            <view class="font-mono-lg text-tertiary">{{metricsLoaded ? metrics.inspectionAbnormal : '—'}}</view>
+            <view class="font-body-sm text-muted mt-xs">巡检异常点</view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 卡片 C: 安全与合规管控 -->
+      <view class="glass-card section-card mb-md">
+        <view class="flex items-center justify-between mb-sm">
+          <view class="flex items-center gap-sm">
+            <view class="module-icon-box bg-emerald-subtle">
+              <text class="icon-sym text-success">🛡️</text>
+            </view>
+            <view>
+              <view class="font-headline-sm text-on-surface">安全与合规管控</view>
+              <view class="font-code-sm text-muted">安全挂锁与隐患台账</view>
+            </view>
+          </view>
+          <view class="chip chip-nominal">
+            <text class="font-code-sm">实时台账</text>
+          </view>
+        </view>
+
+        <view class="grid-2col mb-sm">
+          <view class="inner-well p-sm">
+            <view class="flex items-center justify-between">
+              <text class="font-title-md text-on-surface">LOTO 受控锁</text>
+              <text>🔒</text>
+            </view>
+            <view class="flex items-baseline gap-xs mt-sm">
+              <text class="font-mono-lg text-on-surface">{{lotoLoaded ? lotoActive : '—'}}</text>
+              <text class="font-body-sm text-muted">把锁定中 / 共 {{lotoLoaded ? lotoTotal : '—'}} 把</text>
+            </view>
+          </view>
+
+          <view class="inner-well p-sm">
+            <view class="flex items-center justify-between">
+              <text class="font-title-md text-on-surface">重大隐患</text>
+              <text>⚖️</text>
+            </view>
+            <view class="flex items-baseline gap-xs mt-sm">
+              <text class="font-mono-lg text-error">{{metricsLoaded ? metrics.hazardsMajor : '—'}}</text>
+              <text class="font-body-sm text-muted">项待处理</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="inner-well p-xs px-sm flex items-center justify-between">
+          <view class="flex items-center gap-xs">
+            <text>⚠️</text>
+            <text class="font-body-sm text-on-surface truncate">待处理隐患合计 {{metricsLoaded ? metrics.hazardsPending : '—'}} 项</text>
+          </view>
+          <text class="chip-badge chip-cyan">cockpit/metrics</text>
+        </view>
+      </view>
+
+      <!-- 卡片 D: 工业智库与大模型 -->
+      <view class="glass-card section-card mb-lg">
+        <view class="flex items-center justify-between mb-sm">
+          <view class="flex items-center gap-sm">
+            <view class="module-icon-box bg-gold-subtle">
+              <text class="icon-sym text-gold">🧠</text>
+            </view>
+            <view>
+              <view class="font-headline-sm text-on-surface">工业智库与大模型</view>
+              <view class="font-code-sm text-muted">AI 调用 {{metricsLoaded ? metrics.aiCallsTotal : '—'}} 次 · 图谱 {{graphLoaded ? graphNodeCount : '—'}} 实体 / {{graphLoaded ? graphEdgeCount : '—'}} 关系</view>
+            </view>
+          </view>
+          <text>📖</text>
+        </view>
+
+        <view class="inner-well p-sm flex items-center gap-sm mb-sm" bindtap="goToAIAssistant">
+          <text class="text-gold">🔍</text>
+          <text class="font-body-md text-muted flex-1 truncate">向 AI 助手提问故障诊断、检修规程与安全要求…</text>
+          <text class="text-secondary">🎙️</text>
+        </view>
+
+        <view class="flex flex-wrap gap-xs">
+          <block wx:for="{{quickTags}}" wx:key="*this">
+            <view class="quick-tag" data-tag="{{item}}" bindtap="handleTagClick">
+              <text class="font-code-sm">{{item}}</text>
+            </view>
+          </block>
+        </view>
+      </view>
+
+    </view>
+  </scroll-view>
+
+  <!-- 悬浮 AI 助手 FAB 按钮 -->
+  <view class="fab-ai" bindtap="goToAIAssistant">
+    <text style="font-size: 44rpx;">✨</text>
+    <view class="fab-pulse-dot"></view>
+  </view>
+</view>
