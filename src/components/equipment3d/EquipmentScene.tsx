@@ -20,7 +20,7 @@ import {
   Sparkles, Sun, Triangle, Wand2, X, Grid3x3, Waves, AlertTriangle, WifiOff,
   Loader2, Cpu, Wrench, Shield, User, Monitor, Building2, CircleDot,
 } from 'lucide-react';
-import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type EquipmentPoint, type ExplodedOrderStep, type SpareProcurePrefill } from '../../api';
+import { equipmentApi, workOrderApi, explodedViewApi, type EquipmentPoint, type ExplodedOrderStep, type SpareProcurePrefill } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
 import { useOptionalAuth } from '../../context/AuthContext';
@@ -66,6 +66,7 @@ import { useWorkOrderActions } from './useWorkOrderActions';
 import { useFacilityNavigation } from './useFacilityNavigation';
 import { useCleanMode } from './useCleanMode';
 import { useWorkerLayer } from './useWorkerLayer';
+import { useSceneOverlays } from './useSceneOverlays';
 import { CleanModePill } from './CleanModePill';
 
 /* ========================= 组件 ========================= */
@@ -184,7 +185,6 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
 
   // ---- 安全边界可视化 ----
   const [showSafetyBoundary, setShowSafetyBoundary] = useState(true);
-  const safetyDataRef = useRef<Map<string, { permits: any[]; locks: any[] }>>(new Map());
 
   // ---- 故障定位环（红色脉冲环 / 绿色恢复环）总开关，默认开 ----
   // 它是"哪台设备哪里坏了"的第一视觉线索，属于常开层；其余彩色层默认收敛。
@@ -194,15 +194,9 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
   // ---- 纯净模式 Hook：管理 cleanMode 状态与全局外围板块显隐 ----
   const { cleanMode, setCleanMode } = useCleanMode(explodedHtmlDeviceId);
 
-  // ---- 超限观测 ----
-  /** 预取全量遥测缓存（16 台最新48h），避免每次选中都重拉 */
-  const allTelemetryRef = useRef<Map<string, any[]>>(new Map());
-
   // ---- 人员与工位动线（hook：useWorkerLayer，见 useWorkerLayer.ts） ----
   const { showWorkers, setShowWorkers, technicians, trajectoryRef, workerLayerBuiltRef } =
     useWorkerLayer({ sceneRef, selectedId, recentOrders });
-  /** 坐标映射是否已建立 */
-  const coordMapReadyRef = useRef(false);
 
   // ---- 三级层级（厂区 / 车间 / 单设备）与分区读数自持在 useFacilityNavigation（调用点见 1.8） ----
   // ---- 生产线开关 ----
@@ -287,110 +281,21 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     [equipments, selectedId]
   );
 
-  /* ---------- 1.2 拉取安全许可证 + LOTO 锁具 → 安全边界3D数据 ---------- */
-  useEffect(() => {
-    let alive = true;
-    async function fetch() {
-      try {
-        const [permits, locks] = await Promise.all([
-          safetyPermitApi.list({}),
-          safetyPermitApi.getLotoLocks({ status: 'locked' }),
-        ]);
-        if (!alive) return;
-        const pArr = Array.isArray(permits) ? permits : [];
-        const lArr = Array.isArray(locks) ? locks : [];
+  // ---- 场景数据叠层（安全边界 / 故障链 / 遥测预取 / 坐标映射，hook：useSceneOverlays） ----
+  const { allTelemetryRef } = useSceneOverlays({
+    sceneRef,
+    equipments,
+    showSafetyBoundary,
+    showFaultLocator,
+    ready,
+    selectedId,
+    telemetry,
+    recentOrders,
+    cardLoading,
+    isolationId,
+  });
 
-        // permitNo → equipmentId 映射（LOTO 锁具通过 permitNo 关联许可证，许可证再关联设备）
-        const permitToEq = new Map<string, string>();
-        for (const p of pArr) {
-          if (p.permitNo && p.equipmentId) permitToEq.set(p.permitNo, p.equipmentId);
-        }
-
-        const map = new Map<string, { permits: typeof pArr; locks: typeof lArr }>();
-        for (const p of pArr) {
-          if (!p.equipmentId) continue;
-          if (!map.has(p.equipmentId)) map.set(p.equipmentId, { permits: [], locks: [] });
-          map.get(p.equipmentId)!.permits.push(p);
-        }
-        for (const lk of lArr) {
-          const eqId = lk.permitNo ? permitToEq.get(lk.permitNo) : undefined;
-          if (!eqId) continue;
-          if (!map.has(eqId)) map.set(eqId, { permits: [], locks: [] });
-          map.get(eqId)!.locks.push(lk);
-        }
-        safetyDataRef.current = map;
-        sceneRef.current?.buildSafetyBoundaries(map);
-        sceneRef.current?.setSafetyBoundaryVisible(showSafetyBoundary);
-      } catch {
-        logger.warn('[equipment3d] 安全数据获取失败，跳过安全边界');
-      }
-    }
-    fetch();
-    return () => { alive = false; };
-  }, [equipments]);
-
-  /** 安全边界开关切换时即时更新场景 */
-  useEffect(() => {
-    sceneRef.current?.setSafetyBoundaryVisible(showSafetyBoundary);
-  }, [showSafetyBoundary]);
-
-  /**
-   * 故障定位环开关：随开关即时生效。
-   * 依赖里带上 ready —— 场景是异步构建的，首帧 ready 之前 sceneRef 还是 null；
-   * 重建（换画质/预设）后也要把当前开关状态重新推一次，否则会回到默认可见。
-   */
-  useEffect(() => {
-    sceneRef.current?.setFaultLocatorVisible(showFaultLocator);
-  }, [showFaultLocator, ready]);
-
-  /* ---------- 1.3 预取全量遥测 → 超限观测缓存 ---------- */
-  useEffect(() => {
-    if (equipments.length === 0) return;
-    let alive = true;
-    // 并发拉取16台最新48h遥测（任一失败不影响其它）
-    Promise.allSettled(
-      equipments.map((eq) =>
-        equipmentApi.getTelemetryHistory(eq.id, 48).then((r) => {
-          const pts = (r as any)?.points;
-          if (alive && Array.isArray(pts)) allTelemetryRef.current.set(eq.id, pts);
-        }),
-      ),
-    ).catch(() => { /* swallow */ });
-    return () => { alive = false; };
-  }, [equipments]);
-
-  /* ---------- 1.4 选中设备时构建超限观测（设备详情层除外） ---------- */
-  useEffect(() => {
-    const scene = sceneRef.current;
-    // 「场景密度优先」口径：单台聚焦（设备详情层）里不允许任何 3D 飘字，
-    // 超限观测链的浮空文字标签只在车间层展示。
-    if (!selectedId || !scene || cardLoading || isolationId) {
-      scene?.clearFaultChain();
-      return;
-    }
-    // 等 telemetry + recentOrders 就绪后再构建
-    const pts = allTelemetryRef.current.get(selectedId) ?? null;
-    if (pts && pts.length > 0) {
-      scene.buildFaultChain(selectedId, pts, recentOrders);
-    } else if (telemetry?.points && telemetry.points.length > 0) {
-      scene.buildFaultChain(selectedId, telemetry.points, recentOrders);
-    } else {
-      scene.clearFaultChain();
-    }
-  }, [selectedId, telemetry, recentOrders, cardLoading, isolationId]);
-
-  /* ---------- 1.5 建立坐标映射（挂载时一次性） ---------- */
-  useEffect(() => {
-    if (coordMapReadyRef.current) return;
-    dispatchApi.board().then((r: any) => {
-      if (r?.equipmentPoints && Array.isArray(r.equipmentPoints)) {
-        sceneRef.current?.setCoordMap(r.equipmentPoints);
-        coordMapReadyRef.current = true;
-      }
-    }).catch(() => { /* 静默 */ });
-  }, []);
-
-  /* ---------- 1.6 / 1.7 人员动线（轮询 + 选中重建）已迁至 useWorkerLayer ---------- */
+  /* ---------- 1.2 ~ 1.5 场景数据叠层（安全边界 / 故障链 / 遥测预取 / 坐标映射）已迁至 useSceneOverlays ---------- */
 
   const { deviceOrderMap, orderCounts } = useMemo(() => {
     const map = new Map<string, WorkOrderIndicatorStatus>();
