@@ -51,6 +51,7 @@ import { setGeoLod } from './parts';
 import { clamp } from './rand';
 import { FluidFlowSystem } from './fluidFlow';
 import type { PartTelemetry } from './partEvidence';
+import type { WorkOrderIndicatorStatus } from './sceneWorkOrderRings';
 import { ProductionLine, type DeviceAnchor, type ProductionLineOptions } from './productionLine';
 import { WorkshopDetails, type DetailDeviceAnchor } from './workshopDetails';
 import {
@@ -69,6 +70,7 @@ import { DeviceDetailEnv, type DeviceDetailEnvBox } from './deviceDetailEnv';
 import { computeIsolatedFraming, computeFitDistance } from './cameraFraming';
 import { CameraRig } from './cameraRig';
 import { ScenePostFx } from './scenePostFx';
+import { SceneWorkOrderRings } from './sceneWorkOrderRings';
 import {
   FocusSceneDecor,
   type FocusDecorData,
@@ -122,7 +124,7 @@ export type ScenePickResult =
 
 export type ViewKey = 'orbit' | 'overhead' | 'iso' | 'closeup';
 
-export type WorkOrderIndicatorStatus = 'pending' | 'in_progress' | 'completed';
+export type { WorkOrderIndicatorStatus } from './sceneWorkOrderRings';
 
 export interface SceneParams {
   presetId: string;
@@ -240,34 +242,6 @@ export class EquipmentScene {
   /** 生产线当前几何对应的厂房尺寸键，尺寸变了才重建 */
   private lineKey = '';
 
-  // 工单状态指示环（共享几何体与红/黄/绿基础材质）
-  private workOrderRingGeo: THREE.RingGeometry | null = null;
-  private ringMatPending = new THREE.MeshBasicMaterial({
-    color: 0xef4444,
-    transparent: true,
-    opacity: 0.8,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  private ringMatInProgress = new THREE.MeshBasicMaterial({
-    color: 0xf59e0b,
-    transparent: true,
-    opacity: 0.8,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  private ringMatCompleted = new THREE.MeshBasicMaterial({
-    color: 0x10b981,
-    transparent: true,
-    opacity: 0.85,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  private workOrderRings = new Map<string, { mesh: THREE.Mesh; status: WorkOrderIndicatorStatus; baseScale: number }>();
-  private currentWorkOrderMap = new Map<string, WorkOrderIndicatorStatus>();
 
   private sun: THREE.DirectionalLight | null = null;
   private hemi: THREE.HemisphereLight | null = null;
@@ -338,6 +312,7 @@ export class EquipmentScene {
   // 取景编排（framePreset/setView/frameIsolated…）留在本类，只写 rig.state 目标值。
   private rig: CameraRig;
   private postFx: ScenePostFx;
+  private orderRings: SceneWorkOrderRings;
 
   private resizeObserver: ResizeObserver | null = null;
   private onWindowResize = () => this.resize();
@@ -388,6 +363,7 @@ export class EquipmentScene {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.6, 2600);
     this.postFx = new ScenePostFx(container, this.renderer, this.scene, this.camera);
+    this.orderRings = new SceneWorkOrderRings(this.workOrderGroup);
     this.rig = new CameraRig(this.camera, () => {
       if (this.isolationId && this.scene.fog) {
         const box = this.equipment?.boxById.get(this.isolationId);
@@ -421,7 +397,7 @@ export class EquipmentScene {
     this.initLights();
     this.initHelpers();
     this.initSelectionRing();
-    this.initWorkOrderRings();
+    this.orderRings.init();
     this.bindControls();
 
     this.resize();
@@ -705,87 +681,14 @@ export class EquipmentScene {
     this.helperGroup.add(ring);
   }
 
-  private initWorkOrderRings(): void {
-    const geo = new THREE.RingGeometry(0.85, 1.0, 48);
-    geo.rotateX(-Math.PI / 2);
-    geo.userData.shared = true;
-    this.workOrderRingGeo = geo;
-  }
 
   /**
-   * 设置工单状态指示环（设备级）
-   * 映射表：equipmentId -> 'pending' | 'in_progress' | 'completed'
+   * 设置工单状态指示环（设备级）：映射表 equipmentId -> 'pending' | 'in_progress' | 'completed'。
+   * 实现委托给 sceneWorkOrderRings 域（sceneWorkOrderRings.ts）。
    */
   setWorkOrderIndicators(deviceStatusMap: Map<string, WorkOrderIndicatorStatus>): void {
-    this.currentWorkOrderMap = new Map(deviceStatusMap);
-    this.rebuildWorkOrderRings();
-  }
-
-  /**
-   * 重建工单状态指示环实例
-   */
-  private rebuildWorkOrderRings(): void {
-    while (this.workOrderGroup.children.length > 0) {
-      const child = this.workOrderGroup.children[0];
-      this.workOrderGroup.remove(child);
-    }
-    this.workOrderRings.clear();
-
-    if (!this.equipment || !this.hall || !this.workOrderRingGeo) return;
-
-    this.currentWorkOrderMap.forEach((status, id) => {
-      const idx = this.equipment?.indexById.get(id);
-      if (typeof idx !== 'number' || !this.slots[idx]) return;
-
-      const slot = this.slots[idx];
-      const y = this.hall ? this.hall.reliefAt(slot.x, slot.z) : 0;
-
-      let mat: THREE.MeshBasicMaterial;
-      if (status === 'pending') {
-        mat = this.ringMatPending;
-      } else if (status === 'in_progress') {
-        mat = this.ringMatInProgress;
-      } else {
-        mat = this.ringMatCompleted;
-      }
-
-      const mesh = new THREE.Mesh(this.workOrderRingGeo!, mat);
-      mesh.position.set(slot.x, y + 0.05, slot.z);
-      const baseScale = slot.radius * 2.25;
-      mesh.scale.setScalar(baseScale);
-      mesh.name = `workOrderRing_${id}`;
-      this.workOrderGroup.add(mesh);
-      this.workOrderRings.set(id, { mesh, status, baseScale });
-    });
-  }
-
-  /**
-   * 工单指示环脉冲动画（整合进已有 RAF 动画循环中）
-   */
-  private animateWorkOrderRings(time: number): void {
-    if (this.workOrderRings.size === 0) return;
-
-    // 呼吸灯正弦波动：待检修(红)较快，检修中(黄)节奏更慢，已完成(绿)常亮
-    const pendingPulse = Math.sin(time * 3.5);
-    const inProgressPulse = Math.sin(time * 1.8);
-
-    // 动态调整透明度（幅度克制，不刺眼）
-    this.ringMatPending.opacity = 0.55 + 0.35 * pendingPulse;
-    this.ringMatInProgress.opacity = 0.6 + 0.3 * inProgressPulse;
-    this.ringMatCompleted.opacity = 0.85;
-
-    const pendingScaleMult = 1.0 + 0.08 * pendingPulse;
-    const progScaleMult = 1.0 + 0.05 * inProgressPulse;
-
-    this.workOrderRings.forEach(({ mesh, status, baseScale }) => {
-      if (status === 'pending') {
-        mesh.scale.setScalar(baseScale * pendingScaleMult);
-      } else if (status === 'in_progress') {
-        mesh.scale.setScalar(baseScale * progScaleMult);
-      } else {
-        mesh.scale.setScalar(baseScale);
-      }
-    });
+    this.orderRings.setWorkOrderIndicators(deviceStatusMap);
+    this.orderRings.rebuildWorkOrderRings(this.equipment, this.hall, this.slots);
   }
 
   /* ========================= 安全边界可视化 ========================= */
@@ -1354,7 +1257,7 @@ export class EquipmentScene {
       this.isolationId = null;
     }
     this.refreshSelection();
-    this.rebuildWorkOrderRings();
+    this.orderRings.rebuildWorkOrderRings(this.equipment, this.hall, this.slots);
     this.fluidFlow.updateSlots(this.slots, this.devices, (x, z) => this.hall ? this.hall.reliefAt(x, z) : 0, preset.morphology.equipmentScale);
     this.fluidFlow.setVisible(params.fluidFlow ?? true);
 
@@ -2634,7 +2537,7 @@ export class EquipmentScene {
       // 只更新"激活"的实例（running 才转、alert 才闪），静止设备零开销。
       this.animTime += dt;
       this.equipment?.animate(this.animTime);
-      this.animateWorkOrderRings(this.animTime);
+      this.orderRings.animateWorkOrderRings(this.animTime);
       this.animateFaultPropagation(this.animTime);
       this.animateSafetyBoundaries(this.animTime);
       this.animateWorkers(this.animTime, dt);
@@ -2728,16 +2631,8 @@ export class EquipmentScene {
     this.disposeFocusCallouts();
     this.faultLocator.dispose();
     this.safety.dispose();
-    this.workOrderRings.clear();
-    this.currentWorkOrderMap.clear();
+    this.orderRings.dispose();
     this.workOrderGroup.clear();
-    this.ringMatPending.dispose();
-    this.ringMatInProgress.dispose();
-    this.ringMatCompleted.dispose();
-    if (this.workOrderRingGeo) {
-      this.workOrderRingGeo.dispose();
-      this.workOrderRingGeo = null;
-    }
     this.fluidFlow?.dispose();
     this.scene.remove(this.root);
 
