@@ -32,6 +32,7 @@ function harness() {
     faultChain: new FaultChain(), workers: new WorkerFlow(), grid: new THREE.Group(), selectionRing: new THREE.Group(),
     fluidFlow: { setIsolation: vi.fn() }, fitRadius: 100,
     renderer: { setSize: vi.fn(), setPixelRatio: vi.fn() }, container: { clientWidth: 960, clientHeight: 600 },
+    postFx: { syncComposerSize: vi.fn(), isSoftwareRenderer: () => false },
   });
   for (const name of ['floor', 'apron', 'structure', 'lanes', 'piperacks']) {
     const obj = new THREE.Group(); obj.name = name; s.hallGroup.add(obj);

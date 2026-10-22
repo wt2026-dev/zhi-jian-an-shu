@@ -68,6 +68,7 @@ import { SafetyBoundaries, type SafetyAnchor } from './safetyBoundaries';
 import { DeviceDetailEnv, type DeviceDetailEnvBox } from './deviceDetailEnv';
 import { computeIsolatedFraming, computeFitDistance } from './cameraFraming';
 import { CameraRig } from './cameraRig';
+import { ScenePostFx } from './scenePostFx';
 import {
   FocusSceneDecor,
   type FocusDecorData,
@@ -336,20 +337,11 @@ export class EquipmentScene {
   // ---- 相机轨道（cameraRig.ts：轨道状态 + 指针/滚轮交互 + 每帧阻尼落位） ----
   // 取景编排（framePreset/setView/frameIsolated…）留在本类，只写 rig.state 目标值。
   private rig: CameraRig;
+  private postFx: ScenePostFx;
 
   private resizeObserver: ResizeObserver | null = null;
   private onWindowResize = () => this.resize();
 
-  /* ---- 后处理辉光（UnrealBloom）----
-   * high：全分辨率 bloom；medium：bloom 渲染目标减半；low / 软件渲染：不建 composer，直渲。
-   * 阈值经实测定为 1.6（线性 HDR 域，见 applyPostProcessing 注释），
-   * 让泛光只落在高亮爆点（扫描环、粒子、发光件）上，地面网格与暗部保持干净。 */
-  private composer: EffectComposer | null = null;
-  private bloomPass: UnrealBloomPass | null = null;
-  private composerQuality: QualityKey | null = null;
-  /* 护栏③探测态：phase=direct 时强制直渲采基线帧时，phase=bloom 走 composer。 */
-  private bloomProbe: { phase: 'direct' | 'bloom'; direct: number[]; bloom: number[] } | null = null;
-  private bloomStrengthCut = false;
 
   /* ---- 选中设备 emissive 高亮 ----
    * 设备主体材质跨台共享（instanceColor 管颜色），直接改 emissive 会点亮全场；
@@ -395,6 +387,7 @@ export class EquipmentScene {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.6, 2600);
+    this.postFx = new ScenePostFx(container, this.renderer, this.scene, this.camera);
     this.rig = new CameraRig(this.camera, () => {
       if (this.isolationId && this.scene.fog) {
         const box = this.equipment?.boxById.get(this.isolationId);
@@ -432,7 +425,7 @@ export class EquipmentScene {
     this.bindControls();
 
     this.resize();
-    this.applyPostProcessing();
+    this.postFx.applyPostProcessing(this.params.quality);
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.resize());
       this.resizeObserver.observe(container);
@@ -1089,116 +1082,10 @@ export class EquipmentScene {
     this.camera.updateProjectionMatrix();
     const box = this.focusedId ? this.equipment?.boxById.get(this.focusedId) : null;
     if (aspectChanged && box) this.frameIsolated(box, true);
-    this.syncComposerSize();
+    this.postFx.syncComposerSize();
     this.dirty = true;
   }
 
-  /* ========================= 后处理辉光 ========================= */
-
-  /**
-   * 软件渲染检测：SwiftShader/llvmpipe 下 bloom 的 mip 链每帧要几百毫秒
-   * （本项目 PMREM 在软渲染下就有前科），检测到即整体回退直渲。
-   */
-  private isSoftwareRenderer(): boolean {
-    try {
-      const gl = this.renderer.getContext();
-      const ext = gl.getExtension('WEBGL_debug_renderer_info');
-      const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
-      return /swiftshader|llvmpipe|software|basic render/i.test(name);
-    } catch {
-      return false;
-    }
-  }
-
-  /** 按画质档创建/重建 bloom 链；low 档与软件渲染保持直渲。幂等，可在 build() 里放心调。 */
-  private applyPostProcessing(): void {
-    const want = this.params.quality !== 'low' && !this.isSoftwareRenderer();
-    if (!want) {
-      this.disposeComposer();
-      return;
-    }
-    if (this.composer && this.composerQuality === this.params.quality) return;
-    this.disposeComposer();
-    const w = Math.max(1, this.container.clientWidth || 1);
-    const h = Math.max(1, this.container.clientHeight || 1);
-    const pr = this.renderer.getPixelRatio();
-    const composer = new EffectComposer(this.renderer);
-    composer.addPass(new RenderPass(this.scene, this.camera));
-    // ⚠️ threshold 实测取 1.6 而非资料常见的 0.8~0.9：RenderPass 输出到 HalfFloat RT，
-    // bloom 工作在**色调映射前的线性 HDR 域**，本项目白色机身（0xe9eef3 + sun1.2 + 环境 0.68）
-    // 线性亮度 ≈1.2~1.5，0.85 时整机糊成白团（截图对比见 scratch/bloom-th-*.png）。
-    // 1.6 只放过高光爆点、加性混合的扫描环/粒子/发光件，地面网格与暗部保持干净。
-    const bloom = new UnrealBloomPass(new THREE.Vector2(w * pr, h * pr), 0.55, 0.4, 1.6);
-    composer.addPass(bloom);
-    // OutputPass 放最后：RenderPass 渲染到 RT 时材质跳过色调映射，由它统一做
-    // ACES 曝光 + sRGB 输出，一次完成、不重复。
-    composer.addPass(new OutputPass());
-    this.composer = composer;
-    this.bloomPass = bloom;
-    this.composerQuality = this.params.quality;
-    this.syncComposerSize();
-    this.startBloomProbe();
-  }
-
-  private syncComposerSize(): void {
-    if (!this.composer) return;
-    const w = Math.max(1, this.container.clientWidth || 1);
-    const h = Math.max(1, this.container.clientHeight || 1);
-    this.composer.setPixelRatio(this.renderer.getPixelRatio());
-    this.composer.setSize(w, h);
-    // 均衡档 bloom 分辨率减半（性能护栏①）：composer.setSize 刚把 bloom 重置为
-    // 全尺寸，这里再传一半的有效像素尺寸（UnrealBloomPass 内部还会再 /2 建 mip）。
-    if (this.bloomPass && this.composerQuality === 'medium') {
-      const pr = this.renderer.getPixelRatio();
-      this.bloomPass.setSize(Math.round((w * pr) / 2), Math.round((h * pr) / 2));
-    }
-  }
-
-  /** 每次新建 bloom 链都跑一轮两阶段探测（各 30 帧），量化 bloom 的相对开销。 */
-  private startBloomProbe(): void {
-    this.bloomProbe = { phase: 'direct', direct: [], bloom: [] };
-  }
-
-  /**
-   * 性能护栏③：比较两阶段的平均"渲染调用耗时"。composer 期超过直渲期 1/0.7 倍
-   * （即 FPS 掉 30% 以上）→ 第一步 bloom 强度减半 + threshold 上调一档并复测；
-   * 复测仍超标 → 拆掉整链回直渲。"不允许好看但卡"。
-   */
-  private sampleBloomProbe(renderMs: number): void {
-    const p = this.bloomProbe;
-    if (!p) return;
-    if (!this.composer || !this.bloomPass) {
-      this.bloomProbe = null;
-      return;
-    }
-    if (p.phase === 'direct') {
-      p.direct.push(renderMs);
-      if (p.direct.length >= 30) p.phase = 'bloom';
-      return;
-    }
-    p.bloom.push(renderMs);
-    if (p.bloom.length < 30) return;
-    this.bloomProbe = null;
-    const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
-    const tDirect = Math.max(0.5, avg(p.direct));
-    if (avg(p.bloom) <= tDirect / 0.7) return;
-    if (!this.bloomStrengthCut) {
-      this.bloomStrengthCut = true;
-      this.bloomPass.strength *= 0.5;
-      this.bloomPass.threshold += 0.4;
-      this.startBloomProbe();
-    } else {
-      this.disposeComposer();
-    }
-  }
-
-  private disposeComposer(): void {
-    this.composer?.dispose();
-    this.composer = null;
-    this.bloomPass = null;
-    this.composerQuality = null;
-    this.bloomProbe = null;
-  }
 
   /* ========================= 构建管线 ========================= */
 
@@ -1430,7 +1317,7 @@ export class EquipmentScene {
     const triangles = this.countTriangles();
     this.resize();
     // 画质档可能在此切换（low↔medium/high），幂等重建 bloom 链
-    this.applyPostProcessing();
+    this.postFx.applyPostProcessing(this.params.quality);
 
     this.slotStatus = [];
     for (const p of this.picks) {
@@ -1986,7 +1873,7 @@ export class EquipmentScene {
         // ⚠️ 既有单测用 Object.create(prototype) 造精简实例，slots 可能未初始化
         rotationY: this.slots?.[box.index]?.angle ?? 0,
         // 软渲染（SwiftShader）与 low 画质：跳过阴影投射灯与部分小件
-        lowFx: this.params.quality === 'low' || this.isSoftwareRenderer(),
+        lowFx: this.params.quality === 'low' || this.postFx.isSoftwareRenderer(),
       });
       this.focusDecorGroup?.add(this.focusDecor.group);
     } catch (e) {
@@ -2078,7 +1965,7 @@ export class EquipmentScene {
       detail: q.detail,
       // ⚠️ 既有单测用 Object.create(prototype) 造精简实例，slots 可能未初始化
       rotationY: this.slots?.[box.index]?.angle ?? 0,
-      lowFx: this.params.quality === 'low' || this.isSoftwareRenderer(),
+      lowFx: this.params.quality === 'low' || this.postFx.isSoftwareRenderer(),
       // 测点气泡 + 五步闭环卡片是本层的硬要求（数据来自真实台账/遥测，缺测显示"—"）
       floatingLabels: true,
       dataOnly: true,
@@ -2779,10 +2666,8 @@ export class EquipmentScene {
       // 后处理链存在时走 composer（RenderPass→Bloom→OutputPass），否则直渲；
       // 护栏③的 direct 基线期强制直渲，故按渲染调用单独计时（不含 update）
       const tRender0 = performance.now();
-      const useComposer = this.composer !== null && (!this.bloomProbe || this.bloomProbe.phase === 'bloom');
-      if (useComposer) this.composer!.render();
-      else this.renderer.render(this.scene, this.camera);
-      this.sampleBloomProbe(performance.now() - tRender0);
+      this.postFx.renderFrame();
+      this.postFx.sampleBloomProbe(performance.now() - tRender0);
       this.trackFps(dt);
     };
     this.rafId = requestAnimationFrame(loop);
@@ -2882,7 +2767,7 @@ export class EquipmentScene {
     this.pmrem?.dispose();
     this.pmrem = null;
     this.scene.environment = null;
-    this.disposeComposer();
+    this.postFx.disposeComposer();
     this.applySelectionEmissive(null);
     this.bgParticles = null;
     this.particleSpeeds = null;

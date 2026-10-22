@@ -40,7 +40,7 @@ function harness() {
     focusDecor: null,
     focusBaseLights: null,
     moodBackup: null,
-    isSoftwareRenderer: () => true,
+    postFx: { isSoftwareRenderer: () => true },
   });
   s.ambient.intensity = 0.6;
   s.hemi.intensity = 0.7;
