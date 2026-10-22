@@ -24,7 +24,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Factory, Layers } from 'lucide-react';
 import type { Equipment } from '../../types';
-import type { FactoryZoneView } from './factoryOverview';
+import type { FactoryZoneView } from './factoryOverviewTypes';
 import { telemetryToStatus } from './statusMapping';
 
 export interface WorkshopZoneNavProps {

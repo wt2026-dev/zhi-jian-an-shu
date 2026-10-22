@@ -20,7 +20,7 @@
  * （A 区 / B 区 / C 区），不臆造"精密制造区"这类业务含义。
  */
 import type { Equipment, WorkOrder } from '../../types';
-import type { FactoryBuildingSpec, FactoryZoneSpec } from './factoryOverview';
+import type { FactoryBuildingSpec, FactoryZoneSpec } from './factoryOverviewTypes';
 import { aggregateZoneMetrics, estimateWorkshopMetrics } from './factoryMetrics';
 import { resolveBuildingType, selectHallWorkshops } from './factoryBuildingTypes';
 import { telemetryToStatus } from './statusMapping';

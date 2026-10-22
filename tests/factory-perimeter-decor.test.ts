@@ -17,7 +17,8 @@ import {
   attachPerimeterDecor,
   type PerimeterHost,
 } from '../src/components/equipment3d/factoryPerimeterDecor';
-import { FactoryOverview, type FactoryBuildingSpec } from '../src/components/equipment3d/factoryOverview';
+import { FactoryOverview } from '../src/components/equipment3d/factoryOverview';
+import { type FactoryBuildingSpec } from "../src/components/equipment3d/factoryOverviewTypes";;
 
 const specs: FactoryBuildingSpec[] = [
   { id: 'hall-1', name: '1 号厂房・动力一车间', workshopId: '动力一车间', zoneId: 'zone-a', deviceCount: 14 },

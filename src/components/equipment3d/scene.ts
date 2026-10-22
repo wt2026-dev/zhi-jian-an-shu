@@ -56,12 +56,14 @@ import { ProductionLine, type DeviceAnchor, type ProductionLineOptions } from '.
 import { WorkshopDetails, type DetailDeviceAnchor } from './workshopDetails';
 import {
   FactoryOverview,
+} from './factoryOverview';
+import {
   defaultBuildingSpecs,
   type FactoryBuildingSpec,
   type FactoryZoneSpec,
   type FactoryZoneView,
   type FactoryRankMetric,
-} from './factoryOverview';
+} from './factoryOverviewTypes';
 import { FaultLocator, type FaultAnchor } from './faultLocator';
 import { FaultChain } from './faultChain';
 import { WorkerFlow } from './workerFlow';

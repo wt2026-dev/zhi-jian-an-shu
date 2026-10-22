@@ -43,7 +43,7 @@ import {
 import type { Equipment, WorkOrder } from '../../types';
 import type { TelemetryHistory, TelemetryPoint } from './DeviceAnalysisPanel';
 import type { SceneLevel } from './scene';
-import type { FactoryRankMetric, FactoryZoneView } from './factoryOverview';
+import type { FactoryRankMetric, FactoryZoneView } from './factoryOverviewTypes';
 import {
   ESTIMATE_NOTE,
   estimateDeviceEnergyPerDay,

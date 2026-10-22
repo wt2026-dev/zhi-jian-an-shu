@@ -27,7 +27,8 @@ import {
   type BuildingShape,
 } from '../src/components/equipment3d/factoryBuildingDetails';
 import { resolveBuildingType, roleOfWorkshop, type BuildingType } from '../src/components/equipment3d/factoryBuildingTypes';
-import { FactoryOverview, type FactoryBuildingSpec } from '../src/components/equipment3d/factoryOverview';
+import { FactoryOverview } from "../src/components/equipment3d/factoryOverview";
+import { type FactoryBuildingSpec } from "../src/components/equipment3d/factoryOverviewTypes";;
 
 const typeOf = (workshopName: string, indexInZone = 0, zoneIndex = 0): BuildingType =>
   resolveBuildingType({ zoneIndex, zoneName: 'A 区', workshopName, indexInZone });

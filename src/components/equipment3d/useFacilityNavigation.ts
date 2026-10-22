@@ -30,7 +30,7 @@ import type {
   FactoryRankMetric,
   FactoryZoneSpec,
   FactoryZoneView,
-} from './factoryOverview';
+} from './factoryOverviewTypes';
 
 /**
  * 导航只用到引擎的这几扇门，因此不必依赖整个 EquipmentScene 类型。

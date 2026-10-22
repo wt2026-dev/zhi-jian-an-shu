@@ -15,7 +15,7 @@ import { FactoryOverview } from '../src/components/equipment3d/factoryOverview';
 import type {
   FactoryBuildingSpec,
   FactoryZoneSpec,
-} from '../src/components/equipment3d/factoryOverview';
+} from '../src/components/equipment3d/factoryOverviewTypes';
 
 const SPECS: FactoryBuildingSpec[] = [
   { id: 'h1', name: '1 号厂房・动力一车间', zoneId: 'zone-a', deviceCount: 8, outputValue: 900, staffCount: 14, estimated: true },

@@ -14,7 +14,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as THREE from 'three';
 import { ProductionLine, type DeviceAnchor } from '../src/components/equipment3d/productionLine';
-import { FactoryOverview, defaultBuildingSpecs } from '../src/components/equipment3d/factoryOverview';
+import { FactoryOverview } from '../src/components/equipment3d/factoryOverview';
+import { defaultBuildingSpecs } from "../src/components/equipment3d/factoryOverviewTypes";;
 import { FaultLocator } from '../src/components/equipment3d/faultLocator';
 
 /** jsdom 未安装 canvas 包时 getContext('2d') 返回 null，贴图分支会被整体跳过，

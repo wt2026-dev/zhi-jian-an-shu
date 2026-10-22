@@ -16,12 +16,8 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as THREE from 'three';
-import {
-  FactoryOverview,
-  defaultBuildingSpecs,
-  type FactoryBuildingSpec,
-  type FactoryZoneSpec,
-} from '../src/components/equipment3d/factoryOverview';
+import { FactoryOverview } from "../src/components/equipment3d/factoryOverview";
+import { defaultBuildingSpecs, type FactoryBuildingSpec, type FactoryZoneSpec } from "../src/components/equipment3d/factoryOverviewTypes";;
 
 /** jsdom 未安装 canvas 包时 getContext('2d') 返回 null，贴图分支会被整体跳过。 */
 function makeCtxStub(): unknown {

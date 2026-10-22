@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { describe, it, expect } from 'vitest';
 import { FactoryOverview } from '../src/components/equipment3d/factoryOverview';
-import type { FactoryBuildingSpec, FactoryZoneSpec } from '../src/components/equipment3d/factoryOverview';
+import type { FactoryBuildingSpec, FactoryZoneSpec } from '../src/components/equipment3d/factoryOverviewTypes';
 
 /** 从测试文件所在目录向上找到仓库根（含 package.json），避免依赖 __dirname 的层级写法 */
 const findRoot = (start: string): string => {
