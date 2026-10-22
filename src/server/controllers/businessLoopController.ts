@@ -1,15 +1,6 @@
 ﻿import type { Request, Response } from "express";
-import {
-  createLoop,
-  confirmStage,
-  confirmLotoPoint,
-  addLotoItem,
-  completeLoop,
-  listLoops,
-  buildLoopDetail,
-  buildHistoryItems,
-  BusinessLoopError,
-} from "../services/businessLoopService.ts";
+import { createLoop, confirmStage, completeLoop, listLoops, buildLoopDetail, buildHistoryItems, BusinessLoopError } from "../services/businessLoopService.ts";
+import { confirmLotoPoint, addLotoItem } from "../services/lotoService.ts";
 import { logger } from "../../utils/logger.ts";
 
 // 统一错误出口：BusinessLoopError → 状态码 + 业务码；其余按 500 记日志

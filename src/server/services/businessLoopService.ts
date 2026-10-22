@@ -41,6 +41,14 @@ import { addAuditLog } from "./auditService.ts";
 import { buildLotoAdvisory, classifyLotoType, compact, energySourceItemsFor, lotoRequirement } from "./lotoAdvisory.ts";
 import { buildSuggestions, mapEquipmentForFrontend, stagePrefillAdvice, stagePrefillContent } from "./businessLoopDetail.ts";
 import {
+  addLotoItem,
+  assertLotoAllConfirmed,
+  confirmLotoPoint,
+  sameEditValue,
+  settleLotoChecklist,
+} from "./lotoService.ts";
+import { runGenerateReportCore, runSuggestContributionCore } from "./businessLoopReport.ts";
+import {
   buildAcceptancePreview,
   buildGuidePreview,
   buildKnowledgePreview,
@@ -430,14 +438,6 @@ function isBlank(v: any): boolean {
 }
 
 /** 比较用归一：数字按数值比，字符串按去空白比（避免「4」与 4 被判成两处修订） */
-function sameEditValue(a: any, b: any): boolean {
-  if (typeof a === "number" || typeof b === "number") {
-    const na = Number(a);
-    const nb = Number(b);
-    return Number.isFinite(na) && Number.isFinite(nb) && na === nb;
-  }
-  return String(a ?? "").trim() === String(b ?? "").trim();
-}
 
 /**
  * 把确认闸门上的人工修订写进环节预填：AI 原值留底在 prefill.aiOriginal，
@@ -693,32 +693,6 @@ async function settleSafetyPermit(loop: any, stage: any, eq: Equipment | null, u
   await BusinessLoopRepository.updatePrefillArtifactRef(loop.id, 2, permitNo);
 }
 
-/** 环节3 确认闸门：LOTO 必须全部人工逐项确认（与前端闸门同源的服务端硬校验） */
-async function assertLotoAllConfirmed(stage: any) {
-  const prefill = stage.aiPrefill || {};
-  const items: any[] = Array.isArray(prefill.lotoItems) ? prefill.lotoItems : [];
-  if (!items.length) {
-    throw new BusinessLoopError(400, "LOTO 隔离清单为空，请先在安全与LOTO页确认隔离方案", "LOTO_EMPTY");
-  }
-  const unconfirmed = items.filter((i) => !i.confirmed);
-  if (unconfirmed.length) {
-    throw new BusinessLoopError(
-      400,
-      `LOTO 能量隔离要求 100% 确认（当前 ${items.length - unconfirmed.length}/${items.length} 项）：未确认项「${unconfirmed.map((i) => i.point).join("、")}」`,
-      "LOTO_NOT_FULLY_CONFIRMED"
-    );
-  }
-}
-
-/** 环节3 确认：LOTO 清单落成已生成档案 */
-async function settleLotoChecklist(loop: any, stage: any) {
-  await BusinessLoopRepository.markArtifactGenerated(loop.id, "loto_checklist", {
-    refId: `${loop.loopNo}-LOTO`,
-    status: "generated",
-    previewText: buildLotoPreview(loop, stage.aiPrefill || {}),
-    aiUsed: stage.aiEngine || "safety-interlock-rules",
-  });
-}
 
 /** 环节4 确认：检修方案落成作业指引档案 */
 async function settleWorkGuide(loop: any, stage: any) {
@@ -744,143 +718,6 @@ async function settleAcceptance(loop: any, eq: Equipment | null) {
   });
 }
 
-// ==================== LOTO 隔离点逐项确认（独立闸门，非环节推进） ====================
-
-export async function confirmLotoPoint(params: {
-  loopId: string;
-  itemId: string;
-  confirmed: boolean;
-  user: any;
-  fields?: any;
-}): Promise<any> {
-  const stage = await BusinessLoopRepository.getStage(params.loopId, 3);
-  if (!stage) throw new BusinessLoopError(404, "闭环或环节记录不存在", "STAGE_NOT_FOUND");
-  if (stage.status === "completed") {
-    throw new BusinessLoopError(409, "LOTO 环节已确认完成，隔离点状态不可再修改", "STAGE_LOCKED");
-  }
-  const prefill = { ...(stage.aiPrefill || {}) };
-  const items: any[] = Array.isArray(prefill.lotoItems) ? prefill.lotoItems : [];
-  const idx = items.findIndex((i) => i.id === params.itemId);
-  if (idx < 0) throw new BusinessLoopError(404, `隔离点 ${params.itemId} 不存在`, "LOTO_ITEM_NOT_FOUND");
-
-  const now = new Date();
-  const fmtTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  const actor = params.user?.name || params.user?.username || "未知用户";
-
-  // 现场登记字段：AI 推演的点位/要求/锁号只是草稿，标错必须能改，改前先留 AI 原值
-  const editedFields = lotoEditableFields(params.fields);
-  const next: any = { ...items[idx] };
-  const itemOriginal: any = { ...(next.aiOriginal || {}) };
-  const changedLabels: string[] = [];
-  for (const [key, label] of editedFields) {
-    const incoming = String(params.fields[key]).trim();
-    if (!incoming || sameEditValue(next[key], incoming)) continue;
-    if (!(key in itemOriginal)) itemOriginal[key] = next[key] ?? "";
-    next[key] = incoming;
-    changedLabels.push(label);
-  }
-  if (changedLabels.length) {
-    next.aiOriginal = itemOriginal;
-    next.editedBy = actor;
-    next.editedAt = fmtNow();
-  }
-
-  next.confirmed = params.confirmed;
-  // 确认人只认真实登录身份（可核签），现场操作人允许由人改填实际挂牌的那位；
-  // 规则清单里的「待现场确认」是占位符，不算人工填过的值，勾选确认时要换成记账人。
-  next.confirmedBy = params.confirmed ? actor : next.confirmedBy;
-  const operatorDraft = String(next.operator || "").trim();
-  const isPlaceholder = operatorDraft === "" || operatorDraft === "待现场确认";
-  next.operator = params.confirmed
-    ? isPlaceholder
-      ? `${actor} (${params.user?.roleTitle || params.user?.role || ""})`.replace(/ \(\)$/, "")
-      : operatorDraft
-    : isPlaceholder
-      ? "待现场确认"
-      : operatorDraft;
-  next.confirmTime = params.confirmed ? fmtTime : undefined;
-
-  items[idx] = next;
-  prefill.lotoItems = items;
-  if (Array.isArray(prefill.isolationPoints)) {
-    prefill.isolationPoints = items.map((i: any) => i.point);
-  }
-  prefill.humanRevised = changedLabels.length
-    ? mergeHumanRevised(prefill.humanRevised, changedLabels, params.user, "LOTO 隔离点登记")
-    : prefill.humanRevised;
-  await writeLotoPrefill(params.loopId, stage, prefill);
-  return buildLoopDetail(params.loopId);
-}
-
-/** 现场补登隔离点（AI/JSA 推演漏项时由人加，来源如实标「人工登记」，不冒充模型结论） */
-export async function addLotoItem(params: {
-  loopId: string;
-  fields: { type: string; point: string; requirement?: string; lockNumber?: string };
-  user: any;
-}): Promise<any> {
-  const stage = await BusinessLoopRepository.getStage(params.loopId, 3);
-  if (!stage) throw new BusinessLoopError(404, "闭环或环节记录不存在", "STAGE_NOT_FOUND");
-  if (stage.status === "completed") {
-    throw new BusinessLoopError(409, "LOTO 环节已确认完成，不能再补登隔离点", "STAGE_LOCKED");
-  }
-  const prefill = { ...(stage.aiPrefill || {}) };
-  const items: any[] = Array.isArray(prefill.lotoItems) ? prefill.lotoItems : [];
-  const type = String(params.fields.type || "").trim();
-  const point = String(params.fields.point || "").trim();
-  if (!type || !point) throw new BusinessLoopError(400, "补登隔离点必须填写能量类型与点位", "LOTO_ITEM_INCOMPLETE");
-  if (items.some((i) => String(i.point || "").trim() === point)) {
-    throw new BusinessLoopError(409, `点位「${point}」已在清单中，请直接修改该行而不是重复补登`, "LOTO_POINT_DUPLICATE");
-  }
-
-  const item = {
-    // 人工补登用 h+时间戳后缀，避免与规则推演的 loto-<loopId>-<序号> 撞 id
-    id: `loto-${params.loopId}-h${Date.now().toString(36)}`,
-    type,
-    point,
-    requirement: String(params.fields.requirement || "").trim() || lotoRequirement(type, point),
-    lockNumber: String(params.fields.lockNumber || "").trim(),
-    basis: "人工登记（AI/JSA 清单外补充）",
-    confirmed: false, // 新补的点同样要过 100% 人工确认闸门
-    operator: "待现场确认",
-  };
-  items.push(item);
-  prefill.lotoItems = items;
-  if (Array.isArray(prefill.isolationPoints)) prefill.isolationPoints = items.map((i: any) => i.point);
-  prefill.lockCount = items.length;
-  prefill.humanRevised = mergeHumanRevised(prefill.humanRevised, ["补登隔离点"], params.user, "LOTO 隔离点登记");
-  await writeLotoPrefill(params.loopId, stage, prefill);
-  return buildLoopDetail(params.loopId);
-}
-
-/** LOTO 行内允许人工改的字段（顺序即审计里的展示顺序） */
-function lotoEditableFields(fields: any): Array<[string, string]> {
-  if (!fields || typeof fields !== "object") return [];
-  const allowed: Array<[string, string]> = [
-    ["type", "能量类型"],
-    ["point", "隔离点位"],
-    ["requirement", "隔离要求"],
-    ["lockNumber", "锁具编号"],
-    ["operator", "现场操作人"],
-  ];
-  return allowed.filter(([key]) => typeof fields[key] === "string");
-}
-
-function mergeHumanRevised(prev: any, labels: string[], user: any, actorNote: string): any {
-  const existingFields: string[] = Array.isArray(prev?.fields) ? prev.fields : [];
-  return {
-    by: user?.name || user?.username || "未知用户",
-    at: fmtNow(),
-    fields: Array.from(new Set([...existingFields, ...labels.map((l) => `${actorNote}：${l}`)])),
-  };
-}
-
-async function writeLotoPrefill(loopId: string, stage: any, prefill: any): Promise<void> {
-  await BusinessLoopRepository.updateStagePrefill(loopId, 3, {
-    aiPrefillJson: JSON.stringify(prefill),
-    aiEngine: stage.aiEngine || "safety-interlock-rules",
-    aiStatus: stage.aiStatus || "ok",
-  });
-}
 
 // ==================== 归档闭环（质检报告 + 知识沉淀 + 全套产出物） ====================
 
@@ -977,135 +814,6 @@ export async function listLoops(filters?: { status?: string; limit?: number }) {
     });
   }
   return out;
-}
-
-// ==================== 质检报告核心（generate-report，DashScope 真实调用） ====================
-
-/** 汇总真实闭环数据（目标/设备遥测/工单/JSA/LOTO/方案）后生成质检报告；失败如实 degraded，不伪造结论 */
-async function runGenerateReportCore(
-  loop: any,
-  eq: Equipment | null,
-  order: any | null
-): Promise<CapabilityResult> {
-  const stages = await BusinessLoopRepository.listStages(loop.id);
-  const jsaStage = stages.find((s) => s.stageNo === 2);
-  const planStage = stages.find((s) => s.stageNo === 4);
-  const lotoStage = stages.find((s) => s.stageNo === 3);
-  const jsa = jsaStage?.aiPrefill?.assessment || null;
-  const plan = planStage?.aiPrefill?.plan || null;
-  const lotoItems: any[] = lotoStage?.aiPrefill?.lotoItems || [];
-
-  const cacheInput = { loopId: loop.id, equipmentId: eq?.id || "", orderNo: order?.orderNo || "" };
-  const cached = aiCacheGet("generate-report", cacheInput);
-  if (cached?.value?.report) {
-    return { outcome: "cache", body: { report: cached.value.report, fromCache: true, cachedAt: cached.cachedAt, model: "cache" } };
-  }
-
-  const prompts = `请基于以下本次闭环的真实记录，生成一份闭环质检评估报告（仅结果汇总，不落库）。
-【业务目标】${loop.goal}
-【设备与遥测】${eq ? `${eq.name}（${eq.code}），健康分 ${eq.healthScore ?? "未知"}` : "未识别设备，无遥测上下文"}
-【关联工单】${order ? `${order.orderNo}《${order.title}》当前状态 ${order.status}` : "未落库工单"}
-【JSA 结果】${jsa?.riskLevel ? `风险等级 ${jsa.riskLevel}：${jsa.riskReason || "无理由输出"}` : "环节 2 预填失败或缺失"}
-【LOTO 确认】${lotoItems.filter((i) => i.confirmed).length}/${lotoItems.length} 项已确认
-【检修方案】${plan?.overview || "环节 4 预填失败或缺失"}
-
-严格按如下 JSON 结构输出:
-{
-  "conclusion": "一句话质检结论",
-  "qualityScore": 0,
-  "checks": [{"item": "检查项", "result": "结果", "standard": "对照标准"}],
-  "problems": ["遗留问题或建议1"]
-}`;
-
-  try {
-    const { data } = await callDashScopeJson(AI_EXPERT_SYSTEM, prompts);
-    if (!data?.conclusion) {
-      return { outcome: "degraded", errorMessage: "AI 返回缺少质检结论字段", body: { success: false, degraded: true, message: "质检报告 AI 生成失败，请人工出具质量结论" } };
-    }
-    aiCacheSet("generate-report", cacheInput, { report: data });
-    return { outcome: "success", body: { report: data, model: DASHSCOPE_CHAT_MODEL } };
-  } catch (err: any) {
-    return {
-      outcome: err instanceof AiUnavailableError ? "unavailable" : "failed",
-      errorMessage: err?.message || String(err),
-      body: { success: false, degraded: true, message: `质检报告 AI 生成失败（${String(err?.message || err).slice(0, 120)}），请人工出具质量结论` },
-    };
-  }
-}
-
-// ==================== 知识沉淀核心（suggest-contribution 同源判定 + 贡献表真实落库） ====================
-
-const SUGGEST_CONTRIBUTION_SYSTEM = `你是一位拥有20年工业重型设备检修经验的知识管理员。判断下面这段检修过程是否包含一个"完整、可复用、现场验证过"的故障处理案例。
-判定标准（全部满足才算）：①有明确设备（名称/位号）②有具体故障现象 ③有可操作的根因或解决方案 ④不是纯闲聊或纯理论。
-严格输出 JSON（禁止输出 JSON 以外的任何文字）：
-{"worthContributing":true/false,"title":"建议的案例标题","type":"故障案例|点检异常|检修技巧|安全规程","equipment":"设备名称","summary":"一句话摘要","solution":"核心解决方案要点"}
-worthContributing=false 时其他字段全部为空字符串。`;
-
-async function runSuggestContributionCore(
-  loopId: string,
-  loop: any,
-  eq: Equipment | null,
-  order: any | null,
-  report: any | null,
-  user: any
-): Promise<any> {
-  const summaryCtx = [
-    `业务目标：${loop.goal}`,
-    `设备：${eq ? `${eq.name}（${eq.code}）` : "未识别"}`,
-    `关联工单：${order ? `${order.orderNo}《${order.title}》状态 ${order.status}` : "无"}`,
-    `检修方案概述：${order?.repairLog?.resolutionSteps || ""}`,
-    `质检结论：${report?.conclusion || "无（AI 生成失败）"}`,
-    `遗留问题：${(report?.problems || []).slice(0, 3).join("；")}`,
-  ].join("\n");
-
-  try {
-    const { data } = await callDashScopeJson(SUGGEST_CONTRIBUTION_SYSTEM, summaryCtx, 0.2);
-    const parsed = data?.worthContributing === undefined ? null : data;
-    const suggestion = parsed
-      ? {
-          worthContributing: Boolean(parsed.worthContributing),
-          title: String(parsed.title || "").trim(),
-          type: String(parsed.type || "故障案例").trim(),
-          equipment: String(parsed.equipment || eq?.name || "").trim(),
-          summary: String(parsed.summary || "").trim(),
-          solution: String(parsed.solution || "").trim(),
-        }
-      : null;
-
-    if (suggestion?.worthContributing) {
-      try {
-        const db = await getDb();
-        const id = `kc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        await db.query(
-          `INSERT INTO ai_knowledge_contributions (id, chat_id, title, type, equipment, summary, solution, contributor, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')`,
-          [
-            id,
-            `business-loop:${loopId}`,
-            suggestion.title || "工业检修排查案例",
-            suggestion.type || "故障案例",
-            suggestion.equipment || "通用设备",
-            suggestion.summary || "",
-            suggestion.solution || "",
-            user?.name || "业务管家",
-          ]
-        );
-        return { ...suggestion, id };
-      } catch (dbErr: any) {
-        logger.error("[BusinessLoop] 知识贡献落库失败:", dbErr?.message || dbErr);
-        return { ...suggestion, message: "贡献建议落库失败（AI 判定结论未入库，需人工在知识库提交）" };
-      }
-    }
-    return suggestion || {
-      worthContributing: false,
-      message: "AI 未输出有效沉淀判定或返回结构异常（degraded）",
-    };
-  } catch (err: any) {
-    return {
-      worthContributing: false,
-      message: `知识沉淀判定 AI 调用失败（${String(err?.message || err).slice(0, 100)}），未入库`,
-    };
-  }
 }
 
 // ==================== 详情聚合（前端 BusinessClosedLoopData 唯一来源） ====================
