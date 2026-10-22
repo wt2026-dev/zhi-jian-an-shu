@@ -168,7 +168,7 @@ function wrapSubtitleLines(text: string, max: number): string[] {
   return merged;
 }
 
-const clipSubtitle = (s: string, max: number) => (s.length > max ? s.slice(0, max - 1) + "…" : s);
+export const clipSubtitle = (s: string, max: number) => (s.length > max ? s.slice(0, max - 1) + "…" : s);
 
 /**
  * 截断必须**可见**：`wrapSubtitleLines` 会把长句按标点切成多段，而字幕只取前几段 ——
@@ -184,7 +184,7 @@ const clipSubtitle = (s: string, max: number) => (s.length > max ? s.slice(0, ma
  * 把 "…" 去掉，所以标记不会被念出来，音频时长与语速不受影响。
  * 回归守卫见 tests/video-subtitle-fidelity.test.ts。
  */
-function markTruncated(lines: string[], keep: number): string[] {
+export function markTruncated(lines: string[], keep: number): string[] {
   const kept = lines.slice(0, Math.max(0, keep));
   if (lines.length > kept.length && kept.length) {
     // 只追加，不删尾标点 —— 删掉的话，画面与语音都会少一个字。

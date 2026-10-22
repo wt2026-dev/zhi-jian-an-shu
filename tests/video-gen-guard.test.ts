@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../server.ts";
-import { validateDownloadUrl, runFullVideoGeneration, buildFullSegmentPrompt, __runningTasks, cjkRatio, shrinkIfOversize, buildNarrationAudioFilter } from "../src/server/services/videoGenerationService.ts";
-import { buildStepSubtitleLines, buildStepNarrationText } from "../src/server/services/videoSubtitleText.ts";;
+import { validateDownloadUrl, runFullVideoGeneration, buildFullSegmentPrompt, __runningTasks, cjkRatio, shrinkIfOversize } from "../src/server/services/videoGenerationService.ts";
+import { buildStepSubtitleLines, buildStepNarrationText } from "../src/server/services/videoSubtitleText.ts";
+import { buildNarrationAudioFilter } from "../src/server/services/videoNarrationPlan.ts";;
 import { getAgnesMaxConcurrent, getAgnesTotalTimeoutMin, getAgnesSegmentWindowMin, getAgnesSegmentGapSec, getAgnesArtifactMaxMb } from "../src/server/utils/config.ts";
 import { ProcedureVideoRepository, ProcedureRepository } from "../src/db/repositories/index.ts";
 import { estimateRemainingMinutes, formatElapsed, resolveTaskStartMs, MAX_POLL_SECONDS } from "../src/utils/videoProgress.ts";

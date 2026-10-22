@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { planNarrationTimeline, utterancesOf, type NarrationSegment } from '../src/server/services/videoGenerationService';
+import { planNarrationTimeline, utterancesOf, type NarrationSegment } from '../src/server/services/videoNarrationPlan';
 
 /** 3 段，每段 18s；每段 = 开场白 + 3 行字幕。 */
 function threeSegments(): NarrationSegment[] {
