@@ -25,7 +25,8 @@
  * 强调色 0x22d3ee），与大屏同一套色，不做卡通化。
  */
 import * as THREE from 'three';
-import { EQUIPMENT_GLB_MAP, loadEquipmentGLB, prototypeFor, PROTOTYPE_BOUNDS } from '../equipment3d/equipment';
+import { EQUIPMENT_GLB_MAP, loadEquipmentGLB } from '../equipment3d/equipment';
+import { prototypeFor, PROTOTYPE_BOUNDS } from '../equipment3d/equipmentPrototype';
 import { loadGameCharacter, type CharacterMood, type GameCharacter } from './gameCharacter';
 
 /* ============================ 对外类型 ============================ */

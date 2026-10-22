@@ -43,9 +43,8 @@ import {
   type EquipmentBuild,
   type DeviceBoxInfo,
   type StatusLegendEntry,
-  PROTOTYPE_BOUNDS,
-  prototypeFor,
 } from './equipment';
+import { PROTOTYPE_BOUNDS, prototypeFor } from './equipmentPrototype';
 import { STATUS_META, type StatusKey } from './equipmentStatus';
 import { buildProps } from './props';
 import { setGeoLod } from './parts';

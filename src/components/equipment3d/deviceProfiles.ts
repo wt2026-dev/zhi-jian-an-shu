@@ -24,7 +24,7 @@
  */
 
 import { HALF_PI, box, boxY, cone, coneY, cyl, cylX, cylY, cylZ, dome, makeParts, pushImpeller, pushShaftKey, sph, torus, type RecipePart } from './parts';
-import type { PrototypeKey } from './equipment';
+import type { PrototypeKey } from './equipmentPrototype';
 
 export interface DeviceRecipe {
   /** 台账设备 id（eq-101 … eq-116） */
