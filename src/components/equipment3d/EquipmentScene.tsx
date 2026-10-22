@@ -20,7 +20,7 @@ import {
   Sparkles, Sun, Triangle, Wand2, X, Grid3x3, Waves, AlertTriangle, WifiOff,
   Loader2, Cpu, Wrench, Shield, User, Monitor, Building2, CircleDot,
 } from 'lucide-react';
-import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type DutyTechnician, type EquipmentPoint, type ExplodedOrderStep, type SpareProcurePrefill } from '../../api';
+import { equipmentApi, workOrderApi, safetyPermitApi, dispatchApi, explodedViewApi, type EquipmentPoint, type ExplodedOrderStep, type SpareProcurePrefill } from '../../api';
 import type { Equipment, WorkOrder, LotoLock } from '../../types';
 import { useAppData } from '../../context/AppDataContext';
 import { useOptionalAuth } from '../../context/AuthContext';
@@ -65,6 +65,7 @@ import { useTelemetryPlayback } from './useTelemetryPlayback';
 import { useWorkOrderActions } from './useWorkOrderActions';
 import { useFacilityNavigation } from './useFacilityNavigation';
 import { useCleanMode } from './useCleanMode';
+import { useWorkerLayer } from './useWorkerLayer';
 import { CleanModePill } from './CleanModePill';
 
 /* ========================= 组件 ========================= */
@@ -197,13 +198,9 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
   /** 预取全量遥测缓存（16 台最新48h），避免每次选中都重拉 */
   const allTelemetryRef = useRef<Map<string, any[]>>(new Map());
 
-  // ---- 人员与工位动线 ----
-  /** 默认关：技师轨迹 + 人形 + 指引虚线太密，需要时在「可视化图层」里开。
-   *  例外：选中设备时该设备的派工指引虚线仍会出现（见下方人员动线 effect）。 */
-  const [showWorkers, setShowWorkers] = useState(false);
-  const [technicians, setTechnicians] = useState<DutyTechnician[]>([]);
-  /** 轨迹缓存：Map<userId, {mapX,mapY}[]>（最多10个点） */
-  const trajectoryRef = useRef<Map<string, Array<{ mapX: number; mapY: number }>>>(new Map());
+  // ---- 人员与工位动线（hook：useWorkerLayer，见 useWorkerLayer.ts） ----
+  const { showWorkers, setShowWorkers, technicians, trajectoryRef, workerLayerBuiltRef } =
+    useWorkerLayer({ sceneRef, selectedId, recentOrders });
   /** 坐标映射是否已建立 */
   const coordMapReadyRef = useRef(false);
 
@@ -393,73 +390,7 @@ export function Equipment3DView({ initialWorkOrderId, onOpenWorkOrderDetail, onN
     }).catch(() => { /* 静默 */ });
   }, []);
 
-  /* ---------- 1.6 人员动线轮询（15 秒） ---------- */
-  useEffect(() => {
-    let alive = true;
-    let timer: ReturnType<typeof setInterval> | null = null;
-
-    const fetch = () => {
-      dispatchApi.listTechnicians().then((r: any) => {
-        if (!alive) return;
-        const techs = Array.isArray(r?.technicians) ? r.technicians : [];
-        setTechnicians(techs);
-        // 更新轨迹缓存（只记录 online/idle 的位置）
-        for (const t of techs) {
-          if (t.onlineStatus === 'offline') continue;
-          const prev = trajectoryRef.current.get(t.id) ?? [];
-          // 避免重复点
-          if (prev.length > 0) {
-            const last = prev[prev.length - 1];
-            if (last.mapX === t.mapX && last.mapY === t.mapY) continue;
-          }
-          const next = [...prev, { mapX: t.mapX, mapY: t.mapY }];
-          if (next.length > 10) next.shift();
-          trajectoryRef.current.set(t.id, next);
-        }
-      }).catch(() => { /* 失败静默，保留上次数据 */ });
-    };
-
-    fetch(); // 首次立即拉取
-    timer = setInterval(fetch, 15000);
-    return () => { alive = false; if (timer) clearInterval(timer); };
-  }, []);
-
-  /* ---------- 1.7 选中设备时重建人员动线（含派工指引虚线） ---------- */
-  /** 人员动线层是否建过：没建过就别清（清一次会顺带把巡检数字人也摘掉） */
-  const workerLayerBuiltRef = useRef(false);
-  useEffect(() => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-    // 选中设备时，即便"技师轨迹与指引线"总开关关着也要建这一层：
-    // 需求口径是「选中哪台设备，就看它相关的那条链路」—— 聚焦层的派工指引虚线
-    // （技师 → 设备）要照常出现。技师人形与历史轨迹仍跟随总开关
-    // （scene 侧把指引虚线单独成层，见 scene.ts 的 guideGroup）。
-    const needGuide = !!selectedId;
-    if (!showWorkers && !needGuide) {
-      if (workerLayerBuiltRef.current) {
-        scene.clearWorkers();
-        workerLayerBuiltRef.current = false;
-      }
-      scene.setWorkerVisible(false);
-      return;
-    }
-    // 找当前选中设备工单的 assignee
-    let assigneeId: string | null = null;
-    let assigneeStatus: string | null = null;
-    if (selectedId && recentOrders.length > 0) {
-      // 优先找紧急/高优工单的 assignee
-      const urgent = recentOrders.find(
-        (o) => (o.priority === 'urgent' || o.priority === 'high') && o.assigneeId,
-      );
-      if (urgent) {
-        assigneeId = urgent.assigneeId!;
-        assigneeStatus = urgent.status;
-      }
-    }
-    scene.buildWorkers(technicians, trajectoryRef.current, selectedId, assigneeId, assigneeStatus);
-    workerLayerBuiltRef.current = true;
-    scene.setWorkerVisible(showWorkers);
-  }, [technicians, selectedId, recentOrders, showWorkers]);
+  /* ---------- 1.6 / 1.7 人员动线（轮询 + 选中重建）已迁至 useWorkerLayer ---------- */
 
   const { deviceOrderMap, orderCounts } = useMemo(() => {
     const map = new Map<string, WorkOrderIndicatorStatus>();
