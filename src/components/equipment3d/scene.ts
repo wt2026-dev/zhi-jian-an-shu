@@ -45,9 +45,8 @@ import {
   type StatusLegendEntry,
   PROTOTYPE_BOUNDS,
   prototypeFor,
-  STATUS_META,
-  type StatusKey,
 } from './equipment';
+import { STATUS_META, type StatusKey } from './equipmentStatus';
 import { buildProps } from './props';
 import { setGeoLod } from './parts';
 import { clamp } from './rand';

@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Equipment } from '../../types';
 import { telemetryFeed } from './uiPrimitives';
 import { telemetryToStatus } from './statusMapping';
-import type { StatusKey } from './equipment';
+import type { StatusKey } from './equipmentStatus';
 import type { TelemetryHistory } from './DeviceAnalysisPanel';
 
 /** 回放只用到引擎的这三扇门，因此不必依赖整个 EquipmentScene 类型。 */

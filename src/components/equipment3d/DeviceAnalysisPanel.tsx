@@ -34,7 +34,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Equipment, WorkOrder } from '../../types';
-import { STATUS_META, statusKey } from './equipment';
+import { STATUS_META, statusKey } from './equipmentStatus';
 import type { DeviceRecipe } from './deviceProfiles';
 import {
   normalizeSafetyNotice,

@@ -17,7 +17,8 @@ import * as THREE from 'three';
 import { Rng, clamp } from './rand';
 import type { ScenePreset } from './styles';
 import type { DeviceSlot, Hall } from './hall';
-import { geoTriangles, statusKey, STATUS_META, type DeviceLike } from './equipment';
+import { geoTriangles, type DeviceLike } from './equipment';
+import { statusKey, STATUS_META } from './equipmentStatus';
 
 /* ========================= 几何缓存 ========================= */
 

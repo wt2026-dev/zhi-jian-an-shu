@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { mulberry32, clamp } from './rand';
 import { loadEquipmentGLB } from './equipment';
-import type { StatusKey } from './equipment';
+import type { StatusKey } from './equipmentStatus';
 
 /* ========================= 类型 ========================= */
 

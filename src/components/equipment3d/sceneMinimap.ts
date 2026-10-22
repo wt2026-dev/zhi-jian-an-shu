@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Hall, DeviceSlot } from './hall';
-import { STATUS_META, type StatusKey, type EquipmentBuild } from './equipment';
+import { type EquipmentBuild } from './equipment';
+import { STATUS_META, type StatusKey } from './equipmentStatus';
 
 export interface SceneMinimapState {
   canvas: HTMLCanvasElement | null;

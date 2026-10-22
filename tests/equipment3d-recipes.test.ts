@@ -13,7 +13,8 @@
 import { describe, it, expect } from 'vitest';
 import { DEVICE_RECIPES, RECIPE_IDS, recipeFor } from '../src/components/equipment3d/deviceProfiles';
 import { PER_INSTANCE_TINTS, recipeBounds, type TintRole } from '../src/components/equipment3d/parts';
-import { animActive, statusKey, STATUS_META, STATUS_ORDER, buildEquipment } from '../src/components/equipment3d/equipment';
+import { buildEquipment } from '../src/components/equipment3d/equipment';
+import { animActive, statusKey, STATUS_META, STATUS_ORDER } from '../src/components/equipment3d/equipmentStatus';
 import { normalizeSafetyNotice } from '../src/components/equipment3d/aiDiagnosis';
 import { SCENE_PRESETS, QUALITY } from '../src/components/equipment3d/styles';
 import { Hall } from '../src/components/equipment3d/hall';

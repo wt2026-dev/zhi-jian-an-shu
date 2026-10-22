@@ -22,8 +22,8 @@
 
 import * as THREE from 'three';
 import { mulberry32, clamp } from './rand';
-import { STATUS_META } from './equipment';
-import type { StatusKey } from './equipment';
+import { STATUS_META } from './equipmentStatus';
+import type { StatusKey } from './equipmentStatus';
 import type { PartTelemetry } from './partEvidence';
 
 /* ========================= 类型 ========================= */

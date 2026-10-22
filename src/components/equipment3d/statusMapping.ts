@@ -11,7 +11,7 @@
  *   - 未超阈值时返回 null（由调用方回退到台账真实 status）
  */
 
-import type { StatusKey } from './equipment';
+import type { StatusKey } from './equipmentStatus';
 
 export interface TelemetryLike {
   temperature?: number;
