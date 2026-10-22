@@ -33,18 +33,21 @@ function harness() {
     slots: [{ angle: 0.4 }],
     scene: new THREE.Scene(),
     renderer: { setClearColor: vi.fn() },
-    ambient: new THREE.AmbientLight(0xffffff, 0.6),
-    hemi: new THREE.HemisphereLight(0xdfe6ea, 0x50555a, 0.7),
-    sun: new THREE.DirectionalLight(0xffffff, 1),
+    lights: {
+      ambient: new THREE.AmbientLight(0xffffff, 0.6),
+      hemi: new THREE.HemisphereLight(0xdfe6ea, 0x50555a, 0.7),
+      sun: new THREE.DirectionalLight(0xffffff, 1),
+      skyMesh: null,
+    },
     focusDecorGroup: new THREE.Group(),
     focusDecor: null,
     focusBaseLights: null,
     moodBackup: null,
     postFx: { isSoftwareRenderer: () => true },
   });
-  s.ambient.intensity = 0.6;
-  s.hemi.intensity = 0.7;
-  s.sun.intensity = 1;
+  s.lights.ambient.intensity = 0.6;
+  s.lights.hemi.intensity = 0.7;
+  s.lights.sun.intensity = 1;
   return s;
 }
 
@@ -68,7 +71,7 @@ describe('focus layer survives a broken device environment', () => {
     expect(fill.intensity).toBeGreaterThan(0);
     // 氛围照常：雾 + 压暗后的车间灯
     expect(s.scene.fog).toBeTruthy();
-    expect(s.ambient.intensity).toBeLessThan(0.6);
+    expect(s.lights.ambient.intensity).toBeLessThan(0.6);
     expect(s.renderer.setClearColor).toHaveBeenCalled();
     err.mockRestore();
   });
@@ -81,7 +84,7 @@ describe('focus layer survives a broken device environment', () => {
     expect(s.focusBaseLights).toBeNull();
     expect(s.focusDecorGroup.children).toHaveLength(0);
     expect(s.scene.fog).toBeNull();
-    expect(s.ambient.intensity).toBeCloseTo(0.6);
+    expect(s.lights.ambient.intensity).toBeCloseTo(0.6);
     expect(s.moodBackup).toBeNull();
     err.mockRestore();
   });

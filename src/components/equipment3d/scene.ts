@@ -71,6 +71,7 @@ import { computeIsolatedFraming, computeFitDistance } from './cameraFraming';
 import { CameraRig } from './cameraRig';
 import { ScenePostFx } from './scenePostFx';
 import { SceneWorkOrderRings } from './sceneWorkOrderRings';
+import { SceneLights } from './sceneLights';
 import {
   FocusSceneDecor,
   type FocusDecorData,
@@ -243,22 +244,6 @@ export class EquipmentScene {
   private lineKey = '';
 
 
-  private sun: THREE.DirectionalLight | null = null;
-  private hemi: THREE.HemisphereLight | null = null;
-  private ambient: THREE.AmbientLight | null = null;
-  private ceilingLight: THREE.DirectionalLight | null = null;
-  private windowSun: THREE.DirectionalLight | null = null;
-  private skyMesh: THREE.Mesh | null = null;
-  private envRT: THREE.WebGLRenderTarget | null = null;
-  private envSource: THREE.Texture | null = null;
-  /** PMREM 生成器必须复用：每次 new 都会重新分配内部材质并触发着色器重编译，
-   *  在软件光栅化下单次可达 1.3 秒（实测），复用后仅首次付出该代价。 */
-  private pmrem: THREE.PMREMGenerator | null = null;
-  /** 环境贴图 / 天空球 / 阴影贴图 只与预设配色有关，用 id 做缓存键避免每次重建都重算 */
-  private envKey: string | null = null;
-  private skyKey: string | null = null;
-  private shadowKey = 0;
-  private skyGeo: THREE.SphereGeometry | null = null;
   private selectionRing: THREE.Mesh | null = null;
   private grid: THREE.GridHelper | null = null;
   /** 地面扫描线（P3 深色科技风） */
@@ -313,6 +298,7 @@ export class EquipmentScene {
   private rig: CameraRig;
   private postFx: ScenePostFx;
   private orderRings: SceneWorkOrderRings;
+  private lights: SceneLights;
 
   private resizeObserver: ResizeObserver | null = null;
   private onWindowResize = () => this.resize();
@@ -364,6 +350,7 @@ export class EquipmentScene {
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.6, 2600);
     this.postFx = new ScenePostFx(container, this.renderer, this.scene, this.camera);
     this.orderRings = new SceneWorkOrderRings(this.workOrderGroup);
+    this.lights = new SceneLights(this.scene, this.renderer, () => this.level, () => this.params.exposure);
     this.rig = new CameraRig(this.camera, () => {
       if (this.isolationId && this.scene.fog) {
         const box = this.equipment?.boxById.get(this.isolationId);
@@ -394,7 +381,7 @@ export class EquipmentScene {
       this.fluidFlow.points
     );
 
-    this.initLights();
+    this.lights.initLights();
     this.initHelpers();
     this.initSelectionRing();
     this.orderRings.init();
@@ -409,162 +396,6 @@ export class EquipmentScene {
     window.addEventListener('resize', this.onWindowResize);
   }
 
-  /* ========================= 光照 ========================= */
-
-  private initLights(): void {
-    this.ambient = new THREE.AmbientLight(0xffffff, 0.75);
-    this.hemi = new THREE.HemisphereLight(0xe5eef7, 0x566270, 0.85);
-    this.sun = new THREE.DirectionalLight(0xfff4e6, 2.2);
-    this.sun.position.set(80, 130, 60);
-    this.sun.castShadow = true;
-
-    // 天花板主吊灯垂直补充光照（高位下射，车间明亮均匀无死角）
-    this.ceilingLight = new THREE.DirectionalLight(0xfffaed, 1.1);
-    this.ceilingLight.position.set(0, 50, 0);
-
-    // 侧窗倾斜射入的暖阳自然光照（穿透落地玻璃窗）
-    this.windowSun = new THREE.DirectionalLight(0xffeedd, 1.5);
-    this.windowSun.position.set(-75, 26, 8);
-    this.windowSun.target.position.set(0, 0, 0);
-
-    this.scene.add(
-      this.ambient,
-      this.hemi,
-      this.sun,
-      this.sun.target,
-      this.ceilingLight,
-      this.windowSun,
-      this.windowSun.target
-    );
-  }
-
-  private applyLighting(preset: ScenePreset): void {
-    const l = preset.lighting;
-    if (this.ambient) {
-      this.ambient.color.setHex(preset.palette.light.ambient);
-      this.ambient.intensity = Math.max(0.7, l.ambient * 1.25);
-    }
-    if (this.hemi) {
-      this.hemi.color.setHex(preset.palette.light.hemi);
-      this.hemi.groundColor.setHex(preset.palette.floor).multiplyScalar(0.5);
-      this.hemi.intensity = Math.max(0.65, l.ambient * 1.05);
-    }
-    if (this.sun) {
-      this.sun.color.setHex(preset.palette.light.sun);
-      this.sun.intensity = l.sun;
-      const a = 0.9;
-      this.sun.position.set(Math.cos(a) * 160, l.sunHeight, Math.sin(a) * 160);
-      this.sun.target.position.set(0, 0, 0);
-      this.sun.target.updateMatrixWorld();
-    }
-    if (this.ceilingLight) {
-      this.ceilingLight.intensity = this.level === 'factory' ? 0.2 : 1.1;
-    }
-    if (this.windowSun) {
-      this.windowSun.intensity = this.level === 'factory' ? 0.2 : 1.5;
-    }
-    this.renderer.toneMappingExposure = Math.max(1.15, l.exposure * (this.params.exposure || 1));
-    this.scene.fog = new THREE.FogExp2(preset.palette.fog, l.fogDensity);
-    this.scene.background = new THREE.Color(preset.palette.sky);
-  }
-
-  /**
-   * 环境贴图：用一张渐变 + 太阳光斑的小画布生成 PMREM —— 没有它金属会渲染成纯黑。
-   *
-   * 性能要点：PMREM 会渲染一整套 cubemap mip 链，在软件光栅化（SwiftShader）下
-   * 单次就要几百毫秒，是「拖动滑块重建」耗时的主要来源。而它只取决于预设配色，
-   * 因此按预设 id 缓存，重建时若预设未变直接复用。
-   */
-  private updateEnvMap(preset: ScenePreset, presetId: string): void {
-    if (this.envRT && this.envKey === presetId) return;
-    const size = 128;
-    const c = document.createElement('canvas');
-    c.width = size;
-    c.height = size;
-    const ctx = c.getContext('2d');
-    if (!ctx) return;
-    const top = new THREE.Color(preset.palette.sky);
-    const bot = new THREE.Color(preset.palette.floor).multiplyScalar(0.75);
-    const grad = ctx.createLinearGradient(0, 0, 0, size);
-    grad.addColorStop(0, `#${top.getHexString()}`);
-    grad.addColorStop(0.55, `#${top.clone().lerp(bot, 0.45).getHexString()}`);
-    grad.addColorStop(1, `#${bot.getHexString()}`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, size, size);
-    // 太阳光斑
-    const sun = new THREE.Color(preset.palette.light.sun);
-    const sg = ctx.createRadialGradient(size * 0.28, size * 0.26, 1, size * 0.28, size * 0.26, size * 0.26);
-    sg.addColorStop(0, `#${sun.getHexString()}`);
-    sg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = sg;
-    ctx.fillRect(0, 0, size, size);
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.mapping = THREE.EquirectangularReflectionMapping;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    if (!this.pmrem) this.pmrem = new THREE.PMREMGenerator(this.renderer);
-    const rt = this.pmrem.fromEquirectangular(tex);
-    this.scene.environment = rt.texture;
-    // 0.68：比原 0.62 略抬一档，金属设备反射更"实"（PBR 环境光是金属质感的主光源），
-    // 再高会让钢壳过亮发假；渐变 PMREM 保持，不引入外部 HDRI（包体积 + 软渲染风险）。
-    this.scene.environmentIntensity = 0.68;
-    tex.dispose();
-    this.envRT?.dispose();
-    this.envSource?.dispose();
-    this.envRT = rt;
-    this.envSource = null;
-    this.envKey = presetId;
-  }
-
-  /** 天空球：ShaderMaterial 渐变，BackSide + depthWrite false。同样按预设缓存。 */
-  private updateSky(preset: ScenePreset, presetId: string): void {
-    if (this.skyMesh && this.skyKey === presetId) return;
-    if (this.skyMesh) {
-      this.scene.remove(this.skyMesh);
-      (this.skyMesh.material as THREE.Material).dispose();
-      this.skyMesh = null;
-    }
-    const uniforms = {
-      uTop: { value: new THREE.Color(preset.palette.sky) },
-      uMid: { value: new THREE.Color(preset.palette.fog) },
-      uBottom: { value: new THREE.Color(preset.palette.floor).multiplyScalar(0.55) },
-    };
-    const mat = new THREE.ShaderMaterial({
-      uniforms,
-      side: THREE.BackSide,
-      depthWrite: false,
-      fog: false,
-      vertexShader: /* glsl */ `
-        varying vec3 vWorld;
-        void main() {
-          vec4 wp = modelMatrix * vec4(position, 1.0);
-          vWorld = wp.xyz;
-          gl_Position = projectionMatrix * viewMatrix * wp;
-        }
-      `,
-      fragmentShader: /* glsl */ `
-        uniform vec3 uTop;
-        uniform vec3 uMid;
-        uniform vec3 uBottom;
-        varying vec3 vWorld;
-        void main() {
-          vec3 d = normalize(vWorld);
-          float t = clamp(d.y * 0.5 + 0.5, 0.0, 1.0);
-          vec3 c = mix(uBottom, uMid, smoothstep(0.0, 0.52, t));
-          c = mix(c, uTop, smoothstep(0.48, 1.0, t));
-          gl_FragColor = vec4(c, 1.0);
-        }
-      `,
-    });
-    // 天空球几何体固定，跨重建复用，避免重复分配与首次渲染的着色器重编译
-    if (!this.skyGeo) this.skyGeo = new THREE.SphereGeometry(1400, 24, 16);
-    const mesh = new THREE.Mesh(this.skyGeo, mat);
-    mesh.name = 'sky';
-    mesh.frustumCulled = false;
-    this.skyMesh = mesh;
-    this.skyKey = presetId;
-    this.scene.add(mesh);
-  }
 
   private initHelpers(): void {
     this.grid = new THREE.GridHelper(100, 40, 0x22d3ee, 0x197697);
@@ -1042,21 +873,21 @@ export class EquipmentScene {
       prevParams.deviceCount === params.deviceCount &&
       (prevParams.spacing !== params.spacing || prevParams.layout !== params.layout || prevParams.seed !== params.seed);
 
-    this.applyLighting(preset);
-    this.updateEnvMap(preset, params.presetId);
-    this.updateSky(preset, params.presetId);
+    this.lights.applyLighting(preset);
+    this.lights.updateEnvMap(preset, params.presetId);
+    this.lights.updateSky(preset, params.presetId);
     this.renderer.shadowMap.enabled = q.shadows;
-    if (this.sun) {
+    if (this.lights.sun) {
       const span = Math.max(preset.hall.spanX, preset.hall.spanZ) * 1.15;
-      if (this.shadowKey !== q.shadowMap) {
-        this.sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
-        if (this.sun.shadow.map) {
-          this.sun.shadow.map.dispose();
-          this.sun.shadow.map = null;
+      if (this.lights.shadowKey !== q.shadowMap) {
+        this.lights.sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
+        if (this.lights.sun.shadow.map) {
+          this.lights.sun.shadow.map.dispose();
+          this.lights.sun.shadow.map = null;
         }
-        this.shadowKey = q.shadowMap;
+        this.lights.shadowKey = q.shadowMap;
       }
-      const cam = this.sun.shadow.camera;
+      const cam = this.lights.sun.shadow.camera;
       cam.left = -span;
       cam.right = span;
       cam.top = span;
@@ -1936,34 +1767,34 @@ export class EquipmentScene {
    * 相机 / 轨道手感零改动。harness 精简实例（无灯）直接跳过。
    */
   private applyDeviceMood(on: boolean, box?: DeviceBoxInfo): void {
-    if (!this.ambient || !this.hemi || !this.sun) return;
+    if (!this.lights.ambient || !this.lights.hemi || !this.lights.sun) return;
     if (on) {
       if (!this.moodBackup) {
         this.moodBackup = {
-          ambient: this.ambient.intensity,
-          hemi: this.hemi.intensity,
-          sun: this.sun.intensity,
-          skyVisible: this.skyMesh ? this.skyMesh.visible : false,
+          ambient: this.lights.ambient.intensity,
+          hemi: this.lights.hemi.intensity,
+          sun: this.lights.sun.intensity,
+          skyVisible: this.lights.skyMesh ? this.lights.skyMesh.visible : false,
         };
       }
-      this.ambient.intensity = this.moodBackup.ambient * 0.42;
-      this.hemi.intensity = this.moodBackup.hemi * 0.36;
-      this.sun.intensity = this.moodBackup.sun * 0.42;
-      this.sun.position.set(
+      this.lights.ambient.intensity = this.moodBackup.ambient * 0.42;
+      this.lights.hemi.intensity = this.moodBackup.hemi * 0.36;
+      this.lights.sun.intensity = this.moodBackup.sun * 0.42;
+      this.lights.sun.position.set(
         (box?.centerX ?? 0) + 14, (box?.h ?? 3) + 22, (box?.centerZ ?? 0) + 10,
       );
-      if (this.skyMesh) this.skyMesh.visible = false;
+      if (this.lights.skyMesh) this.lights.skyMesh.visible = false;
       if (!this.scene.fog) {
         this.scene.fog = new THREE.Fog(FOG_COLOUR, FOG_NEAR, FOG_FAR);
       }
       this.renderer.setClearColor(FOG_COLOUR, 1);
     } else {
       if (this.moodBackup) {
-        this.ambient.intensity = this.moodBackup.ambient;
-        this.hemi.intensity = this.moodBackup.hemi;
-        this.sun.intensity = this.moodBackup.sun;
-        this.sun.position.set(80, 130, 60);
-        if (this.skyMesh) this.skyMesh.visible = this.moodBackup.skyVisible;
+        this.lights.ambient.intensity = this.moodBackup.ambient;
+        this.lights.hemi.intensity = this.moodBackup.hemi;
+        this.lights.sun.intensity = this.moodBackup.sun;
+        this.lights.sun.position.set(80, 130, 60);
+        if (this.lights.skyMesh) this.lights.skyMesh.visible = this.moodBackup.skyVisible;
         this.moodBackup = null;
       }
       this.scene.fog = null;
@@ -2636,31 +2467,31 @@ export class EquipmentScene {
     this.fluidFlow?.dispose();
     this.scene.remove(this.root);
 
-    if (this.skyMesh) {
-      this.scene.remove(this.skyMesh);
-      (this.skyMesh.material as THREE.Material).dispose();
-      this.skyMesh = null;
+    if (this.lights.skyMesh) {
+      this.scene.remove(this.lights.skyMesh);
+      (this.lights.skyMesh.material as THREE.Material).dispose();
+      this.lights.skyMesh = null;
     }
-    this.skyGeo?.dispose();
-    this.skyGeo = null;
-    this.envKey = null;
-    this.skyKey = null;
-    this.shadowKey = 0;
+    this.lights.skyGeo?.dispose();
+    this.lights.skyGeo = null;
+    this.lights.envKey = null;
+    this.lights.skyKey = null;
+    this.lights.shadowKey = 0;
     this.miniCanvas = null;
     this.miniCtx = null;
     this.slotStatus = [];
-    for (const l of [this.sun, this.hemi, this.ambient]) {
+    for (const l of [this.lights.sun, this.lights.hemi, this.lights.ambient]) {
       if (l) {
         l.dispose?.();
         this.scene.remove(l);
       }
     }
-    this.envRT?.dispose();
-    this.envSource?.dispose();
-    this.envRT = null;
-    this.envSource = null;
-    this.pmrem?.dispose();
-    this.pmrem = null;
+    this.lights.envRT?.dispose();
+    this.lights.envSource?.dispose();
+    this.lights.envRT = null;
+    this.lights.envSource = null;
+    this.lights.pmrem?.dispose();
+    this.lights.pmrem = null;
     this.scene.environment = null;
     this.postFx.disposeComposer();
     this.applySelectionEmissive(null);
