@@ -16,18 +16,18 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { utterancesOf } from "../src/server/services/videoGenerationService";
 import {
   buildStepSubtitleLines,
   buildStepNarrationText,
   resolveStepName,
   isSafetySubtitleLine,
-  utterancesOf,
   displayWidth,
   wrapDisplayLines,
   SUBTITLE_LINE_MAX_WIDTH,
   TEACHING_OP_MAX_LINES,
   SAFETY_LINE_PREFIX,
-} from "../src/server/services/videoGenerationService";
+} from "../src/server/services/videoSubtitleText";
 import { TEACHING_SCRIPTS, getTeachingStep } from "../src/server/services/videoTeachingScript";
 
 type Step = {

@@ -18,11 +18,8 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import {
-  buildStepSubtitleLines,
-  buildStepNarrationText,
-  utterancesOf,
-} from "../src/server/services/videoGenerationService";
+import { utterancesOf } from "../src/server/services/videoGenerationService";
+import { buildStepSubtitleLines, buildStepNarrationText } from "../src/server/services/videoSubtitleText";
 
 type Step = {
   step_no: number;
