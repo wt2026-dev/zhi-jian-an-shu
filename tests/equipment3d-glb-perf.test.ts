@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { normalizeGLBMaterials } from '../src/components/equipment3d/equipment';
+import { normalizeGLBMaterials } from '../src/components/equipment3d/equipmentGlb';
 
 /** 造一个带 MeshPhysicalMaterial 的 mesh，模拟 GLTFLoader 遇到 KHR_materials_specular 的输出。 */
 function physicalMesh(): { root: THREE.Group; mesh: THREE.Mesh; mat: THREE.MeshPhysicalMaterial } {
