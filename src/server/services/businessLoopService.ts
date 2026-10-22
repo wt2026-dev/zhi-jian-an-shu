@@ -39,60 +39,23 @@ import { DASHSCOPE_CHAT_MODEL } from "../utils/config.ts";
 import { TREND_METRICS } from "./degradationTrend.ts";
 import { addAuditLog } from "./auditService.ts";
 import { buildLotoAdvisory, classifyLotoType, compact, energySourceItemsFor, lotoRequirement } from "./lotoAdvisory.ts";
+import { buildSuggestions, mapEquipmentForFrontend, stagePrefillAdvice, stagePrefillContent } from "./businessLoopDetail.ts";
+import {
+  ARTIFACT_DEFS,
+  JSA_RISK_TO_LEVEL,
+  LOAD_LIMIT,
+  STAGE_DEFS,
+  TEMP_LIMIT,
+  VIB_LIMIT,
+  stageDef,
+  telemetryValueOrNull,
+  type StageDef,
+} from "./businessLoopConstants.ts";
 import { logger } from "../../utils/logger.ts";
 import type { Equipment } from "../../types/index.ts";
 
 // ==================== 闭环常量定义 ====================
 
-export interface StageDef {
-  no: number;
-  key: string;
-  stageId: string; // 前端 StageId
-  title: string;
-  aiBadge: string;
-  outputSummary: string;
-  pageRef: string; // 对应页面路由（前端 tabKey 同名）
-  durationText: string;
-  minutes: number;
-}
-
-const STAGE_DEFS: StageDef[] = [
-  { no: 1, key: "field_report", stageId: "stage_report", title: "现场报修", aiBadge: "AI 诊断", outputSummary: "AI 工单草稿 · 检修工单", pageRef: "work_orders", durationText: "预计 15min", minutes: 15 },
-  { no: 2, key: "hazard_permit", stageId: "stage_permit", title: "高危作业票", aiBadge: "JSA 识别", outputSummary: "JSA 风险等级 · 安全与LOTO", pageRef: "safety", durationText: "预计 25min", minutes: 25 },
-  { no: 3, key: "loto", stageId: "stage_loto", title: "LOTO能量隔离", aiBadge: "LOTO 规则", outputSummary: "隔离清单建议 · 安全与LOTO", pageRef: "safety", durationText: "预计 30min", minutes: 30 },
-  { no: 4, key: "repair_execution", stageId: "stage_execution", title: "检修执行", aiBadge: "SOP 推理", outputSummary: "检修方案 · 作业指引", pageRef: "procedures", durationText: "预计 90min", minutes: 90 },
-  { no: 5, key: "completion", stageId: "stage_completion", title: "完工", aiBadge: "巡检比对", outputSummary: "完工验收 · 巡检作业", pageRef: "inspections", durationText: "预计 30min", minutes: 30 },
-  { no: 6, key: "quality_archive", stageId: "stage_archive", title: "质检归档", aiBadge: "知识提炼", outputSummary: "质检报告 · 知识库", pageRef: "knowledge", durationText: "预计 20min", minutes: 20 },
-];
-
-export function stageDef(no: number): StageDef {
-  return STAGE_DEFS[no - 1];
-}
-
-/** 产出物类型定义（8 项标准业务资料，与迁移 artifact_type CHECK 约束一致） */
-const ARTIFACT_DEFS: Array<{ type: string; title: string; stageNo: number }> = [
-  { type: "work_order", title: "智能检修工单", stageNo: 1 },
-  { type: "hazard_permit", title: "高危作业安全许可票", stageNo: 2 },
-  { type: "loto_checklist", title: "LOTO 能量隔离挂牌清单", stageNo: 3 },
-  { type: "work_guide", title: "检修作业指引", stageNo: 4 },
-  { type: "acceptance", title: "修后现场质量验收记录", stageNo: 5 },
-  { type: "quality_report", title: "综合质检闭环评估报告", stageNo: 6 },
-  { type: "knowledge_entry", title: "检修知识沉淀条目", stageNo: 6 },
-  { type: "archive_pack", title: "闭环电子档案综合包", stageNo: 6 },
-];
-
-/** 温度/振动共用同一组台账-趋势侧经验限值（degradationTrend.ts TREND_METRICS 单一事实来源） */
-const TEMP_LIMIT = TREND_METRICS.find((m) => m.key === "temperature")?.warnThreshold ?? 75;
-const VIB_LIMIT = TREND_METRICS.find((m) => m.key === "vibration")?.warnThreshold ?? 4.5;
-const LOAD_LIMIT = TREND_METRICS.find((m) => m.key === "loadRate")?.warnThreshold ?? 85;
-
-/** JSA 四档结论 → 站内作业票风险等级口径（与安全台账 Level 1-4 显示约定对齐） */
-const JSA_RISK_TO_LEVEL: Record<string, string> = {
-  极高: "极大风险 (Level 1)",
-  高: "较大风险 (Level 2)",
-  中: "一般风险 (Level 3)",
-  低: "低风险 (Level 4)",
-};
 
 // ==================== 业务异常（控制器统一转 HTTP 响应） ====================
 
@@ -372,11 +335,6 @@ async function runPrefillSequence(loopId: string, goal: string, eq: Equipment | 
  * 后会显示成"温度 0°C（限值 80°C）"，读起来就是一台正常运转的设备。
  * 缺测的正确表达是 null，由调用方显示「未接入」。
  */
-function telemetryValueOrNull(v: unknown): number | null {
-  if (v == null) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
 
 /** 环节 1 核心：工单草稿生成（与 /api/v1/ai/generate-work-order 同源 DashScope 通道 + aiCache） */
 async function runWorkOrderDraftCore(input: {
@@ -1265,159 +1223,6 @@ export async function buildHistoryItems(): Promise<any[]> {
   return items;
 }
 
-// ==================== 内部组装工具 ====================
-
-function mapEquipmentForFrontend(eq: Equipment | null) {
-  const te = eq?.telemetry ?? null;
-  if (!eq) {
-    return {
-      id: "",
-      code: "",
-      name: "未识别设备",
-      model: "",
-      workshop: "",
-      status: "normal" as const,
-      // 未识别设备时没有任何读数，"温度 0°C" 会被前端读成"设备冷态正常"
-      temperature: null,
-      temperatureThreshold: TEMP_LIMIT,
-      vibration: null,
-      loadRate: null,
-      healthScore: null,
-    };
-  }
-  const rawStatus = String(eq.status || "");
-  const status: "warning" | "normal" | "danger" =
-    ["fault", "critical"].includes(rawStatus) ? "danger" : rawStatus === "warning" ? "warning" : "normal";
-  return {
-    id: eq.id,
-    code: eq.code,
-    name: eq.name,
-    model: eq.model || "",
-    workshop: String(eq.workshop || ""),
-    status,
-    temperature: telemetryValueOrNull(te?.temperature),
-    temperatureThreshold: TEMP_LIMIT,
-    vibration: telemetryValueOrNull(te?.vibration),
-    loadRate: telemetryValueOrNull(te?.loadRate),
-    healthScore: Number.isFinite(Number(eq.healthScore)) ? Number(eq.healthScore) : null,
-  };
-}
-
-function stagePrefillContent(stage: any): string | null {
-  const p = stage.aiPrefill;
-  if (!p) return null;
-  if (stage.stageNo === 1) {
-    const d = p.workOrderDraft;
-    if (!d?.title) return p.message || "工单草稿预填失败，请在确认前人工核对填写工单要素";
-    return `${d.title}｜严重度优先级 ${d.priority || "—"}｜预计 ${d.estimatedHours ?? "—"} 小时`;
-  }
-  if (stage.stageNo === 2) {
-    const a = p.assessment;
-    if (!a?.riskLevel) return p.message || "JSA 预填失败，请人工开展作业安全分析";
-    return `JSA 风险等级：${a.riskLevel}・${a.riskReason || "（未输出理由）"}`;
-  }
-  if (stage.stageNo === 3) {
-    const items = p.lotoItems || [];
-    const cnt = items.length;
-    return cnt ? `AI 规则推演 ${cnt} 个隔离点；锁具要求 ${p.lockCount ?? cnt} 把` : p.note || null;
-  }
-  if (stage.stageNo === 4) {
-    const plan = p.plan;
-    if (!plan?.overview) return p.message || "检修方案预填失败，请人工编制方案";
-    return plan.overview;
-  }
-  if (stage.stageNo === 5) return p.acceptanceSummary || null;
-  if (stage.stageNo === 6) {
-    const c = p.contribution;
-    if (c?.worthContributing) return `知识沉淀建议：${c.title}`;
-    return c?.message || "待归档或未达沉淀标准";
-  }
-  return null;
-}
-
-function stagePrefillAdvice(stage: any): string | null {
-  const p = stage.aiPrefill;
-  if (!p) return null;
-  if (stage.stageNo === 1 && Array.isArray(p.workOrderDraft?.recommendedSteps)) {
-    return p.workOrderDraft.recommendedSteps.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n");
-  }
-  if (stage.stageNo === 2 && Array.isArray(p.assessment?.jsaMeasures)) {
-    return p.assessment.jsaMeasures
-      .slice(0, 6)
-      .map((m: any) => `${m.hazard}：${m.control}`)
-      .join("\n");
-  }
-  if (stage.stageNo === 3) {
-    const items = p.lotoItems || [];
-    return items.map((i: any) => `【${i.type}】${i.point}${i.lockNumber ? `（锁号 ${i.lockNumber}）` : "（锁具编号待现场登记）"}`).join("\n");
-  }
-  if (stage.stageNo === 4 && p.plan?.steps) {
-    return p.plan.steps.map((s: any) => `${s.step}. ${s.operation}${s.qualityStandard ? `（验收：${s.qualityStandard}）` : ""}`).join("\n");
-  }
-  return null;
-}
-
-function buildSuggestions(loop: any, stagesView: any[], lotoItems: any[], allCompleted: boolean): any[] {
-  const current = stagesView.find((s) => s.status === "in_progress") || stagesView[stagesView.length - 1];
-  const currentNo = current?.order ?? loop.currentStage;
-  const defs = STAGE_DEFS;
-
-  const todoByStage: Record<number, { title: string; content: string; tag: string; actionText: string }> = {
-    1: { title: `待办提醒：确认「${loop.loopNo}」工单草稿后推进`, content: "AI 已预填工单要素，请在检修工单页核对无误后确认下发报修", tag: "工单核对", actionText: "去确认" },
-    2: { title: "待办提醒：核对 JSA 措施后办理作业票", content: "作业安全分析已在环节页预填，确认后系统落成真实作业票（待双人会签）", tag: "安全审批", actionText: "去核对 JSA" },
-    3: {
-      title: `待办提醒：LOTO 请完成 ${lotoItems.filter((i) => i.confirmed).length}/${lotoItems.length} 项确认`,
-      content: lotoItems.filter((i) => !i.confirmed).length
-        ? `未确认项：${lotoItems.filter((i) => !i.confirmed).map((i) => i.point).join("、")}`
-        : "全部隔离点已确认完成",
-      tag: "安全闸门",
-      actionText: "去逐项确认",
-    },
-    4: { title: "待办提醒：确认检修方案后下发执行", content: "检修方案已由 AI 预填（步骤/备件/安全措施），确认后即可组织开工", tag: "方案确认", actionText: "去查看方案" },
-    5: { title: "待办提醒：完工验收与质量复核", content: "维修完工后请完成现场验收记录与遥测复核", tag: "完工验收", actionText: "去验收" },
-    6: { title: "待办提醒：质检归档与知识沉淀", content: "归档将生成质检报告并判断是否沉淀知识条目", tag: "归档收尾", actionText: "去归档" },
-  };
-  const sug1 = todoByStage[currentNo] || todoByStage[6];
-
-  const degradedStage = stagesView.find((s) => s.aiPrefill?.status === "degraded");
-  let sug2: { id: string; type: "risk"; title: string; content: string; tag: string; actionText: string };
-  if (degradedStage) {
-    sug2 = {
-      id: "sug-2",
-      type: "risk",
-      title: `风险提示：环节 ${degradedStage.order}（${degradedStage.title}）AI 结果为降级规则结果`,
-      content: `${degradedStage.aiPrefill?.engine || "该 AI 能力"}未输出可信结构化结果，请人工核校后再推进，避免以规则兜底内容直接替代工程判断`,
-      tag: "AI 降级",
-      actionText: "去人工核校",
-    };
-  } else {
-    sug2 = {
-      id: "sug-2",
-      type: "risk",
-      title: `风险提示：遥测对照经验限值（温度 < ${TEMP_LIMIT}°C / 振动 < ${VIB_LIMIT} mm/s）`,
-      content: `限值来源为台账-趋势复用经验限值，非设备档案实测阈值；如需精确报警线请以设备台账与厂家手册为准`,
-      tag: "遥测对照",
-      actionText: "查看健康度",
-    };
-  }
-
-  const sug3 = {
-    id: "sug-3",
-    type: "next" as const,
-    title: allCompleted ? "下一步引导：执行归档生成质检报告" : `下一步引导：推进至「${defs[Math.min(currentNo, 5)].title}」`,
-    content: allCompleted
-      ? "六个环节已全部确认，归档将生成质检报告并判断知识沉淀价值"
-      : `${current?.aiPrefill?.content || "AI 预填内容生成后即可在环节页核对确认"}`,
-    tag: "自动编排",
-    actionText: "查看当前环节",
-  };
-
-  return [
-    { id: "sug-1", type: "todo" as const, ...sug1 },
-    sug2,
-    sug3,
-  ];
-}
 
 // ---- 预览文本生成器（全部来自真实落库数据） ----
 
