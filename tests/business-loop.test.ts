@@ -19,7 +19,8 @@ import {
   AuditLogRepository,
 } from "../src/db/repositories/index.ts";
 import { getDb } from "../src/db/db.ts";
-import { joinClauses } from "../src/server/services/businessLoopService.ts";
+import {  } from "../src/server/services/businessLoopService.ts";
+import { joinClauses } from "../src/server/services/businessLoopPreviews.ts";
 
 const GOAL = "2#无油螺杆空压机主机振动偏高，走检修流程";
 
