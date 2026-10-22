@@ -56,6 +56,7 @@ import {
 } from './factoryOverviewTypes';
 import { defaultBuildingSpecs } from './factoryOverviewTypes';
 import { buildGreenery, buildRoads, type GroundCtx } from './factoryOverviewGround';
+import { buildGates, buildLotBoundaries } from './factoryOverviewGates';
 
 
 /* ============================ 主体 ============================ */
@@ -214,13 +215,22 @@ export class FactoryOverview {
     this.buildGround();
     buildRoads(this.groundCtx());
     this.buildZonePlates();
-    this.buildLotBoundaries();
+    buildLotBoundaries({ group: this.group, placed: this.placed, zonesResolved: this.zonesResolved });
     buildGreenery(this.groundCtx());
     this.buildBuildings();
     this.buildPipeBridges();
     this.buildVehicles();
     this.buildUnderConstructionPlot();
-    this.buildGates();
+    buildGates({
+      group: this.group,
+      extent: this.extent,
+      gates: this.gates,
+      gateRings: this.gateRings,
+      gateBeacons: this.gateBeacons,
+      gateSprites: this.gateSprites,
+      gateLink: this.mat.gateLink,
+      makeBillboard: (paint, w, h) => this.makeBillboard(paint, w, h),
+    });
     // ⚠️ 顺序要紧：标牌要画上"排名 / 设备数 / 故障率"，所以必须**先**结算分区指标再绘制。
     this.refreshZoneViews();
     this.buildZoneSignage();
@@ -885,31 +895,6 @@ export class FactoryOverview {
 
   /* ---------------- 地块边界与科技标线（每栋的场地线） ---------------- */
 
-  private buildLotBoundaries(): void {
-    for (const b of this.placed) {
-      const zone = this.zonesResolved.find((z) => z.id === b.zoneId) ?? this.zonesResolved[0];
-      const pad = 3.5;
-      const lw = b.w + pad * 2;
-      const ld = b.d + pad * 2;
-      const hx = lw / 2;
-      const hz = ld / 2;
-
-      const pts = [
-        new THREE.Vector3(-hx, 0.04, -hz),
-        new THREE.Vector3(hx, 0.04, -hz),
-        new THREE.Vector3(hx, 0.04, hz),
-        new THREE.Vector3(-hx, 0.04, hz),
-        new THREE.Vector3(-hx, 0.04, -hz),
-      ];
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color: zone.color, transparent: true, opacity: 0.5 })
-      );
-      line.position.set(b.x, 0, b.z);
-      this.group.add(line);
-    }
-  }
-
   /* ======================== 在建工程地块 ======================== */
 
   /** 在建工程落位：取离所有分区最远的空闲象限；四象限全占则放到外环之外。 */
@@ -1012,197 +997,6 @@ export class FactoryOverview {
   }
 
   /* ======================== 园区出入口（标记点 + 连线） ======================== */
-
-  private buildGates(): void {
-    const { halfX, halfZ } = this.extent;
-    const defs: Array<Omit<FactoryGate, 'heading' | 'linkTo'> & { heading: number; linkTo: { x: number; z: number } }> = [
-      {
-        id: 'gate-north',
-        name: '厂区主出入口 · 北门',
-        kind: 'main',
-        x: 0,
-        z: -halfZ * 0.99,
-        heading: 0,
-        linkTo: { x: 0, z: -halfZ * 0.55 },
-      },
-      {
-        id: 'gate-east',
-        name: '物流货运口 · 东门',
-        kind: 'logistics',
-        x: halfX * 0.99,
-        z: 0,
-        heading: Math.PI / 2,
-        linkTo: { x: halfX * 0.55, z: 0 },
-      },
-      {
-        id: 'gate-south',
-        name: '人流出入口 · 南门',
-        kind: 'person',
-        x: 0,
-        z: halfZ * 0.99,
-        heading: Math.PI,
-        linkTo: { x: 0, z: halfZ * 0.55 },
-      },
-      {
-        id: 'gate-west',
-        name: '物料周转口 · 西门',
-        kind: 'buffer',
-        x: -halfX * 0.99,
-        z: halfZ * 0.42,
-        heading: -Math.PI / 2,
-        linkTo: { x: -halfX * 0.55, z: halfZ * 0.42 },
-      },
-    ];
-
-    const GATE_COLOR: Record<FactoryGate['kind'], number> = {
-      main: 0x22d3ee,
-      logistics: 0x38bdf8,
-      person: 0x10b981,
-      buffer: 0xf59e0b,
-    };
-    const GATE_TAG: Record<FactoryGate['kind'], string> = {
-      main: '主出入口',
-      logistics: '物流口',
-      person: '人流口',
-      buffer: '周转口',
-    };
-    /**
-     * 出口立牌的落位旋钮（世界系）：out=沿"园区中心→门"外推米数，
-     * side=沿道路横向的倍数（正=绕 Y 逆时针让开），band=离地高度带。
-     * 三个值都是拿 scratch/label-overlap-probe.ts 按真实取景相机投影试出来的：
-     * 目的只有一个 —— 16:9 与窄屏下都不与分区牌 / 在建牌 / 厂房屋顶名叠字。
-     */
-    const DEFAULT_GATE_SIGN_OFFSET = { out: 15, side: 0, band: 12.5 };
-    const GATE_SIGN_OFFSET: Record<string, { out: number; side: number; band: number }> = {
-      'gate-north': { out: 15, side: 0, band: 12.5 },
-      'gate-east': { out: 15, side: 0, band: 12.5 },
-      // 南门与 C 区同在 x=0 视线上：沿道路横向让开 27m，落到 C 区牌下方的高度带
-      'gate-south': { out: 15, side: -1.8, band: 9 },
-      // 西门正对在建工程牌：外推 24m 并抬到 60m 带，从在建牌与 A 区牌中间穿过去
-      'gate-west': { out: 24, side: 1.1, band: 60 },
-    };
-
-    for (const d of defs) {
-      const gate: FactoryGate = { ...d };
-      this.gates.push(gate);
-
-      const color = GATE_COLOR[gate.kind];
-      const g = new THREE.Group();
-      g.name = `factoryGate:${gate.id}`;
-      g.position.set(gate.x, 0, gate.z);
-      g.rotation.y = gate.heading;
-
-      // 门柱 + 横梁（标记点本体）
-      const postGeo = new THREE.BoxGeometry(0.8, 6, 0.8);
-      const postMat = new THREE.MeshStandardMaterial({
-        color: 0x1f3a56,
-        roughness: 0.6,
-        metalness: 0.35,
-        emissive: new THREE.Color(color),
-        emissiveIntensity: 0.22,
-      });
-      const postL = new THREE.Mesh(postGeo, postMat);
-      postL.position.set(-6, 3, 0);
-      const postR = new THREE.Mesh(postGeo, postMat);
-      postR.position.set(6, 3, 0);
-      g.add(postL, postR);
-
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(13.2, 0.7, 0.9), postMat);
-      beam.position.set(0, 6, 0);
-      g.add(beam);
-
-      // 脉冲光环（标记点）
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(5.4, 6.6, 40),
-        new THREE.MeshBasicMaterial({
-          color,
-          transparent: true,
-          opacity: 0.5,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-          toneMapped: false,
-        })
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.14;
-      ring.renderOrder = 3;
-      g.add(ring);
-      this.gateRings.push(ring);
-
-      // 竖直光柱信标（远处也能看见"出口在哪"）
-      const beacon = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.5, 0.5, 26, 10, 1, true),
-        new THREE.MeshBasicMaterial({
-          color,
-          transparent: true,
-          opacity: 0.16,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-          toneMapped: false,
-        })
-      );
-      beacon.position.set(0, 13, 0);
-      g.add(beacon);
-      this.gateBeacons.push(beacon);
-
-      // 出口标牌
-      const sp = this.makeBillboard(
-        (ctx, c) => {
-          ctx.fillStyle = 'rgba(6, 20, 36, 0.9)';
-          ctx.fillRect(0, 0, c.width, c.height);
-          ctx.strokeStyle = hexOf(color);
-          ctx.lineWidth = 4;
-          ctx.strokeRect(2, 2, c.width - 4, c.height - 4);
-          ctx.fillStyle = '#e0f7ff';
-          ctx.font = '700 36px "Microsoft YaHei", sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(`${GATE_TAG[gate.kind]} · ${gate.name.split(' · ')[1] ?? ''}`, c.width / 2, 54);
-          ctx.fillStyle = hexOf(color);
-          ctx.font = '500 22px monospace';
-          ctx.fillText('GATE / 24H 智能道闸', c.width / 2, 100);
-        },
-        560,
-        130
-      );
-      if (sp) {
-        sp.scale.set(0.15, 0.15 * (130 / 560), 1);
-        // 标牌停在"道路端点外侧"：沿出入口→园区外的方向外推一段，再沿道路横向让开，
-        // 并抬到各自的高度带。四道门里有两道正落在 C 区牌的视线轴上（南/北门与 C 区同在
-        // x=0），贴着闸机立牌就会和分区牌叠成一条；西门则与在建工程牌同高。
-        // ⚠️ 位移在**世界系**里算（闸机组各自 rotation.y 不同，写局部轴会随朝向翻转）。
-        const off = GATE_SIGN_OFFSET[gate.id] ?? DEFAULT_GATE_SIGN_OFFSET;
-        const dist = Math.hypot(gate.x, gate.z) || 1;
-        const ox = (gate.x / dist) * off.out;
-        const oz = (gate.z / dist) * off.out;
-        // 横向 = 外向向量绕 Y 转 90°（世界系）
-        const sx = -oz * off.side;
-        const sz = ox * off.side;
-        const wx = ox + sx;
-        const wz = oz + sz;
-        // 世界偏移 → 闸机局部：再绕 Y 反转正对 heading
-        const c = Math.cos(gate.heading);
-        const s = Math.sin(gate.heading);
-        sp.position.set(wx * c - wz * s, off.band, wx * s + wz * c);
-        g.add(sp);
-        this.gateSprites.push(sp);
-      }
-
-      // 通向园区主路的虚线连线
-      const linkPts = [
-        new THREE.Vector3(gate.x, 0.16, gate.z),
-        new THREE.Vector3(gate.linkTo.x, 0.16, gate.linkTo.z),
-      ];
-      const linkLine = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(linkPts),
-        this.mat.gateLink.clone()
-      );
-      (linkLine.material as THREE.LineDashedMaterial).color = new THREE.Color(color);
-      linkLine.computeLineDistances();
-      this.group.add(linkLine);
-
-      this.group.add(g);
-    }
-  }
 
   /* ======================== 分区产值标牌 + 排名 ======================== */
 
